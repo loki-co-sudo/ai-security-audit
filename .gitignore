@@ -46,3 +46,5 @@ test_screenshots.py
 # キャッシュ
 *.sqlite
 *.db
+
+# ランチャー（OSごとに異なるため除外しない — 含める）
