@@ -1,0 +1,82 @@
+"""
+core/llm_client.py — LLM通信抽象層
+
+OpenAI互換API（Ollama / OpenAI / vLLM 等）のストリーミング・非ストリーミングを統一。
+"""
+
+from __future__ import annotations
+from typing import Callable, Iterator
+from openai import OpenAI
+from core.settings import LLM_BASE_URL, LLM_API_KEY, LLM_MODEL, LLM_TIMEOUT
+
+
+class LLMClient:
+    def __init__(
+        self,
+        base_url: str = LLM_BASE_URL,
+        api_key:  str = LLM_API_KEY,
+        model:    str = LLM_MODEL,
+        timeout:  int = LLM_TIMEOUT,
+    ):
+        self.model   = model
+        self.timeout = timeout
+        self._client = OpenAI(base_url=base_url, api_key=api_key)
+
+    # ── ストリーミング API ─────────────────────────────────
+    def stream(
+        self,
+        messages:   list[dict],
+        on_chunk:   Callable[[str], None],
+        on_done:    Callable[[], None] | None = None,
+        on_error:   Callable[[Exception], None] | None = None,
+    ) -> str:
+        """
+        LLMをストリーミング呼び出しし、各チャンクを on_chunk に渡す。
+        完全なレスポンス文字列を返す。
+        """
+        full = ""
+        try:
+            response = self._client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                stream=True,
+                timeout=self.timeout,
+            )
+            for chunk in response:
+                delta = chunk.choices[0].delta.content or ""
+                if delta:
+                    full += delta
+                    on_chunk(delta)
+        except Exception as e:
+            if on_error:
+                on_error(e)
+            else:
+                raise
+        finally:
+            if on_done:
+                on_done()
+        return full
+
+    # ── 非ストリーミング API ───────────────────────────────
+    def complete(self, messages: list[dict]) -> str:
+        """LLMを一括呼び出しし、完全なレスポンス文字列を返す。"""
+        response = self._client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            stream=False,
+            timeout=self.timeout,
+        )
+        return response.choices[0].message.content or ""
+
+    # ── ユーティリティ ─────────────────────────────────────
+    @staticmethod
+    def system(content: str) -> dict:
+        return {"role": "system", "content": content}
+
+    @staticmethod
+    def user(content: str) -> dict:
+        return {"role": "user", "content": content}
+
+    @staticmethod
+    def assistant(content: str) -> dict:
+        return {"role": "assistant", "content": content}
