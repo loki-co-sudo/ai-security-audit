@@ -38,6 +38,13 @@ AI-Security-tool/
 ├── main.py                      # エントリポイント。dirs/init確保→config.load()→App起動
 ├── config.json                  # 実行時LLM設定（gitignore済み。APIキーを含む可能性あり）
 ├── requirements.txt             # pip install -r requirements.txt
+├── 起動.bat                     # Explorerダブルクリック起動（コンソールあり）
+├── 起動_silent.bat              # Explorerダブルクリック起動（コンソールなし）
+├── samples/
+│   └── target_code.py           # CODE AUDIT 動作確認用のサンプル脆弱コード
+├── docs/
+│   ├── DESIGN.md                # システム設計書（アーキテクチャ詳細）
+│   └── screenshot_*.png         # README埋め込み用スクリーンショット
 ├── core/
 │   ├── settings.py              # 全定数（色・フォント・LLMデフォルト値・スキャン設定）
 │   ├── config.py                # config.jsonの読み書き。settings.pyをデフォルトとしてフォールバック
@@ -63,7 +70,7 @@ AI-Security-tool/
 │       ├── audit_panel.py       # CODE AUDITタブ（シアン系）
 │       ├── attack_panel.py      # ATTACK MODEタブ（レッド系）
 │       └── defense_panel.py     # DEFENSE MODEタブ（グリーン系）
-└── reports/                     # スキャン結果出力先（ローカル保存のみ）
+└── reports/                     # スキャン結果出力先（ローカル保存のみ・gitignore済み）
 ```
 
 ### 設計パターンと重要な規約
@@ -136,6 +143,22 @@ class MyAgent(BaseAgent):
 - プライベートメソッド: `_snake_case`（先頭アンダースコア1つ）
 - 定数: `UPPER_SNAKE_CASE`（`settings.py` に集約）
 - イベント種別定数: `core/event_bus.py` に定義済みの定数を使う（文字列リテラルを直書きしない）
+
+### コミットメッセージの規約
+プレフィックス（`feat:`, `fix:`, `docs:`, `refactor:`, `chore:` 等）はそのまま英語で使うが、
+それに続く説明文は**必ず日本語**で記述する。
+
+```
+# 良い例
+feat: LLM設定ダイアログを追加
+fix: DEFENSE MODEでALERTイベントが発火しないバグを修正
+docs: READMEにセットアップ手順を追記
+refactor: エージェント基底クラスのエラーハンドリングを整理
+
+# 悪い例（英語の説明はNG）
+feat: add LLM settings dialog
+fix: fix ALERT event not firing in DEFENSE MODE
+```
 
 ### 禁止事項
 - `threading.sleep()` をGUIスレッド（メインスレッド）で使わない（フリーズする）
