@@ -14,11 +14,13 @@ def _ensure_dirs() -> None:
 def main() -> None:
     _ensure_dirs()
 
-    # gui/__init__.py が無い場合に備えて作成
-    for pkg in ("gui", "gui/panels", "gui/widgets", "core", "agents", "tools"):
+    for pkg in ("gui", "gui/panels", "gui/widgets", "gui/dialogs", "core", "agents", "tools"):
         init = os.path.join(pkg, "__init__.py")
         if not os.path.exists(init):
             open(init, "w").close()
+
+    import core.config as config
+    config.load()
 
     from gui.app import App
     app = App()

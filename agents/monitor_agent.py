@@ -88,9 +88,12 @@ class MonitorAgent(BaseAgent):
 
                 if matched:
                     batch_buffer.append(line)
-                    # パターンマッチ時にアラートを即時表示
                     for pattern_name in matched:
                         sev = self._quick_severity(pattern_name)
+                        msg = f"{pattern_name}: {line[:80]}"
+                        # ALERT TIMELINEに送出（DefensePanelのタイムラインに表示）
+                        self._alert(sev, msg)
+                        # AI出力エリアにも即時表示
                         self._out(
                             f"  [{datetime.now().strftime('%H:%M:%S')}] "
                             f"[{sev:8}] {pattern_name:20} — {line[:80]}\n",

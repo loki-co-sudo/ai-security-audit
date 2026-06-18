@@ -47,4 +47,7 @@ test_screenshots.py
 *.sqlite
 *.db
 
+# ユーザー設定（APIキーを含む可能性があるため除外）
+config.json
+
 # ランチャー（OSごとに異なるため除外しない — 含める）

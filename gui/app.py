@@ -7,17 +7,18 @@ import ctypes
 import customtkinter as ctk
 
 import core.event_bus as ev
+import core.config as config
 from core.event_bus import EventBus
 from core.llm_client import LLMClient
 from core.settings import (
     APP_TITLE, BG_ROOT, BG_PANEL, BG_WIDGET, BORDER,
     CYAN, GREEN, RED_C, TEXT_DIM, TEXT_MID,
     TAB_AUDIT, TAB_ATTACK, TAB_DEFENSE,
-    LLM_MODEL,
 )
 from gui.panels.audit_panel import AuditPanel
 from gui.panels.attack_panel import AttackPanel
 from gui.panels.defense_panel import DefensePanel
+from gui.dialogs.settings_dialog import SettingsDialog
 
 
 ctk.set_appearance_mode("dark")
@@ -36,13 +37,18 @@ class App(ctk.CTk):
         super().__init__()
         self._setup_window()
 
-        # パネルごとに独立した EventBus
+        cfg = config.load()
         self._buses: dict[str, EventBus] = {
             "audit":   EventBus(),
             "attack":  EventBus(),
             "defense": EventBus(),
         }
-        self._llm    = LLMClient()
+        self._llm = LLMClient(
+            base_url=cfg["llm_base_url"],
+            api_key=cfg["llm_api_key"],
+            model=cfg["llm_model"],
+            timeout=cfg["llm_timeout"],
+        )
         self._panels: dict[str, ctk.CTkFrame] = {}
         self._tab_btns: dict[str, tuple] = {}
         self._active  = "audit"
@@ -96,10 +102,19 @@ class App(ctk.CTk):
         )
         self._status_dot.pack(side="right", padx=(0, 16))
 
-        ctk.CTkLabel(
-            hbar, text=f"ENGINE: {LLM_MODEL}",
+        ctk.CTkButton(
+            hbar, text="⚙", width=34, height=34,
+            fg_color="transparent", hover_color=BG_WIDGET,
+            border_color=BORDER, border_width=1,
+            text_color=TEXT_DIM, font=ctk.CTkFont("Segoe UI", 14),
+            command=self._open_settings,
+        ).pack(side="right", padx=(0, 8))
+
+        self._engine_label = ctk.CTkLabel(
+            hbar, text=f"ENGINE: {self._llm.model}",
             font=ctk.CTkFont("Consolas", 10), text_color=TEXT_DIM,
-        ).pack(side="right", padx=(0, 10))
+        )
+        self._engine_label.pack(side="right", padx=(0, 6))
 
         # 左側タイトル
         ctk.CTkLabel(
@@ -141,6 +156,13 @@ class App(ctk.CTk):
             self._content,  self._buses["attack"],  self._llm)
         self._panels["defense"] = DefensePanel(
             self._content, self._buses["defense"], self._llm)
+
+    # ── 設定ダイアログ ──────────────────────────────────────────
+    def _open_settings(self) -> None:
+        def on_save(model: str) -> None:
+            self._engine_label.configure(text=f"ENGINE: {model}")
+            self._status_var.set("  設定を保存しました。次回スキャンから反映されます。")
+        SettingsDialog(self, self._llm, on_save)
 
     # ── タブ切り替え ────────────────────────────────────────────
     def _switch_tab(self, key: str) -> None:

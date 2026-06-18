@@ -18,9 +18,25 @@ class LLMClient:
         model:    str = LLM_MODEL,
         timeout:  int = LLM_TIMEOUT,
     ):
-        self.model   = model
-        self.timeout = timeout
-        self._client = OpenAI(base_url=base_url, api_key=api_key)
+        self.model    = model
+        self.timeout  = timeout
+        self.base_url = base_url
+        self.api_key  = api_key
+        self._client  = OpenAI(base_url=base_url, api_key=api_key)
+
+    def update(
+        self,
+        base_url: str,
+        api_key:  str,
+        model:    str,
+        timeout:  int,
+    ) -> None:
+        """設定変更時にクライアントを再生成する。エージェントは参照を共有するため即時反映される。"""
+        self.model    = model
+        self.timeout  = timeout
+        self.base_url = base_url
+        self.api_key  = api_key
+        self._client  = OpenAI(base_url=base_url, api_key=api_key)
 
     # ── ストリーミング API ─────────────────────────────────
     def stream(
