@@ -25,31 +25,51 @@ config.load()
 from PIL import ImageGrab
 import customtkinter as ctk
 
+import ctypes
+import ctypes.wintypes
 import gui.app as _app_module
 _OrigApp = _app_module.App
 
-_OUT = os.path.join(_root, "docs")
+_OUT   = os.path.join(_root, "docs")
+_u32   = ctypes.windll.user32
+_dwmapi = ctypes.windll.dwmapi
+
+
+def _window_rect(hwnd: int) -> tuple[int, int, int, int]:
+    """DWM ビジュアル境界を取得（影・余白なし）。失敗時は GetWindowRect で代替。"""
+    rect = ctypes.wintypes.RECT()
+    try:
+        _dwmapi.DwmGetWindowAttribute(hwnd, 9, ctypes.byref(rect), ctypes.sizeof(rect))
+        if rect.right > rect.left:
+            return rect.left, rect.top, rect.right, rect.bottom
+    except Exception:
+        pass
+    _u32.GetWindowRect(hwnd, ctypes.byref(rect))
+    return rect.left, rect.top, rect.right, rect.bottom
 
 
 class _ScreenshotApp(_OrigApp):
-    """スクリーンショット撮影専用: 起動 2 秒後に全タブを撮影して終了する。"""
+    """スクリーンショット撮影専用: 起動後に最大化して全タブを撮影し終了する。"""
+
+    def _setup_window(self) -> None:
+        super()._setup_window()
+        self.state("zoomed")           # 最大化
 
     def __init__(self):
         super().__init__()
-        self.after(2000, self._step_audit)
+        self.after(2500, self._step_audit)   # 最大化アニメーション完了待ち
 
     # ── 撮影ユーティリティ ──────────────────────────────────
     def _grab(self, filename: str) -> None:
         self.lift()
         self.focus_force()
         self.update()
-        x = self.winfo_rootx()
-        y = self.winfo_rooty()
-        w = self.winfo_width()
-        h = self.winfo_height()
+        # ctypes で実際の物理ピクセル矩形を取得 (winfo は論理座標のため)
+        hwnd = _u32.GetForegroundWindow()
+        l, t, r, b = _window_rect(hwnd)
         path = os.path.join(_OUT, filename)
-        ImageGrab.grab(bbox=(x, y, x + w, y + h)).save(path)
-        print(f"  Saved: {path}  ({w}x{h}px)")
+        ImageGrab.grab(bbox=(l, t, r, b)).save(path)
+        print(f"  Saved: {path}  ({r-l}x{b-t}px)")
 
     # ── 撮影シーケンス ──────────────────────────────────────
     def _step_audit(self):
