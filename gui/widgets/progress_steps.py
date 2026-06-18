@@ -108,13 +108,12 @@ class ProgressSteps(ctk.CTkFrame):
         grid.columnconfigure((0, 1), weight=1)
 
         for i, (sev, color) in enumerate(SEV_COLORS.items()):
-            box = ctk.CTkFrame(grid, fg_color=BG_WIDGET, corner_radius=6, height=44)
+            box = ctk.CTkFrame(grid, fg_color=BG_WIDGET, corner_radius=6)
             box.grid(row=i // 2, column=i % 2, padx=3, pady=3, sticky="ew")
-            box.pack_propagate(False)
             var = ctk.StringVar(value="0")
             self._stat_vars[sev] = var
-            ctk.CTkLabel(box, text=sev, font=ctk.CTkFont("Segoe UI", 9, "bold"), text_color=color).pack(pady=(4, 0))
-            ctk.CTkLabel(box, textvariable=var, font=ctk.CTkFont("Segoe UI", 19, "bold"), text_color=color).pack()
+            ctk.CTkLabel(box, text=sev, font=ctk.CTkFont("Segoe UI", 9, "bold"), text_color=color).pack(pady=(8, 2))
+            ctk.CTkLabel(box, textvariable=var, font=ctk.CTkFont("Segoe UI", 19, "bold"), text_color=color).pack(pady=(0, 8))
 
         ctk.CTkFrame(self, fg_color=BORDER, height=1).pack(fill="x", padx=12, pady=8)
 

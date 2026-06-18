@@ -9,6 +9,7 @@ import os
 import re
 import time
 from agents.base_agent import BaseAgent
+from tools import cve_client
 
 STEPS = [
     "ターゲットファイルを読み込み中",
@@ -16,7 +17,7 @@ STEPS = [
     "AIエージェントが論理バグを推論中",
     "脆弱性情報をストリーミング中",
     "深刻度スコアを評価中",
-    "修正パッチコードを生成中",
+    "CVEデータベース照合中",
     "監査レポートを最終化中",
 ]
 
@@ -124,10 +125,29 @@ class AuditAgent(BaseAgent):
         time.sleep(0.2)
         self._step(4, "done")
 
-        # Step 5-6: 完了
+        # Step 5: CVEデータベース照合
         self._step(5, "running")
-        time.sleep(0.25)
+        cwe_nums = list(dict.fromkeys(re.findall(r'CWE-(\d+)', full)))[:4]
+        if cwe_nums and not self.is_stopped():
+            self._out("\n" + "─" * 56 + "\n", "sep")
+            self._out("  CVE CORRELATION  (NVD Database)\n", "section")
+            self._out("─" * 56 + "\n\n", "sep")
+            for cwe_num in cwe_nums:
+                if self.is_stopped():
+                    break
+                cwe_id = f"CWE-{cwe_num}"
+                self._out(f"  Searching {cwe_id} ...\n", "dim")
+                time.sleep(6.5)  # NVD レート制限: 5 req/30s
+                results = cve_client.search_by_cwe(cwe_id)
+                self._out(f"\n  ● {cwe_id} — 関連CVE:\n", "label")
+                self._out(cve_client.format_results(results), "code")
+                self._out("\n", "")
+        else:
+            self._out("\n  (CWE識別子なし — CVE照合スキップ)\n", "dim")
+            time.sleep(0.3)
         self._step(5, "done")
+
+        # Step 6: 最終化
         self._step(6, "running")
         time.sleep(0.2)
         self._step(6, "done")

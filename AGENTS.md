@@ -45,31 +45,37 @@ AI-Security-tool/
 ├── docs/
 │   ├── DESIGN.md                # システム設計書（アーキテクチャ詳細）
 │   └── screenshot_*.png         # README埋め込み用スクリーンショット
+├── Dockerfile                   # Dockerコンテナ定義（X11フォワーディング必要）
+├── docker-compose.yml           # Docker Compose設定
 ├── core/
 │   ├── settings.py              # 全定数（色・フォント・LLMデフォルト値・スキャン設定）
 │   ├── config.py                # config.jsonの読み書き。settings.pyをデフォルトとしてフォールバック
 │   ├── event_bus.py             # スレッドセーフUIイベントバス（queue.Queue基盤）
-│   └── llm_client.py            # LLMClient。update()でホットリロード可能
+│   ├── llm_client.py            # LLMClient。update()でホットリロード可能
+│   └── orchestrator.py          # LangGraph StateGraph。CRITICAL検出時に深層解析ループを実行
 ├── agents/
 │   ├── base_agent.py            # 抽象基底クラス。threading.Eventで停止管理、EventBusヘルパー群
-│   ├── audit_agent.py           # CODE AUDITエージェント（7ステップ）
+│   ├── audit_agent.py           # CODE AUDITエージェント（7ステップ。CVE照合付き）
+│   ├── langgraph_audit_agent.py # LangGraph強化型監査エージェント（orchestrator.pyを使用）
 │   ├── recon_agent.py           # ATTACK MODEエージェント（7ステップ）
 │   └── monitor_agent.py         # DEFENSE MODEエージェント（ログ監視+バッチAI分析）
 ├── tools/
 │   ├── network_scanner.py       # socket-basedポートスキャナ、SSL証明書取得
 │   ├── web_prober.py            # HTTP探査、技術スタック指紋、センシティブパス列挙
-│   └── log_watcher.py           # tailf式ログ追跡ジェネレータ、サンプルログ生成
+│   ├── log_watcher.py           # tailf式ログ追跡ジェネレータ、サンプルログ生成
+│   ├── cve_client.py            # NVD API v2クライアント。@lru_cacheでキャッシュ、サイレント失敗
+│   └── report_generator.py      # HTMLレポート生成。---VULN_START---マーカーをパースして構造化出力
 ├── gui/
 │   ├── app.py                   # メインウィンドウ。DPI対応、3タブ、30msポーリング
 │   ├── dialogs/
 │   │   └── settings_dialog.py   # LLM設定モーダル（接続テスト・config.json保存）
 │   ├── widgets/
-│   │   ├── output_box.py        # カラータグ付きスクロールテキストボックス
-│   │   └── progress_steps.py    # ステップ進捗＋深刻度カウンターウィジェット
+│   │   ├── output_box.py        # カラータグ付きスクロールテキストボックス（get_text()付き）
+│   │   └── progress_steps.py    # ステップ進捗＋深刻度カウンターウィジェット（DETECTION SUMMARY）
 │   └── panels/
-│       ├── audit_panel.py       # CODE AUDITタブ（シアン系）
-│       ├── attack_panel.py      # ATTACK MODEタブ（レッド系）
-│       └── defense_panel.py     # DEFENSE MODEタブ（グリーン系）
+│       ├── audit_panel.py       # CODE AUDITタブ（LangGraphトグル・📊レポート出力）
+│       ├── attack_panel.py      # ATTACK MODEタブ（📊レポート出力）
+│       └── defense_panel.py     # DEFENSE MODEタブ（📊レポート出力）
 └── reports/                     # スキャン結果出力先（ローカル保存のみ・gitignore済み）
 ```
 
@@ -196,29 +202,26 @@ fix: fix ALERT event not firing in DEFENSE MODE
 - [x] `gui/panels/audit_panel.py` / `attack_panel.py` / `defense_panel.py` — 各タブパネル
 
 **その他**
-- [x] `requirements.txt`
+- [x] `requirements.txt`（langgraph, langchain-core 追加済み）
 - [x] `README.md`（ポートフォリオ品質、スクリーンショット3枚付き）
 - [x] `起動.bat` / `起動_silent.bat`（Explorerダブルクリック起動）
 - [x] GitHub プライベートリポジトリ（`turara-coder/ai-security-audit`）
+- [x] `tools/report_generator.py` — HTMLレポート生成（ダークテーマ、VULN/THREATマーカーをパース）
+- [x] `tools/cve_client.py` — NVD API v2クライアント（CWE→CVE自動照合、@lru_cacheキャッシュ）
+- [x] `core/orchestrator.py` + `agents/langgraph_audit_agent.py` — LangGraph StateGraphオーケストレーション
+- [x] `Dockerfile` + `docker-compose.yml` — コンテナ対応
+- [x] 全パネルに「📊 レポート出力」ボタン追加
+- [x] CODE AUDITタブに ENGINE トグル（Standard / LangGraph）追加
 
 ### 未実装（ロードマップ）
 
 **次のフェーズ（優先度高）**
-- [ ] HTMLレポート自動生成（`reports/` 配下への出力。応用情報・セキスペ基準準拠フォーマット）
-  - スキャン結果を `reports/report_YYYYMMDD_HHMMSS.html` に保存
-  - 深刻度別の脆弱性リスト・対策サマリー・エグゼクティブサマリーを含む
-- [ ] CVEデータベース連携（NVD APIまたはローカルキャッシュ）
-  - 検出バナーのバージョン情報と照合し、既知CVEとの相関分析を行う
-
-**中期（優先度中）**
-- [ ] LangGraphマルチエージェントオーケストレーション
-  - 現在の単発エージェントをグラフで接続し、偵察→監査→防御の自動連携を実現
 - [ ] 拡張ポートスキャン（UDP対応、OS検出ヒューリスティック）
 - [ ] Webファジングエージェント（クローリング→入力フィールド特定→AIによるペイロード生成）
 
 **長期**
-- [ ] Docker対応（ポータブルな配布パッケージ）
 - [ ] CI/CD統合（GitHub Actionsでの自動脆弱性スキャン）
+- [ ] レポートのPDF出力対応（reportlab / weasyprint）
 
 ---
 

@@ -56,31 +56,37 @@ AI-Security-tool/
 ├── main.py                    # エントリポイント
 ├── config.json                # LLM接続設定（gitignore済み・APIキー含む可能性あり）
 ├── requirements.txt           # 依存ライブラリ一覧
+├── Dockerfile                 # Dockerコンテナ定義
+├── docker-compose.yml         # Docker Compose設定
 ├── core/
 │   ├── settings.py            # 全設定・カラーテーマ定数
 │   ├── config.py              # config.jsonの読み書き（settings.pyをデフォルトとしてフォールバック）
 │   ├── event_bus.py           # スレッドセーフUIイベントバス（Queue-based）
-│   └── llm_client.py          # OpenAI互換LLMクライアント（Ollama/OpenAI・ホットリロード対応）
+│   ├── llm_client.py          # OpenAI互換LLMクライアント（Ollama/OpenAI・ホットリロード対応）
+│   └── orchestrator.py        # LangGraph StateGraph（条件付き深層解析ループ）
 ├── agents/
 │   ├── base_agent.py          # エージェント抽象基底クラス（threading.Event管理）
-│   ├── audit_agent.py         # CODE AUDIT エージェント
+│   ├── audit_agent.py         # CODE AUDIT エージェント（CVE照合付き）
+│   ├── langgraph_audit_agent.py # LangGraph強化型監査エージェント
 │   ├── recon_agent.py         # ATTACK MODE エージェント（偵察・仮説生成）
 │   └── monitor_agent.py       # DEFENSE MODE エージェント（ログ監視・脅威分析）
 ├── tools/
 │   ├── network_scanner.py     # Socket-basedポートスキャナ（nmap不要）
 │   ├── web_prober.py          # HTTP探査・技術スタック指紋採取
-│   └── log_watcher.py         # tailf式リアルタイムログ追跡
+│   ├── log_watcher.py         # tailf式リアルタイムログ追跡
+│   ├── cve_client.py          # NVD API v2クライアント（CWE→CVE照合・キャッシュ付き）
+│   └── report_generator.py    # HTMLレポート生成（ダークテーマ・脆弱性詳細付き）
 ├── gui/
 │   ├── app.py                 # メインウィンドウ（3タブ、DPI対応、⚙設定ボタン）
 │   ├── dialogs/
 │   │   └── settings_dialog.py # LLM接続設定ダイアログ（接続テスト・設定保存）
 │   ├── widgets/
 │   │   ├── output_box.py      # カラータグ付きAI出力ボックス
-│   │   └── progress_steps.py  # ステップ進捗ウィジェット
+│   │   └── progress_steps.py  # ステップ進捗ウィジェット（DETECTION SUMMARY付き）
 │   └── panels/
-│       ├── audit_panel.py     # CODE AUDIT タブ
-│       ├── attack_panel.py    # ATTACK MODE タブ
-│       └── defense_panel.py   # DEFENSE MODE タブ
+│       ├── audit_panel.py     # CODE AUDIT タブ（LangGraphトグル・レポート出力）
+│       ├── attack_panel.py    # ATTACK MODE タブ（レポート出力）
+│       └── defense_panel.py   # DEFENSE MODE タブ（レポート出力）
 └── reports/                   # スキャン結果出力先（ローカル保存のみ）
 ```
 
@@ -143,6 +149,21 @@ python main.py
 
 ---
 
+### Docker で起動（オプション）
+
+```bash
+# イメージをビルドして起動（X11フォワーディングが必要）
+docker compose up --build
+
+# Windows — VcXsrv を起動後に:
+docker run -e DISPLAY=host.docker.internal:0.0 ai-security-audit
+
+# Linux — WSLg / Xサーバー使用時:
+docker run -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix ai-security-audit
+```
+
+---
+
 ## 使い方
 
 ### LLM接続設定（初回必須）
@@ -162,8 +183,11 @@ python main.py
 ### CODE AUDIT モード
 
 1. `「📂 ファイルを選択」` ボタンでPythonファイルを選択
-2. `「AI 監査を開始 ▶」` をクリック
-3. 左ペインでステップ進捗を確認、右ペインでAI解析結果をリアルタイム受信
+2. **ENGINE 選択**: `Standard`（通常） または `LangGraph`（強化モード）を選択
+   - **LangGraph モード**: CRITICAL 発見時に深層解析ループを自動実行。より徹底した攻撃チェーン分析。（要 `pip install langgraph`）
+3. `「AI 監査を開始 ▶」` をクリック
+4. 左ペインでステップ進捗を確認、右ペインでAI解析結果をリアルタイム受信
+5. スキャン完了後、右上の `「📊 レポート出力」` ボタンでHTML形式のレポートを生成・保存
 
 **検出対象の例**:
 - SQLインジェクション（クエリ文字列結合）
@@ -190,6 +214,7 @@ python main.py
 2. 「継続監視モード」チェックで、ファイル末尾をリアルタイム追跡するか選択
 3. `「▶ 監視開始」` をクリック
 4. 左ペインの **ALERT TIMELINE** で即時アラートを確認、右ペインでAI詳細分析を受信
+5. `「📊 レポート出力」` で検知結果をHTMLレポートに出力
 
 ---
 
@@ -213,10 +238,10 @@ python main.py
 - [x] 3タブ統合GUIアプリケーション
 - [x] LLM接続設定ダイアログ（接続テスト・config.json永続化）
 - [x] Windowsランチャー（起動.bat / 起動_silent.bat）
-- [ ] HTMLレポート自動生成（応用情報・セキスペ基準準拠）
-- [ ] CVEデータベース連携（既知脆弱性との相関分析）
-- [ ] LangGraphマルチエージェントオーケストレーション
-- [ ] コンテナ対応（Docker）
+- [x] HTMLレポート自動生成（応用情報・セキスペ基準準拠・ダークテーマHTML）
+- [x] CVEデータベース連携（NVD API v2 — CWEから関連CVEを自動照合）
+- [x] LangGraphマルチエージェントオーケストレーション（StateGraph + 条件付き深層解析ループ）
+- [x] コンテナ対応（Dockerfile + docker-compose.yml）
 
 ---
 

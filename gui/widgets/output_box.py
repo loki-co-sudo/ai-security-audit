@@ -66,6 +66,10 @@ class OutputBox(ctk.CTkTextbox):
         tb.see("end")
         self.configure(state="disabled")
 
+    def get_text(self) -> str:
+        """現在表示されているテキストを文字列で返す（レポート出力用）。"""
+        return self._textbox.get("1.0", "end")
+
     def clear(self) -> None:
         self.configure(state="normal")
         self.delete("1.0", "end")

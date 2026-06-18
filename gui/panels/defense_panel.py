@@ -121,6 +121,11 @@ class DefensePanel(ctk.CTkFrame):
                       border_color=BORDER, border_width=1,
                       text_color=TEXT_DIM, font=ctk.CTkFont("Segoe UI", 10),
                       command=self._clear).pack(side="right")
+        ctk.CTkButton(hdr, text="📊 レポート出力", width=106, height=26,
+                      fg_color="#0A200A", hover_color="#0F2A0F",
+                      border_color=GREEN, border_width=1,
+                      text_color=GREEN, font=ctk.CTkFont("Segoe UI", 10),
+                      command=self._export_report).pack(side="right", padx=(0, 6))
 
         self._out_box = OutputBox(right)
         self._out_box.pack(fill="both", expand=True, padx=10, pady=(0, 10))
@@ -136,13 +141,12 @@ class DefensePanel(ctk.CTkFrame):
         grid.columnconfigure((0, 1), weight=1)
 
         for i, (sev, color) in enumerate(SEV_COLORS.items()):
-            box = ctk.CTkFrame(grid, fg_color=BG_WIDGET, corner_radius=6, height=44)
+            box = ctk.CTkFrame(grid, fg_color=BG_WIDGET, corner_radius=6)
             box.grid(row=i // 2, column=i % 2, padx=3, pady=3, sticky="ew")
-            box.pack_propagate(False)
             var = ctk.StringVar(value="0")
             self._alert_vars[sev] = var
-            ctk.CTkLabel(box, text=sev, font=ctk.CTkFont("Segoe UI", 9, "bold"), text_color=color).pack(pady=(4, 0))
-            ctk.CTkLabel(box, textvariable=var, font=ctk.CTkFont("Segoe UI", 19, "bold"), text_color=color).pack()
+            ctk.CTkLabel(box, text=sev, font=ctk.CTkFont("Segoe UI", 9, "bold"), text_color=color).pack(pady=(8, 2))
+            ctk.CTkLabel(box, textvariable=var, font=ctk.CTkFont("Segoe UI", 19, "bold"), text_color=color).pack(pady=(0, 8))
 
         ctk.CTkFrame(parent, fg_color=BORDER, height=1).pack(fill="x", padx=12, pady=8)
 
@@ -222,6 +226,21 @@ class DefensePanel(ctk.CTkFrame):
 
     def _clear(self) -> None:
         self._out_box.clear()
+
+    def _export_report(self) -> None:
+        from tools import report_generator
+        raw = self._out_box.get_text()
+        html_content = report_generator.generate(
+            mode="DEFENSE MODE",
+            target=self._log_path.get(),
+            raw_text=raw,
+        )
+        out_path = report_generator.save(html_content, "defense_mode")
+        self._sys_log(f"レポート保存: {os.path.abspath(out_path)}")
+        try:
+            os.startfile(os.path.abspath(out_path))
+        except Exception:
+            pass
 
     def _sys_log(self, msg: str) -> None:
         ts = datetime.now().strftime("%H:%M:%S")
