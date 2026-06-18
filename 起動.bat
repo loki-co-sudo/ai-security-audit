@@ -1,9 +1,22 @@
 @echo off
 cd /d "%~dp0"
-echo AI Security Audit System を起動しています...
-py main.py
-if %errorlevel% neq 0 (
-    echo.
-    echo エラーが発生しました。上記のメッセージを確認してください。
-    pause
+
+where py >nul 2>&1
+if %errorlevel% equ 0 (
+    py main.py
+    goto :done
 )
+
+where python >nul 2>&1
+if %errorlevel% equ 0 (
+    python main.py
+    goto :done
+)
+
+echo.
+echo  Python 3.10 or later is required.
+echo  Download: https://www.python.org/downloads/
+echo.
+pause
+
+:done

@@ -31,8 +31,8 @@ class DefensePanel(ctk.CTkFrame):
         self._agent     = MonitorAgent(bus, llm)
         self._log_path  = tk.StringVar(value="監視するログファイルを選択してください ...")
         self._watch_mode = tk.BooleanVar(value=True)
-        self._alert_counts: dict[str, int] = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
-        self._alert_vars:   dict[str, ctk.StringVar] = {}
+        self._alert_counts:  dict[str, int] = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
+        self._alert_labels:  dict[str, ctk.CTkLabel] = {}
         self._build()
 
     def _build(self) -> None:
@@ -143,10 +143,10 @@ class DefensePanel(ctk.CTkFrame):
         for i, (sev, color) in enumerate(SEV_COLORS.items()):
             box = ctk.CTkFrame(grid, fg_color=BG_WIDGET, corner_radius=6)
             box.grid(row=i // 2, column=i % 2, padx=3, pady=3, sticky="ew")
-            var = ctk.StringVar(value="0")
-            self._alert_vars[sev] = var
             ctk.CTkLabel(box, text=sev, font=ctk.CTkFont("Segoe UI", 9, "bold"), text_color=color).pack(pady=(8, 2))
-            ctk.CTkLabel(box, textvariable=var, font=ctk.CTkFont("Segoe UI", 19, "bold"), text_color=color).pack(pady=(0, 8))
+            num_lbl = ctk.CTkLabel(box, text="0", font=ctk.CTkFont("Segoe UI", 19, "bold"), text_color=color)
+            num_lbl.pack(pady=(0, 8))
+            self._alert_labels[sev] = num_lbl
 
         ctk.CTkFrame(parent, fg_color=BORDER, height=1).pack(fill="x", padx=12, pady=8)
 
@@ -211,7 +211,7 @@ class DefensePanel(ctk.CTkFrame):
             return
         # カウンターリセット
         for k in self._alert_counts: self._alert_counts[k] = 0
-        for var in self._alert_vars.values(): var.set("0")
+        for lbl in self._alert_labels.values(): lbl.configure(text="0")
         self._alert_list.configure(state="normal")
         self._alert_list.delete("1.0", "end")
         self._alert_list.configure(state="disabled")
@@ -268,8 +268,8 @@ class DefensePanel(ctk.CTkFrame):
         elif k == ev.STATS:
             for sev, cnt in (p or {}).items():
                 self._alert_counts[sev] = cnt
-                if sev in self._alert_vars:
-                    self._alert_vars[sev].set(str(cnt))
+                if sev in self._alert_labels:
+                    self._alert_labels[sev].configure(text=str(cnt))
         elif k == ev.CLEAR:
             self._out_box.clear()
         elif k == ev.DONE:

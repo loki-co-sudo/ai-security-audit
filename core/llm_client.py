@@ -6,7 +6,6 @@ OpenAI互換API（Ollama / OpenAI / vLLM 等）のストリーミング・非ス
 
 from __future__ import annotations
 from typing import Callable, Iterator
-from openai import OpenAI
 from core.settings import LLM_BASE_URL, LLM_API_KEY, LLM_MODEL, LLM_TIMEOUT
 
 
@@ -18,6 +17,7 @@ class LLMClient:
         model:    str = LLM_MODEL,
         timeout:  int = LLM_TIMEOUT,
     ):
+        from openai import OpenAI  # 遅延インポート — 起動時間への影響ゼロ
         self.model    = model
         self.timeout  = timeout
         self.base_url = base_url
@@ -32,6 +32,7 @@ class LLMClient:
         timeout:  int,
     ) -> None:
         """設定変更時にクライアントを再生成する。エージェントは参照を共有するため即時反映される。"""
+        from openai import OpenAI  # noqa: PLC0415
         self.model    = model
         self.timeout  = timeout
         self.base_url = base_url

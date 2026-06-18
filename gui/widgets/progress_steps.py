@@ -33,11 +33,11 @@ class ProgressSteps(ctk.CTkFrame):
         kwargs.setdefault("corner_radius", 8)
         super().__init__(master, **kwargs)
 
-        self._steps      = steps
-        self._show_stats = show_stats
+        self._steps       = steps
+        self._show_stats  = show_stats
         self._icons:  list[ctk.CTkLabel] = []
         self._labels: list[ctk.CTkLabel] = []
-        self._stat_vars: dict[str, ctk.StringVar] = {}
+        self._stat_labels: dict[str, ctk.CTkLabel] = {}
 
         self._build()
 
@@ -110,10 +110,10 @@ class ProgressSteps(ctk.CTkFrame):
         for i, (sev, color) in enumerate(SEV_COLORS.items()):
             box = ctk.CTkFrame(grid, fg_color=BG_WIDGET, corner_radius=6)
             box.grid(row=i // 2, column=i % 2, padx=3, pady=3, sticky="ew")
-            var = ctk.StringVar(value="0")
-            self._stat_vars[sev] = var
             ctk.CTkLabel(box, text=sev, font=ctk.CTkFont("Segoe UI", 9, "bold"), text_color=color).pack(pady=(8, 2))
-            ctk.CTkLabel(box, textvariable=var, font=ctk.CTkFont("Segoe UI", 19, "bold"), text_color=color).pack(pady=(0, 8))
+            num_lbl = ctk.CTkLabel(box, text="0", font=ctk.CTkFont("Segoe UI", 19, "bold"), text_color=color)
+            num_lbl.pack(pady=(0, 8))
+            self._stat_labels[sev] = num_lbl
 
         ctk.CTkFrame(self, fg_color=BORDER, height=1).pack(fill="x", padx=12, pady=8)
 
@@ -132,8 +132,8 @@ class ProgressSteps(ctk.CTkFrame):
         self._pbar.set(max(0.0, min(1.0, value)))
 
     def set_stats(self, counts: dict) -> None:
-        for sev, var in self._stat_vars.items():
-            var.set(str(counts.get(sev, 0)))
+        for sev, lbl in self._stat_labels.items():
+            lbl.configure(text=str(counts.get(sev, 0)))
 
     def log(self, msg: str) -> None:
         self._log_box.configure(state="normal")
@@ -146,8 +146,8 @@ class ProgressSteps(ctk.CTkFrame):
             icon.configure(text="⬜", text_color=TEXT_DIM)
             lbl.configure(text_color=TEXT_DIM)
         self._pbar.set(0)
-        for var in self._stat_vars.values():
-            var.set("0")
+        for lbl in self._stat_labels.values():
+            lbl.configure(text="0")
         self._log_box.configure(state="normal")
         self._log_box.delete("1.0", "end")
         self._log_box.configure(state="disabled")

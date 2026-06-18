@@ -11,44 +11,26 @@ import core.event_bus as ev
 from core.event_bus import EventBus
 from core.llm_client import LLMClient
 from core.settings import (
-    BG_PANEL, BG_WIDGET, BG_INPUT, CYAN, RED_C, ORANGE_H,
+    BG_PANEL, BG_WIDGET, BG_INPUT, CYAN, RED_C,
     TEXT_MID, TEXT_DIM, TEXT_PRI, BORDER, BG_ROOT,
 )
 from agents.recon_agent import ReconAgent, STEPS
 from gui.widgets.output_box import OutputBox
 from gui.widgets.progress_steps import ProgressSteps
 
-WARNING_MSG = (
-    "⚠  AUTHORIZED TESTING ONLY\n"
-    "このツールは許可されたターゲットに対してのみ使用してください。\n"
-    "無許可の使用は不正アクセス禁止法等の法律に違反します。"
-)
-
-
 class AttackPanel(ctk.CTkFrame):
 
     def __init__(self, master, bus: EventBus, llm: LLMClient, **kwargs):
         kwargs.setdefault("fg_color", "transparent")
         super().__init__(master, **kwargs)
-        self._bus        = bus
-        self._llm        = llm
-        self._agent      = ReconAgent(bus, llm)
-        self._authorized = tk.BooleanVar(value=False)
-        self._intensity  = tk.StringVar(value="moderate")
-        self._scan_web   = tk.BooleanVar(value=True)
+        self._bus       = bus
+        self._llm       = llm
+        self._agent     = ReconAgent(bus, llm)
+        self._intensity = tk.StringVar(value="moderate")
+        self._scan_web  = tk.BooleanVar(value=True)
         self._build()
 
     def _build(self) -> None:
-        # ── 警告バナー ────────────────────────────────────
-        warn = ctk.CTkFrame(self, fg_color="#1A0808", corner_radius=6, height=56)
-        warn.pack(fill="x", pady=(0, 6))
-        warn.pack_propagate(False)
-        ctk.CTkLabel(
-            warn, text=WARNING_MSG,
-            font=ctk.CTkFont("Segoe UI", 10), text_color=ORANGE_H,
-            justify="left", anchor="w",
-        ).pack(side="left", padx=14, pady=4)
-
         # ── ターゲット入力バー ────────────────────────────
         tbar = ctk.CTkFrame(self, fg_color=BG_WIDGET, corner_radius=6, height=52)
         tbar.pack(fill="x", pady=(0, 4))
@@ -100,16 +82,6 @@ class AttackPanel(ctk.CTkFrame):
             checkbox_width=16, checkbox_height=16,
         ).pack(side="left", padx=8)
 
-        # 認証チェックボックス（スキャン開始の前提条件）
-        ctk.CTkCheckBox(
-            obar,
-            text="私はこのターゲットへのテストを許可されています（必須）",
-            variable=self._authorized,
-            font=ctk.CTkFont("Segoe UI", 10), text_color=ORANGE_H,
-            fg_color=ORANGE_H, hover_color="#CC6000",
-            checkbox_width=16, checkbox_height=16,
-        ).pack(side="left", padx=16)
-
         # ── メインペイン ──────────────────────────────────
         pane = ctk.CTkFrame(self, fg_color="transparent")
         pane.pack(fill="both", expand=True)
@@ -144,13 +116,6 @@ class AttackPanel(ctk.CTkFrame):
         target = self._target_entry.get().strip()
         if not target:
             self._out_box.append("[ ERROR ] ターゲットを入力してください。\n", "critical")
-            return
-        if not self._authorized.get():
-            self._out_box.append(
-                "[ ERROR ] 認証チェックボックスにチェックを入れてください。\n"
-                "          このツールは許可されたターゲットにのみ使用できます。\n",
-                "high",
-            )
             return
         self._steps_widget.reset()
         self._scan_btn.configure(state="disabled", text="  SCANNING  ●", fg_color="#601010")

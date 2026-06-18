@@ -6,7 +6,6 @@ from __future__ import annotations
 import threading
 import tkinter as tk
 import customtkinter as ctk
-from openai import OpenAI
 
 from core.settings import (
     BG_PANEL, BG_WIDGET, BG_INPUT, CYAN, GREEN, RED_C, ORANGE_H,
@@ -162,6 +161,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
     def _do_test(self) -> None:
         try:
+            from openai import OpenAI  # noqa: PLC0415
             client = OpenAI(
                 base_url=self._url_var.get().strip(),
                 api_key=self._key_var.get().strip() or "ollama",
