@@ -140,7 +140,7 @@ AI-Security-tool/
 
 ```bash
 # 1. リポジトリのクローン
-git clone https://github.com/turara-coder/ai-security-audit.git
+git clone https://github.com/loki-co-sudo/ai-security-audit.git
 cd ai-security-audit
 
 # 2. 依存ライブラリのインストール

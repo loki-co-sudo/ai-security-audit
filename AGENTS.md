@@ -219,7 +219,7 @@ fix: fix ALERT event not firing in DEFENSE MODE
 - [x] `requirements.txt`（langgraph, langchain-core 追加済み）
 - [x] `README.md`（ポートフォリオ品質、スクリーンショット3枚付き）
 - [x] `起動.bat` / `起動_silent.bat` / `起動.sh` / `起動.command`（Windows/Linux/macOS ランチャー）
-- [x] GitHub プライベートリポジトリ（`turara-coder/ai-security-audit`）
+- [x] GitHub プライベートリポジトリ（`loki-co-sudo/ai-security-audit`）
 - [x] `tools/report_generator.py` — HTMLレポート生成（ダークテーマ、VULN/THREATマーカーをパース）
 - [x] `tools/cve_client.py` — NVD API v2クライアント（CWE→CVE自動照合、@lru_cacheキャッシュ）
 - [x] `core/orchestrator.py` + `agents/langgraph_audit_agent.py` — LangGraph StateGraphオーケストレーション

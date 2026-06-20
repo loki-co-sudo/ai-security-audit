@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Callable, Iterator
 from core.settings import LLM_BASE_URL, LLM_API_KEY, LLM_MODEL, LLM_TIMEOUT
 
-_OR_REFERER = "https://github.com/turara-coder/ai-security-audit"
+_OR_REFERER = "https://github.com/loki-co-sudo/ai-security-audit"
 _OR_TITLE   = "AI Security Audit System"
 
 
