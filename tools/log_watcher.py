@@ -1,7 +1,8 @@
 """
 tools/log_watcher.py — ログファイル監視・行ストリーム
 
-watchdog でファイル変更を検知し、新着行をジェネレータで生成する。
+ファイル末尾をポーリング（tailf相当）で追跡し、新着行をジェネレータで生成する。
+外部依存なし（標準ライブラリのみ）。
 """
 
 from __future__ import annotations

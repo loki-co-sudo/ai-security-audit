@@ -1,4 +1,4 @@
-# AI Security Audit System — 設計書 v2.0
+# AI Security Audit System — 設計書 v2.1
 ## Autonomous Penetration Testing & Defense Platform
 
 ---
@@ -68,43 +68,51 @@
 
 ```
 AI-Security-tool/
-├── DESIGN.md                    # 本ドキュメント
-├── main.py                      # エントリーポイント
-├── gui_audit_app.py             # v1.0 レガシー（互換性維持）
+├── main.py                      # エントリーポイント（スプラッシュ→遅延ロード→App起動）
+├── config.json                  # 実行時LLM設定（gitignore済み）
 │
 ├── core/                        # アプリ共通基盤
-│   ├── __init__.py
-│   ├── settings.py              # 全設定（LLM, テーマ, etc.）
-│   ├── llm_client.py            # LLM通信抽象層（ストリーミング対応）
-│   └── event_bus.py             # スレッドセーフUI更新キュー
+│   ├── settings.py              # 全設定（LLM, テーマ, APP_VERSION 等）
+│   ├── config.py                # config.json 読み書き（settings.py をフォールバック）
+│   ├── llm_client.py            # LLM通信抽象層（ストリーミング・OpenRouterヘッダー自動付与）
+│   ├── event_bus.py             # スレッドセーフUI更新キュー
+│   └── orchestrator.py          # LangGraph StateGraph（条件付き深層解析ループ）
 │
 ├── agents/                      # AIエージェント群
-│   ├── __init__.py
 │   ├── base_agent.py            # 抽象基底クラス
-│   ├── audit_agent.py           # コード監査エージェント
+│   ├── audit_agent.py           # コード監査エージェント（CVE照合付き）
+│   ├── langgraph_audit_agent.py # LangGraph強化型監査エージェント
 │   ├── recon_agent.py           # 偵察・ペネトレーションエージェント
 │   └── monitor_agent.py         # 防御監視エージェント
 │
-├── tools/                       # ツール層（ネットワーク・ファイル操作）
-│   ├── __init__.py
+├── tools/                       # ツール層
 │   ├── network_scanner.py       # ポートスキャン・サービス検出
 │   ├── web_prober.py            # HTTPプローブ・技術フィンガープリント
-│   └── log_watcher.py           # ログファイル監視・パースン
+│   ├── log_watcher.py           # ログファイル監視（tailf式ポーリング）
+│   ├── cve_client.py            # NVD API v2 クライアント（CWE→CVE照合）
+│   ├── report_generator.py      # HTMLレポート生成
+│   ├── run_selftest.py          # 全機能セルフテスト
+│   └── capture_screenshots.py   # スクリーンショット自動撮影
 │
 ├── gui/                         # GUI層
-│   ├── __init__.py
-│   ├── app.py                   # メインウィンドウ（3タブ統合）
+│   ├── app.py                   # メインウィンドウ（3タブ統合・DPI対応）
+│   ├── splash.py                # 起動スプラッシュスクリーン
+│   ├── dialogs/
+│   │   └── settings_dialog.py   # LLM接続設定ダイアログ
 │   ├── panels/
-│   │   ├── __init__.py
 │   │   ├── audit_panel.py       # コード監査タブ
 │   │   ├── attack_panel.py      # 攻撃モードタブ
 │   │   └── defense_panel.py     # 防御モードタブ
 │   └── widgets/
-│       ├── __init__.py
 │       ├── output_box.py        # カラー出力ボックス（共通）
 │       └── progress_steps.py    # ステップ進捗ウィジェット（共通）
 │
-└── reports/                     # 生成レポート出力先
+├── assets/                      # アプリアイコン・生成スクリプト
+├── samples/                     # 動作確認用サンプル脆弱コード
+├── docs/                        # 設計書（本書）・スクリーンショット
+├── 起動.bat / 起動_silent.bat   # Windowsランチャー
+├── 起動.sh / 起動.command       # Linux / macOS ランチャー
+└── reports/                     # 生成レポート出力先（gitignore済み）
 ```
 
 ---
@@ -136,16 +144,16 @@ AI-Security-tool/
 
 ### 4.2 ATTACK MODE（ペネトレーションテスト）
 
-> ⚠️ **要認証**: 実行前に「この対象への試験は許可されている」に同意必須
+> ⚠️ **専門家向け**: セキュリティに精通した利用者が、許可された対象のみに使用すること（v2.1 でUI上の認可チェックボックスは廃止）
 
 **フロー:**
 ```
-ターゲット入力（URL/IP/CIDR） + 認証確認チェックボックス
+ターゲット入力（URL/IP） + Intensity選択（passive/moderate/aggressive）
     ↓
 [Phase 1: RECON] ポートスキャン + バナーグラブ
     - 開放ポート検出
-    - サービス・バージョン特定
-    - OS フィンガープリント（TTL解析）
+    - サービス特定
+    - SSL/TLS証明書情報取得
     ↓
 [Phase 2: ENUM] Webターゲットの場合
     - HTTPヘッダー解析（Server, X-Powered-By, etc.）
@@ -173,9 +181,9 @@ AI-Security-tool/
 
 **フロー:**
 ```
-ログソース指定（ファイルパス / ディレクトリ）
+ログソース指定（ファイルパス）
     ↓
-[継続監視] ファイル変更検知（watchdog）
+[継続監視] ファイル末尾をポーリング追跡（tailf式・標準ライブラリのみ）
     ↓
 [パターンマッチ] 既知攻撃シグネチャ（SQLi, XSS, LFI, RCE, Brute Force等）
     ↓
@@ -202,15 +210,19 @@ AI-Security-tool/
 
 ### 5.1 Event Bus
 ```python
+# core/event_bus.py — イベント種別はモジュールレベル定数
+LOG    = "log"      # システムログ
+OUTPUT = "output"   # AI出力テキスト（タグ付き）
+STEP   = "step"     # ステップ進捗更新 {idx, state}
+ALERT  = "alert"    # 防御アラート {severity, message, time}
+STATS  = "stats"    # 検出統計更新 {CRITICAL:n, ...}
+STATUS = "status"   # ステータスバー更新
+DONE   = "done"     # 処理完了 {error: bool}
+CLEAR  = "clear"    # 出力エリアクリア
+
 class EventBus:
-    # イベント種別
-    EVENT_LOG       = "log"      # システムログ
-    EVENT_OUTPUT    = "output"   # AI出力テキスト（タグ付き）
-    EVENT_STEP      = "step"     # ステップ進捗更新
-    EVENT_ALERT     = "alert"    # 防御アラート
-    EVENT_STATS     = "stats"    # 検出統計更新
-    EVENT_STATUS    = "status"   # ステータスバー更新
-    EVENT_DONE      = "done"     # 処理完了
+    def emit(self, kind: str, payload=None)  # 送出（put ではない）
+    def drain(self, limit=50) -> list[Event] # 非ブロッキング取り出し
 ```
 
 ### 5.2 LLM Client
@@ -225,11 +237,14 @@ class LLMClient:
 ### 5.3 Agent基底クラス
 ```python
 class BaseAgent(ABC):
-    def run(self, **kwargs) -> None    # バックグラウンドスレッドで実行
-    def stop(self) -> None             # 停止シグナル送信
+    def run(self, **kwargs) -> None    # サブクラスが実装。バックグラウンドスレッドで実行
+    def start(self, **kwargs) -> None  # スレッド起動（_safe_run でラップ）
+    def stop(self) -> None             # 停止シグナル送信（threading.Event）
+    def is_stopped(self) -> bool       # 中断チェック
     def _log(self, msg: str)           # Event Bus経由でログ送信
-    def _output(self, text, tag="")    # Event Bus経由でAI出力送信
-    def _set_step(self, i, state)      # ステップ状態更新
+    def _out(self, text, tag="")       # Event Bus経由でAI出力送信
+    def _step(self, idx, state)        # ステップ状態更新
+    def _stream_llm(self, messages)    # LLMストリーミング→OUTPUTイベント
 ```
 
 ---
@@ -240,7 +255,7 @@ class BaseAgent(ABC):
 1. **ATTACK MODE は許可された対象にのみ使用すること**
 2. ツールは脆弱性「発見」に特化し、実際のエクスプロイト送信機能は実装しない
 3. スキャン結果はローカルにのみ保存し、外部に自動送信しない
-4. レポートには「AUTHORIZED PENETRATION TEST REPORT」の注記を付与
+4. 生成レポートのフッターに「教育・研究・許可されたセキュリティ診断を目的とする」旨の注記を付与
 
 ### ツールが実装しない機能（意図的除外）
 - エクスプロイトペイロードの自動送信
@@ -255,47 +270,37 @@ class BaseAgent(ABC):
 
 | カテゴリ | 技術 | 用途 |
 |---------|------|------|
-| GUI | CustomTkinter 5.x | ダークモードUI |
-| LLM | OpenAI-compatible API | Ollama(Qwen) / OpenAI |
-| HTTP | requests 2.x | Webプローブ |
-| ファイル監視 | watchdog 6.x | ログ変更検知 |
+| GUI | CustomTkinter 5.2.2 | ダークモードUI |
+| LLM | OpenAI-compatible API | Ollama(Qwen) / OpenAI / OpenRouter |
+| HTTP | requests 2.x | Webプローブ・NVD API |
+| ファイル監視 | socket + ポーリング（標準） | ログ追跡（tailf式） |
 | ネットワーク | socket (標準) | ポートスキャン |
 | 非同期 | threading + queue | スレッドセーフUI |
-| データ | 標準ライブラリのみ | 外部DB不要 |
+| オーケストレーション | LangGraph（オプション） | StateGraph 反復推論 |
+| データ | 標準ライブラリ中心 | 外部DB不要 |
 
 ---
 
-## 8. 開発ロードマップ（優先順位順）
+## 8. 開発ロードマップ
 
-### Phase 1 — コアアーキテクチャ（本セッション）
-- [x] DESIGN.md 作成
-- [ ] core/ モジュール（settings, llm_client, event_bus）
-- [ ] agents/base_agent.py
-- [ ] gui/widgets/ 共通部品
+### 完了済み（v2.1.0）
+- [x] コアアーキテクチャ（settings, config, llm_client, event_bus, orchestrator）
+- [x] CODE AUDIT（audit_agent + audit_panel、CVE照合付き）
+- [x] ATTACK MODE（network_scanner + web_prober + recon_agent + attack_panel）
+- [x] DEFENSE MODE（log_watcher + monitor_agent + defense_panel）
+- [x] 3タブ統合GUI（app.py）+ main.py + 起動スプラッシュ + アイコン
+- [x] LLM接続設定ダイアログ（接続テスト・config.json永続化）
+- [x] OpenRouter対応（推奨ヘッダー自動付与・モデルプリセット）
+- [x] HTMLレポート自動生成（VULN/THREATマーカーをパース）
+- [x] CVEデータベース連携（NVD API v2）
+- [x] LangGraph マルチエージェントオーケストレーション（StateGraph + 深層解析ループ）
+- [x] Docker コンテナ化（Dockerfile + docker-compose.yml）
+- [x] クロスプラットフォームランチャー（Windows / Linux / macOS）
+- [x] 全機能セルフテスト（tools/run_selftest.py）
 
-### Phase 2 — CODE AUDIT 移植
-- [ ] agents/audit_agent.py（gui_audit_app.py から抽出）
-- [ ] gui/panels/audit_panel.py
-
-### Phase 3 — ATTACK MODE 基本
-- [ ] tools/network_scanner.py
-- [ ] tools/web_prober.py
-- [ ] agents/recon_agent.py
-- [ ] gui/panels/attack_panel.py
-
-### Phase 4 — DEFENSE MODE 基本
-- [ ] tools/log_watcher.py
-- [ ] agents/monitor_agent.py
-- [ ] gui/panels/defense_panel.py
-
-### Phase 5 — 統合・仕上げ
-- [ ] gui/app.py（3タブ統合）
-- [ ] main.py
-- [ ] 動作検証
-
-### 将来拡張（Phase 6+）
-- LangGraph マルチエージェントオーケストレーション
-- CVEデータベース連携
-- HTML/PDF レポート自動生成
-- Docker コンテナ化
-- Slack/webhook アラート通知
+### 将来拡張
+- [ ] 拡張ポートスキャン（UDP対応・OS検出ヒューリスティック）
+- [ ] Webファジングエージェント（クローリング→入力特定→AIペイロード生成）
+- [ ] HTML/PDF レポート出力対応
+- [ ] CI/CD統合（GitHub Actions）
+- [ ] Slack/webhook アラート通知

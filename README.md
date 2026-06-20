@@ -1,11 +1,11 @@
 # AI Security Audit System
-**Autonomous Penetration Testing & Defense Platform v2.0**
+**Autonomous Penetration Testing & Defense Platform v2.1**
 
 > シグネチャ（既知パターン）に依存しない、AI駆動型・次世代自律ペネトレーションテスト＆脆弱性露出管理システム
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![CustomTkinter](https://img.shields.io/badge/CustomTkinter-5.2.2-darkblue)
-![LLM](https://img.shields.io/badge/LLM-Ollama%20%2F%20OpenAI-green)
+![LLM](https://img.shields.io/badge/LLM-Ollama%20%2F%20OpenAI%20%2F%20OpenRouter-green)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
 ---
@@ -53,16 +53,20 @@ AIが攻撃者のTTP（戦術・技術・手順）をMITRE ATT&CKフレームワ
 
 ```
 AI-Security-tool/
-├── main.py                    # エントリポイント
+├── main.py                    # エントリポイント（スプラッシュ→遅延ロード→App起動）
 ├── config.json                # LLM接続設定（gitignore済み・APIキー含む可能性あり）
 ├── requirements.txt           # 依存ライブラリ一覧
 ├── Dockerfile                 # Dockerコンテナ定義
 ├── docker-compose.yml         # Docker Compose設定
+├── 起動.bat                   # Windowsランチャー（コンソールあり）
+├── 起動_silent.bat            # Windowsランチャー（コンソールなし）
+├── 起動.sh                    # Linuxランチャー
+├── 起動.command               # macOSランチャー（Finderダブルクリック対応）
 ├── core/
 │   ├── settings.py            # 全設定・カラーテーマ定数
 │   ├── config.py              # config.jsonの読み書き（settings.pyをデフォルトとしてフォールバック）
 │   ├── event_bus.py           # スレッドセーフUIイベントバス（Queue-based）
-│   ├── llm_client.py          # OpenAI互換LLMクライアント（Ollama/OpenAI・ホットリロード対応）
+│   ├── llm_client.py          # OpenAI互換LLMクライアント（Ollama/OpenAI/OpenRouter・ホットリロード対応）
 │   └── orchestrator.py        # LangGraph StateGraph（条件付き深層解析ループ）
 ├── agents/
 │   ├── base_agent.py          # エージェント抽象基底クラス（threading.Event管理）
@@ -73,11 +77,14 @@ AI-Security-tool/
 ├── tools/
 │   ├── network_scanner.py     # Socket-basedポートスキャナ（nmap不要）
 │   ├── web_prober.py          # HTTP探査・技術スタック指紋採取
-│   ├── log_watcher.py         # tailf式リアルタイムログ追跡
+│   ├── log_watcher.py         # tailf式リアルタイムログ追跡（標準ライブラリのみ）
 │   ├── cve_client.py          # NVD API v2クライアント（CWE→CVE照合・キャッシュ付き）
-│   └── report_generator.py    # HTMLレポート生成（ダークテーマ・脆弱性詳細付き）
+│   ├── report_generator.py    # HTMLレポート生成（ダークテーマ・脆弱性詳細付き）
+│   ├── run_selftest.py        # 全機能セルフテスト（GUI以外を網羅）
+│   └── capture_screenshots.py # README用スクリーンショット自動撮影
 ├── gui/
 │   ├── app.py                 # メインウィンドウ（3タブ、DPI対応、⚙設定ボタン）
+│   ├── splash.py              # 起動スプラッシュスクリーン（tkinter製・高速表示）
 │   ├── dialogs/
 │   │   └── settings_dialog.py # LLM接続設定ダイアログ（接続テスト・設定保存）
 │   ├── widgets/
@@ -87,6 +94,12 @@ AI-Security-tool/
 │       ├── audit_panel.py     # CODE AUDIT タブ（LangGraphトグル・レポート出力）
 │       ├── attack_panel.py    # ATTACK MODE タブ（レポート出力）
 │       └── defense_panel.py   # DEFENSE MODE タブ（レポート出力）
+├── assets/
+│   ├── create_icon.py         # アプリアイコン生成スクリプト（PIL）
+│   ├── icon.ico / icon.png    # 生成済みアプリアイコン
+├── samples/
+│   └── target_code.py         # CODE AUDIT 動作確認用のサンプル脆弱コード
+├── docs/                      # 設計書・スクリーンショット
 └── reports/                   # スキャン結果出力先（ローカル保存のみ）
 ```
 
@@ -107,7 +120,7 @@ AI-Security-tool/
 |------|------|
 | 言語 | Python 3.10 以上 |
 | GUIフレームワーク | CustomTkinter 5.2.2（ダークモード） |
-| LLMバックエンド | Ollama + `qwen2.5-coder:14b`（デフォルト）/ OpenAI API互換 |
+| LLMバックエンド | Ollama + `qwen2.5-coder:14b`（デフォルト）/ OpenAI / OpenRouter（OpenAI API互換） |
 | LLMクライアント | `openai` ライブラリ（OpenAI互換エンドポイント） |
 | ネットワーク | `socket`（標準ライブラリ、nmap不要）、`requests` |
 | 並行処理 | `threading`、`concurrent.futures.ThreadPoolExecutor` |
@@ -140,12 +153,16 @@ ollama pull qwen2.5-coder:14b
 python main.py
 ```
 
-### Windowsでの起動（エクスプローラーから）
+### ダブルクリックで起動（OS別ランチャー）
 
-| ファイル | 動作 |
-|---|---|
-| `起動.bat` | コンソールウィンドウあり（エラー確認用・開発向け） |
-| `起動_silent.bat` | コンソールなし・GUIのみ起動（デモ・展示向け） |
+| OS | ファイル | 動作 |
+|---|---|---|
+| Windows | `起動.bat` | コンソールウィンドウあり（エラー確認用・開発向け） |
+| Windows | `起動_silent.bat` | コンソールなし・GUIのみ起動（デモ・展示向け） |
+| Linux | `起動.sh` | `chmod +x 起動.sh` 後にダブルクリック / `./起動.sh` |
+| macOS | `起動.command` | Finderでダブルクリックすると Terminal で起動 |
+
+いずれも `py` / `python3` / `python` を自動検出して `main.py` を実行します。
 
 ---
 
@@ -172,11 +189,14 @@ docker run -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix ai-security-audi
 
 | 項目 | 説明 |
 |---|---|
-| BASE URL | Ollamaなら `http://localhost:11434/v1`、OpenAIなら `https://api.openai.com/v1` |
-| API KEY | Ollamaなら `ollama`（任意文字列）、OpenAIなら `sk-...` |
-| MODEL | `qwen2.5-coder:14b`、`gpt-4o` など |
+| BASE URL | Ollama: `http://localhost:11434/v1` / OpenAI: `https://api.openai.com/v1` / OpenRouter: `https://openrouter.ai/api/v1` |
+| API KEY | Ollama: `ollama`（任意文字列） / OpenAI: `sk-...` / OpenRouter: `sk-or-v1-...` |
+| MODEL | `qwen2.5-coder:14b`、`openai/gpt-4o`、`anthropic/claude-sonnet-4-5` など |
 
+プリセットボタン（Ollama / OpenRouter / OpenAI / LM Studio）でBASE URLをワンクリック入力できる。  
 「**接続テスト**」ボタンで疎通確認後、「保存」で `config.json` に書き込まれ次回起動時も保持される。
+
+> **OpenRouter** 使用時は、`HTTP-Referer` / `X-Title` ヘッダーが自動付与されます（BASE URLに `openrouter.ai` を含む場合のみ）。
 
 ---
 
@@ -200,13 +220,13 @@ docker run -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix ai-security-audi
 
 ### ATTACK MODE（許可されたターゲットのみ）
 
-1. **認証チェックボックス**にチェック（必須）
-2. ターゲットURL/IPを入力（例: `https://example.com` または `192.168.1.1`）
-3. Intensity（passive / moderate / aggressive）を選択
+1. ターゲットURL/IPを入力（例: `https://example.com` または `192.168.1.1`）
+2. Intensity（passive / moderate / aggressive）を選択
+3. 必要に応じて「Web Probe」をオン/オフ
 4. `「SCAN ▶」` をクリック
 
-> **重要**: 本ツールは許可されたターゲットに対する診断のみを目的とします。  
-> 無許可のスキャンは不正アクセス禁止法等の法律に違反します。
+> **重要**: 本ツールはセキュリティに精通した専門家が、**許可されたターゲットに対する診断のみ**に使用することを前提としています。  
+> 無許可のスキャンは不正アクセス禁止法等の法律に違反します。実行はすべて利用者の責任で行ってください。
 
 ### DEFENSE MODE
 
@@ -224,8 +244,8 @@ docker run -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix ai-security-audi
 
 - **発見特化**: 脆弱性の「発見」に特化し、実際のエクスプロイト送信機能は実装しない
 - **ローカル保存**: スキャン結果はローカルにのみ保存し、外部への自動送信は行わない
-- **認可ゲート**: ATTACK MODEには明示的な認証チェックを設け、倫理的使用を担保
 - **非破壊的**: ブルートフォース攻撃・DoS・C2通信・マルウェア生成機能は実装しない
+- **専門家向け**: 本ツールはセキュリティ専門家の利用を前提とし、許可された対象のみへの使用を利用者の責任において求める
 
 ---
 
@@ -237,11 +257,19 @@ docker run -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix ai-security-audi
 - [x] DEFENSE MODE エージェント（リアルタイムログ監視・ALERT TIMELINE）
 - [x] 3タブ統合GUIアプリケーション
 - [x] LLM接続設定ダイアログ（接続テスト・config.json永続化）
-- [x] Windowsランチャー（起動.bat / 起動_silent.bat）
+- [x] クロスプラットフォームランチャー（Windows / Linux / macOS）
+- [x] OpenRouter対応（推奨ヘッダー自動付与・モデルプリセット）
 - [x] HTMLレポート自動生成（応用情報・セキスペ基準準拠・ダークテーマHTML）
 - [x] CVEデータベース連携（NVD API v2 — CWEから関連CVEを自動照合）
 - [x] LangGraphマルチエージェントオーケストレーション（StateGraph + 条件付き深層解析ループ）
 - [x] コンテナ対応（Dockerfile + docker-compose.yml）
+- [x] 起動スプラッシュ画面・アプリアイコン・起動高速化
+- [x] 全機能セルフテスト（`tools/run_selftest.py`）
+
+### 今後の拡張予定
+- [ ] 拡張ポートスキャン（UDP対応・OS検出ヒューリスティック）
+- [ ] Webファジングエージェント（クローリング→入力特定→AIペイロード生成）
+- [ ] レポートのPDF出力対応
 
 ---
 

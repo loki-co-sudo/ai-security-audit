@@ -12,8 +12,8 @@ LLM_MODEL    = "qwen2.5-coder:14b"
 LLM_TIMEOUT  = 180
 # ============================================================
 
-APP_TITLE   = "AI Security Audit System  ·  Autonomous Penetration Testing & Defense v2.0"
-APP_VERSION = "2.0.0"
+APP_TITLE   = "AI Security Audit System  ·  Autonomous Penetration Testing & Defense v2.1"
+APP_VERSION = "2.1.0"
 
 # ─── カラーテーマ ───────────────────────────────────────────
 BG_ROOT    = "#070C14"

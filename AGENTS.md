@@ -15,7 +15,7 @@
 - 脆弱性の「発見」に特化。実際のエクスプロイト送信機能は実装しない
 - スキャン結果はローカルにのみ保存。外部への自動送信は行わない
 - ブルートフォース攻撃・DoS・C2通信・マルウェア生成機能は実装しない
-- ATTACK MODEには認可チェックボックスによる倫理ゲートを必ず維持する
+- 本ツールはセキュリティ専門家の利用を前提とする。ATTACK MODE は許可された対象のみへの使用を利用者の責任において求める（UI上の認可チェックボックスは v2.1 で廃止 — 専門家向けUXのため）
 
 ---
 
@@ -27,7 +27,7 @@
 |---|---|
 | 言語 | Python 3.10+（3.14推奨） |
 | GUI | CustomTkinter 5.2.2（ダークモード、`ctk.set_appearance_mode("dark")`） |
-| LLM | OpenAI互換API（`openai` ライブラリ）— Ollama または OpenAI |
+| LLM | OpenAI互換API（`openai` ライブラリ）— Ollama / OpenAI / OpenRouter |
 | ネットワーク | `socket`（標準ライブラリのみ、nmap不要）、`requests` |
 | 並行処理 | `threading`、`concurrent.futures.ThreadPoolExecutor` |
 
@@ -35,23 +35,28 @@
 
 ```
 AI-Security-tool/
-├── main.py                      # エントリポイント。dirs/init確保→config.load()→App起動
+├── main.py                      # エントリポイント。スプラッシュ表示→遅延ロード→App起動
 ├── config.json                  # 実行時LLM設定（gitignore済み。APIキーを含む可能性あり）
 ├── requirements.txt             # pip install -r requirements.txt
-├── 起動.bat                     # Explorerダブルクリック起動（コンソールあり）
-├── 起動_silent.bat              # Explorerダブルクリック起動（コンソールなし）
+├── 起動.bat                     # Windowsランチャー（コンソールあり）
+├── 起動_silent.bat              # Windowsランチャー（コンソールなし）
+├── 起動.sh                      # Linuxランチャー
+├── 起動.command                 # macOSランチャー（Finderダブルクリック対応）
 ├── samples/
 │   └── target_code.py           # CODE AUDIT 動作確認用のサンプル脆弱コード
+├── assets/
+│   ├── create_icon.py           # アプリアイコン生成スクリプト（PIL）
+│   └── icon.ico / icon.png      # 生成済みアプリアイコン
 ├── docs/
 │   ├── DESIGN.md                # システム設計書（アーキテクチャ詳細）
 │   └── screenshot_*.png         # README埋め込み用スクリーンショット
 ├── Dockerfile                   # Dockerコンテナ定義（X11フォワーディング必要）
 ├── docker-compose.yml           # Docker Compose設定
 ├── core/
-│   ├── settings.py              # 全定数（色・フォント・LLMデフォルト値・スキャン設定）
+│   ├── settings.py              # 全定数（色・フォント・LLMデフォルト値・スキャン設定・APP_VERSION）
 │   ├── config.py                # config.jsonの読み書き。settings.pyをデフォルトとしてフォールバック
 │   ├── event_bus.py             # スレッドセーフUIイベントバス（queue.Queue基盤）
-│   ├── llm_client.py            # LLMClient。update()でホットリロード可能
+│   ├── llm_client.py            # LLMClient。update()でホットリロード可能。OpenRouterヘッダー自動付与
 │   └── orchestrator.py          # LangGraph StateGraph。CRITICAL検出時に深層解析ループを実行
 ├── agents/
 │   ├── base_agent.py            # 抽象基底クラス。threading.Eventで停止管理、EventBusヘルパー群
@@ -64,9 +69,12 @@ AI-Security-tool/
 │   ├── web_prober.py            # HTTP探査、技術スタック指紋、センシティブパス列挙
 │   ├── log_watcher.py           # tailf式ログ追跡ジェネレータ、サンプルログ生成
 │   ├── cve_client.py            # NVD API v2クライアント。@lru_cacheでキャッシュ、サイレント失敗
-│   └── report_generator.py      # HTMLレポート生成。---VULN_START---マーカーをパースして構造化出力
+│   ├── report_generator.py      # HTMLレポート生成。---VULN_START---マーカーをパースして構造化出力
+│   ├── run_selftest.py          # 全機能セルフテスト（GUI以外をEventBus経由でE2E検証）
+│   └── capture_screenshots.py   # README用スクリーンショット自動撮影
 ├── gui/
-│   ├── app.py                   # メインウィンドウ。DPI対応、3タブ、30msポーリング
+│   ├── app.py                   # メインウィンドウ。DPI対応、3タブ、30msポーリング、アイコン設定
+│   ├── splash.py                # 起動スプラッシュ（tkinter製・重いモジュールロード前に高速表示）
 │   ├── dialogs/
 │   │   └── settings_dialog.py   # LLM設定モーダル（接続テスト・config.json保存）
 │   ├── widgets/
@@ -139,7 +147,7 @@ class MyAgent(BaseAgent):
 
 5. **コメントは最小限**: 「WHY」が非自明な場合のみコメントを書く。「WHAT」を説明するコメントは不要（変数名・関数名が語る）。ドキュメントstring は1行まで。
 
-6. **セキュリティ機能の削除禁止**: ATTACK MODEの認可チェックボックス、エクスプロイト送信の非実装、ローカル保存のみ、という3つのポリシーに反するコードを生成しない。
+6. **セキュリティポリシーの遵守**: 「エクスプロイト送信の非実装」「スキャン結果はローカル保存のみ」「ブルートフォース・DoS・C2・マルウェア生成の非実装」に反するコードを生成しない。（ATTACK MODE の認可チェックボックスは v2.1 で専門家向けUXのため廃止済み — 復活させない）
 
 7. **新しいパネルを追加する場合**: `ctk.CTkFrame` を継承し、`dispatch(event: ev.Event)` メソッドを実装する。`app.py` に新しい EventBus とタブボタンを追加する。
 
@@ -172,11 +180,17 @@ fix: fix ALERT event not firing in DEFENSE MODE
 - `config.json` をgitにコミットしない（`.gitignore` 設定済み）
 - `reports/` 配下のログ・HTMLをgitにコミットしない（`.gitignore` 設定済み）
 
+### 再発防止ルール（過去のバグから）
+- **EventBus は `emit(kind, payload)` で送出する**。`bus.put()` というメソッドは存在しない（以前 orchestrator.py が `bus.put()` を使いLangGraph実行時にクラッシュした）。
+- **深刻度カウンタの dict キーは大文字 `CRITICAL/HIGH/MEDIUM/LOW`**。`str.format()` のプレースホルダ名と大文字小文字を必ず一致させる（report_generator がテンプレートの小文字 `{critical}` と不一致で KeyError を起こした）。
+- **ループ内で関数引数と同名の変数を再代入しない**。特に `path` のようなパス引数を内側で上書きしない（log_watcher の `generate_sample_log` がリクエストパスで引数 `path` を潰し、`os.makedirs` が失敗した）。
+- 重要な変更後は `py tools/run_selftest.py` でリグレッションを確認する。
+
 ---
 
 ## 4. 現在の開発フェーズとロードマップ
 
-### 実装済み（v2.0.0）
+### 実装済み（v2.1.0）
 
 **コアインフラ**
 - [x] `core/event_bus.py` — スレッドセーフイベントバス（LOG/OUTPUT/STEP/ALERT/STATS/STATUS/DONE/CLEAR）
@@ -204,7 +218,7 @@ fix: fix ALERT event not firing in DEFENSE MODE
 **その他**
 - [x] `requirements.txt`（langgraph, langchain-core 追加済み）
 - [x] `README.md`（ポートフォリオ品質、スクリーンショット3枚付き）
-- [x] `起動.bat` / `起動_silent.bat`（Explorerダブルクリック起動）
+- [x] `起動.bat` / `起動_silent.bat` / `起動.sh` / `起動.command`（Windows/Linux/macOS ランチャー）
 - [x] GitHub プライベートリポジトリ（`turara-coder/ai-security-audit`）
 - [x] `tools/report_generator.py` — HTMLレポート生成（ダークテーマ、VULN/THREATマーカーをパース）
 - [x] `tools/cve_client.py` — NVD API v2クライアント（CWE→CVE自動照合、@lru_cacheキャッシュ）
@@ -212,6 +226,10 @@ fix: fix ALERT event not firing in DEFENSE MODE
 - [x] `Dockerfile` + `docker-compose.yml` — コンテナ対応
 - [x] 全パネルに「📊 レポート出力」ボタン追加
 - [x] CODE AUDITタブに ENGINE トグル（Standard / LangGraph）追加
+- [x] OpenRouter対応（`llm_client.py` で `openrouter.ai` 検出時に `HTTP-Referer`/`X-Title` 自動付与・設定UIにプリセット追加）
+- [x] `gui/splash.py` — 起動スプラッシュ画面 + アプリアイコン（`assets/`）+ 起動高速化（遅延インポート）
+- [x] `tools/run_selftest.py` — 全機能セルフテスト（22項目、実LLM/実ネットワークでE2E検証）
+- [x] バグ修正（レポート生成のキー不一致・サンプルログ生成の変数衝突・orchestratorのEventBus API誤用）
 
 ### 未実装（ロードマップ）
 
