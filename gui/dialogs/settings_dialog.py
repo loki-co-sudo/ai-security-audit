@@ -15,19 +15,24 @@ import core.config as config
 from core.llm_client import LLMClient
 
 _PRESET_MODELS = [
+    # Ollama ローカル
     "qwen2.5-coder:14b",
     "qwen2.5-coder:7b",
     "llama3.1:8b",
-    "llama3.2:3b",
     "codellama:13b",
     "deepseek-coder-v2:16b",
-    "gpt-4o",
-    "gpt-4o-mini",
-    "gpt-4-turbo",
+    # OpenAI / OpenRouter 形式
+    "openai/gpt-4o",
+    "openai/gpt-4o-mini",
+    "anthropic/claude-sonnet-4-5",
+    "google/gemini-flash-1.5",
+    "deepseek/deepseek-chat",
+    "meta-llama/llama-3.1-8b-instruct:free",
 ]
 
 _PRESET_URLS = [
     ("Ollama (ローカル)",  "http://localhost:11434/v1"),
+    ("OpenRouter",        "https://openrouter.ai/api/v1"),
     ("OpenAI",            "https://api.openai.com/v1"),
     ("LM Studio",         "http://localhost:1234/v1"),
 ]
@@ -42,7 +47,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
         self.title("LLM 接続設定")
         self.configure(fg_color=BG_PANEL)
-        self.geometry("580x480")
+        self.geometry("620x520")
         self.resizable(False, False)
         self.grab_set()
         self.focus_set()
@@ -104,19 +109,20 @@ class SettingsDialog(ctk.CTkToplevel):
             )
             entry.pack(side="left", fill="x", expand=True)
 
-        # モデル候補
-        ctk.CTkLabel(body, text="モデル候補:", font=ctk.CTkFont("Segoe UI", 9),
+        # モデル候補（2行）
+        ctk.CTkLabel(body, text="モデル候補 (クリックで入力):", font=ctk.CTkFont("Segoe UI", 9),
                      text_color=TEXT_DIM).pack(anchor="w", pady=(6, 2))
-        mdl_row = ctk.CTkFrame(body, fg_color="transparent")
-        mdl_row.pack(fill="x")
-        for m in _PRESET_MODELS[:6]:
-            ctk.CTkButton(
-                mdl_row, text=m, height=24,
-                fg_color=BG_WIDGET, hover_color="#152030",
-                border_color=BORDER, border_width=1,
-                text_color=TEXT_DIM, font=ctk.CTkFont("Consolas", 9),
-                command=lambda v=m: self._model_var.set(v),
-            ).pack(side="left", padx=(0, 4), pady=2)
+        for row_models in [_PRESET_MODELS[:5], _PRESET_MODELS[5:]]:
+            mdl_row = ctk.CTkFrame(body, fg_color="transparent")
+            mdl_row.pack(fill="x", pady=(0, 2))
+            for m in row_models:
+                ctk.CTkButton(
+                    mdl_row, text=m, height=24,
+                    fg_color=BG_WIDGET, hover_color="#152030",
+                    border_color=BORDER, border_width=1,
+                    text_color=TEXT_DIM, font=ctk.CTkFont("Consolas", 9),
+                    command=lambda v=m: self._model_var.set(v),
+                ).pack(side="left", padx=(0, 4))
 
         # 接続テスト結果ラベル
         self._test_result = ctk.CTkLabel(

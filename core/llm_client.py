@@ -8,6 +8,16 @@ from __future__ import annotations
 from typing import Callable, Iterator
 from core.settings import LLM_BASE_URL, LLM_API_KEY, LLM_MODEL, LLM_TIMEOUT
 
+_OR_REFERER = "https://github.com/turara-coder/ai-security-audit"
+_OR_TITLE   = "AI Security Audit System"
+
+
+def _or_headers(base_url: str) -> dict:
+    """OpenRouter 使用時のみ推奨ヘッダーを返す。他エンドポイントでは空。"""
+    if "openrouter.ai" in base_url:
+        return {"HTTP-Referer": _OR_REFERER, "X-Title": _OR_TITLE}
+    return {}
+
 
 class LLMClient:
     def __init__(
@@ -22,7 +32,10 @@ class LLMClient:
         self.timeout  = timeout
         self.base_url = base_url
         self.api_key  = api_key
-        self._client  = OpenAI(base_url=base_url, api_key=api_key)
+        self._client  = OpenAI(
+            base_url=base_url, api_key=api_key,
+            default_headers=_or_headers(base_url),
+        )
 
     def update(
         self,
@@ -37,7 +50,10 @@ class LLMClient:
         self.timeout  = timeout
         self.base_url = base_url
         self.api_key  = api_key
-        self._client  = OpenAI(base_url=base_url, api_key=api_key)
+        self._client  = OpenAI(
+            base_url=base_url, api_key=api_key,
+            default_headers=_or_headers(base_url),
+        )
 
     # ── ストリーミング API ─────────────────────────────────
     def stream(
