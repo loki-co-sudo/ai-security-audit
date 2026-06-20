@@ -101,12 +101,12 @@ class LogWatcher:
             status = random.choice([200, 200, 200, 301, 404, 500])
 
             if i % 20 == 0 and attack_lines:
-                path  = random.choice(attack_lines)
+                req    = random.choice(attack_lines)
                 status = 200
             else:
-                path = f"{random.choice(methods)} {random.choice(normal_paths)} HTTP/1.1"
+                req = f"{random.choice(methods)} {random.choice(normal_paths)} HTTP/1.1"
 
-            lines.append(f'{ip} - - [{ts}] "{path}" {status} {random.randint(100,5000)}')
+            lines.append(f'{ip} - - [{ts}] "{req}" {status} {random.randint(100,5000)}')
 
         os.makedirs(os.path.dirname(path) if os.path.dirname(path) else ".", exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:

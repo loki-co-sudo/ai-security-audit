@@ -186,7 +186,11 @@ def generate(
         timestamp=html.escape(timestamp),
         findings_section=findings_section,
         raw=html.escape(raw_text),
-        **counts,
+        # テンプレートは小文字プレースホルダ {critical} 等を使用するため変換する
+        critical=counts["CRITICAL"],
+        high=counts["HIGH"],
+        medium=counts["MEDIUM"],
+        low=counts["LOW"],
     )
 
 

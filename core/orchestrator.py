@@ -83,7 +83,7 @@ def build_audit_graph(
     from langgraph.graph import StateGraph, END  # noqa: PLC0415
 
     def _emit(text: str, tag: str = "") -> None:
-        bus.put(ev.Event(ev.OUTPUT, {"text": text, "tag": tag}))
+        bus.emit(ev.OUTPUT, {"text": text, "tag": tag})
 
     def _stream(messages: list[dict]) -> str:
         full = ""
@@ -138,7 +138,7 @@ def build_audit_graph(
             s: len(re.findall(rf"SEVERITY:\s*{s}\b", combined, re.I))
             for s in ("CRITICAL", "HIGH", "MEDIUM", "LOW")
         }
-        bus.put(ev.Event(ev.STATS, counts))
+        bus.emit(ev.STATS, counts)
         _emit(
             f"\n  [GRAPH 3/5] assess_severity — "
             f"CRITICAL:{counts['CRITICAL']}  HIGH:{counts['HIGH']}  "
@@ -171,7 +171,7 @@ def build_audit_graph(
             for s in ("CRITICAL", "HIGH", "MEDIUM", "LOW")
         }
         total = sum(counts.values())
-        bus.put(ev.Event(ev.STATS, counts))
+        bus.emit(ev.STATS, counts)
         tag = "critical" if counts.get("CRITICAL") else "green"
         _emit("\n\n" + "═" * 56 + "\n", "sep")
         _emit(f"  [GRAPH 5/5] 解析完了 — {total} 件の脆弱性を検出\n", tag)
