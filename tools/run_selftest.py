@@ -408,6 +408,132 @@ def test_stealth_features():
         _ng("WebProber stealth", repr(e))
 
 
+def test_pdf_report():
+    _section("15. TOOLS — PDF レポート出力")
+    from tools import report_generator
+    sample = """
+---VULN_START---
+NAME: SQL Injection（日本語タイトル含む）
+SEVERITY: CRITICAL
+CWE: CWE-89
+LINES: 65
+SNIPPET:
+```
+query = f"SELECT * FROM users WHERE u = '{u}'"
+```
+ATTACK:
+認証バイパス。日本語の説明が正しくPDFに描画されることを確認する。
+FIX:
+```
+cursor.execute("... WHERE u = ?", (u,))
+```
+---VULN_END---
+"""
+    try:
+        pdf = report_generator.generate_pdf(
+            mode="CODE AUDIT", target="samples/target_code.py",
+            raw_text=sample * 6, model="openai/gpt-4o")
+        if pdf is None:
+            _ng("generate_pdf", "Pillow 未導入のため None（環境依存・スキップ可）")
+            return
+        assert pdf[:5] == b"%PDF-", "PDFマジックが不正"
+        assert len(pdf) > 1000, "PDFが小さすぎる"
+        _ok("generate_pdf() 生成", f"{len(pdf)} bytes, 複数ページ対応")
+        path = report_generator.save_pdf(pdf, "selftest_pdf")
+        assert os.path.isfile(path) and path.endswith(".pdf")
+        _ok("save_pdf()", os.path.basename(path))
+        os.remove(path)
+    except Exception as e:
+        _ng("pdf_report", repr(e) + "\n" + traceback.format_exc())
+
+
+def _start_mock_web_server():
+    """検出ロジック検証用のローカルHTTPサーバを起動し base_url を返す。"""
+    import http.server
+    import socketserver
+    import threading
+    import html as _h
+    from urllib.parse import urlparse, parse_qs
+
+    class _H(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_GET(self):
+            u = urlparse(self.path)
+            qs = parse_qs(u.query)
+            q = qs.get("q", [""])[0]
+            pid = qs.get("id", [""])[0]
+            body = "<html><body>"
+            if u.path == "/":
+                body += '<a href="/search?q=hi">s</a> <a href="/item?id=1">i</a>'
+            elif u.path == "/search":
+                body += "Results for: " + q                     # 未エスケープ反射 → XSS
+            elif u.path == "/item":
+                if "'" in pid:
+                    body += "You have an error in your SQL syntax near '"  # → SQLI
+                else:
+                    body += "Item " + _h.escape(pid)
+            body += "</body></html>"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(body.encode())
+
+    srv = socketserver.TCPServer(("127.0.0.1", 0), _H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, f"http://127.0.0.1:{srv.server_address[1]}/"
+
+
+def test_web_fuzzer():
+    _section("16. TOOLS — WebFuzzer（クロール＆検出）")
+    from tools.web_fuzzer import WebFuzzer
+    srv = None
+    try:
+        srv, base = _start_mock_web_server()
+        fz = WebFuzzer(profile="aggressive", max_requests=500, log=lambda m: None)
+        crawl = fz.crawl(base)
+        params = {p["param"] for p in crawl["injection_points"]}
+        assert {"q", "id"} <= params, f"注入点検出漏れ: {params}"
+        _ok("crawl() 注入点検出", f"pages={crawl['pages']} params={sorted(params)}")
+        findings = fz.fuzz(crawl["injection_points"])
+        cats = {f["category"] for f in findings}
+        assert "XSS" in cats, "XSS反射を検出できず"
+        assert "SQLI" in cats, "SQLエラー署名を検出できず"
+        assert fz._req_count <= 500, "リクエスト予算超過"
+        _ok("fuzz() 検出のみ", f"req={fz._req_count} detected={sorted(cats)}")
+    except Exception as e:
+        _ng("web_fuzzer", repr(e) + "\n" + traceback.format_exc())
+    finally:
+        if srv:
+            srv.shutdown()
+
+
+def test_fuzz_agent():
+    _section("17. AGENT E2E — FuzzAgent（ローカルモック / 実LLM）")
+    from agents.fuzz_agent import FuzzAgent
+    from core.llm_client import LLMClient
+    cfg = config.load()
+    llm = LLMClient(cfg["llm_base_url"], cfg["llm_api_key"], cfg["llm_model"], 90)
+    bus = EventBus()
+    srv = None
+    try:
+        srv, base = _start_mock_web_server()
+        agent = FuzzAgent(bus, llm)
+        agent.start(target=base, profile="aggressive", max_requests=400)
+        r = _drain_until_done(bus, timeout=180)
+        assert r["done"], "DONE が来なかった"
+        assert not r["error"], "エラー終了"
+        assert "FUZZING COMPLETE" in r["text"], "完了マーカーなし"
+        _ok("FuzzAgent 完走",
+            f"findings={r['stats']} chars={len(r['text'])}")
+    except Exception as e:
+        _ng("FuzzAgent", repr(e) + "\n" + traceback.format_exc())
+    finally:
+        if srv:
+            srv.shutdown()
+
+
 def main():
     print("\n" + "#"*64)
     print("#  AI Security Audit System — 全機能セルフテスト")
@@ -428,6 +554,9 @@ def main():
     test_recon_agent()
     test_orchestrator_bug()
     test_stealth_features()
+    test_pdf_report()
+    test_web_fuzzer()
+    test_fuzz_agent()
 
     dt = time.time() - t0
     print("\n" + "#"*64)

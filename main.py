@@ -49,9 +49,27 @@ def _ensure_icon(splash=None) -> None:
         pass  # アイコンなしで続行
 
 
+def _set_app_user_model_id() -> None:
+    """Windowsタスクバーで自前アイコンを表示させる。
+
+    未設定だと python.exe のアイコンでグルーピングされ icon.ico が反映されない。
+    GUIウィンドウ生成より前に呼ぶ必要がある。
+    """
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+            "AISecurity.AuditSystem.2"
+        )
+    except Exception:
+        pass
+
+
 def main() -> None:
     _ensure_dirs()
     _ensure_inits()
+    _set_app_user_model_id()
 
     # ── 1. スプラッシュを即時表示（tkinter のみ、~0.1s） ─────────
     from gui.splash import SplashScreen

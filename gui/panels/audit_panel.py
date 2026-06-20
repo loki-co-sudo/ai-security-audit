@@ -106,7 +106,12 @@ class AuditPanel(ctk.CTkFrame):
                       border_color=BORDER, border_width=1,
                       text_color=TEXT_DIM, font=ctk.CTkFont("Segoe UI", 10),
                       command=self._clear).pack(side="right")
-        ctk.CTkButton(hdr, text="📊 レポート出力", width=106, height=26,
+        ctk.CTkButton(hdr, text="📄 PDF", width=66, height=26,
+                      fg_color="#0A1E2A", hover_color="#0E2840",
+                      border_color=CYAN, border_width=1,
+                      text_color=CYAN, font=ctk.CTkFont("Segoe UI", 10),
+                      command=self._export_pdf).pack(side="right", padx=(0, 6))
+        ctk.CTkButton(hdr, text="📊 HTML", width=78, height=26,
                       fg_color="#0A1E2A", hover_color="#0E2840",
                       border_color=CYAN, border_width=1,
                       text_color=CYAN, font=ctk.CTkFont("Segoe UI", 10),
@@ -144,20 +149,18 @@ class AuditPanel(ctk.CTkFrame):
         self._out_box.clear()
 
     def _export_report(self) -> None:
-        from tools import report_generator
-        raw = self._out_box.get_text()
-        html_content = report_generator.generate(
-            mode="CODE AUDIT",
-            target=self._path.get(),
-            raw_text=raw,
-            model=self._llm.model,
+        from gui import export_util
+        export_util.export_html(
+            "CODE AUDIT", self._path.get(), self._out_box.get_text(),
+            self._llm.model, "code_audit", self._steps_widget.log,
         )
-        out_path = report_generator.save(html_content, "code_audit")
-        self._steps_widget.log(f"レポート保存: {os.path.abspath(out_path)}")
-        try:
-            os.startfile(os.path.abspath(out_path))
-        except Exception:
-            pass
+
+    def _export_pdf(self) -> None:
+        from gui import export_util
+        export_util.export_pdf(
+            "CODE AUDIT", self._path.get(), self._out_box.get_text(),
+            self._llm.model, "code_audit", self._steps_widget.log,
+        )
 
     # ── EventBus dispatch（app.py から呼ばれる） ──────────
     def dispatch(self, event: ev.Event) -> None:

@@ -13,11 +13,12 @@ from core.event_bus import EventBus
 from core.llm_client import LLMClient
 from core.settings import (
     APP_TITLE, BG_ROOT, BG_PANEL, BG_WIDGET, BORDER,
-    CYAN, GREEN, RED_C, TEXT_DIM, TEXT_MID,
+    CYAN, GREEN, RED_C, AMBER, TEXT_DIM, TEXT_MID,
     TAB_AUDIT, TAB_ATTACK, TAB_DEFENSE,
 )
 from gui.panels.audit_panel import AuditPanel
 from gui.panels.attack_panel import AttackPanel
+from gui.panels.fuzz_panel import FuzzPanel
 from gui.panels.defense_panel import DefensePanel
 from gui.dialogs.settings_dialog import SettingsDialog
 
@@ -28,6 +29,7 @@ ctk.set_default_color_theme("dark-blue")
 _TABS = [
     ("◉  CODE AUDIT",    CYAN,        "audit"),
     ("◉  ATTACK MODE",   RED_C,       "attack"),
+    ("◉  WEB FUZZ",      AMBER,       "fuzz"),
     ("◉  DEFENSE MODE",  GREEN,       "defense"),
 ]
 
@@ -42,6 +44,7 @@ class App(ctk.CTk):
         self._buses: dict[str, EventBus] = {
             "audit":   EventBus(),
             "attack":  EventBus(),
+            "fuzz":    EventBus(),
             "defense": EventBus(),
         }
         self._llm = LLMClient(
@@ -105,7 +108,7 @@ class App(ctk.CTk):
                      font=ctk.CTkFont("Consolas", 10), text_color=TEXT_DIM,
                      anchor="w").pack(side="left", padx=12)
         ctk.CTkLabel(sbar,
-                     text="DEFENSE ONLY  ·  NO EXPLOIT SEND  ·  LOCAL STORAGE ONLY",
+                     text="AUTHORIZED TARGETS ONLY  ·  DETECT-ONLY / NO DoS  ·  LOCAL STORAGE ONLY",
                      font=ctk.CTkFont("Segoe UI", 9), text_color="#1A3050",
                      anchor="e").pack(side="right", padx=12)
 
@@ -173,6 +176,8 @@ class App(ctk.CTk):
             self._content,   self._buses["audit"],   self._llm)
         self._panels["attack"]  = AttackPanel(
             self._content,  self._buses["attack"],  self._llm)
+        self._panels["fuzz"]    = FuzzPanel(
+            self._content,    self._buses["fuzz"],    self._llm)
         self._panels["defense"] = DefensePanel(
             self._content, self._buses["defense"], self._llm)
 

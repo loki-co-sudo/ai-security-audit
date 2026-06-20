@@ -89,6 +89,14 @@ class _ScreenshotApp(_OrigApp):
 
     def _do_attack(self):
         self._grab("screenshot_attack.png")
+        self.after(300, self._step_fuzz)
+
+    def _step_fuzz(self):
+        self._switch_tab("fuzz")
+        self.after(600, self._do_fuzz)
+
+    def _do_fuzz(self):
+        self._grab("screenshot_fuzz.png")
         self.after(300, self._step_defense)
 
     def _step_defense(self):

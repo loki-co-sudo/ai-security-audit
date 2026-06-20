@@ -1,9 +1,8 @@
 """
-gui/panels/attack_panel.py — ATTACK MODE タブ（ペネトレーションテスト）
+gui/panels/fuzz_panel.py — WEB FUZZ タブ（スマートファジング / 検出のみ）
 """
 
 from __future__ import annotations
-import os
 import tkinter as tk
 import customtkinter as ctk
 
@@ -11,23 +10,24 @@ import core.event_bus as ev
 from core.event_bus import EventBus
 from core.llm_client import LLMClient
 from core.settings import (
-    BG_PANEL, BG_WIDGET, BG_INPUT, CYAN, RED_C,
-    TEXT_MID, TEXT_DIM, TEXT_PRI, BORDER, BG_ROOT,
+    BG_PANEL, BG_WIDGET, BG_INPUT, CYAN, AMBER, ORANGE_H,
+    TEXT_DIM, TEXT_PRI, BORDER,
 )
-from agents.recon_agent import ReconAgent, STEPS
+from agents.fuzz_agent import FuzzAgent, STEPS
 from gui.widgets.output_box import OutputBox
 from gui.widgets.progress_steps import ProgressSteps
 
-class AttackPanel(ctk.CTkFrame):
+
+class FuzzPanel(ctk.CTkFrame):
 
     def __init__(self, master, bus: EventBus, llm: LLMClient, **kwargs):
         kwargs.setdefault("fg_color", "transparent")
         super().__init__(master, **kwargs)
         self._bus       = bus
         self._llm       = llm
-        self._agent     = ReconAgent(bus, llm)
-        self._intensity = tk.StringVar(value="stealth")
-        self._scan_web  = tk.BooleanVar(value=True)
+        self._agent     = FuzzAgent(bus, llm)
+        self._profile   = tk.StringVar(value="stealth")
+        self._budget    = tk.StringVar(value="200")
         self._build()
 
     def _build(self) -> None:
@@ -37,27 +37,27 @@ class AttackPanel(ctk.CTkFrame):
         tbar.pack_propagate(False)
 
         self._scan_btn = ctk.CTkButton(
-            tbar, text="  SCAN  ▶ ", width=130, height=34,
-            fg_color=RED_C, hover_color="#CC2828",
-            text_color="white", font=ctk.CTkFont("Segoe UI", 12, "bold"),
-            command=self._start_scan,
+            tbar, text="  FUZZ  ▶ ", width=130, height=34,
+            fg_color=AMBER, hover_color="#CC8400",
+            text_color="#1A1000", font=ctk.CTkFont("Segoe UI", 12, "bold"),
+            command=self._start,
         )
         self._scan_btn.pack(side="right", padx=12, pady=9)
 
         ctk.CTkButton(
             tbar, text="■  STOP", width=90, height=34,
-            fg_color="#3A1010", hover_color="#4A1818",
-            border_color=RED_C, border_width=1,
-            text_color=RED_C, font=ctk.CTkFont("Segoe UI", 11),
-            command=self._stop_scan,
+            fg_color="#2A1A00", hover_color="#3A2400",
+            border_color=AMBER, border_width=1,
+            text_color=AMBER, font=ctk.CTkFont("Segoe UI", 11),
+            command=self._stop,
         ).pack(side="right", padx=(0, 6), pady=9)
 
         ctk.CTkLabel(tbar, text="TARGET:", font=ctk.CTkFont("Segoe UI", 11, "bold"),
-                     text_color=RED_C, width=60).pack(side="left", padx=(12, 4), pady=9)
+                     text_color=AMBER, width=60).pack(side="left", padx=(12, 4), pady=9)
         self._target_entry = ctk.CTkEntry(
-            tbar, placeholder_text="https://example.com  または  192.168.1.1",
+            tbar, placeholder_text="https://example.com/search?q=test  （クエリ/フォームを持つURL）",
             font=ctk.CTkFont("Consolas", 11), fg_color=BG_INPUT,
-            border_color=RED_C, border_width=1, text_color=TEXT_PRI,
+            border_color=AMBER, border_width=1, text_color=TEXT_PRI,
         )
         self._target_entry.pack(side="left", fill="x", expand=True, padx=(0, 8), pady=9)
 
@@ -70,16 +70,23 @@ class AttackPanel(ctk.CTkFrame):
                      text_color=TEXT_DIM).pack(side="left", padx=(14, 4), pady=8)
         ctk.CTkOptionMenu(
             obar, values=["stealth", "passive", "moderate", "aggressive"],
-            variable=self._intensity, width=120, height=26,
-            fg_color=BG_INPUT, button_color="#1A3050",
+            variable=self._profile, width=120, height=26,
+            fg_color=BG_INPUT, button_color="#3A2400",
             font=ctk.CTkFont("Segoe UI", 10), text_color=TEXT_PRI,
         ).pack(side="left", padx=(0, 16), pady=7)
 
-        ctk.CTkCheckBox(
-            obar, text="Web Probe", variable=self._scan_web,
-            font=ctk.CTkFont("Segoe UI", 10), text_color=TEXT_DIM,
-            fg_color=CYAN, hover_color="#009BBD",
-            checkbox_width=16, checkbox_height=16,
+        ctk.CTkLabel(obar, text="REQ BUDGET:", font=ctk.CTkFont("Segoe UI", 10),
+                     text_color=TEXT_DIM).pack(side="left", padx=(0, 4), pady=8)
+        ctk.CTkOptionMenu(
+            obar, values=["80", "200", "400", "800"],
+            variable=self._budget, width=80, height=26,
+            fg_color=BG_INPUT, button_color="#3A2400",
+            font=ctk.CTkFont("Segoe UI", 10), text_color=TEXT_PRI,
+        ).pack(side="left", padx=(0, 16), pady=7)
+
+        ctk.CTkLabel(
+            obar, text="検出のみ・同一オリジン限定・認可された対象のみ",
+            font=ctk.CTkFont("Segoe UI", 9), text_color=ORANGE_H,
         ).pack(side="left", padx=8)
 
         # ── メインペイン ──────────────────────────────────
@@ -95,43 +102,47 @@ class AttackPanel(ctk.CTkFrame):
         hdr = ctk.CTkFrame(right, fg_color="transparent", height=34)
         hdr.pack(fill="x", padx=14, pady=(10, 2))
         hdr.pack_propagate(False)
-        ctk.CTkLabel(hdr, text="RECON & AI THREAT ANALYSIS",
-                     font=ctk.CTkFont("Segoe UI", 11, "bold"), text_color=RED_C).pack(side="left")
+        ctk.CTkLabel(hdr, text="SMART FUZZING & AI TRIAGE",
+                     font=ctk.CTkFont("Segoe UI", 11, "bold"), text_color=AMBER).pack(side="left")
         ctk.CTkButton(hdr, text="Clear", width=60, height=26,
-                      fg_color="#1A0808", hover_color="#2A1010",
+                      fg_color="#1A1000", hover_color="#2A1A00",
                       border_color=BORDER, border_width=1,
                       text_color=TEXT_DIM, font=ctk.CTkFont("Segoe UI", 10),
                       command=self._clear).pack(side="right")
         ctk.CTkButton(hdr, text="📄 PDF", width=66, height=26,
-                      fg_color="#1A0808", hover_color="#2A1010",
-                      border_color=RED_C, border_width=1,
-                      text_color=RED_C, font=ctk.CTkFont("Segoe UI", 10),
+                      fg_color="#1A1000", hover_color="#2A1A00",
+                      border_color=AMBER, border_width=1,
+                      text_color=AMBER, font=ctk.CTkFont("Segoe UI", 10),
                       command=self._export_pdf).pack(side="right", padx=(0, 6))
         ctk.CTkButton(hdr, text="📊 HTML", width=78, height=26,
-                      fg_color="#1A0808", hover_color="#2A1010",
-                      border_color=RED_C, border_width=1,
-                      text_color=RED_C, font=ctk.CTkFont("Segoe UI", 10),
+                      fg_color="#1A1000", hover_color="#2A1A00",
+                      border_color=AMBER, border_width=1,
+                      text_color=AMBER, font=ctk.CTkFont("Segoe UI", 10),
                       command=self._export_report).pack(side="right", padx=(0, 6))
 
         self._out_box = OutputBox(right)
         self._out_box.pack(fill="both", expand=True, padx=10, pady=(0, 10))
 
     # ── ロジック ──────────────────────────────────────────
-    def _start_scan(self) -> None:
+    def _start(self) -> None:
         target = self._target_entry.get().strip()
         if not target:
-            self._out_box.append("[ ERROR ] ターゲットを入力してください。\n", "critical")
+            self._out_box.append("[ ERROR ] ターゲットURLを入力してください。\n", "critical")
             return
+        try:
+            budget = int(self._budget.get())
+        except ValueError:
+            budget = 200
         self._steps_widget.reset()
-        self._scan_btn.configure(state="disabled", text="  SCANNING  ●", fg_color="#601010")
+        self._scan_btn.configure(state="disabled", text="  FUZZING  ●", fg_color="#6A4400")
         self._bus.flush()
         self._agent.start(
             target=target,
-            scan_web=self._scan_web.get(),
-            intensity=self._intensity.get(),
+            profile=self._profile.get(),
+            max_requests=budget,
         )
 
-    def _stop_scan(self) -> None:
+    def _stop(self) -> None:
         self._agent.stop()
 
     def _clear(self) -> None:
@@ -140,17 +151,17 @@ class AttackPanel(ctk.CTkFrame):
     def _export_report(self) -> None:
         from gui import export_util
         export_util.export_html(
-            "ATTACK MODE", self._target_entry.get().strip(),
+            "WEB FUZZ", self._target_entry.get().strip(),
             self._out_box.get_text(), self._llm.model,
-            "attack_mode", self._steps_widget.log,
+            "web_fuzz", self._steps_widget.log,
         )
 
     def _export_pdf(self) -> None:
         from gui import export_util
         export_util.export_pdf(
-            "ATTACK MODE", self._target_entry.get().strip(),
+            "WEB FUZZ", self._target_entry.get().strip(),
             self._out_box.get_text(), self._llm.model,
-            "attack_mode", self._steps_widget.log,
+            "web_fuzz", self._steps_widget.log,
         )
 
     # ── EventBus dispatch ─────────────────────────────────
@@ -168,7 +179,7 @@ class AttackPanel(ctk.CTkFrame):
             self._out_box.clear()
         elif k == ev.DONE:
             self._scan_btn.configure(
-                state="normal", text="  SCAN  ▶ ", fg_color=RED_C,
+                state="normal", text="  FUZZ  ▶ ", fg_color=AMBER,
             )
             if p and not p.get("error"):
                 self._steps_widget.set_progress(1.0)

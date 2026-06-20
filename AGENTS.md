@@ -6,9 +6,10 @@
 
 **目的:** シグネチャ（既知パターン）に依存しない、LLM推論による自律型ペネトレーションテスト＆脆弱性露出管理プラットフォームの開発。CVEデータベースに載っていない設計上の論理的欠陥・未知のゼロデイ表面を発見することが技術的な差別化ポイント。
 
-**3つの動作モード:**
+**4つの動作モード:**
 - `CODE AUDIT` — Pythonソースをセマンティック解析し、SQL Injection・IDOR・競合状態・認可ロジック欠陥などを発見
 - `ATTACK MODE` — 許可されたターゲットへのポートスキャン・Web列挙・AIによる攻撃仮説生成（偵察フェーズのみ）
+- `WEB FUZZ` — Webアプリのクロール→注入点抽出→AI検出プローブ→検出のみファジング→AIトリアージ（兆候観測のみ・非エクスプロイト）
 - `DEFENSE MODE` — アクセスログのリアルタイム監視・MITRE ATT&CK分類・即時アラート生成
 
 ---
@@ -57,27 +58,33 @@ AI-Security-tool/
 │   ├── audit_agent.py           # CODE AUDITエージェント（7ステップ。CVE照合付き）
 │   ├── langgraph_audit_agent.py # LangGraph強化型監査エージェント（orchestrator.pyを使用）
 │   ├── recon_agent.py           # ATTACK MODEエージェント（7ステップ）
+│   ├── fuzz_agent.py            # WEB FUZZエージェント（6ステップ・検出のみ）
 │   └── monitor_agent.py         # DEFENSE MODEエージェント（ログ監視+バッチAI分析）
 ├── tools/
 │   ├── network_scanner.py       # socket-basedポートスキャナ、SSL証明書取得
 │   ├── web_prober.py            # HTTP探査、技術スタック指紋、センシティブパス列挙
+│   ├── web_fuzzer.py            # Webスマートファザー（クロール・注入点検出・異常観測／検出のみ）
 │   ├── log_watcher.py           # tailf式ログ追跡ジェネレータ、サンプルログ生成
 │   ├── cve_client.py            # NVD API v2クライアント。@lru_cacheでキャッシュ、サイレント失敗
-│   ├── report_generator.py      # HTMLレポート生成。---VULN_START---マーカーをパースして構造化出力
+│   ├── report_generator.py      # HTML/PDFレポート生成。---VULN_START---マーカーをパースして構造化出力
+│   ├── pdf_writer.py            # 日本語対応PDFレンダラー（Pillowのみ・依存追加なし）
+│   ├── create_shortcut.py       # デスクトップショートカット生成（Windows・OneDrive対応）
 │   ├── run_selftest.py          # 全機能セルフテスト（GUI以外をEventBus経由でE2E検証）
 │   └── capture_screenshots.py   # README用スクリーンショット自動撮影
 ├── gui/
-│   ├── app.py                   # メインウィンドウ。DPI対応、3タブ、30msポーリング、アイコン設定
+│   ├── app.py                   # メインウィンドウ。DPI対応、4タブ、30msポーリング、アイコン設定
 │   ├── splash.py                # 起動スプラッシュ（tkinter製・重いモジュールロード前に高速表示）
+│   ├── export_util.py           # HTML/PDFレポート出力の共通ヘルパー
 │   ├── dialogs/
 │   │   └── settings_dialog.py   # LLM設定モーダル（接続テスト・config.json保存）
 │   ├── widgets/
 │   │   ├── output_box.py        # カラータグ付きスクロールテキストボックス（get_text()付き）
 │   │   └── progress_steps.py    # ステップ進捗＋深刻度カウンターウィジェット（DETECTION SUMMARY）
 │   └── panels/
-│       ├── audit_panel.py       # CODE AUDITタブ（LangGraphトグル・📊レポート出力）
-│       ├── attack_panel.py      # ATTACK MODEタブ（📊レポート出力）
-│       └── defense_panel.py     # DEFENSE MODEタブ（📊レポート出力）
+│       ├── audit_panel.py       # CODE AUDITタブ（LangGraphトグル・📊HTML/📄PDF出力）
+│       ├── attack_panel.py      # ATTACK MODEタブ（📊HTML/📄PDF出力）
+│       ├── fuzz_panel.py        # WEB FUZZタブ（プロファイル・REQ予算・📊HTML/📄PDF出力）
+│       └── defense_panel.py     # DEFENSE MODEタブ（📊HTML/📄PDF出力）
 └── reports/                     # スキャン結果出力先（ローカル保存のみ・gitignore済み）
 ```
 
@@ -114,7 +121,7 @@ class MyAgent(BaseAgent):
 ```
 
 #### カラーテーマ（`core/settings.py`から参照）
-- タブカラー: CODE AUDIT=`CYAN(#00D4FF)`, ATTACK=`RED_C(#FF3B3B)`, DEFENSE=`GREEN(#00FF88)`
+- タブカラー: CODE AUDIT=`CYAN(#00D4FF)`, ATTACK=`RED_C(#FF3B3B)`, WEB FUZZ=`AMBER(#FFA500)`, DEFENSE=`GREEN(#00FF88)`
 - 深刻度カラー: CRITICAL=RED_C, HIGH=ORANGE_H, MEDIUM=YELLOW_M, LOW=GREEN_L
 - 新しいウィジェットは `BG_PANEL`, `BG_WIDGET`, `BG_INPUT` の3段階背景色を使い分ける
 
@@ -141,9 +148,9 @@ class MyAgent(BaseAgent):
 
 5. **コメントは最小限**: 「WHY」が非自明な場合のみコメントを書く。「WHAT」を説明するコメントは不要（変数名・関数名が語る）。ドキュメントstring は1行まで。
 
-6. **セキュリティポリシーの遵守**: 「エクスプロイト送信の非実装」「スキャン結果はローカル保存のみ」「ブルートフォース・DoS・C2・マルウェア生成の非実装」に反するコードを生成しない。（ATTACK MODE の認可チェックボックスは v2.1 で専門家向けUXのため廃止済み — 復活させない）
+6. **セキュリティポリシーの遵守**: 「検出のみ（エクスプロイト＝データ窃取・RCE実行・認証回避は非実装）」「スキャン結果はローカル保存のみ」「ブルートフォース・DoS・C2・マルウェア生成の非実装」「WEB FUZZ は同一オリジン限定・リクエスト数上限つき」に反するコードを生成しない。WEB FUZZ は脆弱性の"兆候観測"に留め、武器化したエクスプロイトを構築しない。（ATTACK MODE の認可チェックボックスは v2.1 で専門家向けUXのため廃止済み — 復活させない）
 
-7. **新しいパネルを追加する場合**: `ctk.CTkFrame` を継承し、`dispatch(event: ev.Event)` メソッドを実装する。`app.py` に新しい EventBus とタブボタンを追加する。
+7. **新しいパネルを追加する場合**: `ctk.CTkFrame` を継承し、`dispatch(event: ev.Event)` メソッドを実装する。`app.py` に新しい EventBus とタブボタンを追加する。レポート出力は `gui/export_util.py` を使う。
 
 ### 命名規則
 - クラス: `PascalCase`（例: `AuditAgent`, `OutputBox`）
@@ -180,11 +187,21 @@ fix: fix ALERT event not firing in DEFENSE MODE
 - **ループ内で関数引数と同名の変数を再代入しない**。特に `path` のようなパス引数を内側で上書きしない（log_watcher の `generate_sample_log` がリクエストパスで引数 `path` を潰し、`os.makedirs` が失敗した）。
 - **ATTACK MODE のスキャン挙動は `core/settings.SCAN_PROFILES` で一元管理する**。スキャナのタイミング・並列度・ランダム化をエージェントやUIにハードコードしない（intensity の直値分岐を `NetworkScanner.from_profile()` / `WebProber(profile=...)` に置換済み。新プロファイルは settings に追加するだけで全体へ波及させる）。
 - **`WebProber` は自己申告UA（"Security Audit Tool" 等）を使わない**。ステルス前提のため `STEALTH_USER_AGENTS` の実在ブラウザUAをローテーションする。
-- 重要な変更後は `py tools/run_selftest.py` でリグレッションを確認する（現在26項目）。
+- **WEB FUZZ は「検出のみ・非エクスプロイト」を厳守する**。`web_fuzzer.py` はレスポンス異常（反射・DBエラー署名・テンプレ評価・既知ファイル署名）の観測に留め、データ窃取・RCE実行・認証回避は実装しない。総リクエスト数の上限（`max_requests`）・同一オリジン限定・ジッター/低並列でDoSを回避する。これらの安全境界を緩めない。
+- **レポート出力は `gui/export_util.py` 経由に統一する**。各パネルで `report_generator` を直接叩く重複実装をしない（HTML/PDF両対応のため一元化済み）。PDFは `tools/pdf_writer.py`（Pillowのみ）で日本語をラスタ描画する — 標準14フォントはCJK非対応のため。
+- 重要な変更後は `py tools/run_selftest.py` でリグレッションを確認する（現在31項目）。
 
 ---
 
 ## 4. 現在の開発フェーズとロードマップ
+
+### 実装済み（v2.3.0 — Webファジング・PDF・デスクトップ統合）
+- [x] `tools/web_fuzzer.py` — Webスマートファザー（同一オリジンクロール→クエリ/フォーム注入点抽出→検出プローブ送出→異常観測）。検出のみ・`max_requests` 上限でDoS回避
+- [x] `agents/fuzz_agent.py` — WEB FUZZ エージェント（6ステップ：クロール→AI検出プローブ生成→ファジング→AIトリアージ）。出力は `---VULN_START/END---` 形式で report_generator と互換
+- [x] `gui/panels/fuzz_panel.py` + `gui/app.py` 4タブ化（WEB FUZZ タブ追加、AMBERテーマ）
+- [x] `tools/pdf_writer.py` + `report_generator.generate_pdf()/save_pdf()` — 日本語対応PDF出力（Pillowのみ・依存追加なし）
+- [x] `gui/export_util.py` — HTML/PDF出力の共通ヘルパー（全パネルに「📊 HTML」「📄 PDF」ボタン）
+- [x] `tools/create_shortcut.py` — デスクトップショートカット生成（OneDriveリダイレクト対応）＋ `main.py` で AppUserModelID 設定（タスクバーアイコン対応）
 
 ### 実装済み（v2.2.0 — ステルス強化）
 - [x] ステルススキャンプロファイル `core/settings.SCAN_PROFILES`（stealth/passive/moderate/aggressive）— `NetworkScanner.from_profile()` / `WebProber(profile=...)` で適用、ATTACK MODE 既定は `stealth`
@@ -211,7 +228,7 @@ fix: fix ALERT event not firing in DEFENSE MODE
 - [x] `tools/log_watcher.py` — tailf式ジェネレータ・200エントリのサンプルログ生成
 
 **GUI**
-- [x] `gui/app.py` — DPI対応メインウィンドウ、3タブ、30msポーリング、⚙ 設定ボタン
+- [x] `gui/app.py` — DPI対応メインウィンドウ、4タブ（v2.3で WEB FUZZ 追加）、30msポーリング、⚙ 設定ボタン
 - [x] `gui/dialogs/settings_dialog.py` — LLM設定モーダル（プリセット・接続テスト・config.json保存）
 - [x] `gui/widgets/output_box.py` — 13種カラータグ付きテキストボックス
 - [x] `gui/widgets/progress_steps.py` — ステップリスト・プログレスバー・深刻度カウンター
@@ -230,18 +247,17 @@ fix: fix ALERT event not firing in DEFENSE MODE
 - [x] CODE AUDITタブに ENGINE トグル（Standard / LangGraph）追加
 - [x] OpenRouter対応（`llm_client.py` で `openrouter.ai` 検出時に `HTTP-Referer`/`X-Title` 自動付与・設定UIにプリセット追加）
 - [x] `gui/splash.py` — 起動スプラッシュ画面 + アプリアイコン（`assets/`）+ 起動高速化（遅延インポート）
-- [x] `tools/run_selftest.py` — 全機能セルフテスト（26項目、実LLM/実ネットワークでE2E検証）
+- [x] `tools/run_selftest.py` — 全機能セルフテスト（31項目、実LLM/実ネットワークでE2E検証。PDF/WebFuzzer/FuzzAgentはローカルモックサーバで検証）
 - [x] バグ修正（レポート生成のキー不一致・サンプルログ生成の変数衝突・orchestratorのEventBus API誤用）
 
 ### 未実装（ロードマップ）
 
 **次のフェーズ（優先度高）**
-- [ ] Webファジングエージェント（クローリング→入力フィールド特定→AIによるペイロード生成）
 - [ ] 拡張ポートスキャン（UDP対応 ※ステルス性とのトレードオフを検討）
+- [ ] 認証付きWebアプリのファジング（セッション/CSRFトークン対応）
 
 **長期**
 - [ ] CI/CD統合（GitHub Actionsでの自動脆弱性スキャン）
-- [ ] レポートのPDF出力対応（reportlab / weasyprint）
 
 ---
 

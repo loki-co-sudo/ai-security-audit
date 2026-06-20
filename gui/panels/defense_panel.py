@@ -121,7 +121,12 @@ class DefensePanel(ctk.CTkFrame):
                       border_color=BORDER, border_width=1,
                       text_color=TEXT_DIM, font=ctk.CTkFont("Segoe UI", 10),
                       command=self._clear).pack(side="right")
-        ctk.CTkButton(hdr, text="📊 レポート出力", width=106, height=26,
+        ctk.CTkButton(hdr, text="📄 PDF", width=66, height=26,
+                      fg_color="#0A200A", hover_color="#0F2A0F",
+                      border_color=GREEN, border_width=1,
+                      text_color=GREEN, font=ctk.CTkFont("Segoe UI", 10),
+                      command=self._export_pdf).pack(side="right", padx=(0, 6))
+        ctk.CTkButton(hdr, text="📊 HTML", width=78, height=26,
                       fg_color="#0A200A", hover_color="#0F2A0F",
                       border_color=GREEN, border_width=1,
                       text_color=GREEN, font=ctk.CTkFont("Segoe UI", 10),
@@ -228,19 +233,18 @@ class DefensePanel(ctk.CTkFrame):
         self._out_box.clear()
 
     def _export_report(self) -> None:
-        from tools import report_generator
-        raw = self._out_box.get_text()
-        html_content = report_generator.generate(
-            mode="DEFENSE MODE",
-            target=self._log_path.get(),
-            raw_text=raw,
+        from gui import export_util
+        export_util.export_html(
+            "DEFENSE MODE", self._log_path.get(), self._out_box.get_text(),
+            "", "defense_mode", self._sys_log,
         )
-        out_path = report_generator.save(html_content, "defense_mode")
-        self._sys_log(f"レポート保存: {os.path.abspath(out_path)}")
-        try:
-            os.startfile(os.path.abspath(out_path))
-        except Exception:
-            pass
+
+    def _export_pdf(self) -> None:
+        from gui import export_util
+        export_util.export_pdf(
+            "DEFENSE MODE", self._log_path.get(), self._out_box.get_text(),
+            "", "defense_mode", self._sys_log,
+        )
 
     def _sys_log(self, msg: str) -> None:
         ts = datetime.now().strftime("%H:%M:%S")

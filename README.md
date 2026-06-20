@@ -1,5 +1,5 @@
 # AI Security Audit System
-**Autonomous Penetration Testing & Defense Platform v2.2**
+**Autonomous Penetration Testing & Defense Platform v2.3**
 
 > シグネチャ（既知パターン）に依存しない、AI駆動型・次世代自律ペネトレーションテスト＆脆弱性露出管理システム
 
@@ -15,12 +15,13 @@
 本ツールは、セキュリティ専門家・研究者向けの **AI自律エージェントによるセキュリティ診断プラットフォーム**です。  
 既知のCVEやシグネチャへの依存をなくし、大規模言語モデル（LLM）による **文脈理解・推論・異常検知** を組み合わせることで、従来ツールでは発見困難な**未知の脆弱性・設計上の論理的欠陥**を自律的に探索します。
 
-### 3つの動作モード
+### 4つの動作モード
 
 | モード | 概要 | ターゲット |
 |--------|------|-----------|
 | **CODE AUDIT** | Pythonコードをセマンティック解析し、SQLi・IDOR・競合状態など設計上の脆弱性を発見 | `.py` ソースファイル |
 | **ATTACK MODE** | ターゲットに対してAIが自律的にポートスキャン・HTTP探査・攻撃仮説生成を実施（許可されたターゲットのみ） | Webサービス・サーバー |
+| **WEB FUZZ** | Webアプリをクロールして注入点を抽出し、AIが生成した検出プローブで脆弱性の兆候（SQLi・XSS・トラバーサル・SSTI）を観測（検出のみ・非エクスプロイト） | Webアプリケーション |
 | **DEFENSE MODE** | ログファイルをリアルタイム監視し、攻撃パターンをMITRE ATT&CK準拠でAI分類・即時アラート | アクセスログ |
 
 ---
@@ -40,6 +41,14 @@ AIがコードの文脈を読み取り、CVEに存在しない論理的欠陥（
 **必ず許可されたターゲットに対してのみ使用すること。**
 
 ![ATTACK MODE](docs/screenshot_attack.png)
+
+### WEB FUZZ — スマートファジング（検出のみ）
+
+Webアプリを浅くクロールしてクエリ・フォームの注入点を抽出 → AIが各脆弱性クラスの**検出プローブ**を文脈推論で生成 → レスポンスの異常（未エスケープ反射・DBエラー署名・テンプレート評価・既知ファイル署名）を観測して脆弱性の兆候を報告。  
+**検出のみ・非エクスプロイト**設計で、総リクエスト数に上限を設けDoSを回避。ステルスプロファイルのジッター／低並列を流用し、同一オリジン限定で動作する。  
+**必ず許可されたターゲットに対してのみ使用すること。**
+
+![WEB FUZZ](docs/screenshot_fuzz.png)
 
 ### DEFENSE MODE — リアルタイム脅威監視
 
@@ -74,18 +83,23 @@ AI-Security-tool/
 │   ├── audit_agent.py         # CODE AUDIT エージェント（CVE照合付き）
 │   ├── langgraph_audit_agent.py # LangGraph強化型監査エージェント
 │   ├── recon_agent.py         # ATTACK MODE エージェント（偵察・仮説生成）
+│   ├── fuzz_agent.py          # WEB FUZZ エージェント（クロール→AIプローブ→検出→トリアージ）
 │   └── monitor_agent.py       # DEFENSE MODE エージェント（ログ監視・脅威分析）
 ├── tools/
 │   ├── network_scanner.py     # Socket-basedポートスキャナ（nmap不要）
 │   ├── web_prober.py          # HTTP探査・技術スタック指紋採取
+│   ├── web_fuzzer.py          # Webスマートファザー（クロール・注入点検出・異常観測／検出のみ）
 │   ├── log_watcher.py         # tailf式リアルタイムログ追跡（標準ライブラリのみ）
 │   ├── cve_client.py          # NVD API v2クライアント（CWE→CVE照合・キャッシュ付き）
-│   ├── report_generator.py    # HTMLレポート生成（ダークテーマ・脆弱性詳細付き）
+│   ├── report_generator.py    # HTML/PDFレポート生成（ダークテーマ・脆弱性詳細付き）
+│   ├── pdf_writer.py          # 日本語対応PDFレンダラー（Pillowのみ・依存追加なし）
+│   ├── create_shortcut.py     # デスクトップショートカット生成（Windows）
 │   ├── run_selftest.py        # 全機能セルフテスト（GUI以外を網羅）
 │   └── capture_screenshots.py # README用スクリーンショット自動撮影
 ├── gui/
-│   ├── app.py                 # メインウィンドウ（3タブ、DPI対応、⚙設定ボタン）
+│   ├── app.py                 # メインウィンドウ（4タブ、DPI対応、⚙設定ボタン）
 │   ├── splash.py              # 起動スプラッシュスクリーン（tkinter製・高速表示）
+│   ├── export_util.py         # レポート出力（HTML/PDF）共通ヘルパー
 │   ├── dialogs/
 │   │   └── settings_dialog.py # LLM接続設定ダイアログ（接続テスト・設定保存）
 │   ├── widgets/
@@ -94,6 +108,7 @@ AI-Security-tool/
 │   └── panels/
 │       ├── audit_panel.py     # CODE AUDIT タブ（LangGraphトグル・レポート出力）
 │       ├── attack_panel.py    # ATTACK MODE タブ（レポート出力）
+│       ├── fuzz_panel.py      # WEB FUZZ タブ（プロファイル・REQ予算・レポート出力）
 │       └── defense_panel.py   # DEFENSE MODE タブ（レポート出力）
 ├── assets/
 │   ├── create_icon.py         # アプリアイコン生成スクリプト（PIL）
@@ -165,6 +180,17 @@ python main.py
 
 いずれも `py` / `python3` / `python` を自動検出して `main.py` を実行します。
 
+### デスクトップアイコンから起動（Windows）
+
+アプリアイコン（`assets/icon.ico`）はタイトルバー・タスクバーに自動表示されます。  
+デスクトップにダブルクリック起動用のショートカットを作るには：
+
+```bash
+py tools/create_shortcut.py
+```
+
+デスクトップに「AI Security Audit」ショートカット（コンソール窓なしで起動・アイコン付き）が作成されます。OneDrive等でデスクトップがリダイレクトされている環境にも対応しています。
+
 ---
 
 ### Docker で起動（オプション）
@@ -208,7 +234,7 @@ docker run -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix ai-security-audi
    - **LangGraph モード**: CRITICAL 発見時に深層解析ループを自動実行。より徹底した攻撃チェーン分析。（要 `pip install langgraph`）
 3. `「AI 監査を開始 ▶」` をクリック
 4. 左ペインでステップ進捗を確認、右ペインでAI解析結果をリアルタイム受信
-5. スキャン完了後、右上の `「📊 レポート出力」` ボタンでHTML形式のレポートを生成・保存
+5. スキャン完了後、右上の `「📊 HTML」` / `「📄 PDF」` ボタンでレポートを生成・保存（PDFは日本語対応・ダークテーマ）
 
 **検出対象の例**:
 - SQLインジェクション（クエリ文字列結合）
@@ -237,13 +263,23 @@ docker run -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix ai-security-audi
 > **重要**: 本ツールはセキュリティに精通した専門家が、**許可されたターゲットに対する診断のみ**に使用することを前提としています。  
 > 無許可のスキャンは不正アクセス禁止法等の法律に違反します。実行はすべて利用者の責任で行ってください。
 
+### WEB FUZZ（許可されたターゲットのみ）
+
+1. クエリやフォームを持つWebアプリのURLを入力（例: `https://example.com/search?q=test`）
+2. Profile（ジッター・並列度）と **REQ BUDGET**（総リクエスト上限＝DoS防止）を選択
+3. `「FUZZ ▶」` をクリック
+4. クロール → AI検出プローブ生成 → ファジング（検出のみ）→ AIトリアージの順に自律実行
+5. 観測した脆弱性の兆候をAIがトリアージし、`「📊 HTML」` / `「📄 PDF」` でレポート出力
+
+> **検出のみ・非エクスプロイト**: データ窃取やRCE実行などの攻撃は行わず、レスポンス異常から脆弱性の「兆候」を観測するに留めます。同一オリジン限定・リクエスト数上限つきでDoSを回避します。
+
 ### DEFENSE MODE
 
 1. `「📄 ログ選択」` でアクセスログを選択（または `「🔧 サンプル生成」` でテスト用ログを作成）
 2. 「継続監視モード」チェックで、ファイル末尾をリアルタイム追跡するか選択
 3. `「▶ 監視開始」` をクリック
 4. 左ペインの **ALERT TIMELINE** で即時アラートを確認、右ペインでAI詳細分析を受信
-5. `「📊 レポート出力」` で検知結果をHTMLレポートに出力
+5. `「📊 HTML」` / `「📄 PDF」` で検知結果をレポートに出力
 
 ---
 
@@ -251,10 +287,11 @@ docker run -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix ai-security-audi
 
 本ツールは以下のポリシーに従って設計されています：
 
-- **発見特化**: 脆弱性の「発見」に特化し、実際のエクスプロイト送信機能は実装しない
+- **検出のみ**: 脆弱性の「発見・兆候観測」に特化する。WEB FUZZ は検出プローブによる異常観測に留め、データ窃取・RCE実行・認証回避などのエクスプロイトは行わない
+- **非DoS**: 総リクエスト数に上限を設け、ジッター・低並列で過負荷を避ける。ブルートフォース・C2通信・マルウェア生成機能は実装しない
 - **ローカル保存**: スキャン結果はローカルにのみ保存し、外部への自動送信は行わない
-- **非破壊的**: ブルートフォース攻撃・DoS・C2通信・マルウェア生成機能は実装しない
-- **専門家向け**: 本ツールはセキュリティ専門家の利用を前提とし、許可された対象のみへの使用を利用者の責任において求める
+- **同一オリジン限定**: WEB FUZZ のクロールはターゲットと同一ホストのみを辿る
+- **専門家向け・認可前提**: セキュリティ専門家が、許可された対象のみへ、利用者の責任において使用することを前提とする
 
 ---
 
@@ -264,7 +301,8 @@ docker run -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix ai-security-audi
 - [x] CODE AUDIT エージェント（セマンティック解析）
 - [x] ATTACK MODE エージェント（ポートスキャン + AI偵察）
 - [x] DEFENSE MODE エージェント（リアルタイムログ監視・ALERT TIMELINE）
-- [x] 3タブ統合GUIアプリケーション
+- [x] WEB FUZZ エージェント（クロール→注入点抽出→AI検出プローブ生成→検出のみファジング→AIトリアージ）
+- [x] 4タブ統合GUIアプリケーション
 - [x] LLM接続設定ダイアログ（接続テスト・config.json永続化）
 - [x] クロスプラットフォームランチャー（Windows / Linux / macOS）
 - [x] OpenRouter対応（推奨ヘッダー自動付与・モデルプリセット）
@@ -276,11 +314,13 @@ docker run -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix ai-security-audi
 - [x] 全機能セルフテスト（`tools/run_selftest.py`）
 - [x] ステルススキャンプロファイル（ポート順ランダム化・タイミングジッター・低並列・実在UAローテーション）
 - [x] 受動OSフィンガープリント（バナー／ヘッダー解析・追加通信なし）
+- [x] Webファジングエージェント（クロール→入力特定→AI検出プローブ生成、検出のみ・非エクスプロイト）
+- [x] レポートのPDF出力対応（日本語対応・ダークテーマ・Pillowのみで依存追加なし）
+- [x] デスクトップショートカット生成（`py tools/create_shortcut.py`）・タスクバーアイコン対応
 
 ### 今後の拡張予定
-- [ ] Webファジングエージェント（クローリング→入力特定→AIペイロード生成）
-- [ ] レポートのPDF出力対応
 - [ ] 拡張ポートスキャン（UDP対応 ※ステルス性とのトレードオフを検討）
+- [ ] 認証付きWebアプリのファジング（セッション・CSRFトークン対応）
 
 ---
 
