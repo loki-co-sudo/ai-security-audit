@@ -21,6 +21,19 @@ from core.event_bus import EventBus
 
 config.load()
 
+# セルフテストのLLM呼び出しは廉価モデルで実行してコストを抑える。
+# base_url / api_key は config.json のものを使い、モデルだけ上書きする。
+# 環境変数 SELFTEST_MODEL で任意モデルに差し替え可能。
+SELFTEST_MODEL = os.environ.get("SELFTEST_MODEL", "openai/gpt-4o-mini")
+
+
+def _selftest_llm(timeout: int):
+    """廉価モデルを使うセルフテスト用 LLMClient を生成する。"""
+    from core.llm_client import LLMClient
+    cfg = config.load()
+    return LLMClient(cfg["llm_base_url"], cfg["llm_api_key"], SELFTEST_MODEL, timeout)
+
+
 _PASS, _FAIL = [], []
 
 
@@ -261,8 +274,7 @@ def test_llm():
     except Exception as e:
         _ng("_or_headers", repr(e))
     try:
-        llm = LLMClient(cfg["llm_base_url"], cfg["llm_api_key"],
-                        cfg["llm_model"], 30)
+        llm = _selftest_llm(30)
         reply = llm.complete([llm.user("Reply with exactly: PONG")])
         assert "PONG" in reply.upper(), reply
         _ok("complete() 非ストリーミング", f"reply={reply.strip()[:30]!r}")
@@ -282,9 +294,7 @@ def test_llm():
 def test_audit_agent():
     _section("10. AGENT E2E — AuditAgent (実LLM)")
     from agents.audit_agent import AuditAgent
-    from core.llm_client import LLMClient
-    cfg = config.load()
-    llm = LLMClient(cfg["llm_base_url"], cfg["llm_api_key"], cfg["llm_model"], 90)
+    llm = _selftest_llm(90)
     bus = EventBus()
     try:
         agent = AuditAgent(bus, llm)
@@ -302,12 +312,10 @@ def test_audit_agent():
 def test_monitor_agent(log_path):
     _section("11. AGENT E2E — MonitorAgent (single-pass, 実LLM)")
     from agents.monitor_agent import MonitorAgent
-    from core.llm_client import LLMClient
     if not log_path:
         _ng("MonitorAgent", "サンプルログ未生成のためスキップ")
         return
-    cfg = config.load()
-    llm = LLMClient(cfg["llm_base_url"], cfg["llm_api_key"], cfg["llm_model"], 90)
+    llm = _selftest_llm(90)
     bus = EventBus()
     try:
         agent = MonitorAgent(bus, llm)
@@ -324,9 +332,7 @@ def test_monitor_agent(log_path):
 def test_recon_agent():
     _section("12. AGENT E2E — ReconAgent (scanme.nmap.org / 実LLM)")
     from agents.recon_agent import ReconAgent
-    from core.llm_client import LLMClient
-    cfg = config.load()
-    llm = LLMClient(cfg["llm_base_url"], cfg["llm_api_key"], cfg["llm_model"], 90)
+    llm = _selftest_llm(90)
     bus = EventBus()
     try:
         agent = ReconAgent(bus, llm)
@@ -512,9 +518,7 @@ def test_web_fuzzer():
 def test_fuzz_agent():
     _section("17. AGENT E2E — FuzzAgent（ローカルモック / 実LLM）")
     from agents.fuzz_agent import FuzzAgent
-    from core.llm_client import LLMClient
-    cfg = config.load()
-    llm = LLMClient(cfg["llm_base_url"], cfg["llm_api_key"], cfg["llm_model"], 90)
+    llm = _selftest_llm(90)
     bus = EventBus()
     srv = None
     try:
@@ -537,6 +541,7 @@ def test_fuzz_agent():
 def main():
     print("\n" + "#"*64)
     print("#  AI Security Audit System — 全機能セルフテスト")
+    print(f"#  LLMテストモデル: {SELFTEST_MODEL}（廉価モデル）")
     print("#"*64)
     t0 = time.time()
 
