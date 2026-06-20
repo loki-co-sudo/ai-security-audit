@@ -12,8 +12,8 @@ LLM_MODEL    = "qwen2.5-coder:14b"
 LLM_TIMEOUT  = 180
 # ============================================================
 
-APP_TITLE   = "AI Security Audit System  ·  Autonomous Penetration Testing & Defense v2.1"
-APP_VERSION = "2.1.0"
+APP_TITLE   = "AI Security Audit System  ·  Autonomous Penetration Testing & Defense v2.2"
+APP_VERSION = "2.2.0"
 
 # ─── カラーテーマ ───────────────────────────────────────────
 BG_ROOT    = "#070C14"
@@ -62,6 +62,53 @@ COMMON_PORTS = [
 PORT_SCAN_TIMEOUT  = 1.5   # 秒
 PORT_SCAN_THREADS  = 50
 WEB_REQUEST_TIMEOUT = 10   # 秒
+
+# ─── スキャンプロファイル（ステルス制御） ──────────────────
+# ATTACK MODE のフットプリント（検知されやすさ）と速度のトレードオフ。
+# stealth が最も静か、aggressive が最速。authorized な診断専用。
+#   timeout      : 1接続あたりの待機秒
+#   threads      : ポートスキャン同時接続数（少ないほど静か）
+#   jitter       : 各接続前のランダム遅延 (min, max) 秒 — レート検知を回避
+#   randomize    : ポート走査順をシャッフルするか（順次走査はIDS検知の典型）
+#   path_threads : Webパス探索の同時接続数
+#   path_jitter  : Webパス探索のランダム遅延 (min, max) 秒
+#   max_paths    : センシティブパス探索数の上限（None=全件）
+SCAN_PROFILES = {
+    "stealth": {
+        "timeout": 2.0, "threads": 4,  "jitter": (0.15, 0.6),
+        "randomize": True,  "path_threads": 2,  "path_jitter": (0.2, 0.8),
+        "max_paths": 12,
+    },
+    "passive": {
+        "timeout": 1.5, "threads": 10, "jitter": (0.05, 0.25),
+        "randomize": True,  "path_threads": 4,  "path_jitter": (0.05, 0.3),
+        "max_paths": None,
+    },
+    "moderate": {
+        "timeout": 1.0, "threads": 30, "jitter": (0.0, 0.05),
+        "randomize": True,  "path_threads": 8,  "path_jitter": (0.0, 0.05),
+        "max_paths": None,
+    },
+    "aggressive": {
+        "timeout": 0.5, "threads": 80, "jitter": (0.0, 0.0),
+        "randomize": False, "path_threads": 16, "path_jitter": (0.0, 0.0),
+        "max_paths": None,
+    },
+}
+DEFAULT_SCAN_PROFILE = "stealth"
+
+# 実在ブラウザを模した User-Agent プール（ステルス時にローテーション）。
+# 自己申告型UA（"Security Audit Tool"）は検知を誘発するため使用しない。
+STEALTH_USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
+    "(KHTML, like Gecko) Version/17.4 Safari/605.1.15",
+    "Mozilla/5.0 (X11; Linux x86_64; rv:125.0) Gecko/20100101 Firefox/125.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 "
+    "(KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1",
+]
 
 # センシティブパスリスト（Webスキャン用）
 SENSITIVE_PATHS = [

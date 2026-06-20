@@ -1,4 +1,4 @@
-# AI Security Audit System — 設計書 v2.1
+# AI Security Audit System — 設計書 v2.2
 ## Autonomous Penetration Testing & Defense Platform
 
 ---
@@ -148,18 +148,21 @@ AI-Security-tool/
 
 **フロー:**
 ```
-ターゲット入力（URL/IP） + Intensity選択（passive/moderate/aggressive）
+ターゲット入力（URL/IP） + スキャンプロファイル選択
+    （stealth=既定 / passive / moderate / aggressive）
     ↓
-[Phase 1: RECON] ポートスキャン + バナーグラブ
-    - 開放ポート検出
+[Phase 1: RECON] ポートスキャン + バナーグラブ（プロファイル制御）
+    - 開放ポート検出（stealth時は走査順ランダム化＋接続ジッター＋低並列）
     - サービス特定
     - SSL/TLS証明書情報取得
+    - 受動OSフィンガープリント（バナー解析・追加通信なし）
     ↓
 [Phase 2: ENUM] Webターゲットの場合
     - HTTPヘッダー解析（Server, X-Powered-By, etc.）
     - セキュリティヘッダー欠如チェック
     - 技術スタック推定（Cookie名, レスポンス, metaタグ）
     - センシティブパス探索（robots.txt, .git, .env等）
+      ※stealth時は実在ブラウザUAをローテーション＋探索数を制限＋ジッター
     - SSL/TLS証明書情報
     ↓
 [Phase 3: AI ANALYSIS] LLMが探索結果を統合分析
@@ -247,6 +250,35 @@ class BaseAgent(ABC):
     def _stream_llm(self, messages)    # LLMストリーミング→OUTPUTイベント
 ```
 
+### 5.4 スキャンプロファイル（ステルス制御）
+`core/settings.SCAN_PROFILES` が ATTACK MODE のフットプリント（検知されやすさ）
+と速度のトレードオフを一元管理する。authorized な診断で IDS / レート検知に
+配慮しつつ探査するための、正当なレッドチーム・トレードクラフト。
+
+| プロファイル | threads | jitter(秒) | randomize | path制限 | 特徴 |
+|---|---|---|---|---|---|
+| `stealth`（既定） | 4 | 0.15–0.6 | ✓ | 12件 | 最も静か。順序ランダム化＋ジッター＋低並列 |
+| `passive` | 10 | 0.05–0.25 | ✓ | 全件 | 軽量・控えめ |
+| `moderate` | 30 | ~0 | ✓ | 全件 | バランス |
+| `aggressive` | 80 | 0 | ✗ | 全件 | 最速・高並列（隔離環境向け） |
+
+- **ポート順ランダム化**: 順次走査（21,22,23…）はIDS検知の典型パターンのため、
+  `stealth`/`passive`/`moderate` ではポート順をシャッフルする。
+- **タイミングジッター**: 各接続前にランダム遅延を挿入し、レートベース検知を回避。
+- **UAローテーション**: `WebProber` は自己申告UA（"Security Audit Tool"）を使わず、
+  `STEALTH_USER_AGENTS` の実在ブラウザUAをリクエストごとにローテーションする。
+- **受動OSフィンガープリント**: `network_scanner.passive_os_fingerprint()` は
+  収集済みバナー・HTTPヘッダーのみからOSを推定し、追加パケットを一切送らない
+  （nmap -O のようなアクティブ探査とは異なる完全受動方式）。
+
+```python
+# tools/network_scanner.py
+NetworkScanner.from_profile("stealth")  # プロファイルを適用して生成
+passive_os_fingerprint(open_ports, web_headers) -> str | None
+# tools/web_prober.py
+WebProber(profile="stealth")            # UAローテーション＋ジッター＋並列制御
+```
+
 ---
 
 ## 6. セキュリティ・倫理ガイドライン
@@ -283,6 +315,10 @@ class BaseAgent(ABC):
 
 ## 8. 開発ロードマップ
 
+### 完了済み（v2.2.0）
+- [x] ステルススキャンプロファイル（stealth/passive/moderate/aggressive）
+- [x] 受動OSフィンガープリント（バナー・ヘッダー解析）
+
 ### 完了済み（v2.1.0）
 - [x] コアアーキテクチャ（settings, config, llm_client, event_bus, orchestrator）
 - [x] CODE AUDIT（audit_agent + audit_panel、CVE照合付き）
@@ -299,8 +335,8 @@ class BaseAgent(ABC):
 - [x] 全機能セルフテスト（tools/run_selftest.py）
 
 ### 将来拡張
-- [ ] 拡張ポートスキャン（UDP対応・OS検出ヒューリスティック）
 - [ ] Webファジングエージェント（クローリング→入力特定→AIペイロード生成）
+- [ ] 拡張ポートスキャン（UDP対応 ※ステルス性とのトレードオフを検討）
 - [ ] HTML/PDF レポート出力対応
 - [ ] CI/CD統合（GitHub Actions）
 - [ ] Slack/webhook アラート通知

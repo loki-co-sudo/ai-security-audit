@@ -184,11 +184,19 @@ fix: fix ALERT event not firing in DEFENSE MODE
 - **EventBus は `emit(kind, payload)` で送出する**。`bus.put()` というメソッドは存在しない（以前 orchestrator.py が `bus.put()` を使いLangGraph実行時にクラッシュした）。
 - **深刻度カウンタの dict キーは大文字 `CRITICAL/HIGH/MEDIUM/LOW`**。`str.format()` のプレースホルダ名と大文字小文字を必ず一致させる（report_generator がテンプレートの小文字 `{critical}` と不一致で KeyError を起こした）。
 - **ループ内で関数引数と同名の変数を再代入しない**。特に `path` のようなパス引数を内側で上書きしない（log_watcher の `generate_sample_log` がリクエストパスで引数 `path` を潰し、`os.makedirs` が失敗した）。
-- 重要な変更後は `py tools/run_selftest.py` でリグレッションを確認する。
+- **ATTACK MODE のスキャン挙動は `core/settings.SCAN_PROFILES` で一元管理する**。スキャナのタイミング・並列度・ランダム化をエージェントやUIにハードコードしない（intensity の直値分岐を `NetworkScanner.from_profile()` / `WebProber(profile=...)` に置換済み。新プロファイルは settings に追加するだけで全体へ波及させる）。
+- **`WebProber` は自己申告UA（"Security Audit Tool" 等）を使わない**。ステルス前提のため `STEALTH_USER_AGENTS` の実在ブラウザUAをローテーションする。
+- 重要な変更後は `py tools/run_selftest.py` でリグレッションを確認する（現在26項目）。
 
 ---
 
 ## 4. 現在の開発フェーズとロードマップ
+
+### 実装済み（v2.2.0 — ステルス強化）
+- [x] ステルススキャンプロファイル `core/settings.SCAN_PROFILES`（stealth/passive/moderate/aggressive）— `NetworkScanner.from_profile()` / `WebProber(profile=...)` で適用、ATTACK MODE 既定は `stealth`
+- [x] ポート走査順ランダム化＋接続ごとのタイミングジッター（IDS/レート検知の回避）
+- [x] 実在ブラウザUAローテーション（`STEALTH_USER_AGENTS`）＋ステルス時のパス探索数制限
+- [x] 受動OSフィンガープリント `network_scanner.passive_os_fingerprint()`（バナー/ヘッダー解析・追加通信なし）
 
 ### 実装済み（v2.1.0）
 
@@ -204,8 +212,8 @@ fix: fix ALERT event not firing in DEFENSE MODE
 - [x] `agents/monitor_agent.py` — ログ監視・パターンマッチ・15秒クールダウンのバッチAI分析・ALERT イベント発火
 
 **ツール**
-- [x] `tools/network_scanner.py` — socket-based ポートスキャナ（26ポート、SSL取得、バナーグラブ）
-- [x] `tools/web_prober.py` — 19技術スタック検出・セキュリティヘッダー評価・センシティブパス列挙
+- [x] `tools/network_scanner.py` — socket-based ポートスキャナ（26ポート、SSL取得、バナーグラブ、プロファイル制御、受動OS推定）
+- [x] `tools/web_prober.py` — 19技術スタック検出・セキュリティヘッダー評価・センシティブパス列挙（UAローテーション・ジッター・並列制御）
 - [x] `tools/log_watcher.py` — tailf式ジェネレータ・200エントリのサンプルログ生成
 
 **GUI**
@@ -228,14 +236,14 @@ fix: fix ALERT event not firing in DEFENSE MODE
 - [x] CODE AUDITタブに ENGINE トグル（Standard / LangGraph）追加
 - [x] OpenRouter対応（`llm_client.py` で `openrouter.ai` 検出時に `HTTP-Referer`/`X-Title` 自動付与・設定UIにプリセット追加）
 - [x] `gui/splash.py` — 起動スプラッシュ画面 + アプリアイコン（`assets/`）+ 起動高速化（遅延インポート）
-- [x] `tools/run_selftest.py` — 全機能セルフテスト（22項目、実LLM/実ネットワークでE2E検証）
+- [x] `tools/run_selftest.py` — 全機能セルフテスト（26項目、実LLM/実ネットワークでE2E検証）
 - [x] バグ修正（レポート生成のキー不一致・サンプルログ生成の変数衝突・orchestratorのEventBus API誤用）
 
 ### 未実装（ロードマップ）
 
 **次のフェーズ（優先度高）**
-- [ ] 拡張ポートスキャン（UDP対応、OS検出ヒューリスティック）
 - [ ] Webファジングエージェント（クローリング→入力フィールド特定→AIによるペイロード生成）
+- [ ] 拡張ポートスキャン（UDP対応 ※ステルス性とのトレードオフを検討）
 
 **長期**
 - [ ] CI/CD統合（GitHub Actionsでの自動脆弱性スキャン）

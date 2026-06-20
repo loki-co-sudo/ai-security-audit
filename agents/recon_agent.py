@@ -9,15 +9,16 @@ Phase 3: LLMが発見情報から脆弱性仮説を構築
 from __future__ import annotations
 import time
 from agents.base_agent import BaseAgent
-from tools.network_scanner import NetworkScanner
+from tools.network_scanner import NetworkScanner, passive_os_fingerprint
 from tools.web_prober import WebProber
+from core.settings import SCAN_PROFILES, DEFAULT_SCAN_PROFILE
 
 STEPS = [
     "ターゲット解析・接続確認",
     "ポートスキャン実行中",
     "サービス・バナー取得中",
     "Webターゲット列挙中",
-    "セキュリティヘッダー評価中",
+    "受動OSフィンガープリント中",
     "AIが脆弱性仮説を構築中",
     "リスクレポートを生成中",
 ]
@@ -52,15 +53,15 @@ Be thorough. Think like an attacker who has just done initial recon and is plann
 
 class ReconAgent(BaseAgent):
 
-    def run(self, target: str, scan_web: bool = True, intensity: str = "moderate") -> None:
+    def run(self, target: str, scan_web: bool = True, intensity: str = DEFAULT_SCAN_PROFILE) -> None:
         self.bus.clear()
         self._status(f"偵察開始: {target}")
 
-        scanner = NetworkScanner(
-            timeout=1.0 if intensity == "moderate" else 0.5,
-            max_threads=30 if intensity == "moderate" else 60,
-        )
-        prober = WebProber(timeout=8)
+        # intensity = スキャンプロファイル名（stealth / passive / moderate / aggressive）
+        if intensity not in SCAN_PROFILES:
+            intensity = DEFAULT_SCAN_PROFILE
+        scanner = NetworkScanner.from_profile(intensity)
+        prober  = WebProber(timeout=8, profile=intensity)
 
         recon_data: dict = {"target": target, "ports": [], "web": {}}
 
@@ -72,8 +73,13 @@ class ReconAgent(BaseAgent):
             "╚══════════════════════════════════════════════════════╝\n\n",
             "header",
         )
+        stealthy = intensity in ("stealth", "passive")
         self._out(f"  TARGET    : {target}\n", "dim")
-        self._out(f"  INTENSITY : {intensity.upper()}\n", "dim")
+        self._out(f"  PROFILE   : {intensity.upper()}\n", "dim")
+        self._out(
+            f"  FOOTPRINT : {'LOW (jitter+randomized order)' if stealthy else 'HIGH (fast/noisy)'}\n",
+            "green" if stealthy else "high",
+        )
         self._out(f"  WEB PROBE : {'YES' if scan_web else 'NO'}\n\n", "dim")
 
         # ホスト名 → IPアドレス解析
@@ -166,9 +172,15 @@ class ReconAgent(BaseAgent):
 
         if self.is_stopped(): return
 
-        # ── Step 4: セキュリティヘッダー評価 ──────────────
+        # ── Step 4: 受動OSフィンガープリント ──────────────
         self._step(4, "running")
-        time.sleep(0.2)
+        os_guess = passive_os_fingerprint(
+            recon_data["ports"], recon_data.get("web", {}).get("headers"),
+        )
+        if os_guess:
+            recon_data["os_guess"] = os_guess
+            self._out("\n  Passive OS Fingerprint:\n", "label")
+            self._out(f"    ▸ {os_guess}  (バナー解析による受動推定／追加通信なし)\n", "high")
         self._step(4, "done")
 
         # ── Step 5: AI 脆弱性仮説 ─────────────────────────
@@ -208,6 +220,8 @@ class ReconAgent(BaseAgent):
         lines = [f"TARGET: {data.get('target', 'unknown')}"]
         if data.get("ip"):
             lines.append(f"RESOLVED IP: {data['ip']}")
+        if data.get("os_guess"):
+            lines.append(f"PASSIVE OS GUESS: {data['os_guess']}")
         if data.get("ports"):
             lines.append("\nOPEN PORTS:")
             for p in data["ports"]:

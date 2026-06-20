@@ -7,8 +7,13 @@ tools/network_scanner.py — ポートスキャン・サービス検出
 from __future__ import annotations
 import socket
 import ssl
+import random
+import time
 import concurrent.futures
-from core.settings import COMMON_PORTS, PORT_SCAN_TIMEOUT, PORT_SCAN_THREADS
+from core.settings import (
+    COMMON_PORTS, PORT_SCAN_TIMEOUT, PORT_SCAN_THREADS,
+    SCAN_PROFILES, DEFAULT_SCAN_PROFILE,
+)
 
 SERVICE_MAP = {
     21: "FTP",    22: "SSH",     23: "Telnet",   25: "SMTP",
@@ -28,10 +33,26 @@ class NetworkScanner:
         timeout: float = PORT_SCAN_TIMEOUT,
         max_threads: int = PORT_SCAN_THREADS,
         ports: list[int] | None = None,
+        jitter: tuple[float, float] = (0.0, 0.0),
+        randomize: bool = False,
     ):
         self.timeout     = timeout
         self.max_threads = max_threads
         self.ports       = ports or COMMON_PORTS
+        self.jitter      = jitter      # 各接続前のランダム遅延 (min, max) 秒
+        self.randomize   = randomize   # ポート走査順をシャッフルするか
+
+    @classmethod
+    def from_profile(cls, name: str, ports: list[int] | None = None) -> "NetworkScanner":
+        """settings.SCAN_PROFILES からステルスプロファイルを適用して生成する。"""
+        prof = SCAN_PROFILES.get(name, SCAN_PROFILES[DEFAULT_SCAN_PROFILE])
+        return cls(
+            timeout=prof["timeout"],
+            max_threads=prof["threads"],
+            ports=ports,
+            jitter=prof["jitter"],
+            randomize=prof["randomize"],
+        )
 
     # ── ホスト解決 ─────────────────────────────────────────
     def resolve(self, target: str) -> tuple[str, str | None]:
@@ -53,8 +74,12 @@ class NetworkScanner:
         [{port, service, banner}, ...]
         """
         open_ports = []
+        # ステルス時はポート順をシャッフル（順次走査はIDS検知の典型パターン）
+        ports = list(self.ports)
+        if self.randomize:
+            random.shuffle(ports)
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_threads) as ex:
-            futures = {ex.submit(self._check_port, host, p): p for p in self.ports}
+            futures = {ex.submit(self._check_port, host, p): p for p in ports}
             for f in concurrent.futures.as_completed(futures):
                 result = f.result()
                 if result:
@@ -62,6 +87,10 @@ class NetworkScanner:
         return sorted(open_ports, key=lambda x: x["port"])
 
     def _check_port(self, host: str, port: int) -> dict | None:
+        # レート検知を回避するため接続前にランダム遅延を挿入
+        lo, hi = self.jitter
+        if hi > 0:
+            time.sleep(random.uniform(lo, hi))
         try:
             with socket.create_connection((host, port), timeout=self.timeout) as s:
                 banner = self._grab_banner(s, host, port)
@@ -105,3 +134,42 @@ class NetworkScanner:
                 )
         except Exception as e:
             return f"SSL probe failed: {e}"
+
+
+# ── 受動OSフィンガープリント ────────────────────────────────
+# バナー／HTTPヘッダーから受動的にOSを推定する。追加パケットを送らない
+# ため完全にステルス（nmap -O のようなアクティブ探査とは異なる）。
+_OS_HINTS = [
+    ("Linux (Ubuntu)",        ("ubuntu",)),
+    ("Linux (Debian)",        ("debian",)),
+    ("Linux (RHEL/CentOS)",   ("centos", "red hat", "rhel", "rocky", "almalinux")),
+    ("Linux (Alpine)",        ("alpine",)),
+    ("Windows",               ("win32", "win64", "microsoft-iis", "microsoft-httpapi", " windows")),
+    ("FreeBSD",               ("freebsd",)),
+    ("macOS",                 ("darwin", "mac os")),
+]
+
+
+def passive_os_fingerprint(
+    open_ports: list[dict],
+    web_headers: dict | None = None,
+) -> str | None:
+    """
+    収集済みバナー・ヘッダーからOSを推定する（追加通信なし）。
+    判定できなければ None を返す。
+    """
+    parts = [p.get("banner", "") for p in open_ports]
+    if web_headers:
+        parts += [f"{k}: {v}" for k, v in web_headers.items()]
+    text = " ".join(parts).lower()
+    if not text.strip():
+        return None
+    for label, needles in _OS_HINTS:
+        if any(n in text for n in needles):
+            return label
+    # 直接の手掛かりがない場合のフォールバック（OpenSSHはUnix系の強い示唆）
+    if "openssh" in text:
+        return "Linux/Unix (推定: OpenSSH)"
+    if "nginx" in text or "apache" in text:
+        return "Linux/Unix (推定: Webサーバ)"
+    return None

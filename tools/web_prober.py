@@ -6,13 +6,18 @@ tools/web_prober.py — HTTP/Webターゲット列挙
 
 from __future__ import annotations
 import re
+import random
+import time
 import concurrent.futures
 from typing import Callable
 import requests
 from requests.packages.urllib3.exceptions import InsecureRequestWarning  # type: ignore
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
-from core.settings import SENSITIVE_PATHS, SECURITY_HEADERS, WEB_REQUEST_TIMEOUT
+from core.settings import (
+    SENSITIVE_PATHS, SECURITY_HEADERS, WEB_REQUEST_TIMEOUT,
+    SCAN_PROFILES, DEFAULT_SCAN_PROFILE, STEALTH_USER_AGENTS,
+)
 
 TECH_SIGNATURES = {
     "WordPress":    [r"wp-content", r"wp-includes", r"WordPress"],
@@ -38,13 +43,25 @@ TECH_SIGNATURES = {
 
 
 class WebProber:
-    def __init__(self, timeout: int = WEB_REQUEST_TIMEOUT):
+    def __init__(
+        self,
+        timeout: int = WEB_REQUEST_TIMEOUT,
+        profile: str = DEFAULT_SCAN_PROFILE,
+    ):
         self.timeout = timeout
+        prof = SCAN_PROFILES.get(profile, SCAN_PROFILES[DEFAULT_SCAN_PROFILE])
+        self.path_threads = prof["path_threads"]
+        self.path_jitter  = prof["path_jitter"]
+        self.max_paths    = prof["max_paths"]
         self.session = requests.Session()
         self.session.verify = False
-        self.session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Security Audit Tool / Authorized Test)"
-        })
+        # 実在ブラウザを模したUAをローテーション（自己申告UAは検知を誘発するため不使用）
+        self._user_agents = list(STEALTH_USER_AGENTS)
+        self.session.headers.update({"User-Agent": random.choice(self._user_agents)})
+
+    def _rotate_ua(self) -> str:
+        """リクエストごとに使い回すUAを1つ返す。"""
+        return random.choice(self._user_agents)
 
     def probe(
         self,
@@ -91,8 +108,10 @@ class WebProber:
             _log(f"Main page error: {e}")
 
         # ── センシティブパス探索 ───────────────────────────
-        _log(f"Probing {len(SENSITIVE_PATHS)} sensitive paths ...")
-        result["found_paths"] = self._scan_paths(base_url, SENSITIVE_PATHS)
+        # ステルスプロファイルでは探索パス数を絞ってノイズを抑える
+        paths = SENSITIVE_PATHS if self.max_paths is None else SENSITIVE_PATHS[: self.max_paths]
+        _log(f"Probing {len(paths)} sensitive paths ...")
+        result["found_paths"] = self._scan_paths(base_url, paths)
         _log(f"Found {len(result['found_paths'])} accessible paths")
 
         # ── SSL情報 ────────────────────────────────────────
@@ -113,17 +132,25 @@ class WebProber:
         base = base_url.rstrip("/")
         found = []
 
+        lo, hi = self.path_jitter
+
         def _check(path):
+            # レート検知を回避するため各リクエスト前にランダム遅延
+            if hi > 0:
+                time.sleep(random.uniform(lo, hi))
             url = base + path
             try:
-                r = self.session.get(url, timeout=4, allow_redirects=False)
+                r = self.session.get(
+                    url, timeout=4, allow_redirects=False,
+                    headers={"User-Agent": self._rotate_ua()},
+                )
                 if r.status_code not in (404, 400, 403):
                     return {"path": path, "status": r.status_code, "size": len(r.content)}
             except Exception:
                 pass
             return None
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.path_threads) as ex:
             for result in ex.map(_check, paths):
                 if result:
                     found.append(result)

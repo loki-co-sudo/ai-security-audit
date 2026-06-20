@@ -1,5 +1,5 @@
 # AI Security Audit System
-**Autonomous Penetration Testing & Defense Platform v2.1**
+**Autonomous Penetration Testing & Defense Platform v2.2**
 
 > シグネチャ（既知パターン）に依存しない、AI駆動型・次世代自律ペネトレーションテスト＆脆弱性露出管理システム
 
@@ -35,7 +35,8 @@ AIがコードの文脈を読み取り、CVEに存在しない論理的欠陥（
 
 ### ATTACK MODE — 自律ペネトレーションテスト
 
-ポートスキャン → サービス特定 → Web探査 → LLMによる攻撃仮説生成まで、AIエージェントが自律的に実行。  
+ポートスキャン → サービス特定 → 受動OS推定 → Web探査 → LLMによる攻撃仮説生成まで、AIエージェントが自律的に実行。  
+**スキャンプロファイル**（`stealth` / `passive` / `moderate` / `aggressive`）でフットプリント（検知されやすさ）と速度を切り替え可能。`stealth` はポート走査順のランダム化・接続ごとのジッター・実在ブラウザUAローテーション・低並列により、IDS/レート検知に引っかかりにくい静かな探査を行う。  
 **必ず許可されたターゲットに対してのみ使用すること。**
 
 ![ATTACK MODE](docs/screenshot_attack.png)
@@ -221,7 +222,15 @@ docker run -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix ai-security-audi
 ### ATTACK MODE（許可されたターゲットのみ）
 
 1. ターゲットURL/IPを入力（例: `https://example.com` または `192.168.1.1`）
-2. Intensity（passive / moderate / aggressive）を選択
+2. Profile を選択（既定は `stealth`）
+
+   | プロファイル | フットプリント | 速度 | 用途 |
+   |---|---|---|---|
+   | `stealth`（既定） | 最小（順序ランダム化＋ジッター＋低並列＋UAローテーション） | 遅 | 検知を避けたい本番診断 |
+   | `passive` | 小 | 中 | 軽量・控えめな探査 |
+   | `moderate` | 中 | 速 | バランス |
+   | `aggressive` | 大（高並列・ジッターなし） | 最速 | 隔離環境・時間優先 |
+
 3. 必要に応じて「Web Probe」をオン/オフ
 4. `「SCAN ▶」` をクリック
 
@@ -265,11 +274,13 @@ docker run -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix ai-security-audi
 - [x] コンテナ対応（Dockerfile + docker-compose.yml）
 - [x] 起動スプラッシュ画面・アプリアイコン・起動高速化
 - [x] 全機能セルフテスト（`tools/run_selftest.py`）
+- [x] ステルススキャンプロファイル（ポート順ランダム化・タイミングジッター・低並列・実在UAローテーション）
+- [x] 受動OSフィンガープリント（バナー／ヘッダー解析・追加通信なし）
 
 ### 今後の拡張予定
-- [ ] 拡張ポートスキャン（UDP対応・OS検出ヒューリスティック）
 - [ ] Webファジングエージェント（クローリング→入力特定→AIペイロード生成）
 - [ ] レポートのPDF出力対応
+- [ ] 拡張ポートスキャン（UDP対応 ※ステルス性とのトレードオフを検討）
 
 ---
 

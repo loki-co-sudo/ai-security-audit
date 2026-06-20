@@ -356,6 +356,58 @@ def test_orchestrator_bug():
         _ng("orchestrator static check", repr(e))
 
 
+def test_stealth_features():
+    _section("14. STEALTH — スキャンプロファイル＆受動OS推定")
+    from tools.network_scanner import NetworkScanner, passive_os_fingerprint
+    from tools.web_prober import WebProber
+    from core.settings import SCAN_PROFILES, STEALTH_USER_AGENTS
+    # プロファイル適用
+    try:
+        sc = NetworkScanner.from_profile("stealth")
+        assert sc.max_threads == SCAN_PROFILES["stealth"]["threads"]
+        assert sc.randomize is True
+        assert sc.jitter == SCAN_PROFILES["stealth"]["jitter"]
+        agg = NetworkScanner.from_profile("aggressive")
+        assert agg.randomize is False and agg.max_threads > sc.max_threads
+        # 未知プロファイル名はデフォルトにフォールバック
+        fb = NetworkScanner.from_profile("nonexistent")
+        assert fb.max_threads == SCAN_PROFILES["stealth"]["threads"]
+        _ok("NetworkScanner.from_profile", "stealth/aggressive/fallback")
+    except Exception as e:
+        _ng("from_profile", repr(e))
+    # ポート順ランダム化が実際にシャッフルされるか（順次走査の回避）
+    try:
+        sc = NetworkScanner.from_profile("stealth", ports=list(range(1, 200)))
+        import random as _r
+        _r.seed(1)
+        order = list(sc.ports)
+        _r.shuffle(order)
+        assert order != list(range(1, 200)), "シャッフルされていない"
+        _ok("ポート順ランダム化")
+    except Exception as e:
+        _ng("randomize", repr(e))
+    # 受動OSフィンガープリント
+    try:
+        assert passive_os_fingerprint([{"banner": "Server: nginx/1.18.0 (Ubuntu)"}]) == "Linux (Ubuntu)"
+        assert passive_os_fingerprint([], {"Server": "Microsoft-IIS/10.0"}) == "Windows"
+        assert passive_os_fingerprint([{"banner": "SSH-2.0-OpenSSH_8.2"}]) == "Linux/Unix (推定: OpenSSH)"
+        assert passive_os_fingerprint([]) is None
+        _ok("passive_os_fingerprint", "Ubuntu/Windows/OpenSSH/None")
+    except Exception as e:
+        _ng("passive_os_fingerprint", repr(e))
+    # WebProber がステルスUAを使い自己申告UAを使わない
+    try:
+        wp = WebProber(timeout=8, profile="stealth")
+        ua = wp.session.headers["User-Agent"]
+        assert ua in STEALTH_USER_AGENTS, ua
+        assert "Security Audit" not in ua, "自己申告UAが残存"
+        assert wp.path_threads == SCAN_PROFILES["stealth"]["path_threads"]
+        assert wp.max_paths == SCAN_PROFILES["stealth"]["max_paths"]
+        _ok("WebProber ステルスUA/プロファイル", f"ua={ua[:40]}...")
+    except Exception as e:
+        _ng("WebProber stealth", repr(e))
+
+
 def main():
     print("\n" + "#"*64)
     print("#  AI Security Audit System — 全機能セルフテスト")
@@ -375,6 +427,7 @@ def main():
     test_monitor_agent(log_path)
     test_recon_agent()
     test_orchestrator_bug()
+    test_stealth_features()
 
     dt = time.time() - t0
     print("\n" + "#"*64)

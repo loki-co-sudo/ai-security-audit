@@ -26,7 +26,7 @@ class AttackPanel(ctk.CTkFrame):
         self._bus       = bus
         self._llm       = llm
         self._agent     = ReconAgent(bus, llm)
-        self._intensity = tk.StringVar(value="moderate")
+        self._intensity = tk.StringVar(value="stealth")
         self._scan_web  = tk.BooleanVar(value=True)
         self._build()
 
@@ -66,11 +66,11 @@ class AttackPanel(ctk.CTkFrame):
         obar.pack(fill="x", pady=(0, 6))
         obar.pack_propagate(False)
 
-        ctk.CTkLabel(obar, text="INTENSITY:", font=ctk.CTkFont("Segoe UI", 10),
+        ctk.CTkLabel(obar, text="PROFILE:", font=ctk.CTkFont("Segoe UI", 10),
                      text_color=TEXT_DIM).pack(side="left", padx=(14, 4), pady=8)
         ctk.CTkOptionMenu(
-            obar, values=["passive", "moderate", "aggressive"],
-            variable=self._intensity, width=110, height=26,
+            obar, values=["stealth", "passive", "moderate", "aggressive"],
+            variable=self._intensity, width=120, height=26,
             fg_color=BG_INPUT, button_color="#1A3050",
             font=ctk.CTkFont("Segoe UI", 10), text_color=TEXT_PRI,
         ).pack(side="left", padx=(0, 16), pady=7)
