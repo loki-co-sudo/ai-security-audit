@@ -218,12 +218,26 @@ docker run -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix ai-security-audi
 |---|---|
 | BASE URL | Ollama: `http://localhost:11434/v1` / OpenAI: `https://api.openai.com/v1` / OpenRouter: `https://openrouter.ai/api/v1` |
 | API KEY | Ollama: `ollama`（任意文字列） / OpenAI: `sk-...` / OpenRouter: `sk-or-v1-...` |
-| MODEL | `qwen2.5-coder:14b`、`openai/gpt-4o`、`anthropic/claude-sonnet-4-5` など |
+| MODEL | `qwen2.5-coder:14b`、`openai/gpt-4o`、`anthropic/claude-opus-4.1` など（自由入力） |
 
 プリセットボタン（Ollama / OpenRouter / OpenAI / LM Studio）でBASE URLをワンクリック入力できる。  
+MODEL欄の下のモデル候補ボタンからもワンクリック入力可能（**Claude系はオレンジ表示**）。  
 「**接続テスト**」ボタンで疎通確認後、「保存」で `config.json` に書き込まれ次回起動時も保持される。
 
 > **OpenRouter** 使用時は、`HTTP-Referer` / `X-Title` ヘッダーが自動付与されます（BASE URLに `openrouter.ai` を含む場合のみ）。
+
+#### Claude / Fable モデルの利用（OpenRouter経由）
+
+BASE URL を OpenRouter（`https://openrouter.ai/api/v1`）にすると、Anthropic の Claude モデルを利用できます。MODEL欄は**自由入力**なので、候補に無いモデルもスラッグを直接入力すれば使えます。
+
+| モデル | スラッグ |
+|---|---|
+| Claude Opus 4.1 | `anthropic/claude-opus-4.1` |
+| Claude Sonnet 4.5 | `anthropic/claude-sonnet-4.5` |
+| Claude Haiku 4.5 | `anthropic/claude-haiku-4.5` |
+| **Claude Fable 5** | `anthropic/claude-fable-5` （**公開後に利用可能**。スラッグは登録済みなので、提供開始と同時に選択するだけで使えます） |
+
+> セルフテスト（`tools/run_selftest.py`）のLLM呼び出しは、コスト削減のため既定で廉価モデル `mistralai/mistral-small-24b-instruct-2501` を使用します（全31項目PASS確認済み）。環境変数 `SELFTEST_MODEL` で任意モデルに差し替え可能です。
 
 ---
 

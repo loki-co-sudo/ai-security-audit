@@ -23,8 +23,11 @@ config.load()
 
 # セルフテストのLLM呼び出しは廉価モデルで実行してコストを抑える。
 # base_url / api_key は config.json のものを使い、モデルだけ上書きする。
-# 環境変数 SELFTEST_MODEL で任意モデルに差し替え可能。
-SELFTEST_MODEL = os.environ.get("SELFTEST_MODEL", "openai/gpt-4o-mini")
+# mistral-small-24b は gpt-4o-mini の数分の1のコストで、全31項目が安定してPASSする
+# ことを確認済み（書式依存のアサーション含む）。環境変数 SELFTEST_MODEL で差し替え可能。
+SELFTEST_MODEL = os.environ.get(
+    "SELFTEST_MODEL", "mistralai/mistral-small-24b-instruct-2501"
+)
 
 
 def _selftest_llm(timeout: int):
