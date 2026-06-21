@@ -60,7 +60,8 @@ class SettingsDialog(ctk.CTkToplevel):
         self._model_var   = tk.StringVar(value=config.get("llm_model"))
         self._timeout_var = tk.StringVar(value=str(config.get("llm_timeout")))
 
-        self._build()
+        # CTkToplevel on Windows は grab_set() 直後に build すると blank になる既知バグ対策
+        self.after(100, self._build)
 
     def _build(self) -> None:
         # タイトル
@@ -72,7 +73,7 @@ class SettingsDialog(ctk.CTkToplevel):
             font=ctk.CTkFont("Segoe UI", 14, "bold"), text_color=CYAN,
         ).pack(side="left", padx=16, pady=12)
 
-        body = ctk.CTkFrame(self, fg_color="transparent")
+        body = ctk.CTkScrollableFrame(self, fg_color="transparent", scrollbar_button_color=BG_WIDGET)
         body.pack(fill="both", expand=True, padx=20, pady=12)
 
         # プリセットボタン
