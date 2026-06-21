@@ -19,6 +19,8 @@ _DEFAULTS: dict = {
     "llm_timeout":  LLM_TIMEOUT,
     # 接続先から取得したモデル一覧のキャッシュ（「↻ 取得」で更新）。
     "available_models": [],
+    # レポート生成言語: "ja"（日本語）または "en"（英語）。
+    "report_lang": "ja",
 }
 
 _cfg: dict = {}

@@ -35,6 +35,18 @@ _SEV_COLOR = {
     "CRITICAL": C_RED, "HIGH": C_ORANGE, "MEDIUM": C_YELLOW, "LOW": C_GREEN,
 }
 
+# labels が渡されない場合のフォールバック（日本語）
+_DEFAULT_LABELS = {
+    "doc_title": "セキュリティ診断レポート",
+    "scan_mode": "スキャンモード", "target": "対象", "engine": "AI エンジン",
+    "date": "診断日時", "summary": "エグゼクティブサマリ — 深刻度分布",
+    "findings": "検出項目の詳細", "raw": "スキャン出力（全文）",
+    "vuln_code": "該当箇所 / コード", "attack": "攻撃 / 分析", "fix": "推奨対策",
+    "ref": "参照", "location": "箇所", "no_output": "(出力なし)",
+    "footer": ("本レポートは AI Security Audit System により自動生成されました。"
+               "内容は参考情報です。本ツールは教育・研究・許可された診断のみを目的としています。"),
+}
+
 # ── フォント候補（Windows優先、Linuxフォールバック付き） ────
 _JP_FONTS = [
     (r"C:\Windows\Fonts\YuGothM.ttc", 0), (r"C:\Windows\Fonts\YuGothR.ttc", 0),
@@ -66,8 +78,9 @@ def _load_font(candidates, size):
 class _Renderer:
     """ページを順に描画していくシンプルなフローレイアウトエンジン。"""
 
-    def __init__(self):
+    def __init__(self, labels: dict | None = None):
         from PIL import ImageDraw  # noqa: F401  (存在確認)
+        self.lbl    = labels or _DEFAULT_LABELS
         self.f_h1   = _load_font(_JP_FONTS, 40)
         self.f_h2   = _load_font(_JP_FONTS, 22)
         self.f_body = _load_font(_JP_FONTS, 21)
@@ -135,12 +148,12 @@ class _Renderer:
                    outline=C_BORDER, width=2, radius=12)
         ix = MARGIN + 28
         iy = self.y + 24
-        self.draw.text((ix, iy), "AI Security Audit Report",
+        self.draw.text((ix, iy), self.lbl["doc_title"],
                        font=self.f_h1, fill=C_CYAN)
         iy += 64
         for label, val in [
-            ("SCAN MODE", mode), ("TARGET", target or "—"),
-            ("AI ENGINE", model), ("SCAN DATE", timestamp),
+            (self.lbl["scan_mode"], mode), (self.lbl["target"], target or "—"),
+            (self.lbl["engine"], model), (self.lbl["date"], timestamp),
         ]:
             self.draw.text((ix, iy), f"{label}:", font=self.f_small, fill=C_MID)
             self.draw.text((ix + 180, iy), str(val), font=self.f_small, fill=C_TEXT)
@@ -199,18 +212,20 @@ class _Renderer:
         # メタ（REF / LOCATION）
         meta = " | ".join(
             f"{k}: {v}" for k, v in
-            [("REF", f.get("ref", "")), ("LOCATION", f.get("lines", ""))] if v
+            [(self.lbl["ref"], f.get("ref", "")), (self.lbl["location"], f.get("lines", ""))] if v
         )
         if meta:
             self._line_block(self._wrap(meta, self.f_small, inner_w), self.f_small,
                              C_MID, x0, 24)
             self.y += 4
 
+        # メタ（REF / LOCATION）のラベルもローカライズ済み（下記 meta で使用）
+
         # セクション（脆弱コード / 攻撃・分析 / 修正）
         for label, key, mono in [
-            ("VULNERABLE CODE", "snippet", True),
-            ("ATTACK / ANALYSIS", "attack", False),
-            ("RECOMMENDED FIX", "fix", True),
+            (self.lbl["vuln_code"], "snippet", True),
+            (self.lbl["attack"], "attack", False),
+            (self.lbl["fix"], "fix", True),
         ]:
             val = f.get(key)
             if not val:
@@ -246,15 +261,13 @@ class _Renderer:
         self.y = card_bottom + 22
 
     def raw_block(self, text: str):
-        self.heading("Full Scan Output")
-        lines = self._wrap(text.strip() or "(出力なし)", self.f_mono, CONTENT_W - 28)
+        self.heading(self.lbl["raw"])
+        lines = self._wrap(text.strip() or self.lbl["no_output"], self.f_mono, CONTENT_W - 28)
         self._line_block(lines, self.f_mono, C_MID, MARGIN + 14, 22)
         self.y += 10
 
     def footer_all(self):
-        note = ("本レポートは AI Security Audit System により自動生成されました。"
-                "内容は参考情報です。本ツールは教育・研究・許可されたセキュリティ"
-                "診断を目的としています。")
+        note = self.lbl["footer"]
         for i, page in enumerate(self.pages, 1):
             from PIL import ImageDraw
             d = ImageDraw.Draw(page)
@@ -274,23 +287,25 @@ class _Renderer:
         return buf.getvalue()
 
 
-def render(meta: dict, counts: dict, findings: list[dict], raw_text: str) -> bytes | None:
+def render(meta: dict, counts: dict, findings: list[dict], raw_text: str,
+           labels: dict | None = None) -> bytes | None:
     """レポートPDFをバイト列で返す。Pillow が無ければ None。"""
     try:
         from PIL import Image  # noqa: F401
     except ImportError:
         return None
 
-    r = _Renderer()
+    lbl = labels or _DEFAULT_LABELS
+    r = _Renderer(lbl)
     r.header(
         mode=meta.get("mode", ""), target=meta.get("target", ""),
         model=meta.get("model", ""), timestamp=meta.get("timestamp", ""),
         version=meta.get("version", ""),
     )
-    r.heading("Executive Summary — Severity Distribution")
+    r.heading(lbl["summary"])
     r.severity_summary(counts)
     if findings:
-        r.heading(f"Detailed Findings ({len(findings)})")
+        r.heading(f'{lbl["findings"]} ({len(findings)})')
         for f in findings:
             r.finding(f)
     r.raw_block(raw_text)
