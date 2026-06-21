@@ -8,29 +8,32 @@ import tkinter as tk
 import customtkinter as ctk
 
 from core.settings import (
-    BG_PANEL, BG_WIDGET, BG_INPUT, CYAN, GREEN, RED_C, ORANGE_H,
+    BG_PANEL, BG_WIDGET, BG_INPUT, CYAN, GREEN, RED_C,
     TEXT_PRI, TEXT_DIM, TEXT_MID, BORDER,
 )
 import core.config as config
 from core.llm_client import LLMClient
+from gui.dialogs.base import RobustToplevel
+from gui.dialogs.help_dialog import HelpDialog
 
-# モデル候補。MODEL欄は自由入力なので、ここに無いモデル（将来の Claude Fable 等）も
-# スラッグを直接入力すれば利用できる。OpenRouter経由の Claude/Fable も含む。
+# 厳選デフォルトのモデル候補（オフライン時／初期表示用のフォールバック）。
+# 実際に使えるモデルは「↻ 取得」ボタンで接続先から動的に取得・更新でき、
+# その結果が config.json にキャッシュされてここに加わる。MODEL 欄は自由入力なので
+# ここに無いスラッグも直接入力可能。スラッグは接続先（特に OpenRouter）の表記に従う。
 _PRESET_MODELS = [
-    # Ollama ローカル
+    # ── ローカル（Ollama） ──
+    "qwen3:30b-a3b",
+    "llama4:scout",
     "qwen2.5-coder:14b",
-    "llama3.1:8b",
-    "deepseek-coder-v2:16b",
-    # Claude（OpenRouter経由）
-    "anthropic/claude-opus-4.1",
-    "anthropic/claude-sonnet-4.5",
-    "anthropic/claude-haiku-4.5",
-    "anthropic/claude-fable-5",   # 公開後に利用可（スラッグは登録済み）
-    # その他クラウド（OpenAI / OpenRouter形式）
-    "openai/gpt-4o",
-    "openai/gpt-4o-mini",
-    "mistralai/mistral-small-24b-instruct-2501",
-    "deepseek/deepseek-chat",
+    # ── Claude（OpenRouter 経由） ──
+    "anthropic/claude-opus-4.8",
+    "anthropic/claude-sonnet-4.6",
+    "anthropic/claude-fable-5",
+    # ── その他クラウド（OpenRouter 経由） ──
+    "openai/gpt-5.5",
+    "meta-llama/llama-4-scout",
+    "qwen/qwen3-max",
+    "qwen/qwen3-30b-a3b",
 ]
 
 _PRESET_URLS = [
@@ -41,7 +44,7 @@ _PRESET_URLS = [
 ]
 
 
-class SettingsDialog(ctk.CTkToplevel):
+class SettingsDialog(RobustToplevel):
 
     def __init__(self, master, llm: LLMClient, on_save: callable):
         super().__init__(master)
@@ -50,18 +53,38 @@ class SettingsDialog(ctk.CTkToplevel):
 
         self.title("LLM 接続設定")
         self.configure(fg_color=BG_PANEL)
-        self.geometry("660x600")
-        self.resizable(False, False)
-        self.grab_set()
-        self.focus_set()
+        self.geometry("660x680")
+        # minsize のみ設定（maxsize を固定すると最大化できなくなるため設定しない）。
+        self.minsize(660, 680)
 
-        self._url_var     = tk.StringVar(value=config.get("llm_base_url"))
-        self._key_var     = tk.StringVar(value=config.get("llm_api_key"))
-        self._model_var   = tk.StringVar(value=config.get("llm_model"))
-        self._timeout_var = tk.StringVar(value=str(config.get("llm_timeout")))
+        # master=self を明示し、tkinter のデフォルトルートに依存させない
+        # （スプラッシュ用ルート破棄で default root が None でも安全）。
+        self._url_var     = tk.StringVar(self, value=config.get("llm_base_url"))
+        self._key_var     = tk.StringVar(self, value=config.get("llm_api_key"))
+        self._model_var   = tk.StringVar(self, value=config.get("llm_model"))
+        self._timeout_var = tk.StringVar(self, value=str(config.get("llm_timeout")))
+        self._search_var  = tk.StringVar(self)
+        self._search_job  = None  # 検索の debounce 用 after ID
 
-        # CTkToplevel on Windows は grab_set() 直後に build すると blank になる既知バグ対策
-        self.after(100, self._build)
+        # withdraw を伴わないので、メインウィンドウ同様その場で構築して問題ない。
+        self._build()
+        self._apply_dark_titlebar()
+        self.after(80, lambda: self._bring_to_front(grab=True))
+
+    def _open_help(self) -> None:
+        # ヘルプを開いている間は設定ダイアログのモーダルを解除し、閉じたら復帰する。
+        try:
+            self.grab_release()
+        except tk.TclError:
+            pass
+        HelpDialog(self, on_close=self._after_help_close)
+
+    def _after_help_close(self) -> None:
+        if self.winfo_exists():
+            try:
+                self.grab_set()
+            except tk.TclError:
+                pass
 
     def _build(self) -> None:
         # タイトル
@@ -73,7 +96,16 @@ class SettingsDialog(ctk.CTkToplevel):
             font=ctk.CTkFont("Segoe UI", 14, "bold"), text_color=CYAN,
         ).pack(side="left", padx=16, pady=12)
 
-        body = ctk.CTkScrollableFrame(self, fg_color="transparent", scrollbar_button_color=BG_WIDGET)
+        # ヘルプ呼び出しボタン（AI/設定が初めての人向けの案内を開く）
+        ctk.CTkButton(
+            hdr, text="❓ ヘルプ", width=84, height=30,
+            fg_color=BG_PANEL, hover_color="#152030",
+            border_color=CYAN, border_width=1,
+            text_color=CYAN, font=ctk.CTkFont("Segoe UI", 11),
+            command=self._open_help,
+        ).pack(side="right", padx=16, pady=10)
+
+        body = ctk.CTkFrame(self, fg_color="transparent")
         body.pack(fill="both", expand=True, padx=20, pady=12)
 
         # プリセットボタン
@@ -90,53 +122,66 @@ class SettingsDialog(ctk.CTkToplevel):
                 command=lambda u=url: self._url_var.set(u),
             ).pack(side="left", padx=(0, 6))
 
-        # フォームフィールド
-        fields = [
-            ("BASE URL",  self._url_var,     False, "http://localhost:11434/v1"),
-            ("API KEY",   self._key_var,      True,  "ollama  または  sk-..."),
-            ("MODEL",     self._model_var,    False, "qwen2.5-coder:14b"),
-            ("TIMEOUT",   self._timeout_var,  False, "180"),
-        ]
-        for label, var, secret, placeholder in fields:
-            row = ctk.CTkFrame(body, fg_color="transparent")
-            row.pack(fill="x", pady=5)
-            ctk.CTkLabel(row, text=label, width=80,
-                         font=ctk.CTkFont("Consolas", 10, "bold"), text_color=TEXT_DIM,
-                         anchor="w").pack(side="left")
-            entry = ctk.CTkEntry(
-                row, textvariable=var,
-                placeholder_text=placeholder,
-                show="*" if secret else "",
-                font=ctk.CTkFont("Consolas", 11),
-                fg_color=BG_INPUT, border_color=BORDER, border_width=1,
-                text_color=TEXT_PRI, height=32,
-            )
-            entry.pack(side="left", fill="x", expand=True)
+        # フォームフィールド（BASE URL / API KEY はテキスト入力）
+        self._add_entry(body, "BASE URL", self._url_var, False, "http://localhost:11434/v1")
+        self._add_entry(body, "API KEY",  self._key_var, True,  "ollama  または  sk-...")
 
-        # モデル候補（3列ずつ折返し表示）
-        ctk.CTkLabel(body, text="モデル候補 (クリックで入力 / Claude・Fableは OpenRouter経由):",
-                     font=ctk.CTkFont("Segoe UI", 9),
-                     text_color=TEXT_DIM).pack(anchor="w", pady=(6, 2))
-        for i in range(0, len(_PRESET_MODELS), 3):
-            mdl_row = ctk.CTkFrame(body, fg_color="transparent")
-            mdl_row.pack(fill="x", pady=(0, 2))
-            for m in _PRESET_MODELS[i:i + 3]:
-                is_claude = m.startswith("anthropic/")
-                ctk.CTkButton(
-                    mdl_row, text=m, height=24, width=196,
-                    fg_color=BG_WIDGET, hover_color="#152030",
-                    border_color=ORANGE_H if is_claude else BORDER, border_width=1,
-                    text_color=ORANGE_H if is_claude else TEXT_DIM,
-                    font=ctk.CTkFont("Consolas", 9),
-                    command=lambda v=m: self._model_var.set(v),
-                ).pack(side="left", padx=(0, 4))
+        # MODEL は選択中モデルを表示・編集する欄（手入力も可）＋「↻ 取得」ボタン。
+        model_row = ctk.CTkFrame(body, fg_color="transparent")
+        model_row.pack(fill="x", pady=5)
+        ctk.CTkLabel(model_row, text="MODEL", width=80,
+                     font=ctk.CTkFont("Consolas", 10, "bold"), text_color=TEXT_DIM,
+                     anchor="w").pack(side="left")
+        ctk.CTkEntry(
+            model_row, textvariable=self._model_var,
+            placeholder_text="qwen3:30b-a3b",
+            font=ctk.CTkFont("Consolas", 11),
+            fg_color=BG_INPUT, border_color=BORDER, border_width=1,
+            text_color=TEXT_PRI, height=32,
+        ).pack(side="left", fill="x", expand=True)
+        self._fetch_btn = ctk.CTkButton(
+            model_row, text="↻ 取得", width=76, height=32,
+            fg_color=BG_WIDGET, hover_color="#152030",
+            border_color=CYAN, border_width=1,
+            text_color=CYAN, font=ctk.CTkFont("Segoe UI", 10),
+            command=self._start_fetch_models,
+        )
+        self._fetch_btn.pack(side="left", padx=(6, 0))
+
+        # TIMEOUT
+        self._add_entry(body, "TIMEOUT", self._timeout_var, False, "180")
+
+        # 検索ボックス + 件数表示
+        search_row = ctk.CTkFrame(body, fg_color="transparent")
+        search_row.pack(fill="x", pady=(10, 4))
+        ctk.CTkEntry(
+            search_row, textvariable=self._search_var,
+            placeholder_text="🔍 モデル名で検索（例: claude, gpt-5, qwen3 ...）",
+            font=ctk.CTkFont("Consolas", 11),
+            fg_color=BG_INPUT, border_color=BORDER, border_width=1,
+            text_color=TEXT_PRI, height=30,
+        ).pack(side="left", fill="x", expand=True)
+        self._count_label = ctk.CTkLabel(
+            search_row, text="", width=120,
+            font=ctk.CTkFont("Segoe UI", 9), text_color=TEXT_DIM, anchor="e",
+        )
+        self._count_label.pack(side="left", padx=(8, 0))
+        self._search_var.trace_add("write", self._on_search_changed)
+
+        # スクロール可能なモデル一覧。クリックで MODEL 欄へ反映。
+        self._model_list = ctk.CTkScrollableFrame(
+            body, fg_color=BG_INPUT, border_color=BORDER, border_width=1,
+            scrollbar_button_color=BORDER, scrollbar_button_hover_color=TEXT_DIM,
+        )
+        self._model_list.pack(fill="both", expand=True, pady=(0, 6))
+        self._render_model_list()
 
         # 接続テスト結果ラベル
         self._test_result = ctk.CTkLabel(
             body, text="",
             font=ctk.CTkFont("Consolas", 10), text_color=TEXT_DIM, anchor="w",
         )
-        self._test_result.pack(fill="x", pady=(10, 0))
+        self._test_result.pack(fill="x", pady=(2, 0))
 
         # ボタン行
         btn_row = ctk.CTkFrame(self, fg_color=BG_WIDGET, corner_radius=0, height=56)
@@ -166,6 +211,107 @@ class SettingsDialog(ctk.CTkToplevel):
             command=self._start_test,
         )
         self._test_btn.pack(side="left", padx=12, pady=10)
+
+    def _add_entry(self, parent, label, var, secret, placeholder) -> None:
+        row = ctk.CTkFrame(parent, fg_color="transparent")
+        row.pack(fill="x", pady=5)
+        ctk.CTkLabel(row, text=label, width=80,
+                     font=ctk.CTkFont("Consolas", 10, "bold"), text_color=TEXT_DIM,
+                     anchor="w").pack(side="left")
+        ctk.CTkEntry(
+            row, textvariable=var,
+            placeholder_text=placeholder,
+            show="*" if secret else "",
+            font=ctk.CTkFont("Consolas", 11),
+            fg_color=BG_INPUT, border_color=BORDER, border_width=1,
+            text_color=TEXT_PRI, height=32,
+        ).pack(side="left", fill="x", expand=True)
+
+    # ── モデル一覧の自動管理 ───────────────────────────────
+    _LIST_CAP = 200  # 一度に描画する最大件数（多すぎる一覧の描画負荷を抑える）
+
+    def _available_models(self) -> list[str]:
+        """厳選デフォルト + 取得済みキャッシュ（重複排除、デフォルトを先頭）。"""
+        cached = config.get("available_models") or []
+        extra  = [m for m in cached if m not in _PRESET_MODELS]
+        return [*_PRESET_MODELS, *extra]
+
+    def _on_search_changed(self, *_args) -> None:
+        # キー入力ごとの再描画を避けるため debounce する。
+        if self._search_job is not None:
+            self.after_cancel(self._search_job)
+        self._search_job = self.after(150, self._render_model_list)
+
+    def _render_model_list(self) -> None:
+        """検索条件でモデル一覧を絞り込み、スクロール一覧へ描画する。"""
+        self._search_job = None
+        for child in self._model_list.winfo_children():
+            child.destroy()
+
+        query   = self._search_var.get().strip().lower()
+        models  = self._available_models()
+        matched = [m for m in models if query in m.lower()] if query else models
+        shown   = matched[:self._LIST_CAP]
+        current = self._model_var.get().strip()
+
+        for m in shown:
+            selected = (m == current)
+            ctk.CTkButton(
+                self._model_list, text=m, height=26, anchor="w",
+                fg_color="#152030" if selected else "transparent",
+                hover_color="#152030",
+                border_color=CYAN if selected else BORDER,
+                border_width=1 if selected else 0,
+                text_color=CYAN if selected else TEXT_PRI,
+                font=ctk.CTkFont("Consolas", 10),
+                command=lambda v=m: self._select_model(v),
+            ).pack(fill="x", padx=4, pady=1)
+
+        total = len(matched)
+        if total == 0:
+            ctk.CTkLabel(self._model_list, text="一致するモデルがありません",
+                         font=ctk.CTkFont("Segoe UI", 9), text_color=TEXT_DIM).pack(pady=8)
+            self._count_label.configure(text="0 件")
+        elif total > len(shown):
+            self._count_label.configure(text=f"{len(shown)} / {total} 件")
+        else:
+            self._count_label.configure(text=f"{total} 件")
+
+    def _select_model(self, model: str) -> None:
+        self._model_var.set(model)
+        self._render_model_list()  # 選択状態のハイライトを更新
+
+    def _start_fetch_models(self) -> None:
+        self._fetch_btn.configure(state="disabled", text="取得中…")
+        self._test_result.configure(text="モデル一覧を取得中 ...", text_color=TEXT_DIM)
+        threading.Thread(target=self._do_fetch_models, daemon=True).start()
+
+    def _do_fetch_models(self) -> None:
+        try:
+            models = LLMClient.fetch_models(
+                base_url=self._url_var.get().strip(),
+                api_key=self._key_var.get().strip() or "ollama",
+            )
+            self.after(0, lambda: self._on_models_fetched(models))
+        except Exception as e:
+            msg = str(e)[:100]
+            self.after(0, lambda: self._on_models_done(False, f"取得失敗: {msg}"))
+
+    def _on_models_fetched(self, models: list[str]) -> None:
+        if not models:
+            self._on_models_done(False, "モデルが取得できませんでした")
+            return
+        # キャッシュへ保存し、一覧を再描画する。
+        config.save({"available_models": models})
+        self._render_model_list()
+        self._on_models_done(True, f"{len(models)} 個のモデルを取得しました")
+
+    def _on_models_done(self, ok: bool, msg: str) -> None:
+        self._fetch_btn.configure(state="normal", text="↻ 取得")
+        self._test_result.configure(
+            text=f"{'✓ ' if ok else '✗ '}{msg}",
+            text_color=GREEN if ok else RED_C,
+        )
 
     def _start_test(self) -> None:
         self._test_btn.configure(state="disabled", text="Testing ...")

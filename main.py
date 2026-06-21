@@ -99,6 +99,15 @@ def main() -> None:
 
     # ── 6. App 生成 ──────────────────────────────────────────────
     app = App()
+
+    # スプラッシュは独自の一時 tk.Tk() ルートを持ち、これが tkinter の
+    # デフォルトルートを占有している。splash.close() で破棄するとデフォルト
+    # ルートが None になり、以降に master 未指定で生成する tkinter.Variable や
+    # Font（= 設定ダイアログ等）が "no default root" 例外で失敗する。
+    # App を明示的にデフォルトルートにしておくことで破棄後も None にならない。
+    import tkinter as _tk
+    _tk._default_root = app
+
     splash.set(1.0, "起動完了")
     splash.close()
 

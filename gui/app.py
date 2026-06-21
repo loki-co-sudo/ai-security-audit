@@ -186,7 +186,12 @@ class App(ctk.CTk):
         def on_save(model: str) -> None:
             self._engine_label.configure(text=f"ENGINE: {model}")
             self._status_var.set("  設定を保存しました。次回スキャンから反映されます。")
-        SettingsDialog(self, self._llm, on_save)
+        try:
+            self._settings_dialog = SettingsDialog(self, self._llm, on_save)
+        except Exception as exc:
+            import traceback
+            self._status_var.set(f"  [設定] エラー: {exc}")
+            traceback.print_exc()
 
     # ── タブ切り替え ────────────────────────────────────────────
     def _switch_tab(self, key: str) -> None:
