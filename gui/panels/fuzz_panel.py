@@ -28,6 +28,7 @@ class FuzzPanel(ctk.CTkFrame):
         self._agent     = FuzzAgent(bus, llm)
         self._profile   = tk.StringVar(value="stealth")
         self._budget    = tk.StringVar(value="200")
+        self._auth: dict = {}   # 認証設定（🔐ボタンで設定）
         self._build()
 
     def _build(self) -> None:
@@ -83,6 +84,15 @@ class FuzzPanel(ctk.CTkFrame):
             fg_color=BG_INPUT, button_color="#3A2400",
             font=ctk.CTkFont("Segoe UI", 10), text_color=TEXT_PRI,
         ).pack(side="left", padx=(0, 16), pady=7)
+
+        self._auth_btn = ctk.CTkButton(
+            obar, text="🔐 認証", width=84, height=26,
+            fg_color=BG_INPUT, hover_color="#3A2400",
+            border_color=AMBER, border_width=1,
+            text_color=AMBER, font=ctk.CTkFont("Segoe UI", 10),
+            command=self._open_auth,
+        )
+        self._auth_btn.pack(side="left", padx=(0, 8), pady=7)
 
         ctk.CTkLabel(
             obar, text="検出のみ・同一オリジン限定・認可された対象のみ",
@@ -140,7 +150,16 @@ class FuzzPanel(ctk.CTkFrame):
             target=target,
             profile=self._profile.get(),
             max_requests=budget,
+            auth=self._auth or None,
         )
+
+    def _open_auth(self) -> None:
+        from gui.dialogs.auth_dialog import AuthDialog
+        AuthDialog(self.winfo_toplevel(), initial=self._auth, on_save=self._on_auth_saved)
+
+    def _on_auth_saved(self, data: dict) -> None:
+        self._auth = data or {}
+        self._auth_btn.configure(text="🔐 認証✓" if self._auth else "🔐 認証")
 
     def _stop(self) -> None:
         self._agent.stop()

@@ -73,6 +73,7 @@ class FuzzAgent(BaseAgent):
         profile: str = DEFAULT_SCAN_PROFILE,
         max_requests: int = 200,
         max_pages: int = 20,
+        auth: dict | None = None,
     ) -> None:
         self.bus.clear()
         self._status(f"ファジング開始: {target}")
@@ -93,15 +94,23 @@ class FuzzAgent(BaseAgent):
         self._out(f"  PROFILE      : {profile.upper()}\n", "dim")
         self._out(f"  REQ BUDGET   : {max_requests} (DoS防止上限)\n", "dim")
         self._out("  MODE         : 検出のみ（兆候観測・非エクスプロイト）\n", "green")
-        self._out("  SCOPE        : 同一オリジン限定 — 認可された対象のみ\n\n", "green")
+        self._out("  SCOPE        : 同一オリジン限定 — 認可された対象のみ\n", "green")
+        self._out(f"  AUTH         : {'設定あり（認証付きファジング）' if auth else 'なし'}\n\n",
+                  "green" if auth else "dim")
         self._step(0, "done")
         if self.is_stopped():
             return
 
         fuzzer = WebFuzzer(
             profile=profile, max_pages=max_pages,
-            max_requests=max_requests, log=self._log,
+            max_requests=max_requests, log=self._log, auth=auth,
         )
+
+        # 認証を適用（Cookie / ヘッダー / ログインフォーム）
+        if auth:
+            ok, msg = fuzzer.authenticate()
+            self._out(f"  [AUTH] {msg}\n", "green" if ok else "high")
+            self._log(f"auth: {msg}")
 
         # ── Step 1: クロール・注入点検出 ───────────────────
         self._step(1, "running")

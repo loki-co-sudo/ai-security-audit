@@ -71,6 +71,7 @@ class WebFuzzer:
         max_requests: int = 200,
         timeout: int = 8,
         log: Callable[[str], None] | None = None,
+        auth: dict | None = None,
     ):
         prof = SCAN_PROFILES.get(profile, SCAN_PROFILES[DEFAULT_SCAN_PROFILE])
         self.threads      = prof["path_threads"]
@@ -79,10 +80,99 @@ class WebFuzzer:
         self.max_requests = max_requests        # DoS防止のための総リクエスト上限
         self.timeout      = timeout
         self.log          = log or (lambda m: None)
+        self.auth         = auth or {}          # 認証設定（cookie/header/login）
         self._req_count   = 0
         self._user_agents = list(STEALTH_USER_AGENTS)
         self.session = requests.Session()
         self.session.verify = False
+
+    # ── 認証 ───────────────────────────────────────────────
+    def authenticate(self) -> tuple[bool, str]:
+        """Cookie / ヘッダー / ログインフォーム認証をセッションへ適用する。
+
+        ログインフォームは CSRF を含む hidden 入力を自動抽出して送信する。
+        以後のクロール／ファジングはこの認証済みセッションで行われる。
+        """
+        a = self.auth or {}
+        applied: list[str] = []
+
+        # 1) 生Cookie（例: "sessionid=abc; csrftoken=xyz"）
+        #    ドメイン依存を避けるため Cookie ヘッダーとして全リクエストに付与する。
+        raw = (a.get("cookie") or "").strip()
+        if raw:
+            self.session.headers["Cookie"] = raw
+            applied.append("cookie")
+
+        # 2) 任意ヘッダー（例: Authorization: Bearer ...）
+        hn = (a.get("header_name") or "").strip()
+        hv = (a.get("header_value") or "").strip()
+        if hn and hv:
+            self.session.headers[hn] = hv
+            applied.append("header")
+
+        # 3) ログインフォーム（CSRF自動対応）
+        login_url = (a.get("login_url") or "").strip()
+        if login_url:
+            ok, msg = self._form_login(a, login_url)
+            applied.append(f"login({'ok' if ok else 'uncertain'})")
+            if not ok:
+                return False, msg
+
+        if not applied:
+            return True, "認証設定なし"
+        return True, "認証適用: " + ", ".join(applied)
+
+    def _form_login(self, a: dict, login_url: str) -> tuple[bool, str]:
+        try:
+            r = self.session.get(login_url, timeout=self.timeout, verify=False)
+        except requests.RequestException as e:
+            return False, f"ログインページ取得失敗: {e}"
+
+        # ログインフォーム（password入力を含むform）の hidden 入力を収集（CSRF等）
+        fields = self._login_form_fields(r.text)
+        uf = (a.get("user_field") or "").strip()
+        pf = (a.get("pass_field") or "").strip()
+        if uf:
+            fields[uf] = a.get("user_val", "")
+        if pf:
+            fields[pf] = a.get("pass_val", "")
+
+        action = (a.get("post_url") or "").strip() or login_url
+        try:
+            rp = self.session.post(action, data=fields, timeout=self.timeout,
+                                   allow_redirects=True, verify=False)
+        except requests.RequestException as e:
+            return False, f"ログインPOST失敗: {e}"
+
+        if self._login_ok(rp):
+            return True, "ログイン成功"
+        return False, ("ログイン失敗の可能性（認証フォームが残存／"
+                       "セッションCookie未設定）。認証なしで継続します。")
+
+    @staticmethod
+    def _login_form_fields(html_text: str) -> dict:
+        """password入力を含むformの hidden/text 入力を name:value で返す。"""
+        for m in re.finditer(r"<form\b[^>]*>(.*?)</form>", html_text, re.I | re.S):
+            inner = m.group(1)
+            if "type=\"password\"" not in inner.lower() and "type='password'" not in inner.lower():
+                continue
+            fields = {}
+            for im in re.finditer(r"<input\b([^>]*)>", inner, re.I):
+                attrs = im.group(1)
+                name = _attr(attrs, "name")
+                itype = (_attr(attrs, "type") or "text").lower()
+                if not name or itype in ("submit", "button", "image", "reset"):
+                    continue
+                fields[name] = _attr(attrs, "value") or ""
+            return fields
+        return {}
+
+    def _login_ok(self, resp) -> bool:
+        """ログイン成否のヒューリスティック判定。"""
+        body = resp.text.lower()
+        still_login = "type=\"password\"" in body or "type='password'" in body
+        has_cookie  = len(self.session.cookies) > 0
+        return (not still_login) and (has_cookie or resp.status_code in (301, 302, 303))
 
     # ── 内部ヘルパー ───────────────────────────────────────
     def _budget_left(self) -> bool:

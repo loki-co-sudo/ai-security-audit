@@ -106,15 +106,20 @@ _PRODUCTS = [
 ]
 
 
-def _home() -> str:
+def _home(authed: bool = False) -> str:
     cards = "".join(
         f'<div class="card"><h3><a href="/product?id={pid}">{name}</a></h3>'
         f'<div class="price">{price}</div></div>'
         for pid, name, price in _PRODUCTS[:3]
     )
+    # 認証時のみ、認証専用の脆弱ページ(/dashboard)へのリンクを表示する
+    member = ('<div class="panel"><b>ログイン中</b> — '
+              '<a href="/dashboard?q=welcome">会員ダッシュボード</a></div>'
+              if authed else "")
     return _page("ホーム",
         '<div class="hero"><h1>DemoShop へようこそ</h1>'
         '<p>テスト用のダミー通販サイトです。商品検索・記事・ログインを試せます。</p></div>'
+        f'{member}'
         '<h2 style="margin-bottom:12px">おすすめ商品</h2>'
         f'<div class="grid">{cards}</div>')
 
@@ -159,9 +164,12 @@ def _detail(title: str, lead: str, value: str) -> str:
 
 def _login_form(msg: str = "") -> str:
     note = f'<div class="result">{msg}</div>' if msg else ""
+    # CSRFトークン（hidden）を含める。ツールの自動抽出を検証するための要素。
     return _page("ログイン",
         '<div class="panel"><h2>ログイン</h2>'
+        '<p style="color:#888;font-size:13px">テスト資格情報: admin / secret</p>'
         '<form action="/login" method="POST">'
+        '<input type="hidden" name="csrf_token" value="csrf-demo-7f3a">'
         '<div class="form-row"><label>ユーザー名</label>'
         '<input type="text" name="username" value=""></div>'
         '<div class="form-row"><label>パスワード</label>'
@@ -178,7 +186,7 @@ class VulnHandler(BaseHTTPRequestHandler):
         sys.stdout.write("  %s - %s\n" % (self.address_string(), fmt % args))
 
     def _respond(self, code: int, body: str, ctype: str = "text/html; charset=utf-8",
-                 set_cookie: bool = False) -> None:
+                 set_cookie: bool = False, cookie: str | None = None) -> None:
         data = body.encode("utf-8", "replace")
         self.send_response(code)
         self.send_header("Content-Type", ctype)
@@ -187,9 +195,14 @@ class VulnHandler(BaseHTTPRequestHandler):
         if set_cookie:
             # Secure / HttpOnly を付けない安全でない Cookie
             self.send_header("Set-Cookie", "SESSIONID=8f3a2b1c9d; Path=/")
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
         # ※ Content-Security-Policy / Strict-Transport-Security 等は意図的に未設定
         self.end_headers()
         self.wfile.write(data)
+
+    def _is_authed(self) -> bool:
+        return "AUTH=1" in (self.headers.get("Cookie") or "")
 
     def do_GET(self):
         parsed = urlparse(self.path)
@@ -197,7 +210,7 @@ class VulnHandler(BaseHTTPRequestHandler):
         qs = {k: v[0] for k, v in parse_qs(parsed.query).items()}
 
         if path in ("/", ""):
-            self._respond(200, _home(), set_cookie=True); return
+            self._respond(200, _home(self._is_authed()), set_cookie=True); return
         if path == "/products":
             self._respond(200, _products()); return
         if path in _EXPOSED_PATHS:
@@ -215,6 +228,13 @@ class VulnHandler(BaseHTTPRequestHandler):
         if path == "/greet":
             self._respond(200, _detail("マイページ",
                 "ようこそ:", qs.get("name", ""))); return
+        if path == "/dashboard":
+            # 認証専用の脆弱ページ。未認証ではアクセス不可（認証付きFUZZの検証用）。
+            if not self._is_authed():
+                self._respond(401, _page("401",
+                    '<div class="panel"><h2>401 ログインが必要です</h2></div>')); return
+            self._respond(200, _detail("会員ダッシュボード",
+                "会員専用の検索結果:", qs.get("q", ""))); return
         if path == "/login":
             self._respond(200, _login_form()); return
 
@@ -226,7 +246,24 @@ class VulnHandler(BaseHTTPRequestHandler):
         fields = {k: v[0] for k, v in parse_qs(raw).items()}
         if urlparse(self.path).path == "/login":
             user = fields.get("username", "")
-            self._respond(200, _login_form(f"ログイン失敗: ユーザー {user} は存在しません" + _vuln_panel(user)))
+            pw   = fields.get("password", "")
+            csrf = fields.get("csrf_token", "")
+            # CSRFトークンが無い場合は拒否（CSRF対応の検証）
+            if not csrf:
+                self._respond(403, _login_form("CSRFトークンがありません（リクエスト拒否）"))
+                return
+            if user == "admin" and pw == "secret":
+                # ログイン成功 → 認証Cookieを発行し、ダッシュボードへ誘導
+                self._respond(
+                    200,
+                    _page("ログイン成功",
+                          '<div class="panel"><h2>ログイン成功</h2>'
+                          '<p><a href="/dashboard?q=welcome">会員ダッシュボードへ</a></p></div>'),
+                    cookie="AUTH=1; Path=/",
+                )
+                return
+            self._respond(200, _login_form(
+                f"ログイン失敗: 資格情報が不正です" + _vuln_panel(user)))
             return
         val = next(iter(fields.values()), "")
         self._respond(200, _detail("結果", "送信内容:", val))
