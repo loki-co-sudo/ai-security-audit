@@ -11,7 +11,10 @@ import time
 from agents.base_agent import BaseAgent
 from tools.network_scanner import NetworkScanner, passive_os_fingerprint
 from tools.web_prober import WebProber
-from core.settings import SCAN_PROFILES, DEFAULT_SCAN_PROFILE
+from core.settings import (
+    SCAN_PROFILES, DEFAULT_SCAN_PROFILE,
+    COMMON_PORTS, EXTENDED_PORTS, COMMON_UDP_PORTS,
+)
 
 STEPS = [
     "ターゲット解析・接続確認",
@@ -105,17 +108,27 @@ Be thorough. Think like an attacker who has just done initial recon and is plann
 class ReconAgent(BaseAgent):
 
     def run(self, target: str, scan_web: bool = True, intensity: str = DEFAULT_SCAN_PROFILE,
-            generate_exploit: bool = True) -> None:
+            generate_exploit: bool = True, port_scope: str = "common",
+            scan_udp: bool = False) -> None:
         self.bus.clear()
         self._status(f"偵察開始: {target}")
 
         # intensity = スキャンプロファイル名（stealth / passive / moderate / aggressive）
         if intensity not in SCAN_PROFILES:
             intensity = DEFAULT_SCAN_PROFILE
-        scanner = NetworkScanner.from_profile(intensity)
+
+        # ポートスコープ（common=現行と同一 / extended=拡張 / full=全65535）
+        if port_scope == "extended":
+            scan_ports = EXTENDED_PORTS
+        elif port_scope == "full":
+            scan_ports = list(range(1, 65536))
+        else:
+            port_scope = "common"
+            scan_ports = COMMON_PORTS
+        scanner = NetworkScanner.from_profile(intensity, ports=scan_ports)
         prober  = WebProber(timeout=8, profile=intensity)
 
-        recon_data: dict = {"target": target, "ports": [], "web": {}}
+        recon_data: dict = {"target": target, "ports": [], "udp_ports": [], "web": {}}
 
         # ── Step 0: ターゲット解析 ─────────────────────────
         self._step(0, "running")
@@ -132,7 +145,15 @@ class ReconAgent(BaseAgent):
             f"  FOOTPRINT : {'LOW (jitter+randomized order)' if stealthy else 'HIGH (fast/noisy)'}\n",
             "green" if stealthy else "high",
         )
-        self._out(f"  WEB PROBE : {'YES' if scan_web else 'NO'}\n\n", "dim")
+        self._out(f"  WEB PROBE : {'YES' if scan_web else 'NO'}\n", "dim")
+        self._out(
+            f"  PORTS     : {port_scope.upper()} ({len(scan_ports)} ports)"
+            f"{'  +UDP' if scan_udp else ''}\n", "dim",
+        )
+        if port_scope == "full":
+            self._out("  NOTE      : 全ポートスキャンは時間がかかります"
+                      "（aggressive/隔離環境向け）。\n", "high")
+        self._out("\n", "")
 
         # ホスト名 → IPアドレス解析
         host, resolved_ip = scanner.resolve(target)
@@ -169,6 +190,21 @@ class ReconAgent(BaseAgent):
                 )
         else:
             self._out("  No open ports found (filtered or host down)\n", "dim")
+
+        # UDPスキャン（オプション・参考情報）
+        if scan_udp and not self.is_stopped():
+            self._out("\n  UDP scan (参考: 無応答は open|filtered) ...\n", "dim")
+            self._status(f"UDPスキャン中: {host} ...")
+            udp_ports = scanner.scan_udp(host, COMMON_UDP_PORTS)
+            recon_data["udp_ports"] = udp_ports
+            if udp_ports:
+                for p in udp_ports:
+                    self._out(
+                        f"  [{p['port']:>5}/udp]  {p['service']:<16}  {p['banner']}\n",
+                        "medium" if p["banner"].startswith("open ") else "dim",
+                    )
+            else:
+                self._out("  No UDP ports responded.\n", "dim")
         self._step(1, "done")
 
         if self.is_stopped(): return
@@ -332,6 +368,10 @@ class ReconAgent(BaseAgent):
             lines.append("\nOPEN PORTS:")
             for p in data["ports"]:
                 lines.append(f"  {p['port']}/tcp  {p['service']}  {p['banner']}")
+        if data.get("udp_ports"):
+            lines.append("\nUDP PORTS (open|filtered — 参考):")
+            for p in data["udp_ports"]:
+                lines.append(f"  {p['port']}/udp  {p['service']}  {p['banner']}")
         web = data.get("web", {})
         if web.get("technologies"):
             lines.append("\nDETECTED TECHNOLOGIES:")

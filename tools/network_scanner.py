@@ -26,6 +26,30 @@ SERVICE_MAP = {
     9200: "Elasticsearch", 27017: "MongoDB",
 }
 
+UDP_SERVICE_MAP = {
+    53: "DNS",   67: "DHCP",  68: "DHCP",  69: "TFTP",  123: "NTP",
+    137: "NetBIOS-NS", 138: "NetBIOS-DGM", 161: "SNMP", 162: "SNMP-Trap",
+    500: "IKE",  514: "Syslog", 520: "RIP", 1900: "SSDP", 4500: "IPsec-NAT",
+    5353: "mDNS",
+}
+
+# 一部UDPサービスは特定プロトプローブで応答が得やすい
+_UDP_PROBES = {
+    53:  b"\x00\x06\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00\x07version\x04bind\x00\x00\x10\x00\x03",
+    123: b"\x1b" + b"\x00" * 47,   # NTP
+    161: b"\x30\x26\x02\x01\x01\x04\x06public\xa0\x19\x02\x04\x00\x00\x00\x00\x02\x01\x00\x02\x01\x00\x30\x0b\x30\x09\x06\x05\x2b\x06\x01\x02\x01\x05\x00",
+}
+
+
+def _service_name(port: int) -> str:
+    """ポート番号からサービス名を返す（未知なら system DB を参照）。"""
+    if port in SERVICE_MAP:
+        return SERVICE_MAP[port]
+    try:
+        return socket.getservbyport(port, "tcp")
+    except OSError:
+        return "unknown"
+
 
 class NetworkScanner:
     def __init__(
@@ -96,11 +120,56 @@ class NetworkScanner:
                 banner = self._grab_banner(s, host, port)
                 return {
                     "port":    port,
-                    "service": SERVICE_MAP.get(port, "unknown"),
+                    "service": _service_name(port),
                     "banner":  banner,
                 }
         except (socket.timeout, ConnectionRefusedError, OSError):
             return None
+
+    # ── UDPスキャン（参考情報・open|filtered の曖昧さあり） ──
+    def scan_udp(self, host: str, ports: list[int]) -> list[dict]:
+        """指定UDPポートを走査する。応答ありは open、無応答は open|filtered。
+
+        UDPは無応答だと open/filtered の区別が付かないため検出は参考扱い。
+        ICMP port unreachable（接続リセット）を受けたポートは closed として除外する。
+        """
+        results: list[dict] = []
+        plist = list(ports)
+        if self.randomize:
+            random.shuffle(plist)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_threads) as ex:
+            futures = {ex.submit(self._check_udp_port, host, p): p for p in plist}
+            for f in concurrent.futures.as_completed(futures):
+                result = f.result()
+                if result:
+                    results.append(result)
+        return sorted(results, key=lambda x: x["port"])
+
+    def _check_udp_port(self, host: str, port: int) -> dict | None:
+        lo, hi = self.jitter
+        if hi > 0:
+            time.sleep(random.uniform(lo, hi))
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(self.timeout)
+        try:
+            s.sendto(_UDP_PROBES.get(port, b"\x00"), (host, port))
+            try:
+                data, _ = s.recvfrom(1024)
+                status = "open"
+            except socket.timeout:
+                status = "open|filtered"   # 無応答（区別不能）
+                data = b""
+            return {
+                "port":    port,
+                "service": UDP_SERVICE_MAP.get(port, "unknown") + "/udp",
+                "banner":  status + (f" ({len(data)}B resp)" if data else ""),
+            }
+        except (ConnectionResetError, ConnectionRefusedError):
+            return None   # ICMP port unreachable → closed
+        except OSError:
+            return None
+        finally:
+            s.close()
 
     def _grab_banner(self, sock: socket.socket, host: str, port: int) -> str:
         """バナーを取得する（失敗時は空文字）。"""

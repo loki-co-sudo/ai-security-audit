@@ -29,6 +29,8 @@ class AttackPanel(ctk.CTkFrame):
         self._intensity = tk.StringVar(value="stealth")
         self._scan_web  = tk.BooleanVar(value=True)
         self._gen_exploit = tk.BooleanVar(value=True)
+        self._port_scope = tk.StringVar(value="common")
+        self._scan_udp  = tk.BooleanVar(value=False)
         self._build()
 
     def _build(self) -> None:
@@ -75,6 +77,22 @@ class AttackPanel(ctk.CTkFrame):
             fg_color=BG_INPUT, button_color="#1A3050",
             font=ctk.CTkFont("Segoe UI", 10), text_color=TEXT_PRI,
         ).pack(side="left", padx=(0, 16), pady=7)
+
+        ctk.CTkLabel(obar, text="PORTS:", font=ctk.CTkFont("Segoe UI", 10),
+                     text_color=TEXT_DIM).pack(side="left", padx=(8, 4), pady=8)
+        ctk.CTkOptionMenu(
+            obar, values=["common", "extended", "full"],
+            variable=self._port_scope, width=110, height=26,
+            fg_color=BG_INPUT, button_color="#1A3050",
+            font=ctk.CTkFont("Segoe UI", 10), text_color=TEXT_PRI,
+        ).pack(side="left", padx=(0, 12), pady=7)
+
+        ctk.CTkCheckBox(
+            obar, text="UDP", variable=self._scan_udp,
+            font=ctk.CTkFont("Segoe UI", 10), text_color=TEXT_DIM,
+            fg_color=CYAN, hover_color="#009BBD",
+            checkbox_width=16, checkbox_height=16,
+        ).pack(side="left", padx=8)
 
         ctk.CTkCheckBox(
             obar, text="Web Probe", variable=self._scan_web,
@@ -138,6 +156,8 @@ class AttackPanel(ctk.CTkFrame):
             scan_web=self._scan_web.get(),
             intensity=self._intensity.get(),
             generate_exploit=self._gen_exploit.get(),
+            port_scope=self._port_scope.get(),
+            scan_udp=self._scan_udp.get(),
         )
 
     def _stop_scan(self) -> None:
