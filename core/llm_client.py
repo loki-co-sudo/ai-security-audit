@@ -101,6 +101,25 @@ class LLMClient:
         )
         return response.choices[0].message.content or ""
 
+    # ── モデル一覧の自動取得 ───────────────────────────────
+    @staticmethod
+    def fetch_models(base_url: str, api_key: str = "", timeout: int = 15) -> list[str]:
+        """接続先の /v1/models から利用可能なモデル ID 一覧を取得する。
+
+        OpenAI 互換エンドポイント（OpenRouter / OpenAI / Ollama / LM Studio 等）が
+        対応する標準のモデル一覧 API を叩く。取得失敗時は例外を送出する。
+        """
+        from openai import OpenAI  # noqa: PLC0415
+        client = OpenAI(
+            base_url=base_url,
+            api_key=api_key or "ollama",
+            default_headers=_or_headers(base_url),
+            timeout=timeout,
+        )
+        resp = client.models.list()
+        ids = [m.id for m in getattr(resp, "data", []) if getattr(m, "id", None)]
+        return sorted(set(ids))
+
     # ── ユーティリティ ─────────────────────────────────────
     @staticmethod
     def system(content: str) -> dict:

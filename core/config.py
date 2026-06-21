@@ -17,6 +17,8 @@ _DEFAULTS: dict = {
     "llm_api_key":  LLM_API_KEY,
     "llm_model":    LLM_MODEL,
     "llm_timeout":  LLM_TIMEOUT,
+    # 接続先から取得したモデル一覧のキャッシュ（「↻ 取得」で更新）。
+    "available_models": [],
 }
 
 _cfg: dict = {}
