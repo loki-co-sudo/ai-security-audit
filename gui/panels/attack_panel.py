@@ -28,6 +28,7 @@ class AttackPanel(ctk.CTkFrame):
         self._agent     = ReconAgent(bus, llm)
         self._intensity = tk.StringVar(value="stealth")
         self._scan_web  = tk.BooleanVar(value=True)
+        self._gen_exploit = tk.BooleanVar(value=True)
         self._build()
 
     def _build(self) -> None:
@@ -82,6 +83,13 @@ class AttackPanel(ctk.CTkFrame):
             checkbox_width=16, checkbox_height=16,
         ).pack(side="left", padx=8)
 
+        ctk.CTkCheckBox(
+            obar, text="PoC生成 (送信なし)", variable=self._gen_exploit,
+            font=ctk.CTkFont("Segoe UI", 10), text_color=TEXT_DIM,
+            fg_color=RED_C, hover_color="#CC2828",
+            checkbox_width=16, checkbox_height=16,
+        ).pack(side="left", padx=8)
+
         # ── メインペイン ──────────────────────────────────
         pane = ctk.CTkFrame(self, fg_color="transparent")
         pane.pack(fill="both", expand=True)
@@ -129,6 +137,7 @@ class AttackPanel(ctk.CTkFrame):
             target=target,
             scan_web=self._scan_web.get(),
             intensity=self._intensity.get(),
+            generate_exploit=self._gen_exploit.get(),
         )
 
     def _stop_scan(self) -> None:

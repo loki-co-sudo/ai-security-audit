@@ -20,8 +20,59 @@ STEPS = [
     "Webターゲット列挙中",
     "受動OSフィンガープリント中",
     "AIが脆弱性仮説を構築中",
+    "PoC生成中（ローカル生成・送信なし）",
     "リスクレポートを生成中",
 ]
+
+# ─────────────────────────────────────────────────────────────
+#  安全制御: 生成した PoC/エクスプロイトは絶対に対象へ送信・実行しない。
+#  このエージェントは PoC を「LLMで生成し、画面表示・レポート保存する」のみで、
+#  対象へ送信/実行する経路を一切持たない。下のフラグは不変条件の明示であり、
+#  True にして送信する実装は本ツールに存在しない。
+# ─────────────────────────────────────────────────────────────
+EXPLOIT_TRANSMISSION_ENABLED = False
+
+
+def _assert_no_transmission() -> None:
+    """PoC送信が無効であることを保証する（万一の改変に対する安全ガード）。"""
+    if EXPLOIT_TRANSMISSION_ENABLED:
+        raise RuntimeError(
+            "Safety violation: exploit transmission must remain disabled. "
+            "This tool only generates and displays PoCs; it never sends them to a target."
+        )
+
+
+EXPLOIT_SYSTEM_PROMPT = """You are assisting an AUTHORIZED penetration test performed in an \
+isolated lab that the operator owns. Based on the confirmed/hypothesized findings, produce \
+proof-of-concept (PoC) exploit code so the operator can validate the issues MANUALLY in \
+their own authorized environment.
+
+CRITICAL SAFETY CONTEXT — READ CAREFULLY:
+- This tool ONLY displays and saves these PoCs as text. It does NOT, and must NOT, send, \
+deliver, execute, or transmit them to any target. Never imply the tool will run them.
+- Keep PoCs MINIMAL and detection/validation-oriented (prove the vulnerability exists).
+- DO NOT include destructive or escalation payloads: no data destruction, ransomware, \
+persistence/backdoors, credential exfiltration at scale, automated lateral movement, or \
+denial-of-service. If a finding only allows such impact, describe it conceptually instead.
+- For each PoC, include a one-line safe-usage note and the expected success indicator.
+
+For each applicable finding, output exactly this block:
+
+---EXPLOIT_START---
+TITLE: [short name]
+TARGET_FINDING: [which finding this validates]
+TECHNIQUE: [e.g. CWE-89 SQL Injection / reflected XSS / path traversal]
+PREREQUISITES: [what must be true to attempt this]
+POC:
+```
+[minimal proof-of-concept code or request]
+```
+SUCCESS_INDICATOR: [how to know it worked, e.g. "DB error string in response"]
+SAFE_USAGE_NOTE: [one line; authorized lab only, never against third parties]
+---EXPLOIT_END---
+
+Be precise and practical, but never destructive. Produce PoCs only for the findings that \
+realistically warrant them."""
 
 SYSTEM_PROMPT = """You are an expert red team operator and penetration tester. \
 You have just completed automated reconnaissance on a target system. \
@@ -53,7 +104,8 @@ Be thorough. Think like an attacker who has just done initial recon and is plann
 
 class ReconAgent(BaseAgent):
 
-    def run(self, target: str, scan_web: bool = True, intensity: str = DEFAULT_SCAN_PROFILE) -> None:
+    def run(self, target: str, scan_web: bool = True, intensity: str = DEFAULT_SCAN_PROFILE,
+            generate_exploit: bool = True) -> None:
         self.bus.clear()
         self._status(f"偵察開始: {target}")
 
@@ -195,17 +247,59 @@ class ReconAgent(BaseAgent):
         full = self._stream_llm([
             self.llm.system(SYSTEM_PROMPT),
             self.llm.user(f"Analyze this reconnaissance data and build attack hypotheses:\n\n{recon_summary}"),
-        ])
+        ], live_stats=True)
         self._step(5, "done")
 
-        # ── Step 6: レポート完了 ───────────────────────────
+        if self.is_stopped(): return
+
+        # ── Step 6: エクスプロイト(PoC)生成 — ローカル生成のみ・送信なし ──
         self._step(6, "running")
+        exploit_text = ""
+        if generate_exploit:
+            _assert_no_transmission()  # 送信が無効であることを保証
+            self._out("\n" + "─" * 56 + "\n", "sep")
+            self._out("  PHASE 4 — EXPLOIT PoC GENERATION  (streaming)\n", "section")
+            self._out("─" * 56 + "\n", "sep")
+            self._out(
+                "  ⚠ 生成された PoC は画面表示・ファイル保存のみ。\n"
+                "    対象へは一切【送信・実行されません】（DRY-RUN / NOT TRANSMITTED）。\n\n",
+                "high",
+            )
+            self._status("AI が PoC を生成中 ...（送信は行いません）")
+            self._log("Generating PoCs locally (never transmitted) ...")
+            exploit_text = self._stream_llm([
+                self.llm.system(EXPLOIT_SYSTEM_PROMPT),
+                self.llm.user(
+                    "Using the reconnaissance summary and the attack hypotheses below, "
+                    "generate minimal, non-destructive PoCs for the findings that warrant "
+                    "them. Remember: this tool only displays/saves them and never sends "
+                    "them to any target.\n\n"
+                    f"RECON SUMMARY:\n{recon_summary}\n\n"
+                    f"ATTACK HYPOTHESES:\n{full}"
+                ),
+            ])
+            self._out(
+                "\n\n  ✔ PoC生成はローカルで完了しました。対象への送信・実行は行っていません。\n",
+                "green",
+            )
+        else:
+            self._out("\n  [ PoC生成: スキップ（チェックOFF） ]\n", "dim")
+        self._step(6, "done")
+
+        if self.is_stopped(): return
+
+        # ── Step 7: レポート完了・成果物の保存 ─────────────
+        self._step(7, "running")
         import re
         counts = {s: len(re.findall(rf"SEVERITY:\s*{s}\b", full, re.I))
                   for s in ("CRITICAL", "HIGH", "MEDIUM", "LOW")}
         self._stats(counts)
+
+        # PoC・調査レポートをファイルに保存する。
+        self._save_artifacts(target, recon_summary, full, exploit_text)
+
         time.sleep(0.2)
-        self._step(6, "done")
+        self._step(7, "done")
 
         total = sum(counts.values())
         self._out("\n\n" + "═" * 56 + "\n", "sep")
@@ -214,6 +308,18 @@ class ReconAgent(BaseAgent):
         self._log(f"Recon complete. {total} findings.")
         self._status(f"偵察完了 — {total} findings identified.")
         self._done()
+
+    def _save_artifacts(self, target: str, recon_summary: str,
+                        hypotheses: str, exploit_text: str) -> None:
+        """PoC と調査レポートを reports/ 配下に保存し、保存先を出力する。"""
+        self._save_poc(target, exploit_text)
+        body = (
+            f"## Reconnaissance Summary\n```\n{recon_summary}\n```\n\n"
+            f"## AI Attack Hypotheses\n{hypotheses}\n\n"
+            f"## Generated PoCs (NOT TRANSMITTED)\n"
+            f"{exploit_text.strip() or '(PoC generation skipped)'}\n"
+        )
+        self._save_investigation("ATTACK MODE", target, body)
 
     @staticmethod
     def _build_recon_summary(data: dict) -> str:
