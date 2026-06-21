@@ -20,9 +20,12 @@
 | モード | 概要 | ターゲット |
 |--------|------|-----------|
 | **CODE AUDIT** | Pythonコードをセマンティック解析し、SQLi・IDOR・競合状態など設計上の脆弱性を発見 | `.py` ソースファイル |
-| **ATTACK MODE** | ターゲットに対してAIが自律的にポートスキャン・HTTP探査・攻撃仮説生成を実施（許可されたターゲットのみ） | Webサービス・サーバー |
+| **ATTACK MODE** | AIが自律的にポートスキャン（スコープ選択 `common`/`extended`/`full`・UDP対応）・HTTP探査・攻撃仮説生成・PoC生成（**生成のみ／対象へは絶対に送信しない**）を実施（許可されたターゲットのみ） | Webサービス・サーバー |
 | **WEB FUZZ** | Webアプリをクロールして注入点を抽出し、AIが生成した検出プローブで脆弱性の兆候（SQLi・XSS・トラバーサル・SSTI）を観測（検出のみ・非エクスプロイト） | Webアプリケーション |
 | **DEFENSE MODE** | ログファイルをリアルタイム監視し、攻撃パターンをMITRE ATT&CK準拠でAI分類・即時アラート | アクセスログ |
+
+> **レポート言語**: 設定で **日本語 / English** を事前選択でき、AIの分析出力もレポートもその言語で生成されます。
+> **成果物の自動保存**: 調査レポートは `reports/investigation/`、PoC は `reports/poc/` に自動保存されます。
 
 ---
 
@@ -36,8 +39,10 @@ AIがコードの文脈を読み取り、CVEに存在しない論理的欠陥（
 
 ### ATTACK MODE — 自律ペネトレーションテスト
 
-ポートスキャン → サービス特定 → 受動OS推定 → Web探査 → LLMによる攻撃仮説生成まで、AIエージェントが自律的に実行。  
+ポートスキャン → サービス特定 → 受動OS推定 → Web探査 → LLMによる攻撃仮説生成 → PoC生成まで、AIエージェントが自律的に実行。  
 **スキャンプロファイル**（`stealth` / `passive` / `moderate` / `aggressive`）でフットプリント（検知されやすさ）と速度を切り替え可能。`stealth` はポート走査順のランダム化・接続ごとのジッター・実在ブラウザUAローテーション・低並列により、IDS/レート検知に引っかかりにくい静かな探査を行う。  
+**ポートスコープ**は `common`（既定・主要26ポート）/ `extended`（拡張・約125ポート）/ `full`（全65535ポート）から選択でき、**UDP**スキャン（代表ポート・参考情報）も任意で併用可能。  
+**PoC生成**は脆弱性検証用のPoCコードを**ローカルで生成・表示・保存するのみ**で、対象へ送信・実行することはありません（非破壊・検出指向）。  
 **必ず許可されたターゲットに対してのみ使用すること。**
 
 ![ATTACK MODE](docs/screenshot_attack.png)
@@ -46,6 +51,7 @@ AIがコードの文脈を読み取り、CVEに存在しない論理的欠陥（
 
 Webアプリを浅くクロールしてクエリ・フォームの注入点を抽出 → AIが各脆弱性クラスの**検出プローブ**を文脈推論で生成 → レスポンスの異常（未エスケープ反射・DBエラー署名・テンプレート評価・既知ファイル署名）を観測して脆弱性の兆候を報告。  
 **検出のみ・非エクスプロイト**設計で、総リクエスト数に上限を設けDoSを回避。ステルスプロファイルのジッター／低並列を流用し、同一オリジン限定で動作する。  
+**🔐 認証付きファジング**にも対応（Cookie / ヘッダー / ログインフォーム＋CSRFトークン自動抽出）し、ログイン後の領域も診断できる。  
 **必ず許可されたターゲットに対してのみ使用すること。**
 
 ![WEB FUZZ](docs/screenshot_fuzz.png)
@@ -86,9 +92,9 @@ AI-Security-tool/
 │   ├── fuzz_agent.py          # WEB FUZZ エージェント（クロール→AIプローブ→検出→トリアージ）
 │   └── monitor_agent.py       # DEFENSE MODE エージェント（ログ監視・脅威分析）
 ├── tools/
-│   ├── network_scanner.py     # Socket-basedポートスキャナ（nmap不要）
+│   ├── network_scanner.py     # Socket-basedポートスキャナ（nmap不要・スコープ選択/UDP対応）
 │   ├── web_prober.py          # HTTP探査・技術スタック指紋採取
-│   ├── web_fuzzer.py          # Webスマートファザー（クロール・注入点検出・異常観測／検出のみ）
+│   ├── web_fuzzer.py          # Webスマートファザー（クロール・注入点検出・異常観測／検出のみ・認証対応）
 │   ├── log_watcher.py         # tailf式リアルタイムログ追跡（標準ライブラリのみ）
 │   ├── cve_client.py          # NVD API v2クライアント（CWE→CVE照合・キャッシュ付き）
 │   ├── report_generator.py    # HTML/PDFレポート生成（ダークテーマ・脆弱性詳細付き）
@@ -101,10 +107,13 @@ AI-Security-tool/
 │   ├── splash.py              # 起動スプラッシュスクリーン（tkinter製・高速表示）
 │   ├── export_util.py         # レポート出力（HTML/PDF）共通ヘルパー
 │   ├── dialogs/
-│   │   └── settings_dialog.py # LLM接続設定ダイアログ（接続テスト・設定保存）
+│   │   ├── base.py            # ダイアログ共通基底（確実な前面表示・ダークタイトルバー）
+│   │   ├── settings_dialog.py # LLM接続設定（モデル取得/検索・レポート言語・接続テスト）
+│   │   ├── help_dialog.py     # 使い方ヘルプ（APIキー取得リンク付き）
+│   │   └── auth_dialog.py     # WEB FUZZ 認証設定（Cookie/ヘッダー/ログインフォーム）
 │   ├── widgets/
 │   │   ├── output_box.py      # カラータグ付きAI出力ボックス
-│   │   └── progress_steps.py  # ステップ進捗ウィジェット（DETECTION SUMMARY付き）
+│   │   └── progress_steps.py  # ステップ進捗ウィジェット（DETECTION SUMMARYリアルタイム集計）
 │   └── panels/
 │       ├── audit_panel.py     # CODE AUDIT タブ（LangGraphトグル・レポート出力）
 │       ├── attack_panel.py    # ATTACK MODE タブ（レポート出力）
@@ -115,8 +124,13 @@ AI-Security-tool/
 │   ├── icon.ico / icon.png    # 生成済みアプリアイコン
 ├── samples/
 │   └── target_code.py         # CODE AUDIT 動作確認用のサンプル脆弱コード
+├── testlab/                   # 検証用ローカル脆弱サイト（標準ライブラリのみ・127.0.0.1限定）
+│   ├── vuln_server.py         # 意図的に脆弱なダミーサイト（WEB FUZZ/ATTACK の練習用）
+│   └── README.md              # 使い方
 ├── docs/                      # 設計書・スクリーンショット
 └── reports/                   # スキャン結果出力先（ローカル保存のみ）
+    ├── poc/                   # 生成されたPoC（自動保存・gitignore）
+    └── investigation/         # 調査レポート（自動保存・gitignore）
 ```
 
 ### 設計上の重要な決定
@@ -212,32 +226,33 @@ docker run -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix ai-security-audi
 
 ### LLM接続設定（初回必須）
 
-ヘッダー右上の **⚙ ボタン**から設定ダイアログを開く。
+ヘッダー右上の **⚙ ボタン**から設定ダイアログを開く。右上の **❓ ヘルプ**から、接続の考え方やAPIキー取得先（外部リンク）を確認できる。
 
 | 項目 | 説明 |
 |---|---|
 | BASE URL | Ollama: `http://localhost:11434/v1` / OpenAI: `https://api.openai.com/v1` / OpenRouter: `https://openrouter.ai/api/v1` |
 | API KEY | Ollama: `ollama`（任意文字列） / OpenAI: `sk-...` / OpenRouter: `sk-or-v1-...` |
-| MODEL | `qwen2.5-coder:14b`、`openai/gpt-4o`、`anthropic/claude-opus-4.1` など（自由入力） |
+| MODEL | `qwen3:30b-a3b`、`openai/gpt-5.5`、`anthropic/claude-opus-4.8` など（自由入力） |
+| REPORT | レポート生成言語を **日本語 / English** から選択（AIの分析出力もこの言語になる） |
 
-プリセットボタン（Ollama / OpenRouter / OpenAI / LM Studio）でBASE URLをワンクリック入力できる。  
-MODEL欄の下のモデル候補ボタンからもワンクリック入力可能（**Claude系はオレンジ表示**）。  
-「**接続テスト**」ボタンで疎通確認後、「保存」で `config.json` に書き込まれ次回起動時も保持される。
+- プリセットボタン（Ollama / OpenRouter / OpenAI / LM Studio）でBASE URLをワンクリック入力。
+- **「↻ 取得」** ボタンで接続先の `/v1/models` から利用可能なモデル一覧を取得し、**検索ボックス＋スクロール一覧**から選択できる（取得結果は `config.json` にキャッシュ）。一覧に無いモデルは MODEL 欄へ直接入力も可能。
+- 「**接続テスト**」で疎通確認後、「保存」で `config.json` に書き込まれ次回起動時も保持される。
 
 > **OpenRouter** 使用時は、`HTTP-Referer` / `X-Title` ヘッダーが自動付与されます（BASE URLに `openrouter.ai` を含む場合のみ）。
 
 #### Claude / Fable モデルの利用（OpenRouter経由）
 
-BASE URL を OpenRouter（`https://openrouter.ai/api/v1`）にすると、Anthropic の Claude モデルを利用できます。MODEL欄は**自由入力**なので、候補に無いモデルもスラッグを直接入力すれば使えます。
+BASE URL を OpenRouter（`https://openrouter.ai/api/v1`）にすると、Anthropic の Claude モデルを利用できます。MODEL欄は**自由入力**なので、候補に無いモデルもスラッグを直接入力すれば使えます（最新の一覧は「↻ 取得」で取得可能）。
 
 | モデル | スラッグ |
 |---|---|
-| Claude Opus 4.1 | `anthropic/claude-opus-4.1` |
-| Claude Sonnet 4.5 | `anthropic/claude-sonnet-4.5` |
-| Claude Haiku 4.5 | `anthropic/claude-haiku-4.5` |
-| **Claude Fable 5** | `anthropic/claude-fable-5` （**公開後に利用可能**。スラッグは登録済みなので、提供開始と同時に選択するだけで使えます） |
+| Claude Opus 4.8 | `anthropic/claude-opus-4.8` |
+| Claude Sonnet 4.6 | `anthropic/claude-sonnet-4.6` |
+| Claude Fable 5 | `anthropic/claude-fable-5` |
+| GPT-5.5 | `openai/gpt-5.5` |
 
-> セルフテスト（`tools/run_selftest.py`）のLLM呼び出しは、コスト削減のため既定で廉価モデル `mistralai/mistral-small-24b-instruct-2501` を使用します（全31項目PASS確認済み）。環境変数 `SELFTEST_MODEL` で任意モデルに差し替え可能です。
+> セルフテスト（`tools/run_selftest.py`）のLLM呼び出しは、コスト削減のため廉価モデルを使用します。環境変数 `SELFTEST_MODEL` で任意モデルに差し替え可能です。
 
 ---
 
@@ -271,8 +286,14 @@ BASE URL を OpenRouter（`https://openrouter.ai/api/v1`）にすると、Anthro
    | `moderate` | 中 | 速 | バランス |
    | `aggressive` | 大（高並列・ジッターなし） | 最速 | 隔離環境・時間優先 |
 
-3. 必要に応じて「Web Probe」をオン/オフ
-4. `「SCAN ▶」` をクリック
+3. **PORTS**（ポートスコープ）を選択
+   - `common`（既定）= 主要26ポート（**従来と同一挙動**）
+   - `extended` = 拡張・約125ポート
+   - `full` = 全65535ポート（時間がかかるため隔離環境/`aggressive` 向け）
+4. 必要に応じて **UDP**（代表ポートの参考スキャン）/ **Web Probe** / **PoC生成（送信なし）** をオン/オフ
+5. `「SCAN ▶」` をクリック
+
+完了すると、調査レポートが `reports/investigation/` に、PoC生成をオンにしていれば PoC が `reports/poc/` に自動保存されます（PoC は**生成・保存のみで対象へは送信しません**）。
 
 > **重要**: 本ツールはセキュリティに精通した専門家が、**許可されたターゲットに対する診断のみ**に使用することを前提としています。  
 > 無許可のスキャンは不正アクセス禁止法等の法律に違反します。実行はすべて利用者の責任で行ってください。
@@ -281,11 +302,22 @@ BASE URL を OpenRouter（`https://openrouter.ai/api/v1`）にすると、Anthro
 
 1. クエリやフォームを持つWebアプリのURLを入力（例: `https://example.com/search?q=test`）
 2. Profile（ジッター・並列度）と **REQ BUDGET**（総リクエスト上限＝DoS防止）を選択
-3. `「FUZZ ▶」` をクリック
-4. クロール → AI検出プローブ生成 → ファジング（検出のみ）→ AIトリアージの順に自律実行
-5. 観測した脆弱性の兆候をAIがトリアージし、`「📊 HTML」` / `「📄 PDF」` でレポート出力
+3. （任意）**🔐 認証**ボタンで認証情報を設定すると、ログイン後の領域もファジングできる
+4. `「FUZZ ▶」` をクリック
+5. （認証適用 →）クロール → AI検出プローブ生成 → ファジング（検出のみ）→ AIトリアージの順に自律実行
+6. 観測した脆弱性の兆候をAIがトリアージし、`「📊 HTML」` / `「📄 PDF」` でレポート出力
 
-> **検出のみ・非エクスプロイト**: データ窃取やRCE実行などの攻撃は行わず、レスポンス異常から脆弱性の「兆候」を観測するに留めます。同一オリジン限定・リクエスト数上限つきでDoSを回避します。
+#### 認証付きファジング（🔐 認証）
+
+ログインが必要なWebアプリでも、認証済みセッションでクロール＆検出できます。次の3方式に対応（併用可）:
+
+| 方式 | 入力 | 用途 |
+|---|---|---|
+| **Cookie** | `sessionid=...; csrftoken=...` | ブラウザのセッションCookieを貼り付け |
+| **ヘッダー** | `Authorization` / `Bearer ...` | トークン認証（API・JWT等） |
+| **ログインフォーム** | ログインURL・ユーザー名/パスワード欄と値 | フォーム認証。**CSRFトークン（hidden入力）は自動抽出**して送信 |
+
+> **検出のみ・非エクスプロイト**: データ窃取やRCE実行などの攻撃は行わず、レスポンス異常から脆弱性の「兆候」を観測するに留めます。同一オリジン限定・リクエスト数上限つきでDoSを回避します。認証情報はローカルのセッションにのみ使用し、外部送信しません。
 
 ### DEFENSE MODE
 
@@ -302,8 +334,9 @@ BASE URL を OpenRouter（`https://openrouter.ai/api/v1`）にすると、Anthro
 本ツールは以下のポリシーに従って設計されています：
 
 - **検出のみ**: 脆弱性の「発見・兆候観測」に特化する。WEB FUZZ は検出プローブによる異常観測に留め、データ窃取・RCE実行・認証回避などのエクスプロイトは行わない
+- **PoCは生成のみ・送信しない**: ATTACK MODE のPoC生成は、検証用コードを**ローカルで生成・表示・保存するのみ**。対象へ送信/実行する経路を持たず、安全ガード（`EXPLOIT_TRANSMISSION_ENABLED=False`）で不変条件を明示。非破壊・検出指向のPoCに限定する
 - **非DoS**: 総リクエスト数に上限を設け、ジッター・低並列で過負荷を避ける。ブルートフォース・C2通信・マルウェア生成機能は実装しない
-- **ローカル保存**: スキャン結果はローカルにのみ保存し、外部への自動送信は行わない
+- **ローカル保存**: スキャン結果・PoC・調査レポートはローカルにのみ保存し、外部への自動送信は行わない
 - **同一オリジン限定**: WEB FUZZ のクロールはターゲットと同一ホストのみを辿る
 - **専門家向け・認可前提**: セキュリティ専門家が、許可された対象のみへ、利用者の責任において使用することを前提とする
 
@@ -331,10 +364,18 @@ BASE URL を OpenRouter（`https://openrouter.ai/api/v1`）にすると、Anthro
 - [x] Webファジングエージェント（クロール→入力特定→AI検出プローブ生成、検出のみ・非エクスプロイト）
 - [x] レポートのPDF出力対応（日本語対応・ダークテーマ・Pillowのみで依存追加なし）
 - [x] デスクトップショートカット生成（`py tools/create_shortcut.py`）・タスクバーアイコン対応
+- [x] レポート言語の選択（日本語 / English — AI出力もレポートも切替）
+- [x] モデル一覧の自動取得・検索（接続先の `/v1/models` から取得＋キャッシュ）
+- [x] 設定ヘルプ画面（APIキー取得先の外部リンク付き）
+- [x] DETECTION SUMMARY のリアルタイム集計（ストリーミング中に逐次更新）
+- [x] PoC生成（ATTACK MODE・生成のみ／対象へは送信しない・安全ガード付き）
+- [x] PoC・調査レポートの自動保存（`reports/poc/` ・ `reports/investigation/`）
+- [x] 拡張ポートスキャン（スコープ選択 `common`/`extended`/`full` ＋ UDP対応・選択式で従来挙動を維持）
+- [x] 検証用ローカル脆弱サイト（`testlab/` — 自前で安全に動作確認）
+- [x] 認証付きWebアプリのファジング（Cookie / ヘッダー / ログインフォーム＋CSRFトークン自動抽出）
 
 ### 今後の拡張予定
-- [ ] 拡張ポートスキャン（UDP対応 ※ステルス性とのトレードオフを検討）
-- [ ] 認証付きWebアプリのファジング（セッション・CSRFトークン対応）
+- 主要なロードマップ項目は実装済みです。要望があれば随時追加します。
 
 ---
 
