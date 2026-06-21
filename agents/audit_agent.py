@@ -114,7 +114,7 @@ class AuditAgent(BaseAgent):
                 f"Analyze this code for unknown and logic-based security vulnerabilities:\n\n"
                 f"```python\n{source}\n```"
             ),
-        ])
+        ], live_stats=True)
         self._step(3, "done")
         self._step(2, "done")
 
@@ -149,6 +149,7 @@ class AuditAgent(BaseAgent):
 
         # Step 6: 最終化
         self._step(6, "running")
+        self._save_investigation("CODE AUDIT", path, f"## AI Reasoning Output\n{full}\n")
         time.sleep(0.2)
         self._step(6, "done")
 

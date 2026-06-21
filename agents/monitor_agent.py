@@ -62,6 +62,7 @@ class MonitorAgent(BaseAgent):
         watcher = LogWatcher(log_path)
         context_buffer: deque[str] = deque(maxlen=LOG_MAX_CONTEXT)
         batch_buffer:   list[str]  = []
+        analyses:       list[str]  = []   # 調査レポート保存用にAI分析を蓄積
         total_alerts   = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
         last_ai_call   = 0.0
         AI_COOLDOWN    = 15.0  # 連続AI呼び出し間隔（秒）
@@ -106,7 +107,7 @@ class MonitorAgent(BaseAgent):
                 now = time.time()
                 if (len(batch_buffer) >= LOG_BATCH_SIZE or
                         (batch_buffer and now - last_ai_call > AI_COOLDOWN)):
-                    self._analyze_batch(batch_buffer, list(context_buffer))
+                    analyses.append(self._analyze_batch(batch_buffer, list(context_buffer)))
                     batch_buffer.clear()
                     last_ai_call = now
 
@@ -115,7 +116,18 @@ class MonitorAgent(BaseAgent):
 
         # 残バッファを最終分析
         if batch_buffer and not self.is_stopped():
-            self._analyze_batch(batch_buffer, list(context_buffer))
+            analyses.append(self._analyze_batch(batch_buffer, list(context_buffer)))
+
+        # 調査レポートを保存
+        body = (
+            f"## Log Source\n{log_path}\n\n"
+            f"## Alert Summary\n"
+            f"- CRITICAL: {total_alerts['CRITICAL']}  /  HIGH: {total_alerts['HIGH']}  /  "
+            f"MEDIUM: {total_alerts['MEDIUM']}  /  LOW: {total_alerts['LOW']}\n\n"
+            f"## AI Threat Analyses\n"
+            + ("\n\n---\n\n".join(a for a in analyses if a) or "(AI分析は実施されませんでした)")
+        )
+        self._save_investigation("DEFENSE MODE", log_path, body)
 
         total = sum(total_alerts.values())
         self._out("\n" + "═" * 56 + "\n", "sep")
@@ -144,8 +156,8 @@ class MonitorAgent(BaseAgent):
         if pattern_name in medium:   return "MEDIUM"
         return "LOW"
 
-    def _analyze_batch(self, lines: list[str], context: list[str]) -> None:
-        """バッチログをLLMに送り、深層分析を実施する。"""
+    def _analyze_batch(self, lines: list[str], context: list[str]) -> str:
+        """バッチログをLLMに送り、深層分析を実施する。分析テキストを返す。"""
         self._out("\n" + "─" * 56 + "\n", "sep")
         self._out(f"  AI THREAT ANALYSIS  ({len(lines)} suspicious entries)\n", "section")
         self._out("─" * 56 + "\n\n", "sep")
@@ -154,7 +166,7 @@ class MonitorAgent(BaseAgent):
         recent_ctx = "\n".join(context[-30:]) if len(context) > 30 else "\n".join(context)
         suspect    = "\n".join(lines)
 
-        self._stream_llm([
+        result = self._stream_llm([
             self.llm.system(SYSTEM_PROMPT),
             self.llm.user(
                 f"RECENT LOG CONTEXT (last 30 lines):\n```\n{recent_ctx}\n```\n\n"
@@ -163,3 +175,4 @@ class MonitorAgent(BaseAgent):
             ),
         ])
         self._out("\n", "")
+        return result

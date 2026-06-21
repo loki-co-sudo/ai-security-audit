@@ -172,6 +172,10 @@ class FuzzAgent(BaseAgent):
         ])
         self._step(4, "done")
 
+        # 調査レポートをファイルに保存する。
+        body = f"## Fuzzing Summary\n```\n{summary}\n```\n\n## AI Triage\n{full}\n"
+        self._save_investigation("WEB FUZZ", base_url, body)
+
         # ── Step 5: 完了 ───────────────────────────────────
         counts = {s: len(re.findall(rf"SEVERITY:\s*{s}\b", full, re.I))
                   for s in ("CRITICAL", "HIGH", "MEDIUM", "LOW")}
