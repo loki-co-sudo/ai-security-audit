@@ -65,6 +65,9 @@ class SettingsDialog(RobustToplevel):
         self._timeout_var = tk.StringVar(self, value=str(config.get("llm_timeout")))
         self._search_var  = tk.StringVar(self)
         self._search_job  = None  # 検索の debounce 用 after ID
+        # レポート言語（事前選択）。表示は「日本語/English」、保存値は ja/en。
+        self._lang_var    = tk.StringVar(
+            self, value="日本語" if config.get("report_lang", "ja") == "ja" else "English")
 
         # withdraw を伴わないので、メインウィンドウ同様その場で構築して問題ない。
         self._build()
@@ -150,6 +153,23 @@ class SettingsDialog(RobustToplevel):
 
         # TIMEOUT
         self._add_entry(body, "TIMEOUT", self._timeout_var, False, "180")
+
+        # レポート言語（事前選択）。スキャン時のAI出力言語とレポート表記に反映される。
+        lang_row = ctk.CTkFrame(body, fg_color="transparent")
+        lang_row.pack(fill="x", pady=5)
+        ctk.CTkLabel(lang_row, text="REPORT", width=80,
+                     font=ctk.CTkFont("Consolas", 10, "bold"), text_color=TEXT_DIM,
+                     anchor="w").pack(side="left")
+        ctk.CTkSegmentedButton(
+            lang_row, values=["日本語", "English"], variable=self._lang_var,
+            font=ctk.CTkFont("Segoe UI", 11),
+            fg_color=BG_INPUT, selected_color=CYAN, selected_hover_color="#00B5DD",
+            unselected_color=BG_WIDGET, unselected_hover_color="#152030",
+            text_color=TEXT_PRI, height=30,
+        ).pack(side="left", padx=(0, 8))
+        ctk.CTkLabel(lang_row, text="レポートの生成言語（AI出力もこの言語になります）",
+                     font=ctk.CTkFont("Segoe UI", 9), text_color=TEXT_DIM,
+                     anchor="w").pack(side="left")
 
         # 検索ボックス + 件数表示
         search_row = ctk.CTkFrame(body, fg_color="transparent")
@@ -354,6 +374,7 @@ class SettingsDialog(RobustToplevel):
             "llm_api_key":  self._key_var.get().strip() or "ollama",
             "llm_model":    self._model_var.get().strip(),
             "llm_timeout":  timeout,
+            "report_lang":  "ja" if self._lang_var.get() == "日本語" else "en",
         }
         config.save(data)
         self._llm.update(
