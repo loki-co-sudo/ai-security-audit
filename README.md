@@ -379,6 +379,14 @@ BASE URL を OpenRouter（`https://openrouter.ai/api/v1`）にすると、Anthro
 
 ---
 
+## ドキュメント
+
+| ドキュメント | 説明 |
+|---|---|
+| [docs/ENGINEER_GUIDE.md](docs/ENGINEER_GUIDE.md) | ジュニアエンジニア向け学習ガイド — 脆弱性・ネットワーク・Web技術・AI/LLM・攻防体系・技術スタックを網羅的に解説 |
+
+---
+
 ## ライセンス
 
 MIT License — 詳細は [LICENSE](LICENSE) を参照してください。
