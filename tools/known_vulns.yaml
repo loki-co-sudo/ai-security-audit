@@ -1,0 +1,155 @@
+# known_vulns.yaml — 既知サービスバナーのローカル脆弱性照合データベース
+# スキャンで検出されたサービス名・バージョン情報をローカルでルックアップし、
+# LLMに依存せずに既知の脆弱性を即座に報告する。
+# フォーマット: service_name → list of known issues
+#   条件は正規表現で指定（部分一致）。\d. 等はそのまま正規表現として扱われる。
+#   （単一引用符で囲むことでYAMLのエスケープ処理を回避）
+
+apache:
+  - name: "Apache HTTP Server 2.4.0-2.4.49 パストラバーサル"
+    cve: "CVE-2021-41773"
+    severity: "CRITICAL"
+    pattern: 'Apache/2\.4\.[0-4][0-9]'
+    desc: "パストラバーサルにより任意ファイル読み取り・RCEの可能性"
+
+  - name: "Apache HTTP Server 2.4.0-2.4.50 RCE"
+    cve: "CVE-2021-42013"
+    severity: "CRITICAL"
+    pattern: 'Apache/2\.4\.[0-4][0-9]'
+    desc: "CVE-2021-41773 のバイパス。パストラバーサル＋RCE"
+
+  - name: "Apache HTTP Server 2.4.52 以前のHTTPリクエストスマグリング"
+    cve: "CVE-2022-22720"
+    severity: "HIGH"
+    pattern: 'Apache/2\.4\.[0-4][0-9]|Apache/2\.4\.5[0-2]'
+    desc: "HTTPリクエストスマグリング脆弱性"
+
+  - name: "Apache 2.4.55 以前のmod_proxy SSRF"
+    cve: "CVE-2023-25690"
+    severity: "HIGH"
+    pattern: 'Apache/2\.4\.[0-4][0-9]|Apache/2\.4\.5[0-5]'
+    desc: "mod_proxy 設定のSSRF脆弱性"
+
+nginx:
+  - name: "nginx 1.20.1 以前のHTTP/2 脆弱性"
+    cve: "CVE-2021-3618"
+    severity: "MEDIUM"
+    pattern: 'nginx/1\.[0-9]\.[0-9]|nginx/1\.1[0-9]\.[0-9]|nginx/1\.20\.[0-1]'
+    desc: "ALPACA攻撃: HTTP/2とHTTP/1.1の混在によるTLS認証バイパス"
+
+  - name: "nginx 1.26.0 以前のHTTP/3 サービス拒否"
+    cve: "CVE-2024-31079"
+    severity: "MEDIUM"
+    pattern: 'nginx/1\.[0-9]\.[0-9]|nginx/1\.[1-2][0-5]\.[0-9]'
+    desc: "HTTP/3 QUICセッションのDoS脆弱性"
+
+openssh:
+  - name: "OpenSSH 8.5-9.7 RegreSSHion (CVE-2024-6387)"
+    cve: "CVE-2024-6387"
+    severity: "CRITICAL"
+    pattern: 'OpenSSH_[89]\.'
+    desc: "信号ハンドラレースコンディションによる認証前RCE (RegreSSHion)"
+
+  - name: "OpenSSH ユーザー列挙 (CVE-2018-15473)"
+    cve: "CVE-2018-15473"
+    severity: "MEDIUM"
+    pattern: 'OpenSSH_[5678]\.'
+    desc: "無効ユーザー名の応答時間差によるユーザー列挙"
+
+openssl:
+  - name: "OpenSSL 3.0.0-3.0.6 の深刻なバッファオーバーフロー"
+    cve: "CVE-2022-3602"
+    severity: "HIGH"
+    pattern: 'OpenSSL/3\.0\.[0-6]'
+    desc: "X.509証明書検証時のバッファオーバーフロー"
+
+  - name: "OpenSSL 3.x-3.1.3 のTLSプロトコル脆弱性"
+    cve: "CVE-2023-4807"
+    severity: "HIGH"
+    pattern: 'OpenSSL/[12]\.[0-9]'
+    desc: "POLY1305 MAC実装の情報漏洩"
+
+  - name: "OpenSSL Heartbleed (CVE-2014-0160)"
+    cve: "CVE-2014-0160"
+    severity: "CRITICAL"
+    pattern: 'OpenSSL/1\.0\.[0-1]'
+    desc: "Heartbleed: TLSハートビート拡張の情報漏洩。実メモリ内容を読み取り可能"
+
+mysql:
+  - name: "MySQL 5.7/8.0 認証バイパス (CVE-2021-2294)"
+    cve: "CVE-2021-2294"
+    severity: "CRITICAL"
+    pattern: 'mysql.*(5\.[0-7]|8\.0\.[0-2])'
+    desc: "認証プラグインの脆弱性による認証バイパス"
+
+postgresql:
+  - name: "PostgreSQL 9.3-15.x SQLインジェクション連鎖"
+    cve: "CVE-2023-2454"
+    severity: "HIGH"
+    pattern: 'PostgreSQL (9\.|1[0-5]\.)'
+    desc: "CREATE SCHEMAでの権限昇格とSQLi連鎖の可能性"
+
+  - name: "PostgreSQL 9.6-16.x pg_dump RCE"
+    cve: "CVE-2024-7348"
+    severity: "HIGH"
+    pattern: 'PostgreSQL (9\.|1[0-6]\.)'
+    desc: "pg_dump のTOCTOU競合状態による任意コード実行"
+
+php:
+  - name: "PHP 8.1.0-8.1.28 CGI引数インジェクション (CVE-2024-4577)"
+    cve: "CVE-2024-4577"
+    severity: "CRITICAL"
+    pattern: 'PHP/([5-7]\.|8\.[0-1]\.)'
+    desc: "Windows + CGIモードでの引数インジェクションによるRCE。日本語ロケール環境で特に危険"
+
+  - name: "PHP 5.x-8.1.16 のmail()関数RCE"
+    cve: "CVE-2023-3247"
+    severity: "HIGH"
+    pattern: 'PHP/([5-7]\.|8\.[0-1]\.)'
+    desc: "EBCDIC変換時の脆弱性。mail()関数経由での任意コード実行"
+
+tomcat:
+  - name: "Apache Tomcat 9.x-11.x リモートコード実行 (CVE-2025-24813)"
+    cve: "CVE-2025-24813"
+    severity: "CRITICAL"
+    pattern: 'Apache Tomcat/(9\.|10\.|11\.)'
+    desc: "部分PUTリクエストによるRCE。デシリアライゼーション経由"
+
+  - name: "Apache Tomcat 8.5.x-10.1.x 情報漏洩 (CVE-2023-28709)"
+    cve: "CVE-2023-28709"
+    severity: "MEDIUM"
+    pattern: 'Apache Tomcat/(8\.5\.|9\.|10\.[0-1]\.)'
+    desc: "HTTP/2接続でのクッキー処理不備による情報漏洩"
+
+iis:
+  - name: "IIS 10.0 HTTP.sys DoS (CVE-2022-21907)"
+    cve: "CVE-2022-21907"
+    severity: "HIGH"
+    pattern: 'Microsoft-IIS/10\.0'
+    desc: "HTTP.sysのHTTPトレーラー処理の脆弱性によるDoS/潜在的RCE"
+
+  - name: "IIS WebDAV 認証バイパス (CVE-2024-21443)"
+    cve: "CVE-2024-21443"
+    severity: "HIGH"
+    pattern: 'Microsoft-IIS/(8\.[0-5]|10\.0)'
+    desc: "WebDAVでの認証バイパス。特権昇格の可能性"
+
+wordpress:
+  - name: "WordPress 6.0.2 以前のXSS脆弱性"
+    cve: "CVE-2022-39261"
+    severity: "MEDIUM"
+    pattern: 'wp-content|WordPress/[3-5]\.|WordPress/6\.[0]'
+    desc: "コアコメント機能のXSS脆弱性"
+
+jetty:
+  - name: "Jetty 9.4.x-11.x サービス拒否"
+    cve: "CVE-2023-26048"
+    severity: "MEDIUM"
+    pattern: 'Jetty[/\(]9\.4\.|10\.|11\.)'
+    desc: "マルチパートリクエスト処理のDoS脆弱性"
+
+  - name: "Jetty 9.4.x-11.x 認証バイパス"
+    cve: "CVE-2021-28164"
+    severity: "HIGH"
+    pattern: 'Jetty[/\(]9\.4\.|10\.|11\.)'
+    desc: "コンテキストパス正規化の不備による認証バイパス"

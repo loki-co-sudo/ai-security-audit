@@ -3,10 +3,13 @@ agents/recon_agent.py — ペネトレーションテスト偵察エージェン
 
 Phase 1: ネットワーク偵察（ポートスキャン・バナーグラブ）
 Phase 2: Webターゲット列挙（ヘッダー・技術スタック・センシティブパス）
-Phase 3: LLMが発見情報から脆弱性仮説を構築
+Phase 3: 既知サービスバナーのローカル照合 (known_vulns.yaml)
+Phase 4: LLMが発見情報から脆弱性仮説を構築
 """
 
 from __future__ import annotations
+import os
+import re
 import time
 from agents.base_agent import BaseAgent
 from tools.network_scanner import NetworkScanner, passive_os_fingerprint
@@ -20,6 +23,7 @@ STEPS = [
     "ターゲット解析・接続確認",
     "ポートスキャン実行中",
     "サービス・バナー取得中",
+    "既知サービス脆弱性ローカル照合中",
     "Webターゲット列挙中",
     "受動OSフィンガープリント中",
     "AIが脆弱性仮説を構築中",
@@ -43,6 +47,131 @@ def _assert_no_transmission() -> None:
             "Safety violation: exploit transmission must remain disabled. "
             "This tool only generates and displays PoCs; it never sends them to a target."
         )
+
+
+# ── 既知サービスバナーのローカル照合 (known_vulns.yaml) ──
+# YAMLパーサが使えない環境でも動作するよう、簡易パーサを内蔵する。
+# 標準ライブラリの yaml が利用可能ならそちらを使う。
+
+_KV_DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                           "tools", "known_vulns.yaml")
+
+_KV_CACHE: dict[str, list[dict]] | None = None
+
+
+def _load_known_vulns() -> dict[str, list[dict]]:
+    """known_vulns.yaml を読み込み、サービス名 → 脆弱性リスト のdictを返す。"""
+    global _KV_CACHE
+    if _KV_CACHE is not None:
+        return _KV_CACHE
+    try:
+        import yaml  # noqa: PLC0415
+        with open(_KV_DB_PATH, "r", encoding="utf-8") as f:
+            raw = yaml.safe_load(f)
+    except Exception:
+        try:
+            raw = _parse_simple_yaml(_KV_DB_PATH)
+        except Exception:
+            _KV_CACHE = {}
+            return _KV_CACHE
+    _KV_CACHE = dict(raw) if isinstance(raw, dict) else {}
+    return _KV_CACHE
+
+
+def _parse_simple_yaml(path: str) -> dict:
+    """PyYAML非依存の簡易YAMLパーサ（list/dict/文字列のみ対応）。"""
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+    lines = content.split("\n")
+    root: dict = {}
+    current_service: str | None = None
+    current_vuln: dict | None = None
+    in_list = False
+    for line in lines:
+        stripped = line.rstrip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        indent = len(line) - len(line.lstrip())
+        value = line.lstrip()
+
+        if indent == 0 and stripped.endswith(":"):
+            current_service = stripped[:-1].strip()
+            root[current_service] = []
+            current_vuln = None
+        elif indent == 2 and value.startswith("- name:"):
+            name_part = value[7:].strip().strip('"').strip("'")
+            current_vuln = {"name": name_part}
+            root.setdefault(current_service or "", []).append(current_vuln)
+        elif indent == 4 and current_vuln is not None and ":" in value:
+            key, _, val = value.partition(":")
+            key = key.strip()
+            val = val.strip().strip('"').strip("'")
+            if key and val:
+                current_vuln[key] = val
+    return root
+
+
+def _safe_search(pattern: str, text: str) -> bool:
+    try:
+        return bool(re.search(pattern, text, re.IGNORECASE))
+    except re.error:
+        return False
+
+def lookup_known_vulns(ports: list[dict], web_tech: list[str] | None = None) -> list[dict]:
+    """スキャン結果のサービスバナーから既知の脆弱性をローカル照合する。
+
+    Returns: ヒットした脆弱性のリスト [{service, name, cve, severity, desc, matched_banner}]
+    """
+    db  = _load_known_vulns()
+    hits: list[dict] = []
+    seen = set()  # CVE重複排除
+
+    # 1) ポートバナーを照合
+    for p in ports:
+        banner = f"{p.get('service', '')} {p.get('banner', '')}"
+        server_header = p.get("headers", {}) if isinstance(p, dict) else {}
+        combined = banner
+        if isinstance(server_header, dict):
+            combined += " " + " ".join(str(v) for v in server_header.values())
+
+        for svc_name, vulns in db.items():
+            for v in vulns:
+                pattern = v.get("pattern", "")
+                if not pattern:
+                    continue
+                if _safe_search(pattern, combined):
+                    cve = v.get("cve", "")
+                    if cve in seen:
+                        continue
+                    seen.add(cve)
+                    hits.append({
+                        "service":       svc_name,
+                        "name":          v.get("name", ""),
+                        "cve":           cve,
+                        "severity":      v.get("severity", "MEDIUM"),
+                        "desc":          v.get("desc", ""),
+                        "matched_banner": banner[:100].strip(),
+                    })
+
+    # 2) Web技術スタックを照合
+    for tech in (web_tech or []):
+        for svc_name, vulns in db.items():
+            if svc_name.lower() in tech.lower():
+                for v in vulns:
+                    cve = v.get("cve", "")
+                    if cve in seen:
+                        continue
+                    seen.add(cve)
+                    hits.append({
+                        "service":       svc_name,
+                        "name":          v.get("name", ""),
+                        "cve":           cve,
+                        "severity":      v.get("severity", "MEDIUM"),
+                        "desc":          v.get("desc", ""),
+                        "matched_banner": f"Web technology: {tech}",
+                    })
+
+    return hits
 
 
 EXPLOIT_SYSTEM_PROMPT = """You are assisting an AUTHORIZED penetration test performed in an \
@@ -214,8 +343,38 @@ class ReconAgent(BaseAgent):
         time.sleep(0.2)
         self._step(2, "done")
 
-        # ── Step 3: Webプローブ ────────────────────────────
+        # ── Step 3: 既知サービス脆弱性ローカル照合 (P0) ───
         self._step(3, "running")
+        known_hits = lookup_known_vulns(
+            open_ports,
+            recon_data.get("web", {}).get("technologies"),
+        )
+        if known_hits:
+            self._out("\n" + "─" * 56 + "\n", "sep")
+            self._out(
+                f"  LOCAL KNOWN-VULN LOOKUP — {len(known_hits)} known CVE(s) matched "
+                f"(LLMコストゼロ・即時判定)\n", "section")
+            self._out("─" * 56 + "\n\n", "sep")
+            # 深刻度でソート
+            sev_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+            known_hits.sort(key=lambda h: sev_order.get(h["severity"], 2))
+            for hit in known_hits:
+                sev = hit["severity"]
+                tag = sev.lower() if sev.lower() in ("critical", "high", "medium", "low") else "medium"
+                self._out(
+                    f"  [{sev:8}] {hit['cve']} — {hit['name']}\n"
+                    f"              Service: {hit['service']}  |  {hit['desc']}\n"
+                    f"              Matched: {hit['matched_banner']}\n",
+                    tag,
+                )
+        else:
+            self._out("\n  (ローカル照合: ヒットなし)\n", "dim")
+        self._step(3, "done")
+
+        if self.is_stopped(): return
+
+        # ── Step 4: Webプローブ ────────────────────────────
+        self._step(4, "running")
         if scan_web and (any(p["port"] in (80, 443, 8080, 8443, 8000) for p in open_ports) or
                          target.startswith("http")):
             self._out("\n" + "─" * 56 + "\n", "sep")
@@ -256,12 +415,12 @@ class ReconAgent(BaseAgent):
                 for h in web_data["missing_headers"]:
                     self._out(f"    ✗ {h}\n", "high")
 
-        self._step(3, "done")
+        self._step(4, "done")
 
         if self.is_stopped(): return
 
-        # ── Step 4: 受動OSフィンガープリント ──────────────
-        self._step(4, "running")
+        # ── Step 5: 受動OSフィンガープリント ──────────────
+        self._step(5, "running")
         os_guess = passive_os_fingerprint(
             recon_data["ports"], recon_data.get("web", {}).get("headers"),
         )
@@ -269,17 +428,17 @@ class ReconAgent(BaseAgent):
             recon_data["os_guess"] = os_guess
             self._out("\n  Passive OS Fingerprint:\n", "label")
             self._out(f"    ▸ {os_guess}  (バナー解析による受動推定／追加通信なし)\n", "high")
-        self._step(4, "done")
+        self._step(5, "done")
 
-        # ── Step 5: AI 脆弱性仮説 ─────────────────────────
-        self._step(5, "running")
+        # ── Step 6: AI 脆弱性仮説 ─────────────────────────
+        self._step(6, "running")
         self._out("\n" + "─" * 56 + "\n", "sep")
         self._out("  PHASE 3 — AI ATTACK HYPOTHESIS  (streaming)\n", "section")
         self._out("─" * 56 + "\n\n", "sep")
         self._status("AI が攻撃仮説を構築中 ...")
         self._log("Sending recon data to LLM ...")
 
-        recon_summary = self._build_recon_summary(recon_data)
+        recon_summary = self._build_recon_summary(recon_data, known_hits)
         full = self._stream_llm([
             self.llm.system(SYSTEM_PROMPT),
             self.llm.user(f"Analyze this reconnaissance data and build attack hypotheses:\n\n{recon_summary}"),
@@ -288,107 +447,107 @@ class ReconAgent(BaseAgent):
         # 品質エフォート: STRONGモデルで攻撃仮説を再検証し過剰主張を除去する。
         if self._effort().get("verify_pass") and not self.is_stopped():
             full = self._verify_findings(recon_summary, full)
-        self._step(5, "done")
-
-        if self.is_stopped(): return
-
-        # ── Step 6: エクスプロイト(PoC)生成 — ローカル生成のみ・送信なし ──
-        self._step(6, "running")
-        exploit_text = ""
-        if generate_exploit:
-            _assert_no_transmission()  # 送信が無効であることを保証
-            self._out("\n" + "─" * 56 + "\n", "sep")
-            self._out("  PHASE 4 — EXPLOIT PoC GENERATION  (streaming)\n", "section")
-            self._out("─" * 56 + "\n", "sep")
-            self._out(
-                "  ⚠ 生成された PoC は画面表示・ファイル保存のみ。\n"
-                "    対象へは一切【送信・実行されません】（DRY-RUN / NOT TRANSMITTED）。\n\n",
-                "high",
-            )
-            self._status("AI が PoC を生成中 ...（送信は行いません）")
-            self._log("Generating PoCs locally (never transmitted) ...")
-            exploit_text = self._stream_llm([
-                self.llm.system(EXPLOIT_SYSTEM_PROMPT),
-                self.llm.user(
-                    "Using the reconnaissance summary and the attack hypotheses below, "
-                    "generate minimal, non-destructive PoCs for the findings that warrant "
-                    "them. Remember: this tool only displays/saves them and never sends "
-                    "them to any target.\n\n"
-                    f"RECON SUMMARY:\n{recon_summary}\n\n"
-                    f"ATTACK HYPOTHESES:\n{full}"
-                ),
-            ])
-            self._out(
-                "\n\n  ✔ PoC生成はローカルで完了しました。対象への送信・実行は行っていません。\n",
-                "green",
-            )
-        else:
-            self._out("\n  [ PoC生成: スキップ（チェックOFF） ]\n", "dim")
         self._step(6, "done")
 
         if self.is_stopped(): return
 
-        # ── Step 7: レポート完了・成果物の保存 ─────────────
+        # ── Step 7: エクスプロイト(PoC)生成 — ローカル生成のみ・送信なし ──
         self._step(7, "running")
-        import re
-        counts = {s: len(re.findall(rf"SEVERITY:\s*{s}\b", full, re.I))
-                  for s in ("CRITICAL", "HIGH", "MEDIUM", "LOW")}
-        self._stats(counts)
-
-        # PoC・調査レポートをファイルに保存する。
-        self._save_artifacts(target, recon_summary, full, exploit_text)
-
-        time.sleep(0.2)
+        exploit_text = ""
+        if generate_exploit:
+            _assert_no_transmission()
+            if EXPLOIT_TRANSMISSION_ENABLED:
+                self._status("Aborted: safety constraint violated.")
+                return
+            self._out("\n" + "─" * 56 + "\n", "sep")
+            self._out("  PHASE 4 — PoC GENERATION  (local display/save only)\n", "section")
+            self._out("─" * 56 + "\n\n", "sep")
+            self._status("AI が PoC を生成中（対象へは送信しません）...")
+            self._log("Generating PoC (local only) ...")
+            exploit_text = self._stream_llm([
+                self.llm.system(EXPLOIT_SYSTEM_PROMPT),
+                self.llm.user(
+                    f"Reconnaissance analysis:\n{full}\n\n"
+                    f"Generate validation-oriented PoC code for the applicable findings."
+                ),
+            ])
+            self._save_poc(target, exploit_text)
         self._step(7, "done")
 
-        total = sum(counts.values())
-        self._out("\n\n" + "═" * 56 + "\n", "sep")
-        self._out(f"  RECON COMPLETE  |  {total} findings identified\n", "green")
-        self._out("═" * 56 + "\n", "sep")
-        self._log(f"Recon complete. {total} findings.")
-        self._status(f"偵察完了 — {total} findings identified.")
-        self._done()
-
-    def _save_artifacts(self, target: str, recon_summary: str,
-                        hypotheses: str, exploit_text: str) -> None:
-        """PoC と調査レポートを reports/ 配下に保存し、保存先を出力する。"""
-        self._save_poc(target, exploit_text)
+        # ── Step 8: レポート生成 ──────────────────────────
+        self._step(8, "running")
         body = (
-            f"## Reconnaissance Summary\n```\n{recon_summary}\n```\n\n"
-            f"## AI Attack Hypotheses\n{hypotheses}\n\n"
-            f"## Generated PoCs (NOT TRANSMITTED)\n"
-            f"{exploit_text.strip() or '(PoC generation skipped)'}\n"
+            f"## Reconnaissance Data\n{recon_summary}\n\n"
+            f"## AI Attack Hypotheses\n{full}\n\n"
+            + (f"## Generated PoCs (local only)\n{exploit_text}\n" if exploit_text else "")
         )
         self._save_investigation("ATTACK MODE", target, body)
+        time.sleep(0.2)
+        self._step(8, "done")
 
-    @staticmethod
-    def _build_recon_summary(data: dict) -> str:
-        lines = [f"TARGET: {data.get('target', 'unknown')}"]
-        if data.get("ip"):
-            lines.append(f"RESOLVED IP: {data['ip']}")
-        if data.get("os_guess"):
-            lines.append(f"PASSIVE OS GUESS: {data['os_guess']}")
-        if data.get("ports"):
-            lines.append("\nOPEN PORTS:")
-            for p in data["ports"]:
-                lines.append(f"  {p['port']}/tcp  {p['service']}  {p['banner']}")
-        if data.get("udp_ports"):
-            lines.append("\nUDP PORTS (open|filtered — 参考):")
-            for p in data["udp_ports"]:
-                lines.append(f"  {p['port']}/udp  {p['service']}  {p['banner']}")
-        web = data.get("web", {})
+        total_ports = len(recon_data["ports"])
+        self._out("\n\n" + "═" * 56 + "\n", "sep")
+        self._out(f"  RECON COMPLETE  |  {total_ports} open ports discovered\n", "green")
+        self._out("═" * 56 + "\n", "sep")
+        self._log(f"Recon complete. {total_ports} open ports.")
+        self._status(f"Recon complete — {total_ports} open ports.")
+        self._done()
+
+    # ── 偵察サマリー生成 ──────────────────────────────────
+    def _build_recon_summary(self, recon: dict,
+                             known_hits: list[dict] | None = None) -> str:
+        lines = [f"TARGET: {recon.get('target', 'N/A')}"]
+        if recon.get("host"):
+            lines.append(f"HOST: {recon['host']}")
+        if recon.get("ip"):
+            lines.append(f"IP: {recon['ip']}")
+        if recon.get("os_guess"):
+            lines.append(f"OS GUESS: {recon['os_guess']}")
+
+        # ポート
+        ports = recon.get("ports", [])
+        if ports:
+            lines.append("\n## Open TCP Ports")
+            for p in ports:
+                lines.append(
+                    f"- {p['port']}/tcp  {p['service']}  {p.get('banner', '')[:100]}"
+                )
+        udp_ports = recon.get("udp_ports", [])
+        if udp_ports:
+            lines.append("\n## Open UDP Ports (reference)")
+            for p in udp_ports:
+                lines.append(
+                    f"- {p['port']}/udp  {p['service']}  {p.get('banner', '')}"
+                )
+
+        # 既知CVE照合結果をサマリーに追加
+        if known_hits:
+            lines.append(
+                f"\n## Local Known-Vuln Results ({len(known_hits)} CVE(s) matched, "
+                f"LLM cost: $0.00)"
+            )
+            for h in known_hits:
+                lines.append(
+                    f"- [{h['severity']}] {h['cve']} — {h['name']} "
+                    f"(service: {h['service']})"
+                )
+
+        # Web
+        web = recon.get("web", {})
+        if web.get("headers"):
+            lines.append("\n## HTTP Headers")
+            for k, v in web["headers"].items():
+                lines.append(f"  {k}: {v}")
         if web.get("technologies"):
-            lines.append("\nDETECTED TECHNOLOGIES:")
+            lines.append("\n## Detected Technologies")
             for t in web["technologies"]:
                 lines.append(f"  - {t}")
-        if web.get("missing_headers"):
-            lines.append("\nMISSING SECURITY HEADERS:")
-            for h in web["missing_headers"]:
-                lines.append(f"  - {h}")
         if web.get("found_paths"):
-            lines.append("\nSENSITIVE PATHS FOUND:")
+            lines.append("\n## Sensitive Paths Found")
             for p in web["found_paths"]:
                 lines.append(f"  [{p['status']}] {p['path']}")
-        if web.get("ssl_info"):
-            lines.append(f"\nSSL: {web['ssl_info']}")
+        if web.get("missing_headers"):
+            lines.append("\n## Missing Security Headers")
+            for h in web["missing_headers"]:
+                lines.append(f"  - {h}")
         return "\n".join(lines)

@@ -2,6 +2,7 @@
 agents/monitor_agent.py — リアルタイム防御監視エージェント
 
 ログファイルを継続監視し、AIが攻撃パターンを検知・分類・解説する。
+パターン集約フィルタにより、同一IP/同一シグネチャの連続アラートをN分間隔で集約しLLM呼び出しを削減。
 """
 
 from __future__ import annotations
@@ -42,6 +43,16 @@ IMMEDIATE_ACTIONS:
 
 Be concise but thorough. Flag false positives explicitly."""
 
+# パターン集約フィルタ設定
+_AGGREGATION_WINDOW  = 300   # 5分間の集約ウィンドウ（秒）
+_IP_PATTERN          = re.compile(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}')
+
+
+def _extract_ip(line: str) -> str:
+    """ログ行からIPアドレスを抽出する（見つからない場合は空文字）。"""
+    m = _IP_PATTERN.search(line)
+    return m.group(0) if m else ""
+
 
 class MonitorAgent(BaseAgent):
 
@@ -67,8 +78,12 @@ class MonitorAgent(BaseAgent):
         last_ai_call   = 0.0
         AI_COOLDOWN    = 15.0  # 連続AI呼び出し間隔（秒）
 
+        # パターン集約フィルタ: (ip, pattern_name) → 最終送信タイムスタンプ
+        _agg_last_sent: dict[tuple[str, str], float] = {}
+
         self._out("─" * 56 + "\n", "sep")
         self._out("  MONITORING STARTED — waiting for log entries ...\n", "section")
+        self._out(f"  Pattern aggregation: {_AGGREGATION_WINDOW}s window per (IP, signature)\n", "dim")
         self._out("─" * 56 + "\n\n", "sep")
 
         try:
@@ -88,8 +103,22 @@ class MonitorAgent(BaseAgent):
                 matched = self._pattern_match(line)
 
                 if matched:
-                    batch_buffer.append(line)
+                    now_ts = time.time()
+                    ip = _extract_ip(line)
+                    deduped_matches = []
                     for pattern_name in matched:
+                        key = (ip, pattern_name)
+                        last_sent = _agg_last_sent.get(key, 0.0)
+                        if now_ts - last_sent < _AGGREGATION_WINDOW:
+                            continue  # 集約: 同一IPの同一パターンはスキップ
+                        _agg_last_sent[key] = now_ts
+                        deduped_matches.append(pattern_name)
+
+                    if not deduped_matches:
+                        continue  # すべて集約済み → スキップ
+
+                    batch_buffer.append(line)
+                    for pattern_name in deduped_matches:
                         sev = self._quick_severity(pattern_name)
                         msg = f"{pattern_name}: {line[:80]}"
                         # ALERT TIMELINEに送出（DefensePanelのタイムラインに表示）

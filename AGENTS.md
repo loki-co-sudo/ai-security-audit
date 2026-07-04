@@ -49,27 +49,28 @@ AI-Security-tool/
 ├── docker-compose.yml           # Docker Compose設定
 ├── core/
 │   ├── settings.py              # 全定数（色・フォント・LLMデフォルト値・FASTモデル・EFFORT_PRESETS・スキャン設定・APP_VERSION）
-│   ├── config.py                # config.jsonの読み書き。settings.pyをデフォルトとしてフォールバック（llm_fast_model/effort等）
+│   ├── config.py                # config.jsonの読み書き＋バリデーション。settings.pyをデフォルトとしてフォールバック（llm_fast_model/effort等）
 │   ├── event_bus.py             # スレッドセーフUIイベントバス（queue.Queue基盤）
 │   ├── llm_client.py            # LLMClient。update()でホットリロード可能。OpenRouterヘッダー自動付与
 │   ├── model_router.py          # ロール別モデルルーティング（STRONG/FAST）＆推論エフォート（lokicode移植）
-│   └── orchestrator.py          # LangGraph StateGraph。深層解析ループ回数はエフォート連動（deep_loops）
+│   └── orchestrator.py          # LangGraph StateGraph。深層解析ループ回数はエフォート連動（smart_truncate採用）
 ├── agents/
 │   ├── base_agent.py            # 抽象基底クラス。threading.Eventで停止管理、EventBusヘルパー群
-│   ├── audit_agent.py           # CODE AUDITエージェント（7ステップ。CVE照合付き）
+│   ├── audit_agent.py           # CODE AUDITエージェント（7ステップ。ASTプリプロセッサ＋並列CVE照合＋FP検証強化）
 │   ├── langgraph_audit_agent.py # LangGraph強化型監査エージェント（orchestrator.pyを使用）
-│   ├── recon_agent.py           # ATTACK MODEエージェント（7ステップ）
+│   ├── recon_agent.py           # ATTACK MODEエージェント（9ステップ・既知サービスローカル照合付き）
 │   ├── fuzz_agent.py            # WEB FUZZエージェント（6ステップ・検出のみ）
-│   └── monitor_agent.py         # DEFENSE MODEエージェント（ログ監視+バッチAI分析）
+│   └── monitor_agent.py         # DEFENSE MODEエージェント（ログ監視＋パターン集約フィルタ＋バッチAI分析）
 ├── tools/
 │   ├── network_scanner.py       # socket-basedポートスキャナ、SSL証明書取得
 │   ├── web_prober.py            # HTTP探査、技術スタック指紋、センシティブパス列挙
 │   ├── web_fuzzer.py            # Webスマートファザー（クロール・注入点検出・異常観測／検出のみ）
 │   ├── log_watcher.py           # tailf式ログ追跡ジェネレータ、サンプルログ生成
-│   ├── cve_client.py            # NVD API v2クライアント。@lru_cacheでキャッシュ、サイレント失敗
+│   ├── cve_client.py            # NVD API v2クライアント。永続キャッシュ＋並列照合・サイレント失敗
 │   ├── report_generator.py      # HTML/PDFレポート生成。---VULN_START---マーカーをパースして構造化出力
 │   ├── pdf_writer.py            # 日本語対応PDFレンダラー（Pillowのみ・依存追加なし）
 │   ├── create_shortcut.py       # デスクトップショートカット生成（Windows・OneDrive対応）
+│   ├── known_vulns.yaml         # 既知サービスバナー脆弱性DB（ローカル照合用・LLMコストゼロ）
 │   ├── run_selftest.py          # 全機能セルフテスト（GUI以外をEventBus経由でE2E検証）
 │   └── capture_screenshots.py   # README用スクリーンショット自動撮影
 ├── gui/
@@ -215,6 +216,19 @@ fix: fix ALERT event not firing in DEFENSE MODE
 
 ## 4. 現在の開発フェーズとロードマップ
 
+
+### 実装済み（v2.5.0 — Phase 1 即効性改善 全7件 + 追加1件）
+
+- [x] 設定バリデーション強化 — core/config.py に alidate_config()・未知キー警告・ffort/	imeout/
+eport_lang の形式チェック
+- [x] CVEキャッシュ永続化 — 	ools/cve_client.py に 
+eports/cve_cache.json（TTL=1日）・_load_persistent_cache() / _save_persistent_cache()
+- [x] CVE照合の並列化 — 	ools/cve_client.py に search_batch()（ThreadPoolExecutor・全CWEを並列送出）
+- [x] AST静的解析プリプロセッサ — gents/audit_agent.py に st_scan() / _AstVisitor（危険カテゴリ13種・80+関数のパターン抽出→プロンプト注入）
+- [x] 入力トランケーション戦略の改善 — gents/audit_agent.py に smart_truncate()（末尾優先・importスキップ分割・制限値12000文字）・core/orchestrator.py でも採用
+- [x] 防御モニタリングのパターン集約フィルタ — gents/monitor_agent.py に (IP, pattern) キー・300秒ウィンドウ集約・LLM呼び出し削減
+- [x] 既知サービスバナーのローカル照合 — 	ools/known_vulns.yaml（14サービス・約30 CVE）・gents/recon_agent.py に lookup_known_vulns()（PyYAML非依存の簡易パーサ内蔵）・9ステップ化
+- [x] （追加）Deep AnalysisのFP検証強化 — gents/audit_agent.py で alanced effort時も検証パスを実行
 ### 実装済み（v2.4.0 — ロール別モデルルーティング & 推論エフォート）
 - [x] `core/model_router.py` — STRONG/FAST ロール別モデルルーティング＋エフォート参照（lokicode移植）
 - [x] `settings.EFFORT_PRESETS`（speed/balanced/quality）＋ `config.effort`／`config.llm_fast_model` 等
