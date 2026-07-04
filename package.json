@@ -1,0 +1,10 @@
+{
+  "name": "ai-security-audit",
+  "version": "2.5.0",
+  "description": "AI Security Audit System — マルチLLM対応の自律型セキュリティ監査フレームワーク",
+  "private": true,
+  "scripts": {
+    "test": "py -X utf8 tools/run_selftest.py"
+  },
+  "license": "MIT"
+}

@@ -11,6 +11,12 @@ import os
 import time
 import traceback
 
+# Windows cp932 環境でも em dash (—) 等の Unicode 文字を扱えるように UTF-8 を強制する。
+# PYTHONUTF8=1 同等だが、環境変数をセットせずに起動された場合の保険。
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
 _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, _root)
 os.chdir(_root)
