@@ -118,6 +118,13 @@ class AuditAgent(BaseAgent):
         self._step(3, "done")
         self._step(2, "done")
 
+        if self.is_stopped(): return
+
+        # 品質エフォート: STRONGモデルで所見を批判的に再検証し誤検知を削減する。
+        effort = self._effort()
+        if effort.get("verify_pass"):
+            full = self._verify_findings(f"```python\n{source[:6000]}\n```", full)
+
         # Step 4: 深刻度集計
         self._step(4, "running")
         counts = {s: len(re.findall(rf"SEVERITY:\s*{s}\b", full, re.I))
@@ -125,10 +132,13 @@ class AuditAgent(BaseAgent):
         time.sleep(0.2)
         self._step(4, "done")
 
-        # Step 5: CVEデータベース照合
+        # Step 5: CVEデータベース照合（エフォートが cve_lookup=True のときのみ）
         self._step(5, "running")
         cwe_nums = list(dict.fromkeys(re.findall(r'CWE-(\d+)', full)))[:4]
-        if cwe_nums and not self.is_stopped():
+        if not effort.get("cve_lookup"):
+            self._out("\n  (CVE照合: 速度エフォートのためスキップ)\n", "dim")
+            time.sleep(0.2)
+        elif cwe_nums and not self.is_stopped():
             self._out("\n" + "─" * 56 + "\n", "sep")
             self._out("  CVE CORRELATION  (NVD Database)\n", "section")
             self._out("─" * 56 + "\n\n", "sep")

@@ -1,5 +1,5 @@
 # AI Security Audit System
-**Autonomous Penetration Testing & Defense Platform v2.3**
+**Autonomous Penetration Testing & Defense Platform v2.4**
 
 > シグネチャ（既知パターン）に依存しない、AI駆動型・次世代自律ペネトレーションテスト＆脆弱性露出管理システム
 
@@ -26,6 +26,9 @@
 
 > **レポート言語**: 設定で **日本語 / English** を事前選択でき、AIの分析出力もレポートもその言語で生成されます。
 > **成果物の自動保存**: 調査レポートは `reports/investigation/`、PoC は `reports/poc/` に自動保存されます。
+> **コスト最適化（マルチモデル）**: 高価な **STRONG** モデルは最終推論だけに使い、量の出る機械的処理は
+> 安価な **FAST** モデルへ自動で振り分けられます。**推論エフォート（速度 / バランス / 品質）** を1クリックで
+> 切り替え、コスト・速度・精度のトレードオフを選べます（詳細は下記「LLM接続設定」）。
 
 ---
 
@@ -232,7 +235,9 @@ docker run -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix ai-security-audi
 |---|---|
 | BASE URL | Ollama: `http://localhost:11434/v1` / OpenAI: `https://api.openai.com/v1` / OpenRouter: `https://openrouter.ai/api/v1` |
 | API KEY | Ollama: `ollama`（任意文字列） / OpenAI: `sk-...` / OpenRouter: `sk-or-v1-...` |
-| MODEL | `qwen3:30b-a3b`、`openai/gpt-5.5`、`anthropic/claude-opus-4.8` など（自由入力） |
+| MODEL | STRONG（主）モデル。`qwen3:30b-a3b`、`openai/gpt-5.5`、`anthropic/claude-opus-4.8` など（自由入力） |
+| EFFORT | **推論エフォート**（速度 / バランス / 品質）。コスト・速度・精度を1クリックで一括切替 |
+| ⚡ FAST | FAST（廉価）モデル（任意）。設定すると機械的処理を安価なモデルへ振り分け。空欄＝主モデルを共用 |
 | REPORT | レポート生成言語を **日本語 / English** から選択（AIの分析出力もこの言語になる） |
 
 - プリセットボタン（Ollama / OpenRouter / OpenAI / LM Studio）でBASE URLをワンクリック入力。
@@ -240,6 +245,28 @@ docker run -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix ai-security-audi
 - 「**接続テスト**」で疎通確認後、「保存」で `config.json` に書き込まれ次回起動時も保持される。
 
 > **OpenRouter** 使用時は、`HTTP-Referer` / `X-Title` ヘッダーが自動付与されます（BASE URLに `openrouter.ai` を含む場合のみ）。
+
+#### マルチモデル・ルーティングと推論エフォート（コスト・精度の最適化）
+
+単一モデルで全処理を回すより効率的に動かすため、lokicode のエージェント設計を移植しています。
+
+- **STRONG / FAST の役割分担**: 最終的な専門推論（脆弱性トリアージ・攻撃仮説・監査・検証）は **STRONG（主モデル）**、
+  量の出る機械的処理（検出プローブ生成・要約など）は **FAST（廉価モデル）** が担当します。**⚡ FAST** を空欄にすると
+  全処理を主モデルで行い、従来と完全に同一の挙動になります。FAST の接続先を空欄にすると主モデルの接続を共用し、
+  別エンドポイント（例: **ローカル Ollama=FAST + クラウド=STRONG**）を使いたい場合のみ `config.json` の
+  `llm_fast_base_url` / `llm_fast_api_key` を設定します。
+
+- **推論エフォート（速度 / バランス / 品質）**: 1つのプリセットでコスト・速度・精度を一括調整します。
+
+  | エフォート | 検証パス（STRONG） | CVE照合 | 深層解析ループ | 用途 |
+  |---|---|---|---|---|
+  | **速度** | ✗ | ✗ | 0回 | 最速・最安の一次トリアージ |
+  | **バランス**（既定） | ✗ | ✓ | 1回 | 従来の既定挙動 |
+  | **品質** | ✓ | ✓ | 2回 | 提出前の重要診断（強モデルの検証パスで誤検知を削減） |
+
+  **品質**では、AIの所見に対して STRONG モデルが**敵対的レビュー（検証パス）**を行い、誤検知・過剰主張を除去します。
+
+> 設計と、下位AIモデルが継続実装するための手順は [docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md) を参照。
 
 #### Claude / Fable モデルの利用（OpenRouter経由）
 
@@ -373,9 +400,15 @@ BASE URL を OpenRouter（`https://openrouter.ai/api/v1`）にすると、Anthro
 - [x] 拡張ポートスキャン（スコープ選択 `common`/`extended`/`full` ＋ UDP対応・選択式で従来挙動を維持）
 - [x] 検証用ローカル脆弱サイト（`testlab/` — 自前で安全に動作確認）
 - [x] 認証付きWebアプリのファジング（Cookie / ヘッダー / ログインフォーム＋CSRFトークン自動抽出）
+- [x] マルチモデル・ルーティング（STRONG/FAST の役割分担でコスト最適化）＋推論エフォート（速度/バランス/品質）
+- [x] 品質エフォート時の検証パス（STRONGモデルによる敵対的レビューで誤検知を削減）
 
 ### 今後の拡張予定
-- 主要なロードマップ項目は実装済みです。要望があれば随時追加します。
+主要なロードマップ項目は実装済みです。マルチモデル基盤の上に、以下を継続実装できます
+（設計・手順は [docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md) §5）:
+- [ ] 難易度ルーター（オート振り分け）— 対象の難易度を判定しエフォートを自動選択
+- [ ] モデル要件ゲート — 弱いモデル/検証に不向きな構成を設定画面で警告
+- [ ] 検証器アンサンブル — 品質時に検証パスを複数回走らせ多数決で誤検知をさらに削減
 
 ---
 
@@ -383,6 +416,7 @@ BASE URL を OpenRouter（`https://openrouter.ai/api/v1`）にすると、Anthro
 
 | ドキュメント | 説明 |
 |---|---|
+| [docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md) | マルチモデル・ルーティング＆推論エフォートの設計と、下位AIモデル向け継続実装ガイド（lokicode移植） |
 | [docs/ENGINEER_GUIDE.md](docs/ENGINEER_GUIDE.md) | ジュニアエンジニア向け学習ガイド — 脆弱性・ネットワーク・Web技術・AI/LLM・攻防体系・技術スタックを網羅的に解説 |
 
 ---

@@ -179,6 +179,10 @@ class FuzzAgent(BaseAgent):
             self.llm.system(_TRIAGE_SYS),
             self.llm.user(f"Triage these authorized fuzzing results:\n\n{summary}"),
         ])
+
+        # 品質エフォート: STRONGモデルで所見を再検証し誤検知を削減する。
+        if self._effort().get("verify_pass") and not self.is_stopped():
+            full = self._verify_findings(summary, full)
         self._step(4, "done")
 
         # 調査レポートをファイルに保存する。

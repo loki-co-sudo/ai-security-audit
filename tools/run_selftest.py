@@ -114,6 +114,68 @@ def test_config():
         _ng("config", repr(e))
 
 
+def test_model_router():
+    _section("2b. CORE — ModelRouter / Effort（ロール別モデル・エフォート）")
+    from core import model_router as mr
+    from core.settings import EFFORT_PRESETS
+    from core.llm_client import LLMClient
+    import core.config as cfg
+    # エフォートプリセットの完全性
+    try:
+        for lvl in ("speed", "balanced", "quality"):
+            p = EFFORT_PRESETS[lvl]
+            assert {"verify_pass", "cve_lookup", "deep_loops", "label", "desc"} <= set(p), p
+        # deep_loops は 速度 < バランス < 品質 の単調増加
+        assert (EFFORT_PRESETS["speed"]["deep_loops"]
+                < EFFORT_PRESETS["balanced"]["deep_loops"]
+                < EFFORT_PRESETS["quality"]["deep_loops"])
+        assert EFFORT_PRESETS["quality"]["verify_pass"] is True
+        assert EFFORT_PRESETS["speed"]["cve_lookup"] is False
+        _ok("EFFORT_PRESETS 整合性", "speed<balanced<quality")
+    except Exception as e:
+        _ng("EFFORT_PRESETS", repr(e))
+    # FAST クライアントのルーティング（未設定=共用 / 設定=別モデル・接続共用）
+    saved = dict(cfg._cfg)
+    try:
+        strong = LLMClient("http://localhost:11434/v1", "k-strong", "model-strong", 30)
+        cfg._cfg["llm_fast_model"] = ""
+        assert mr.build_fast_client(strong) is strong, "未設定時は STRONG を共用すべき"
+        assert mr.fast_model_configured() is False
+        cfg._cfg["llm_fast_model"] = "cheap-model"
+        cfg._cfg["llm_fast_base_url"] = ""
+        cfg._cfg["llm_fast_api_key"] = ""
+        fast = mr.build_fast_client(strong)
+        assert fast is not strong and fast.model == "cheap-model", fast.model
+        assert fast.base_url == strong.base_url and fast.api_key == strong.api_key, \
+            "接続情報を共用すべき"
+        assert mr.fast_model_configured() is True
+        # 別エンドポイント指定
+        cfg._cfg["llm_fast_base_url"] = "http://localhost:1234/v1"
+        cfg._cfg["llm_fast_api_key"] = "k-fast"
+        fast2 = mr.build_fast_client(strong)
+        assert fast2.base_url == "http://localhost:1234/v1" and fast2.api_key == "k-fast"
+        _ok("build_fast_client ルーティング", "共用/別モデル/別エンドポイント")
+    except Exception as e:
+        _ng("build_fast_client", repr(e))
+    finally:
+        cfg._cfg.clear()
+        cfg._cfg.update(saved)
+    # BaseAgent の _complete_llm(role) が正しいクライアントを選ぶ
+    try:
+        from agents.monitor_agent import MonitorAgent
+        strong = LLMClient("http://localhost:11434/v1", "k", "model-strong", 30)
+        cfg._cfg["llm_fast_model"] = "cheap-model"
+        m = MonitorAgent(EventBus(), strong)
+        assert m._fast_client().model == "cheap-model"
+        assert m._fast_client() is m._fast_client(), "FASTクライアントはキャッシュされるべき"
+        _ok("BaseAgent._fast_client キャッシュ")
+    except Exception as e:
+        _ng("BaseAgent._fast_client", repr(e))
+    finally:
+        cfg._cfg.clear()
+        cfg._cfg.update(saved)
+
+
 def test_network_scanner():
     _section("3. TOOLS — NetworkScanner")
     from tools.network_scanner import NetworkScanner
@@ -550,6 +612,7 @@ def main():
 
     test_event_bus()
     test_config()
+    test_model_router()
     test_network_scanner()
     test_web_prober()
     log_path = test_log_watcher()

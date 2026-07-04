@@ -284,6 +284,10 @@ class ReconAgent(BaseAgent):
             self.llm.system(SYSTEM_PROMPT),
             self.llm.user(f"Analyze this reconnaissance data and build attack hypotheses:\n\n{recon_summary}"),
         ], live_stats=True)
+
+        # 品質エフォート: STRONGモデルで攻撃仮説を再検証し過剰主張を除去する。
+        if self._effort().get("verify_pass") and not self.is_stopped():
+            full = self._verify_findings(recon_summary, full)
         self._step(5, "done")
 
         if self.is_stopped(): return

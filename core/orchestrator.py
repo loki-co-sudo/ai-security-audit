@@ -81,6 +81,10 @@ def build_audit_graph(
         )
     # 遅延インポート: スキャン開始時にのみ langgraph を読み込む（起動時間への影響ゼロ）
     from langgraph.graph import StateGraph, END  # noqa: PLC0415
+    from core.model_router import current_effort  # noqa: PLC0415
+
+    # 深層解析ループの最大反復回数はエフォート連動（速度=0 / バランス=1 / 品質=2）。
+    max_deep_loops = current_effort().get("deep_loops", 1)
 
     def _emit(text: str, tag: str = "") -> None:
         bus.emit(ev.OUTPUT, {"text": text, "tag": tag})
@@ -186,11 +190,12 @@ def build_audit_graph(
     # ── 条件分岐 ─────────────────────────────────────────────
 
     def should_deep_analyze(state: AuditState) -> str:
-        """CRITICAL が1件以上 かつ iteration < 1 の場合のみ深層解析へ。"""
+        """CRITICAL が1件以上 かつ iteration < max_deep_loops の場合のみ深層解析へ。"""
         if (
             not is_stopped()
+            and max_deep_loops > 0
             and state.get("severity_counts", {}).get("CRITICAL", 0) > 0
-            and state.get("iteration", 0) < 1
+            and state.get("iteration", 0) < max_deep_loops
         ):
             return "deep_analysis"
         return "synthesize"

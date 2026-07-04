@@ -48,11 +48,12 @@ AI-Security-tool/
 ├── Dockerfile                   # Dockerコンテナ定義（X11フォワーディング必要）
 ├── docker-compose.yml           # Docker Compose設定
 ├── core/
-│   ├── settings.py              # 全定数（色・フォント・LLMデフォルト値・スキャン設定・APP_VERSION）
-│   ├── config.py                # config.jsonの読み書き。settings.pyをデフォルトとしてフォールバック
+│   ├── settings.py              # 全定数（色・フォント・LLMデフォルト値・FASTモデル・EFFORT_PRESETS・スキャン設定・APP_VERSION）
+│   ├── config.py                # config.jsonの読み書き。settings.pyをデフォルトとしてフォールバック（llm_fast_model/effort等）
 │   ├── event_bus.py             # スレッドセーフUIイベントバス（queue.Queue基盤）
 │   ├── llm_client.py            # LLMClient。update()でホットリロード可能。OpenRouterヘッダー自動付与
-│   └── orchestrator.py          # LangGraph StateGraph。CRITICAL検出時に深層解析ループを実行
+│   ├── model_router.py          # ロール別モデルルーティング（STRONG/FAST）＆推論エフォート（lokicode移植）
+│   └── orchestrator.py          # LangGraph StateGraph。深層解析ループ回数はエフォート連動（deep_loops）
 ├── agents/
 │   ├── base_agent.py            # 抽象基底クラス。threading.Eventで停止管理、EventBusヘルパー群
 │   ├── audit_agent.py           # CODE AUDITエージェント（7ステップ。CVE照合付き）
@@ -107,6 +108,19 @@ STATUS = "status"  # ステータスバー更新
 DONE   = "done"    # 処理完了 {error: bool}
 CLEAR  = "clear"   # 出力エリアクリア
 ```
+
+#### ロール別モデルルーティング & 推論エフォート（lokicode 移植・重要）
+コスト/精度を単一モデルより効率化するため、LLM呼び出しを役割で使い分ける。詳細と継続実装ガイドは
+[docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md)。要点:
+- **STRONG（`config.llm_model`）= 最終推論**。`_stream_llm()`（ストリーミング）が使う。
+  脆弱性トリアージ・攻撃仮説・監査・検証パスはこれ。
+- **FAST（`config.llm_fast_model`）= 機械的・量の出る生成**。`_complete_llm(role="fast")` が使う。
+  検出プローブ生成・要約・分類など。FAST 未設定なら STRONG を共用（＝従来と完全に同一挙動）。
+- **新しいLLM呼び出しを足すときは、この2択のどちらかで関数を選ぶだけ**でルーティングが効く。
+- **推論エフォート**（`settings.EFFORT_PRESETS`／`config.effort`＝speed/balanced/quality）は
+  `self._effort()` で参照。`verify_pass`（STRONG検証パス）・`cve_lookup`・`deep_loops` を分岐する。
+- **検証パス** `_verify_findings(evidence, draft)` は品質エフォート時に STRONG で敵対的レビューし
+  誤検知を削減する（lokicode の「強い検証器＝賢さの壁」）。マーカー形式を保つよう指示済み。
 
 #### BaseAgentの継承ルール
 新しいエージェントは必ず `BaseAgent` を継承し、`run(**kwargs)` を実装する。
@@ -189,11 +203,27 @@ fix: fix ALERT event not firing in DEFENSE MODE
 - **`WebProber` は自己申告UA（"Security Audit Tool" 等）を使わない**。ステルス前提のため `STEALTH_USER_AGENTS` の実在ブラウザUAをローテーションする。
 - **WEB FUZZ は「検出のみ・非エクスプロイト」を厳守する**。`web_fuzzer.py` はレスポンス異常（反射・DBエラー署名・テンプレ評価・既知ファイル署名）の観測に留め、データ窃取・RCE実行・認証回避は実装しない。総リクエスト数の上限（`max_requests`）・同一オリジン限定・ジッター/低並列でDoSを回避する。これらの安全境界を緩めない。
 - **レポート出力は `gui/export_util.py` 経由に統一する**。各パネルで `report_generator` を直接叩く重複実装をしない（HTML/PDF両対応のため一元化済み）。PDFは `tools/pdf_writer.py`（Pillowのみ）で日本語をラスタ描画する — 標準14フォントはCJK非対応のため。
-- 重要な変更後は `py tools/run_selftest.py` でリグレッションを確認する（現在31項目）。
+- **LLM呼び出しの役割分担を守る**。最終的な専門推論は `_stream_llm()`（STRONG）、機械的・量の出る
+  生成は `_complete_llm(role="fast")`（FAST）を使う。モデル名・エンドポイントをエージェントに直書きせず、
+  必ず `core/model_router.py` 経由で解決する。エフォート依存の分岐は `self._effort()` の dict を見る
+  （`verify_pass`/`cve_lookup`/`deep_loops`）。FAST/エフォートの追加はセキュリティ境界（検出のみ・
+  PoC送信なし・非DoS）を一切変えない範囲に限る。→ [docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md)
+- 重要な変更後は `py tools/run_selftest.py` でリグレッションを確認する（`PYTHONUTF8=1` 推奨）。
+  Windows のコンソールは cp932 のことがあり、`—` 等の出力で UnicodeEncodeError になるため。
 
 ---
 
 ## 4. 現在の開発フェーズとロードマップ
+
+### 実装済み（v2.4.0 — ロール別モデルルーティング & 推論エフォート）
+- [x] `core/model_router.py` — STRONG/FAST ロール別モデルルーティング＋エフォート参照（lokicode移植）
+- [x] `settings.EFFORT_PRESETS`（speed/balanced/quality）＋ `config.effort`／`config.llm_fast_model` 等
+- [x] `BaseAgent._fast_client()`／`_complete_llm(role="fast")`／`_effort()`／`_verify_findings()`（STRONG検証パス）
+- [x] エフォート連動: `audit_agent`（CVE照合ゲート＋検証パス）・`fuzz_agent`／`recon_agent`（検証パス）・`orchestrator`（deep_loops）
+- [x] `settings_dialog` に EFFORT セグメント・FAST モデル/URL/KEY 入力／`app.py` ヘッダーに FAST・エフォート併記
+- [x] セルフテスト `2b. ModelRouter/Effort`（エフォート整合性・FASTルーティング・キャッシュ）
+- [x] 設計・継続実装ガイド `docs/AGENT_ARCHITECTURE.md`
+- [ ] （継続）難易度ルーター（オート振り分け）／モデル要件ゲート／検証器アンサンブル → `docs/AGENT_ARCHITECTURE.md` §5
 
 ### 実装済み（v2.3.0 — Webファジング・PDF・デスクトップ統合）
 - [x] `tools/web_fuzzer.py` — Webスマートファザー（同一オリジンクロール→クエリ/フォーム注入点抽出→検出プローブ送出→異常観測）。検出のみ・`max_requests` 上限でDoS回避
@@ -252,12 +282,18 @@ fix: fix ALERT event not firing in DEFENSE MODE
 
 ### 未実装（ロードマップ）
 
-**次のフェーズ（優先度高）**
-- [ ] 拡張ポートスキャン（UDP対応 ※ステルス性とのトレードオフを検討）
-- [ ] 認証付きWebアプリのファジング（セッション/CSRFトークン対応）
+**次のフェーズ（優先度高）— マルチモデル基盤の上に継続実装**
+詳細な設計と手順は [docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md) §5。
+- [ ] 難易度ルーター（オート振り分け）— 対象/コードの難易度を判定しエフォートを自動選択
+- [ ] モデル要件ゲート — 弱いモデル/検証に不向きな構成を設定画面で警告（lokicode `specs/model-gate.md`）
+- [ ] 検証器アンサンブル — 品質時に検証パスを複数回走らせ多数決で誤検知をさらに削減
 
 **長期**
 - [ ] CI/CD統合（GitHub Actionsでの自動脆弱性スキャン）
+- [ ] モデル別コスト×精度台帳（`reports/telemetry.jsonl`）→ コスパ最良モデルの提案
+
+> 完了済み: 拡張ポートスキャン（UDP対応）・認証付きWebファジング（v2.3）／
+> マルチモデル・ルーティング＆推論エフォート（v2.4）。
 
 ---
 

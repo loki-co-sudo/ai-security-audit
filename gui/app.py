@@ -1,5 +1,5 @@
 """
-gui/app.py — メインウィンドウ（3タブ統合エントリポイント）
+gui/app.py — メインウィンドウ（4タブ統合エントリポイント）
 """
 
 from __future__ import annotations
@@ -133,7 +133,7 @@ class App(ctk.CTk):
         ).pack(side="right", padx=(0, 8))
 
         self._engine_label = ctk.CTkLabel(
-            hbar, text=f"ENGINE: {self._llm.model}",
+            hbar, text=self._engine_text(),
             font=ctk.CTkFont("Consolas", 10), text_color=TEXT_DIM,
         )
         self._engine_label.pack(side="right", padx=(0, 6))
@@ -181,10 +181,21 @@ class App(ctk.CTk):
         self._panels["defense"] = DefensePanel(
             self._content, self._buses["defense"], self._llm)
 
+    # ── エンジン表示（STRONG + FAST + エフォート） ─────────────
+    def _engine_text(self) -> str:
+        from core.settings import EFFORT_PRESETS
+        fast = (config.get("llm_fast_model", "") or "").strip()
+        eff  = EFFORT_PRESETS.get(config.get("effort", "balanced"),
+                                  EFFORT_PRESETS["balanced"])["label"]
+        base = f"ENGINE: {self._llm.model}"
+        if fast:
+            base += f"  ⚡{fast}"
+        return f"{base}  ·  {eff}"
+
     # ── 設定ダイアログ ──────────────────────────────────────────
     def _open_settings(self) -> None:
         def on_save(model: str) -> None:
-            self._engine_label.configure(text=f"ENGINE: {model}")
+            self._engine_label.configure(text=self._engine_text())
             self._status_var.set("  設定を保存しました。次回スキャンから反映されます。")
         try:
             self._settings_dialog = SettingsDialog(self, self._llm, on_save)

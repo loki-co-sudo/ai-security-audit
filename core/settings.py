@@ -10,10 +10,48 @@ LLM_BASE_URL = "http://localhost:11434/v1"   # Ollama ローカル
 LLM_API_KEY  = "ollama"                       # クラウドなら実APIキー
 LLM_MODEL    = "qwen2.5-coder:14b"
 LLM_TIMEOUT  = 180
+
+# ── FAST（廉価）モデル — 補助的・機械的なLLM呼び出しに使用 ──
+# lokicode のコスト効率ルーティングを移植: 高価な STRONG（＝LLM_MODEL）は
+# 最終的な専門推論（脆弱性トリアージ・攻撃仮説・監査）に限定し、量が出る
+# 機械的な生成（検出プローブ生成・要約など）は安価な FAST に振り分ける。
+# 空文字＝ルーティング無効（すべて STRONG を使う＝従来と完全に同一挙動）。
+# 別エンドポイント（例: ローカルOllama=FAST + クラウド=STRONG）を使う場合は
+# config.json の llm_fast_base_url / llm_fast_api_key を設定する。空なら
+# STRONG の接続情報を共用する。
+LLM_FAST_MODEL     = ""
+LLM_FAST_BASE_URL  = ""
+LLM_FAST_API_KEY   = ""
 # ============================================================
 
-APP_TITLE   = "AI Security Audit System  ·  Autonomous Penetration Testing & Defense v2.3"
-APP_VERSION = "2.3.0"
+# ─── 推論エフォート（コスト・速度・精度のトレードオフ） ─────
+# lokicode の effort-presets を移植。1つのプリセットで検証深度・CVE照合・
+# 深層解析ループ回数を一括切替する。エージェントは _effort() で参照する。
+#   verify_pass : STRONG モデルによる敵対的レビュー（誤検知の除去）を行うか
+#   cve_lookup  : NVD から関連CVEを照合するか（速度優先時はスキップ）
+#   deep_loops  : LangGraph の深層解析ループ最大反復回数（CRITICAL検出時）
+EFFORT_LEVELS  = ("speed", "balanced", "quality")
+DEFAULT_EFFORT = "balanced"
+EFFORT_PRESETS = {
+    "speed": {
+        "label": "速度", "jp": "速度（最速・最安）",
+        "desc": "検証パスなし・CVE照合スキップ・深層解析なし。最短で概観を得る。",
+        "verify_pass": False, "cve_lookup": False, "deep_loops": 0,
+    },
+    "balanced": {
+        "label": "バランス", "jp": "バランス（既定）",
+        "desc": "CVE照合あり・深層解析1回。検証パスは行わない。従来の既定挙動。",
+        "verify_pass": False, "cve_lookup": True, "deep_loops": 1,
+    },
+    "quality": {
+        "label": "品質", "jp": "品質（最高精度）",
+        "desc": "STRONGモデルの検証パスで誤検知を削減・CVE照合あり・深層解析2回。",
+        "verify_pass": True, "cve_lookup": True, "deep_loops": 2,
+    },
+}
+
+APP_TITLE   = "AI Security Audit System  ·  Autonomous Penetration Testing & Defense v2.4"
+APP_VERSION = "2.4.0"
 
 # ─── カラーテーマ ───────────────────────────────────────────
 BG_ROOT    = "#070C14"

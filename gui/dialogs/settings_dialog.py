@@ -8,8 +8,8 @@ import tkinter as tk
 import customtkinter as ctk
 
 from core.settings import (
-    BG_PANEL, BG_WIDGET, BG_INPUT, CYAN, GREEN, RED_C,
-    TEXT_PRI, TEXT_DIM, TEXT_MID, BORDER,
+    BG_PANEL, BG_WIDGET, BG_INPUT, CYAN, GREEN, RED_C, AMBER, PURPLE,
+    TEXT_PRI, TEXT_DIM, TEXT_MID, BORDER, EFFORT_PRESETS,
 )
 import core.config as config
 from core.llm_client import LLMClient
@@ -53,9 +53,9 @@ class SettingsDialog(RobustToplevel):
 
         self.title("LLM 接続設定")
         self.configure(fg_color=BG_PANEL)
-        self.geometry("660x680")
+        self.geometry("660x820")
         # minsize のみ設定（maxsize を固定すると最大化できなくなるため設定しない）。
-        self.minsize(660, 680)
+        self.minsize(660, 720)
 
         # master=self を明示し、tkinter のデフォルトルートに依存させない
         # （スプラッシュ用ルート破棄で default root が None でも安全）。
@@ -68,6 +68,14 @@ class SettingsDialog(RobustToplevel):
         # レポート言語（事前選択）。表示は「日本語/English」、保存値は ja/en。
         self._lang_var    = tk.StringVar(
             self, value="日本語" if config.get("report_lang", "ja") == "ja" else "English")
+        # FAST（廉価）モデルとその任意接続。空=ルーティング無効（STRONG共用）。
+        self._fast_model_var = tk.StringVar(self, value=config.get("llm_fast_model", ""))
+        self._fast_url_var   = tk.StringVar(self, value=config.get("llm_fast_base_url", ""))
+        self._fast_key_var   = tk.StringVar(self, value=config.get("llm_fast_api_key", ""))
+        # 推論エフォート（速度/バランス/品質）。表示ラベルは EFFORT_PRESETS の label。
+        _eff = config.get("effort", "balanced")
+        self._effort_var = tk.StringVar(
+            self, value=EFFORT_PRESETS.get(_eff, EFFORT_PRESETS["balanced"])["label"])
 
         # withdraw を伴わないので、メインウィンドウ同様その場で構築して問題ない。
         self._build()
@@ -171,6 +179,45 @@ class SettingsDialog(RobustToplevel):
                      font=ctk.CTkFont("Segoe UI", 9), text_color=TEXT_DIM,
                      anchor="w").pack(side="left")
 
+        # ── 推論エフォート（速度 / バランス / 品質） ──────────
+        eff_row = ctk.CTkFrame(body, fg_color="transparent")
+        eff_row.pack(fill="x", pady=5)
+        ctk.CTkLabel(eff_row, text="EFFORT", width=80,
+                     font=ctk.CTkFont("Consolas", 10, "bold"), text_color=TEXT_DIM,
+                     anchor="w").pack(side="left")
+        ctk.CTkSegmentedButton(
+            eff_row, values=[EFFORT_PRESETS[k]["label"] for k in ("speed", "balanced", "quality")],
+            variable=self._effort_var, command=lambda _v: self._update_effort_hint(),
+            font=ctk.CTkFont("Segoe UI", 11),
+            fg_color=BG_INPUT, selected_color=PURPLE, selected_hover_color="#A96FE0",
+            unselected_color=BG_WIDGET, unselected_hover_color="#152030",
+            text_color=TEXT_PRI, height=30,
+        ).pack(side="left", padx=(0, 8))
+        self._effort_hint = ctk.CTkLabel(
+            body, text="", font=ctk.CTkFont("Segoe UI", 9),
+            text_color=TEXT_DIM, anchor="w", justify="left")
+        self._effort_hint.pack(fill="x", padx=(84, 0))
+        self._update_effort_hint()
+
+        # ── FAST（廉価）モデル — コスト最適化・任意 ────────────
+        ctk.CTkLabel(
+            body, text="⚡ FAST モデル（廉価・機械的処理用 — 任意）",
+            font=ctk.CTkFont("Segoe UI", 10, "bold"), text_color=AMBER,
+        ).pack(anchor="w", pady=(10, 0))
+        ctk.CTkLabel(
+            body,
+            text="設定すると、検出プローブ生成など量の出る処理を安価なモデルに振り分け、"
+                 "最終推論のみ主モデルを使います（コスト削減）。空欄＝主モデルを共用。",
+            font=ctk.CTkFont("Segoe UI", 9), text_color=TEXT_DIM,
+            anchor="w", justify="left", wraplength=580,
+        ).pack(anchor="w", pady=(0, 2))
+        self._add_entry(body, "FAST", self._fast_model_var, False,
+                        "例: mistralai/mistral-small-24b-instruct-2501（空欄=無効）")
+        self._add_entry(body, "FAST URL", self._fast_url_var, False,
+                        "任意: 別エンドポイント時のみ（空欄=主モデルと同じ接続）")
+        self._add_entry(body, "FAST KEY", self._fast_key_var, True,
+                        "任意: FAST URL を別にした場合のAPIキー")
+
         # 検索ボックス + 件数表示
         search_row = ctk.CTkFrame(body, fg_color="transparent")
         search_row.pack(fill="x", pady=(10, 4))
@@ -231,6 +278,17 @@ class SettingsDialog(RobustToplevel):
             command=self._start_test,
         )
         self._test_btn.pack(side="left", padx=12, pady=10)
+
+    def _effort_key(self) -> str:
+        """表示ラベル（速度/バランス/品質）から保存キー（speed/balanced/quality）へ変換。"""
+        for k, v in EFFORT_PRESETS.items():
+            if v["label"] == self._effort_var.get():
+                return k
+        return "balanced"
+
+    def _update_effort_hint(self) -> None:
+        preset = EFFORT_PRESETS[self._effort_key()]
+        self._effort_hint.configure(text=preset["desc"])
 
     def _add_entry(self, parent, label, var, secret, placeholder) -> None:
         row = ctk.CTkFrame(parent, fg_color="transparent")
@@ -375,6 +433,10 @@ class SettingsDialog(RobustToplevel):
             "llm_model":    self._model_var.get().strip(),
             "llm_timeout":  timeout,
             "report_lang":  "ja" if self._lang_var.get() == "日本語" else "en",
+            "llm_fast_model":    self._fast_model_var.get().strip(),
+            "llm_fast_base_url": self._fast_url_var.get().strip(),
+            "llm_fast_api_key":  self._fast_key_var.get().strip(),
+            "effort":            self._effort_key(),
         }
         config.save(data)
         self._llm.update(

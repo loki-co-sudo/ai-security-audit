@@ -11,8 +11,27 @@ from core.event_bus import EventBus
 import core.event_bus as ev
 import core.config as config
 from core.llm_client import LLMClient
+from core.model_router import build_fast_client, fast_signature, current_effort
 
 _SEVERITIES = ("CRITICAL", "HIGH", "MEDIUM", "LOW")
+
+# 品質エフォート時の検証パス（強モデルによる敵対的レビュー）のシステムプロンプト。
+# lokicode agent-v3 の「強い検証器（賢さの壁）」を移植: 別モデルの微妙な誤りを
+# 拾うため、量産ではなく最終の批判役として STRONG モデルで実行する。
+_VERIFY_SYS = """You are a senior application-security reviewer performing an adversarial QA \
+pass over another analyst's draft findings from an AUTHORIZED assessment. Your job is to raise \
+precision, not to re-do the whole analysis.
+
+Do the following:
+1. Remove or downgrade findings that are false positives or overclaims not supported by the evidence.
+2. Correct wrong severities and CWE ids.
+3. Add any clearly-missed CRITICAL or HIGH issue that the provided evidence plainly supports.
+4. Keep only findings a competent operator would act on.
+
+CRITICAL OUTPUT RULE: reproduce the FULL corrected set of findings using the EXACT same marker \
+format as the draft (e.g. ---VULN_START---/---VULN_END--- or ---FINDING_START---/---FINDING_END---), \
+so a downstream parser still works. Do not add commentary outside the markers. If nothing is \
+credible, say so plainly with no markers."""
 
 
 def _count_severities(text: str) -> dict:
@@ -129,13 +148,58 @@ class BaseAgent(ABC):
             on_error=lambda e: self._out(f"\n[ LLM ERROR ] {e}\n", "critical"),
         )
 
-    def _complete_llm(self, messages: list[dict]) -> str:
-        """LLMを非ストリーミングで呼び出す（短い補助的な推論に使用）。"""
+    def _fast_client(self) -> LLMClient:
+        """FAST（廉価）モデルのクライアントを返す。未設定なら STRONG を共用する。
+
+        設定が変わったら再生成する（設定ホットリロードに追従）。FAST が未設定なら
+        self.llm（STRONG）をそのまま返すため、単一モデル時と同一挙動になる。
+        """
+        sig = fast_signature(self.llm)
+        if getattr(self, "_fast_sig", None) != sig:
+            self._fast = build_fast_client(self.llm)
+            self._fast_sig = sig
+        return self._fast
+
+    def _complete_llm(self, messages: list[dict], role: str = "fast") -> str:
+        """LLMを非ストリーミングで呼び出す（短い補助的な推論に使用）。
+
+        role="fast"（既定）は機械的・量の出る生成に FAST モデルを使う。
+        role="strong" を明示すると STRONG モデルを使う。
+        """
+        client = self._fast_client() if role == "fast" else self.llm
         try:
-            return self.llm.complete(self._apply_language(messages))
+            return client.complete(self._apply_language(messages))
         except Exception as e:
             self._log(f"LLM error: {e}")
             return ""
+
+    # ── 推論エフォート ────────────────────────────────────
+    def _effort(self) -> dict:
+        """現在の推論エフォート（速度/バランス/品質）のプリセット dict を返す。"""
+        return current_effort()
+
+    def _verify_findings(self, evidence: str, draft: str) -> str:
+        """品質エフォート時、STRONG モデルで所見を敵対的に再検証し誤検知を削減する。
+
+        検証後の全所見（マーカー形式）を返す。マーカーが失われた場合はドラフトを維持する。
+        """
+        self._out("\n" + "─" * 56 + "\n", "sep")
+        self._out("  VERIFICATION PASS — 強モデルによる批判的レビュー (streaming)\n", "section")
+        self._out("─" * 56 + "\n\n", "sep")
+        self._status("AI が所見を再検証中（誤検知の除去）...")
+        verified = self._stream_llm([
+            self.llm.system(_VERIFY_SYS),
+            self.llm.user(
+                "Review and finalize these draft findings. Reproduce the full corrected set "
+                "in the same marker format.\n\n"
+                f"EVIDENCE / CONTEXT:\n{evidence}\n\n"
+                f"DRAFT FINDINGS:\n{draft}"
+            ),
+        ], live_stats=True)
+        # 検証出力にマーカーが1つも無ければ解析不能とみなしドラフトを採用する。
+        if "_START---" not in verified:
+            return draft
+        return verified
 
     # ── 成果物の保存 ──────────────────────────────────────
     def _save_investigation(self, mode_title: str, target: str, body: str) -> str | None:
