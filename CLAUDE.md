@@ -31,11 +31,21 @@
 2. 【検証】`PYTHONUTF8=1 py tools/run_selftest.py` を実行する
    （Linux/macOS では `python3 tools/run_selftest.py`。UTF-8がデフォルトのため `PYTHONUTF8=1` は不要）。
    - テスト**1〜8・2b**（EventBus/config/ModelRouter/NetworkScanner/WebProber/LogWatcher/
-     パターン検出/ReportGenerator/CVEClient）は非LLM・非外部ネットワーク前提で、常に全通過が必須。
-   - テスト**9以降**（LLMClient・AuditAgent・MonitorAgent・ReconAgent・FuzzAgent 等）は実LLM
-     API（`config.json` のキー）と実ネットワーク（`scanme.nmap.org` 含む）を要求するため、
-     APIキー未設定の環境では失敗しうる。その場合は1〜8・2bの全通過を最低ラインとし、
-     完了報告に「9以降は環境未整備のため未検証」と明記する（黙って省略しない）。
+     パターン検出/ReportGenerator/CVEClient）はLLM呼び出しを行わず、常に全通過が必須。
+     ただし3（`example.com` へのDNS解決）・4（`example.com` へのHTTPプローブ）・
+     8（NVD APIへのCVE照合）は外部ネットワークに到達する。オフライン環境ではこの3件は
+     失敗しうるので、その場合も完了報告に明記する（黙って省略しない）。
+   - テスト**9以降**（LLMClient・AuditAgent・MonitorAgent・ReconAgent・FuzzAgent 等）は
+     `config.json` で疎通可能なLLMエンドポイント（ローカルOllama起動中 or クラウドAPIキー設定済み）
+     を要求する。**未設定時の失敗モードは一様ではない**: LLMClientの疎通テストは明確に
+     `FAIL`するが、MonitorAgent/ReconAgent/FuzzAgent はローカルの正規表現パターン検出や
+     「完走したか」のみを検証するため、LLM呼び出しが失敗・空応答でも**PASSしうる**
+     （`_complete_llm`/`_stream_llm` が例外を握りつぶしログに記録する設計のため）。
+     したがって9以降のPASS数は「LLMが正しく機能した証拠」にはならない。
+     疎通確認は `.venv/bin/python3 -c "import core.config as c; c.load(); print(c.get('llm_base_url'))"`
+     の値に実際に何か listen しているかで判断する。未疎通の場合は1〜8・2bの全通過を最低ラインとし、
+     完了報告に「9以降はLLMエンドポイント未疎通のため未検証（PASSしたものも含め信頼しない）」
+     と明記する。
    - 依存パッケージは本リポジトリ専用の `.venv` に閉じてインストールする
      （`python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`）。
      このPCでは他のセキュリティツールを並行開発中のため、グローバル環境・他プロジェクトの

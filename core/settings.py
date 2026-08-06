@@ -50,8 +50,8 @@ EFFORT_PRESETS = {
     },
 }
 
-APP_TITLE   = "AI Security Audit System  ·  Autonomous Penetration Testing & Defense v2.4"
-APP_VERSION = "2.4.0"
+APP_TITLE   = "AI Security Audit System  ·  Autonomous Penetration Testing & Defense v2.5"
+APP_VERSION = "2.5.1"
 
 # ─── カラーテーマ ───────────────────────────────────────────
 BG_ROOT    = "#070C14"

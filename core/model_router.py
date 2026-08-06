@@ -65,7 +65,7 @@ _MODEL_WEIGHT_HINTS: list[tuple[str, int]] = [
     ("qwen3-max", 4), ("llama-4-scout", 4), ("llama4:scout", 4),
     ("sonnet", 3), ("mistral-large", 3),
     ("qwen3-30b", 2), ("qwen2.5-coder:14b", 2), ("mistral-medium", 2),
-    ("fable", 1), ("haiku", 1), ("mini", 1), ("mistral-small", 1),
+    ("fable", 1), ("haiku", 1), ("-mini", 1), (":mini", 1), ("mistral-small", 1),
     ("-8b", 1), ("-3b", 1), (":8b", 1), (":3b", 1),
 ]
 
