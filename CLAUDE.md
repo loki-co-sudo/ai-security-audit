@@ -32,21 +32,23 @@
    （Linux/macOS では `.venv/bin/python3 tools/run_selftest.py`。UTF-8がデフォルトのため
    `PYTHONUTF8=1` は不要。依存は本リポジトリ専用の `.venv` にのみ入っており、Kaliの
    externally-managed-environment制約もあって素の `python3`/グローバルpipでは動かない）。
-   - テスト**1〜8・2b**（EventBus/config/ModelRouter/NetworkScanner/WebProber/LogWatcher/
-     パターン検出/ReportGenerator/CVEClient）はLLM呼び出しを行わず、常に全通過が必須。
-     ただし3（`example.com` へのDNS解決）・4（`example.com` へのHTTPプローブ）・
-     8（NVD APIへのCVE照合）は外部ネットワークに到達する。オフライン環境ではこの3件は
-     失敗しうるので、その場合も完了報告に明記する（黙って省略しない）。
-   - テスト**9以降**（LLMClient・AuditAgent・MonitorAgent・ReconAgent・FuzzAgent 等）は
-     `config.json` で疎通可能なLLMエンドポイント（ローカルOllama起動中 or クラウドAPIキー設定済み）
-     を要求する。**未設定時の失敗モードは一様ではない**: LLMClientの疎通テストは明確に
-     `FAIL`するが、MonitorAgent/ReconAgent/FuzzAgent はローカルの正規表現パターン検出や
-     「完走したか」のみを検証するため、LLM呼び出しが失敗・空応答でも**PASSしうる**
+   - **`SELFTEST_NON_LLM_ONLY=1`** を付けると、実LLM/実ネットワーク（9・10・11・12・17。
+     `LLMClient`/`AuditAgent`/`MonitorAgent`/`ReconAgent`/`FuzzAgent`）をSKIPし、
+     残り（1〜8・2b〜2d・13〜16）だけを実行する（CI＝`.github/workflows/selftest.yml`
+     もこれを使う）。ただし3（`example.com` へのDNS解決）・4（HTTPプローブ）・
+     8（NVD APIへのCVE照合）は非LLMだが外部ネットワークに到達するため、オフライン環境
+     ではこの3件は失敗しうる（その場合も完了報告に明記する。黙って省略しない）。
+   - `SELFTEST_NON_LLM_ONLY` を付けない通常実行では9以降も走るが、
+     `config.json` で疎通可能なLLMエンドポイント（ローカルOllama起動中 or クラウドAPIキー
+     設定済み）が要る。**未設定時の失敗モードは一様ではない**: LLMClientの疎通テストは
+     明確に`FAIL`するが、MonitorAgent/ReconAgent/FuzzAgent はローカルの正規表現パターン
+     検出や「完走したか」のみを検証するため、LLM呼び出しが失敗・空応答でも**PASSしうる**
      （`_complete_llm`/`_stream_llm` が例外を握りつぶしログに記録する設計のため）。
      したがって9以降のPASS数は「LLMが正しく機能した証拠」にはならない。
      疎通確認は `.venv/bin/python3 -c "import core.config as c; c.load(); print(c.get('llm_base_url'))"`
-     の値に実際に何か listen しているかで判断する。未疎通の場合は1〜8・2bの全通過を最低ラインとし、
-     完了報告に「9以降はLLMエンドポイント未疎通のため未検証（PASSしたものも含め信頼しない）」
+     の値に実際に何か listen しているかで判断する。未疎通の場合は
+     `SELFTEST_NON_LLM_ONLY=1` での全通過を最低ラインとし、完了報告に
+     「9以降はLLMエンドポイント未疎通のため未検証（PASSしたものも含め信頼しない）」
      と明記する。
    - 依存パッケージは本リポジトリ専用の `.venv` に閉じてインストールする
      （`python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`）。

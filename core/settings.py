@@ -27,31 +27,33 @@ LLM_FAST_API_KEY   = ""
 # ─── 推論エフォート（コスト・速度・精度のトレードオフ） ─────
 # lokicode の effort-presets を移植。1つのプリセットで検証深度・CVE照合・
 # 深層解析ループ回数を一括切替する。エージェントは _effort() で参照する。
-#   verify_pass : STRONG モデルによる敵対的レビュー（誤検知の除去）を行うか
-#   cve_lookup  : NVD から関連CVEを照合するか（速度優先時はスキップ）
-#   deep_loops  : LangGraph の深層解析ループ最大反復回数（CRITICAL検出時）
+#   verify_pass    : STRONG モデルによる敵対的レビュー（誤検知の除去）を行うか
+#   verify_samples : 検証パスを独立に何回走らせ多数決するか（§5.3 検証器アンサンブル。
+#                    1=アンサンブルなし＝従来と同一挙動。2以上でコスト増のため quality 限定）
+#   cve_lookup     : NVD から関連CVEを照合するか（速度優先時はスキップ）
+#   deep_loops     : LangGraph の深層解析ループ最大反復回数（CRITICAL検出時）
 EFFORT_LEVELS  = ("speed", "balanced", "quality")
 DEFAULT_EFFORT = "balanced"
 EFFORT_PRESETS = {
     "speed": {
         "label": "速度", "jp": "速度（最速・最安）",
         "desc": "検証パスなし・CVE照合スキップ・深層解析なし。最短で概観を得る。",
-        "verify_pass": False, "cve_lookup": False, "deep_loops": 0,
+        "verify_pass": False, "verify_samples": 1, "cve_lookup": False, "deep_loops": 0,
     },
     "balanced": {
         "label": "バランス", "jp": "バランス（既定）",
         "desc": "CVE照合あり・深層解析1回。検証パスは行わない。従来の既定挙動。",
-        "verify_pass": False, "cve_lookup": True, "deep_loops": 1,
+        "verify_pass": False, "verify_samples": 1, "cve_lookup": True, "deep_loops": 1,
     },
     "quality": {
         "label": "品質", "jp": "品質（最高精度）",
-        "desc": "STRONGモデルの検証パスで誤検知を削減・CVE照合あり・深層解析2回。",
-        "verify_pass": True, "cve_lookup": True, "deep_loops": 2,
+        "desc": "STRONGモデルの検証パスを2回走らせ多数決で誤検知を削減・CVE照合あり・深層解析2回。",
+        "verify_pass": True, "verify_samples": 2, "cve_lookup": True, "deep_loops": 2,
     },
 }
 
-APP_TITLE   = "AI Security Audit System  ·  Autonomous Penetration Testing & Defense v2.5"
-APP_VERSION = "2.5.1"
+APP_TITLE   = "AI Security Audit System  ·  Autonomous Penetration Testing & Defense v2.6"
+APP_VERSION = "2.6.0"
 
 # ─── カラーテーマ ───────────────────────────────────────────
 BG_ROOT    = "#070C14"

@@ -14,6 +14,7 @@ agents/fuzz_agent.py — Webスマートファジングエージェント
 from __future__ import annotations
 import json
 import re
+import time
 from agents.base_agent import BaseAgent
 from tools.web_fuzzer import WebFuzzer, DEFAULT_PROBES
 from core.settings import SCAN_PROFILES, DEFAULT_SCAN_PROFILE
@@ -76,6 +77,7 @@ class FuzzAgent(BaseAgent):
         auth: dict | None = None,
     ) -> None:
         self.bus.clear()
+        t0 = time.time()
         self._status(f"ファジング開始: {target}")
 
         if profile not in SCAN_PROFILES:
@@ -132,7 +134,7 @@ class FuzzAgent(BaseAgent):
         if not points:
             self._out("\n  注入点が見つかりませんでした（パラメータ／フォーム無し、"
                       "またはJS依存のページ）。\n", "high")
-            self._finish(0)
+            self._finish(0, target=base_url, t0=t0)
             return
 
         # ── Step 2: AIが検出プローブを生成 ─────────────────
@@ -181,8 +183,9 @@ class FuzzAgent(BaseAgent):
         ])
 
         # 品質エフォート: STRONGモデルで所見を再検証し誤検知を削減する。
-        if self._effort().get("verify_pass") and not self.is_stopped():
-            full = self._verify_findings(summary, full)
+        effort = self._effort()
+        if effort.get("verify_pass") and not self.is_stopped():
+            full = self._verify_findings(summary, full, samples=effort.get("verify_samples", 1))
         self._step(4, "done")
 
         # 調査レポートをファイルに保存する。
@@ -192,7 +195,7 @@ class FuzzAgent(BaseAgent):
         # ── Step 5: 完了 ───────────────────────────────────
         counts = {s: len(re.findall(rf"SEVERITY:\s*{s}\b", full, re.I))
                   for s in ("CRITICAL", "HIGH", "MEDIUM", "LOW")}
-        self._finish(sum(counts.values()), counts)
+        self._finish(sum(counts.values()), counts, target=base_url, t0=t0)
 
     # ── AI プローブ生成 ────────────────────────────────────
     def _gen_probes(self, points: list[dict]) -> dict[str, list[str]]:
@@ -248,10 +251,13 @@ class FuzzAgent(BaseAgent):
         return "\n".join(lines)
 
     # ── 完了処理 ───────────────────────────────────────────
-    def _finish(self, total: int, counts: dict | None = None) -> None:
+    def _finish(self, total: int, counts: dict | None = None,
+                target: str = "", t0: float | None = None) -> None:
         self._step(5, "running")
         if counts:
             self._stats(counts)
+        if t0 is not None:
+            self._record_telemetry("WEB FUZZ", target, counts or {}, time.time() - t0)
         self._out("\n\n" + "═" * 56 + "\n", "sep")
         self._out(f"  FUZZING COMPLETE  |  {total} findings reported\n", "green")
         self._out("═" * 56 + "\n", "sep")

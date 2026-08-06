@@ -8,6 +8,7 @@ tools/run_selftest.py — 全機能セルフテスト（GUI以外を網羅）
 from __future__ import annotations
 import sys
 import os
+import json
 import time
 import traceback
 
@@ -43,7 +44,11 @@ def _selftest_llm(timeout: int):
     return LLMClient(cfg["llm_base_url"], cfg["llm_api_key"], SELFTEST_MODEL, timeout)
 
 
-_PASS, _FAIL = [], []
+_PASS, _FAIL, _SKIP = [], [], []
+
+# SELFTEST_NON_LLM_ONLY=1 で実LLM/実ネットワークAPIキーを要求するテストをスキップする
+# （CI・オフライン環境向け。CLAUDE.md の「開発ループ」の1〜8・2b〜2dに相当）。
+NON_LLM_ONLY = os.environ.get("SELFTEST_NON_LLM_ONLY") == "1"
 
 
 def _ok(name, detail=""):
@@ -54,6 +59,19 @@ def _ok(name, detail=""):
 def _ng(name, detail=""):
     _FAIL.append(name)
     print(f"  [FAIL] {name}  {detail}")
+
+
+def _skip_llm(section_num: str, title: str, fn, *args, **kwargs):
+    """SELFTEST_NON_LLM_ONLY=1のとき、実LLM/実ネットワークを要求するテストをスキップする。
+
+    スキップしない場合は fn を素通しする（fn 自身が _section() を呼ぶため、ここでは呼ばない）。
+    """
+    if NON_LLM_ONLY:
+        _section(f"{section_num}. {title}")
+        _SKIP.append(title)
+        print("  [SKIP] SELFTEST_NON_LLM_ONLY=1 のためスキップ（実LLM/実ネットワーク要求）")
+        return None
+    return fn(*args, **kwargs)
 
 
 def _section(t):
@@ -130,7 +148,7 @@ def test_model_router():
     try:
         for lvl in ("speed", "balanced", "quality"):
             p = EFFORT_PRESETS[lvl]
-            assert {"verify_pass", "cve_lookup", "deep_loops", "label", "desc"} <= set(p), p
+            assert {"verify_pass", "verify_samples", "cve_lookup", "deep_loops", "label", "desc"} <= set(p), p
         # deep_loops は 速度 < バランス < 品質 の単調増加
         assert (EFFORT_PRESETS["speed"]["deep_loops"]
                 < EFFORT_PRESETS["balanced"]["deep_loops"]
@@ -195,6 +213,134 @@ def test_model_router():
         _ok("assess_readiness ヒューリスティック", "同一/取り違え/未知slugの3パターン")
     except Exception as e:
         _ng("assess_readiness", repr(e))
+    # 難易度ルーター（AUTO） — LLM呼び出しはフェイクで代替し、非LLM環境でも検証する
+    try:
+        class _FakeLLM:
+            def __init__(self, reply): self._reply = reply
+            def complete(self, messages): return self._reply
+
+        class _ErrLLM:
+            def complete(self, messages): raise RuntimeError("boom")
+
+        assert mr.classify_effort("tiny one-liner script", _FakeLLM("trivial")) == "speed"
+        assert mr.classify_effort("typical web app", _FakeLLM("Standard.")) == "balanced"
+        assert mr.classify_effort("huge enterprise system", _FakeLLM("DEEP")) == "quality"
+        assert mr.classify_effort("garbage", _FakeLLM("unparseable response")) == "balanced", \
+            "解析不能な応答はbalancedにフォールバック"
+        assert mr.classify_effort("x", _ErrLLM()) == "balanced", \
+            "LLM呼び出し失敗はbalancedにフォールバック"
+        # current_effort の override 引数
+        assert mr.current_effort("speed")["deep_loops"] == 0
+        assert mr.current_effort("quality")["verify_pass"] is True
+        assert mr.current_effort(None) == mr.current_effort()
+        _ok("classify_effort / current_effort(override)", "trivial/standard/deep/失敗フォールバック")
+    except Exception as e:
+        _ng("classify_effort", repr(e))
+    # BaseAgent.set_effort_override による一時上書き
+    try:
+        from agents.monitor_agent import MonitorAgent
+        strong = LLMClient("http://localhost:11434/v1", "k", "model-strong", 30)
+        m = MonitorAgent(EventBus(), strong)
+        assert m._effort() == mr.current_effort(), "既定はグローバル設定を参照すべき"
+        m.set_effort_override("speed")
+        assert m._effort()["deep_loops"] == 0, "上書き中はspeedのプリセットを返すべき"
+        m.set_effort_override(None)
+        assert m._effort() == mr.current_effort(), "Noneに戻せばグローバル設定に復帰すべき"
+        _ok("BaseAgent.set_effort_override", "上書き/復帰")
+    except Exception as e:
+        _ng("BaseAgent.set_effort_override", repr(e))
+
+
+def test_verify_ensemble():
+    _section("2c. CORE — 検証器アンサンブル（マーカー多数決・§5.3）")
+    from agents.base_agent import _vote_findings, _parse_marker_findings
+    from agents.monitor_agent import MonitorAgent
+
+    a = "---VULN_START---\nNAME: SQL Injection in login\nSEVERITY: HIGH\nLINES: 42\n---VULN_END---"
+    b = ("---VULN_START---\nNAME: SQL Injection in login\nSEVERITY: HIGH\nLINES: 42\n---VULN_END---\n\n"
+         "---VULN_START---\nNAME: Weak random token\nSEVERITY: LOW\nLINES: 88\n---VULN_END---")
+    c = "---VULN_START---\nNAME: SQL Injection in login\nSEVERITY: HIGH\nLINES: 42\n---VULN_END---"
+    # recon_agentの実際のフォーマットはNAMEではなくTITLE、LINESフィールドは無い
+    title_fmt = "---FINDING_START---\nTITLE: Open Redis without auth\nSEVERITY: CRITICAL\n---FINDING_END---"
+    try:
+        assert len(_parse_marker_findings(b)) == 2
+        kept, discarded = _vote_findings([a, b, c])
+        assert "SQL Injection in login" in kept
+        assert "Weak random token" not in kept, "3件中1件のみの所見は多数決で落ちるべき"
+        assert len(discarded) == 1 and "Weak random token" in discarded[0], \
+            "落ちた所見はdiscardedとして返り、呼び出し側が可視化できるべき（サイレント消去はしない）"
+        d = "---VULN_START---\nNAME: A\nSEVERITY: LOW\nLINES: 1\n---VULN_END---"
+        e = "---VULN_START---\nNAME: B\nSEVERITY: LOW\nLINES: 2\n---VULN_END---"
+        kept2, discarded2 = _vote_findings([d, e])
+        assert kept2 == d, "過半数一致が無ければ最初のサンプルを採用すべき"
+        assert discarded2 == [], "比較不能（全会不一致）の場合はdiscardedも空にすべき"
+        # TITLE:（recon_agentのフォーマット）でもsignatureが取れることを確認
+        assert _parse_marker_findings(title_fmt)[0][0].startswith("open redis without auth")
+        _ok("_vote_findings", "2/3一致採用・1/3を可視化用discardedへ・全会不一致フォールバック・TITLE:対応")
+    except Exception as e:
+        _ng("_vote_findings", repr(e))
+
+    class _FakeVerifyLLM:
+        def __init__(self, replies):
+            self._replies = iter(replies)
+            self.model = "fake-verify"
+
+        def system(self, c): return {"role": "system", "content": c}
+        def user(self, c): return {"role": "user", "content": c}
+
+        def stream(self, messages, on_chunk, on_done=None, on_error=None):
+            text = next(self._replies)
+            on_chunk(text)
+            if on_done:
+                on_done()
+            return text
+
+    try:
+        bus = EventBus()
+        agent = MonitorAgent(bus, _FakeVerifyLLM([a, b, c]))
+        result = agent._verify_findings("evidence", "draft", samples=3)
+        assert "SQL Injection in login" in result
+        assert "Weak random token" not in result, "除外分は返り値（最終レポート）には含めない"
+        output_text = "".join(
+            ev.payload["text"] for ev in bus.drain(10000) if ev.kind == "output"
+        )
+        assert "Weak random token" in output_text, \
+            "除外分でも出力ボックスには表示し、人間が確認できる状態を保つべき（サイレント消去禁止）"
+        # samples=1 は従来どおり単発検証パスをそのまま返す（後方互換）
+        agent2 = MonitorAgent(EventBus(), _FakeVerifyLLM([a]))
+        assert agent2._verify_findings("evidence", "draft", samples=1) == a
+        # マーカーが無い応答は解析不能→draftを維持（後方互換）
+        agent3 = MonitorAgent(EventBus(), _FakeVerifyLLM(["no markers here"]))
+        assert agent3._verify_findings("evidence", "draft") == "draft"
+        _ok("BaseAgent._verify_findings(samples=N)",
+            "アンサンブル多数決・除外分の可視化・後方互換を確認")
+    except Exception as e:
+        _ng("_verify_findings ensemble", repr(e))
+
+
+def test_telemetry():
+    _section("2d. CORE — モデル別コスト×精度台帳（§5.4・記録のみ）")
+    from agents.monitor_agent import MonitorAgent
+    from core.llm_client import LLMClient
+    try:
+        path = os.path.join("reports", "telemetry.jsonl")
+        before = os.path.getsize(path) if os.path.isfile(path) else 0
+        strong = LLMClient("http://localhost:11434/v1", "k", "selftest-telemetry-model", 30)
+        agent = MonitorAgent(EventBus(), strong)
+        agent._record_telemetry("SELFTEST", "selftest-target",
+                                 {"CRITICAL": 1, "HIGH": 2, "MEDIUM": 0, "LOW": 0}, 3.14)
+        assert os.path.isfile(path), "telemetry.jsonl が作成されていない"
+        with open(path, "r", encoding="utf-8") as f:
+            f.seek(before)
+            last_line = f.read().strip().splitlines()[-1]
+        record = json.loads(last_line)
+        assert record["mode"] == "SELFTEST"
+        assert record["model"] == "selftest-telemetry-model"
+        assert record["total_detections"] == 3
+        assert record["elapsed_sec"] == 3.1  # round(3.14, 1)
+        _ok("_record_telemetry", f"reports/telemetry.jsonl へ追記・スキーマ確認済み")
+    except Exception as e:
+        _ng("_record_telemetry", repr(e))
 
 
 def test_network_scanner():
@@ -634,25 +780,31 @@ def main():
     test_event_bus()
     test_config()
     test_model_router()
+    test_verify_ensemble()
+    test_telemetry()
     test_network_scanner()
     test_web_prober()
     log_path = test_log_watcher()
     test_pattern_match()
     test_report_generator()
     test_cve_client()
-    test_llm()
-    test_audit_agent()
-    test_monitor_agent(log_path)
-    test_recon_agent()
+    _skip_llm("9", "CORE — LLMClient (OpenRouter)", test_llm)
+    _skip_llm("10", "AGENT E2E — AuditAgent (実LLM)", test_audit_agent)
+    _skip_llm("11", "AGENT E2E — MonitorAgent (single-pass, 実LLM)", test_monitor_agent, log_path)
+    _skip_llm("12", "AGENT E2E — ReconAgent (scanme.nmap.org / 実LLM)", test_recon_agent)
     test_orchestrator_bug()
     test_stealth_features()
     test_pdf_report()
     test_web_fuzzer()
-    test_fuzz_agent()
+    _skip_llm("17", "AGENT E2E — FuzzAgent（ローカルモック / 実LLM）", test_fuzz_agent)
 
     dt = time.time() - t0
     print("\n" + "#"*64)
-    print(f"#  結果: {len(_PASS)} PASS / {len(_FAIL)} FAIL   ({dt:.1f}s)")
+    if NON_LLM_ONLY:
+        print(f"#  結果: {len(_PASS)} PASS / {len(_FAIL)} FAIL / {len(_SKIP)} SKIP   ({dt:.1f}s)")
+        print(f"#  SELFTEST_NON_LLM_ONLY=1 — 実LLM/実ネットワーク要求の{len(_SKIP)}項目はスキップ")
+    else:
+        print(f"#  結果: {len(_PASS)} PASS / {len(_FAIL)} FAIL   ({dt:.1f}s)")
     print("#"*64)
     if _FAIL:
         print("\n  失敗したテスト:")

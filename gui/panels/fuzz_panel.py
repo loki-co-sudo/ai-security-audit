@@ -3,6 +3,7 @@ gui/panels/fuzz_panel.py — WEB FUZZ タブ（スマートファジング / 検
 """
 
 from __future__ import annotations
+import threading
 import tkinter as tk
 import customtkinter as ctk
 
@@ -10,7 +11,7 @@ import core.event_bus as ev
 from core.event_bus import EventBus
 from core.llm_client import LLMClient
 from core.settings import (
-    BG_PANEL, BG_WIDGET, BG_INPUT, CYAN, AMBER, ORANGE_H,
+    BG_PANEL, BG_WIDGET, BG_INPUT, CYAN, AMBER, ORANGE_H, PURPLE,
     TEXT_DIM, TEXT_PRI, BORDER,
 )
 from agents.fuzz_agent import FuzzAgent, STEPS
@@ -29,6 +30,7 @@ class FuzzPanel(ctk.CTkFrame):
         self._profile   = tk.StringVar(value="stealth")
         self._budget    = tk.StringVar(value="200")
         self._auth: dict = {}   # 認証設定（🔐ボタンで設定）
+        self._auto_var  = tk.BooleanVar(value=False)
         self._build()
 
     def _build(self) -> None:
@@ -94,6 +96,13 @@ class FuzzPanel(ctk.CTkFrame):
         )
         self._auth_btn.pack(side="left", padx=(0, 8), pady=7)
 
+        ctk.CTkCheckBox(
+            obar, text="AUTO", variable=self._auto_var,
+            font=ctk.CTkFont("Segoe UI", 10), text_color=TEXT_DIM,
+            fg_color=PURPLE, hover_color="#A96FE0",
+            checkbox_width=16, checkbox_height=16,
+        ).pack(side="left", padx=8)
+
         ctk.CTkLabel(
             obar, text="検出のみ・同一オリジン限定・認可された対象のみ",
             font=ctk.CTkFont("Segoe UI", 9), text_color=ORANGE_H,
@@ -139,13 +148,42 @@ class FuzzPanel(ctk.CTkFrame):
         if not target:
             self._out_box.append("[ ERROR ] ターゲットURLを入力してください。\n", "critical")
             return
+        self._steps_widget.reset()
+        self._scan_btn.configure(state="disabled", text="  FUZZING  ●", fg_color="#6A4400")
+        self._bus.flush()
+        if self._auto_var.get():
+            threading.Thread(target=self._auto_classify, args=(target,), daemon=True).start()
+        else:
+            self._agent.set_effort_override(None)
+            self._launch_fuzz(target)
+
+    def _auto_classify(self, target: str) -> None:
+        """AUTO: FASTモデルで対象の難易度を分類し、エフォートを一時上書きする（§5.1）。
+
+        分類・クライアント構築のどんな例外もここで揉み消し、balanced扱いでスキャンを続行する
+        （バックグラウンドスレッドの例外は呼び出し元に伝播せず、揉み消さないとFUZZボタンが
+        固まったままになる）。
+        """
+        level = "balanced"
+        try:
+            from core.model_router import build_fast_client, classify_effort
+            desc = f"Web fuzzing target: {target}\nfuzz profile: {self._profile.get()}"
+            client = build_fast_client(self._llm)
+            level = classify_effort(desc, client)
+        except Exception:
+            pass
+        self.after(0, lambda: self._on_auto_classified(level, target))
+
+    def _on_auto_classified(self, level: str, target: str) -> None:
+        self._steps_widget.log(f"AUTO: 難易度分類 → エフォート = {level}")
+        self._agent.set_effort_override(level)
+        self._launch_fuzz(target)
+
+    def _launch_fuzz(self, target: str) -> None:
         try:
             budget = int(self._budget.get())
         except ValueError:
             budget = 200
-        self._steps_widget.reset()
-        self._scan_btn.configure(state="disabled", text="  FUZZING  ●", fg_color="#6A4400")
-        self._bus.flush()
         self._agent.start(
             target=target,
             profile=self._profile.get(),

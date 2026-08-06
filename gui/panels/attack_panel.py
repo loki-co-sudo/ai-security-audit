@@ -4,6 +4,7 @@ gui/panels/attack_panel.py — ATTACK MODE タブ（ペネトレーションテ�
 
 from __future__ import annotations
 import os
+import threading
 import tkinter as tk
 import customtkinter as ctk
 
@@ -11,7 +12,7 @@ import core.event_bus as ev
 from core.event_bus import EventBus
 from core.llm_client import LLMClient
 from core.settings import (
-    BG_PANEL, BG_WIDGET, BG_INPUT, CYAN, RED_C,
+    BG_PANEL, BG_WIDGET, BG_INPUT, CYAN, RED_C, PURPLE,
     TEXT_MID, TEXT_DIM, TEXT_PRI, BORDER, BG_ROOT,
 )
 from agents.recon_agent import ReconAgent, STEPS
@@ -31,6 +32,7 @@ class AttackPanel(ctk.CTkFrame):
         self._gen_exploit = tk.BooleanVar(value=True)
         self._port_scope = tk.StringVar(value="common")
         self._scan_udp  = tk.BooleanVar(value=False)
+        self._auto_var  = tk.BooleanVar(value=False)
         self._build()
 
     def _build(self) -> None:
@@ -108,6 +110,13 @@ class AttackPanel(ctk.CTkFrame):
             checkbox_width=16, checkbox_height=16,
         ).pack(side="left", padx=8)
 
+        ctk.CTkCheckBox(
+            obar, text="AUTO", variable=self._auto_var,
+            font=ctk.CTkFont("Segoe UI", 10), text_color=TEXT_DIM,
+            fg_color=PURPLE, hover_color="#A96FE0",
+            checkbox_width=16, checkbox_height=16,
+        ).pack(side="left", padx=8)
+
         # ── メインペイン ──────────────────────────────────
         pane = ctk.CTkFrame(self, fg_color="transparent")
         pane.pack(fill="both", expand=True)
@@ -151,6 +160,38 @@ class AttackPanel(ctk.CTkFrame):
         self._steps_widget.reset()
         self._scan_btn.configure(state="disabled", text="  SCANNING  ●", fg_color="#601010")
         self._bus.flush()
+        if self._auto_var.get():
+            threading.Thread(target=self._auto_classify, args=(target,), daemon=True).start()
+        else:
+            self._agent.set_effort_override(None)
+            self._launch_scan(target)
+
+    def _auto_classify(self, target: str) -> None:
+        """AUTO: FASTモデルで対象の難易度を分類し、エフォートを一時上書きする（§5.1）。
+
+        分類・クライアント構築のどんな例外もここで揉み消し、balanced扱いでスキャンを続行する
+        （バックグラウンドスレッドの例外は呼び出し元に伝播せず、揉み消さないとSCANボタンが
+        固まったままになる）。
+        """
+        level = "balanced"
+        try:
+            from core.model_router import build_fast_client, classify_effort
+            desc = (
+                f"Network/web reconnaissance target: {target}\n"
+                f"port scope: {self._port_scope.get()}, scan profile: {self._intensity.get()}"
+            )
+            client = build_fast_client(self._llm)
+            level = classify_effort(desc, client)
+        except Exception:
+            pass
+        self.after(0, lambda: self._on_auto_classified(level, target))
+
+    def _on_auto_classified(self, level: str, target: str) -> None:
+        self._steps_widget.log(f"AUTO: 難易度分類 → エフォート = {level}")
+        self._agent.set_effort_override(level)
+        self._launch_scan(target)
+
+    def _launch_scan(self, target: str) -> None:
         self._agent.start(
             target=target,
             scan_web=self._scan_web.get(),

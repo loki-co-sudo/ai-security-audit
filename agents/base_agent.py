@@ -3,6 +3,8 @@ agents/base_agent.py — エージェント抽象基底クラス
 """
 
 from __future__ import annotations
+import json
+import os
 import re
 import threading
 from abc import ABC, abstractmethod
@@ -38,6 +40,64 @@ def _count_severities(text: str) -> dict:
     """ストリーミング中テキストから深刻度を集計する。"""
     return {s: len(re.findall(rf"SEVERITY:\s*{s}\b", text, re.I)) for s in _SEVERITIES}
 
+
+# ─── 検証器アンサンブル（judge ensembling） ───────────────────
+# AGENT_ARCHITECTURE.md §5.3。品質エフォート時、検証パスを独立に複数回走らせ、
+# マーカー単位（NAME/TITLE + LINES の組）の過半数一致で採用する所見を決める。
+_MARKER_RE = re.compile(r"---(VULN|FINDING)_START---(.*?)---\1_END---", re.S)
+
+
+def _parse_marker_findings(text: str) -> list[tuple[str, str]]:
+    """マーカー形式の所見を (signature, 完全なブロック文字列) のリストとして抽出する。
+
+    signature は NAME/TITLE + LINES から作る大まかな識別子（同一所見の再現判定に使う。
+    audit/fuzz は `NAME:`+`LINES:`、recon（攻撃仮説）は `TITLE:`（LINESなし）を使うため両対応する）。
+    このマッチングは完全一致ベースであり、独立したLLM呼び出しの文言差（例:
+    「SQL Injection in login」↔「SQL injection via username param」）を吸収できない粗い近似に
+    過ぎない — 一致しなかった所見は「誤り」ではなく「比較不能」であり、呼び出し側
+    （_verify_findings）は除外した所見を必ず可視化し、黙って消さないこと。
+    """
+    out: list[tuple[str, str]] = []
+    for m in _MARKER_RE.finditer(text):
+        marker_type, body = m.group(1), m.group(2)
+        name_m = re.search(r"(?:NAME|TITLE):\s*(.+)", body)
+        lines_m = re.search(r"LINES:\s*(.+)", body)
+        name = name_m.group(1).strip().lower() if name_m else ""
+        lines = lines_m.group(1).strip() if lines_m else ""
+        signature = f"{name}|{lines}" if (name or lines) else body.strip()[:120]
+        out.append((signature, f"---{marker_type}_START---{body}---{marker_type}_END---"))
+    return out
+
+
+def _vote_findings(samples: list[str]) -> tuple[str, list[str]]:
+    """複数の検証結果から、過半数のサンプルに登場した所見を残す（マーカー単位の多数決）。
+
+    戻り値は (採用した所見の結合文字列, 除外した所見ブロックのリスト)。
+    シグネチャ一致は粗い近似（_parse_marker_findings 参照）のため、除外＝誤検知の確定では
+    ない。呼び出し側は除外分を必ず人間に見える形で提示すること（サイレントな取りこぼしは
+    「本ツールの差別化ポイントである未知脆弱性の見逃し防止」という方針に反する）。
+    どの所見も過半数に届かなければ（意見が割れすぎ・比較不能）、安全側として最初のサンプルを
+    そのまま採用し、除外リストは空にする。
+    """
+    threshold = len(samples) // 2 + 1
+    counts: dict[str, int] = {}
+    representative: dict[str, str] = {}
+    order: list[str] = []
+    for sample in samples:
+        seen_in_sample: set[str] = set()
+        for signature, block in _parse_marker_findings(sample):
+            if signature not in seen_in_sample:
+                counts[signature] = counts.get(signature, 0) + 1
+                seen_in_sample.add(signature)
+            representative.setdefault(signature, block)
+            if signature not in order:
+                order.append(signature)
+    kept = [representative[sig] for sig in order if counts.get(sig, 0) >= threshold]
+    if not kept:
+        return samples[0], []
+    discarded = [representative[sig] for sig in order if counts.get(sig, 0) < threshold]
+    return "\n\n".join(kept), discarded
+
 # レポート/分析の出力言語をLLMに指示するディレクティブ。
 # 設定 (report_lang) に応じて全エージェントの system プロンプトへ自動付与する。
 _LANG_DIRECTIVE = {
@@ -56,6 +116,7 @@ class BaseAgent(ABC):
         self.llm  = llm
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
+        self._effort_override: str | None = None
 
     # ── ライフサイクル ─────────────────────────────────────
     def start(self, **kwargs) -> None:
@@ -174,32 +235,95 @@ class BaseAgent(ABC):
             return ""
 
     # ── 推論エフォート ────────────────────────────────────
-    def _effort(self) -> dict:
-        """現在の推論エフォート（速度/バランス/品質）のプリセット dict を返す。"""
-        return current_effort()
+    def set_effort_override(self, level: str | None) -> None:
+        """難易度ルーター（AUTO）による一時的なエフォート上書き。Noneでグローバル設定に戻す。
 
-    def _verify_findings(self, evidence: str, draft: str) -> str:
+        config.effort（グローバル設定）は変更しない。1回のrun()にのみ影響する。
+        """
+        self._effort_override = level
+
+    def _effort(self) -> dict:
+        """現在の推論エフォート（速度/バランス/品質）のプリセット dict を返す。
+
+        set_effort_override() で上書きされていればそちらを優先する。
+        """
+        return current_effort(self._effort_override)
+
+    def _verify_findings(self, evidence: str, draft: str, samples: int = 1) -> str:
         """品質エフォート時、STRONG モデルで所見を敵対的に再検証し誤検知を削減する。
 
+        samples>1（検証器アンサンブル・§5.3）のときは検証パスを独立に複数回走らせ、
+        マーカー単位（NAME/TITLE+LINES）の過半数一致で採用する所見を決める（_vote_findings）。
+        一致判定は文言差を吸収できない粗い近似のため、過半数に届かなかった所見も
+        「誤検知と確定」はせず、除外理由つきで出力ボックスに可視化してから戻り値からは除く
+        （返り値＝最終レポートに載る内容。除外分は人間がその場で確認できるようにするだけで、
+        サイレントに消さない）。
         検証後の全所見（マーカー形式）を返す。マーカーが失われた場合はドラフトを維持する。
         """
         self._out("\n" + "─" * 56 + "\n", "sep")
         self._out("  VERIFICATION PASS — 強モデルによる批判的レビュー (streaming)\n", "section")
         self._out("─" * 56 + "\n\n", "sep")
-        self._status("AI が所見を再検証中（誤検知の除去）...")
-        verified = self._stream_llm([
-            self.llm.system(_VERIFY_SYS),
-            self.llm.user(
-                "Review and finalize these draft findings. Reproduce the full corrected set "
-                "in the same marker format.\n\n"
-                f"EVIDENCE / CONTEXT:\n{evidence}\n\n"
-                f"DRAFT FINDINGS:\n{draft}"
-            ),
-        ], live_stats=True)
-        # 検証出力にマーカーが1つも無ければ解析不能とみなしドラフトを採用する。
-        if "_START---" not in verified:
+        results: list[str] = []
+        for i in range(max(1, samples)):
+            if samples > 1:
+                self._status(f"AI が所見を再検証中（誤検知の除去・アンサンブル {i + 1}/{samples}回目）...")
+                if i > 0:
+                    self._out(f"\n  ── アンサンブル検証 {i + 1}/{samples} 回目 ──\n\n", "dim")
+            else:
+                self._status("AI が所見を再検証中（誤検知の除去）...")
+            verified = self._stream_llm([
+                self.llm.system(_VERIFY_SYS),
+                self.llm.user(
+                    "Review and finalize these draft findings. Reproduce the full corrected set "
+                    "in the same marker format.\n\n"
+                    f"EVIDENCE / CONTEXT:\n{evidence}\n\n"
+                    f"DRAFT FINDINGS:\n{draft}"
+                ),
+            ], live_stats=True)
+            # マーカーが1つも無ければそのサンプルは解析不能とみなし多数決から除外する。
+            if "_START---" in verified:
+                results.append(verified)
+        if not results:
             return draft
-        return verified
+        if len(results) == 1:
+            return results[0]
+        self._out("\n\n" + "─" * 56 + "\n", "sep")
+        self._out(f"  ENSEMBLE VOTE — {len(results)}回中、過半数一致の所見のみ採用\n", "section")
+        self._out("─" * 56 + "\n\n", "sep")
+        kept, discarded = _vote_findings(results)
+        if discarded:
+            self._out(
+                f"\n  ⚠ 過半数一致に届かず最終レポートから除外された所見 {len(discarded)}件\n"
+                f"    （文言差により別所見と判定された可能性あり。誤検知と断定はできないため、"
+                f"参考として以下に残します — 最終レポート・検出数には含まれません）:\n\n",
+                "high",
+            )
+            self._out("\n\n".join(discarded) + "\n", "dim")
+        return kept
+
+    # ── モデル別コスト×精度台帳（§5.4・記録のみ） ──────────
+    def _record_telemetry(self, mode: str, target: str, detections: dict, elapsed: float) -> None:
+        """スキャンごとに (model, 検出数, 所要時間) を reports/telemetry.jsonl へ追記する。
+
+        AGENT_ARCHITECTURE.md §5.4「モデル別コスト×精度台帳」の第一段階（まずは記録だけ）。
+        コスパ最良モデルの提案などの分析機能は将来実装。書き込み失敗は握りつぶし本処理を止めない。
+        """
+        try:
+            os.makedirs("reports", exist_ok=True)
+            record = {
+                "ts": datetime.now().isoformat(timespec="seconds"),
+                "mode": mode,
+                "target": target,
+                "model": self.llm.model,
+                "effort": self._effort_override or config.get("effort", "balanced"),
+                "detections": dict(detections or {}),
+                "total_detections": sum((detections or {}).values()),
+                "elapsed_sec": round(elapsed, 1),
+            }
+            with open(os.path.join("reports", "telemetry.jsonl"), "a", encoding="utf-8") as f:
+                f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        except Exception as e:
+            self._log(f"Telemetry write error: {e}")
 
     # ── 成果物の保存 ──────────────────────────────────────
     def _save_investigation(self, mode_title: str, target: str, body: str) -> str | None:

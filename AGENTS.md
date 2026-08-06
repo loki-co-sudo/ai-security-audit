@@ -243,7 +243,7 @@ fix: fix ALERT event not firing in DEFENSE MODE
 - [x] `settings_dialog` に EFFORT セグメント・FAST モデル/URL/KEY 入力／`app.py` ヘッダーに FAST・エフォート併記
 - [x] セルフテスト `2b. ModelRouter/Effort`（エフォート整合性・FASTルーティング・キャッシュ）
 - [x] 設計・継続実装ガイド `docs/AGENT_ARCHITECTURE.md`
-- [ ] （継続）難易度ルーター（オート振り分け）／モデル要件ゲート／検証器アンサンブル → `docs/AGENT_ARCHITECTURE.md` §5
+- [x] （継続、完了）難易度ルーター／モデル要件ゲート／検証器アンサンブル → v2.5.1・v2.6.0で実装済み（下記）
 
 ### 実装済み（v2.3.0 — Webファジング・PDF・デスクトップ統合）
 - [x] `tools/web_fuzzer.py` — Webスマートファザー（同一オリジンクロール→クエリ/フォーム注入点抽出→検出プローブ送出→異常観測）。検出のみ・`max_requests` 上限でDoS回避
@@ -305,19 +305,51 @@ fix: fix ALERT event not firing in DEFENSE MODE
 - [x] `gui/dialogs/settings_dialog.py` — MODEL/FAST欄の変更をtraceして`_readiness_label`にAMBER色で警告表示（`_update_readiness_hint()`）
 - [x] セルフテスト `2b` に `assess_readiness` の3パターン（同一/取り違え/未知slug）を追加
 
+### 実装済み（v2.6.0 — 難易度ルーター・検証器アンサンブル・テレメトリ台帳・CI）
+詳細設計は [docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md) §5。AGENT_ARCHITECTURE.md §5 の
+「下位AIモデル向け継続実装ガイド」記載の3項目（難易度ルーター・検証器アンサンブル・モデル別コスト×
+精度台帳）＋長期ロードマップのCI/CD統合を実装。
+- [x] **難易度ルーター（§5.1）** — `core/model_router.classify_effort(text, llm)` がFASTモデル1コールで
+  対象/コードを trivial/standard/deep に分類しspeed/balanced/qualityへ写像（解析失敗・LLM例外は
+  balancedにフォールバック）。`current_effort(override)` で一時上書きに対応し、
+  `BaseAgent.set_effort_override()`/`_effort()` が1回のrun()だけに適用する（config.effortは変更しない）。
+  `audit_panel`/`attack_panel`/`fuzz_panel` に AUTOトグルを追加（バックグラウンドスレッドで分類しUIをブロックしない）
+- [x] **検証器アンサンブル（§5.3）** — `EFFORT_PRESETS["quality"]["verify_samples"] = 2`。
+  `BaseAgent._verify_findings(evidence, draft, samples)` が独立に複数回検証パスを走らせ、
+  `_vote_findings()`/`_parse_marker_findings()`（NAME/TITLE+LINESをsignatureとするマーカー単位の
+  過半数一致）で採用する所見を決める。全会不一致なら最初のサンプルへフォールバック。
+  samples=1は従来と同一挙動。**過半数に届かず除外された所見はサイレントに消さない** —
+  文言差（例:「SQL Injection in login」↔「SQL injection via username param」）で
+  signatureが一致しないだけの場合もあるため、`_verify_findings()` が除外分を出力ボックスに
+  可視化してから最終レポート用の戻り値からは除く（誤検知の確定ではなく「比較不能」の扱い）
+- [x] **モデル別コスト×精度台帳（§5.4・記録のみ）** — `BaseAgent._record_telemetry(mode, target, detections, elapsed)`
+  が `reports/telemetry.jsonl` へ (ts, mode, target, model, effort, detections, total_detections,
+  elapsed_sec) を追記。4エージェント全てのrun()終端で呼び出し。分析・コスパ提案機能は未実装（将来）
+- [x] **CI/CD統合（第一段階）** — `.github/workflows/selftest.yml`。push/PR/手動実行で
+  `SELFTEST_NON_LLM_ONLY=1 python tools/run_selftest.py` を走らせる（非LLM項目1〜8・2b〜2d・13〜16のみ。
+  実LLM API・実ネットワークを要するテスト9・10・11・12・17は秘密情報が無いためCIでは常にSKIP）。
+  `tools/run_selftest.py` に `SELFTEST_NON_LLM_ONLY` 環境変数と `_skip_llm()` ヘルパーを追加。
+  **スコープの注記**: ロードマップの原文「自動脆弱性スキャン」は自リポジトリへのCODE AUDIT自動実行
+  （実LLM要・push毎にコスト発生）とも解釈できるが、まずは秘密情報なしで安全に回せる回帰テストCIを
+  実装した。自動脆弱性スキャンCIは未実装のまま — ユーザーがAPIキーをGitHub Secretsに設定し明示的に
+  望む場合のみ追加する
+- [x] セルフテスト `2c`（`_vote_findings`・除外分の可視化・TITLE:対応）・`2d`（`_record_telemetry`）・
+  `2b` 拡張（`classify_effort`/`current_effort(override)`/`set_effort_override`）を追加
+- [x] AUTOトグルの堅牢化 — `_auto_classify()` を try/except で全面ラップし、FASTクライアント構築
+  失敗など想定外の例外でもUIスレッドに `balanced` で復帰する（バックグラウンドスレッドの例外は
+  呼び出し元に伝播しないため、揉み消さないと開始ボタンが押しっぱなし状態のまま固まる）
+
 ### 未実装（ロードマップ）
 
-**次のフェーズ（優先度高）— マルチモデル基盤の上に継続実装**
-詳細な設計と手順は [docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md) §5。
-- [ ] 難易度ルーター（オート振り分け）— 対象/コードの難易度を判定しエフォートを自動選択
-- [ ] 検証器アンサンブル — 品質時に検証パスを複数回走らせ多数決で誤検知をさらに削減
-
-**長期**
-- [ ] CI/CD統合（GitHub Actionsでの自動脆弱性スキャン）
-- [ ] モデル別コスト×精度台帳（`reports/telemetry.jsonl`）→ コスパ最良モデルの提案
+**長期・任意**
+- [ ] 自動脆弱性スキャンCI — 上記CI/CD統合の拡張案。push毎に自リポジトリへCODE AUDITを実LLMで
+  自動実行しPRにコメント。secrets設定とコスト発生についてユーザーの明示的な合意が要る
+- [ ] モデル別コスト×精度台帳の分析機能 — `reports/telemetry.jsonl` の記録を集計し、
+  コスパ最良モデルを提案する（現状は記録のみ）
 
 > 完了済み: 拡張ポートスキャン（UDP対応）・認証付きWebファジング（v2.3）／
-> マルチモデル・ルーティング＆推論エフォート（v2.4）。
+> マルチモデル・ルーティング＆推論エフォート（v2.4）／モデル要件ゲート（v2.5.1）／
+> 難易度ルーター・検証器アンサンブル・テレメトリ台帳・CI（v2.6.0）。
 
 ---
 

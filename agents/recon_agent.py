@@ -11,7 +11,7 @@ from __future__ import annotations
 import os
 import re
 import time
-from agents.base_agent import BaseAgent
+from agents.base_agent import BaseAgent, _count_severities
 from tools.network_scanner import NetworkScanner, passive_os_fingerprint
 from tools.web_prober import WebProber
 from core.settings import (
@@ -240,6 +240,7 @@ class ReconAgent(BaseAgent):
             generate_exploit: bool = True, port_scope: str = "common",
             scan_udp: bool = False) -> None:
         self.bus.clear()
+        t0 = time.time()
         self._status(f"偵察開始: {target}")
 
         # intensity = スキャンプロファイル名（stealth / passive / moderate / aggressive）
@@ -445,8 +446,9 @@ class ReconAgent(BaseAgent):
         ], live_stats=True)
 
         # 品質エフォート: STRONGモデルで攻撃仮説を再検証し過剰主張を除去する。
-        if self._effort().get("verify_pass") and not self.is_stopped():
-            full = self._verify_findings(recon_summary, full)
+        effort = self._effort()
+        if effort.get("verify_pass") and not self.is_stopped():
+            full = self._verify_findings(recon_summary, full, samples=effort.get("verify_samples", 1))
         self._step(6, "done")
 
         if self.is_stopped(): return
@@ -486,6 +488,7 @@ class ReconAgent(BaseAgent):
         self._step(8, "done")
 
         total_ports = len(recon_data["ports"])
+        self._record_telemetry("ATTACK MODE", target, _count_severities(full), time.time() - t0)
         self._out("\n\n" + "═" * 56 + "\n", "sep")
         self._out(f"  RECON COMPLETE  |  {total_ports} open ports discovered\n", "green")
         self._out("═" * 56 + "\n", "sep")

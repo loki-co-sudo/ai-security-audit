@@ -20,9 +20,13 @@ from core.settings import EFFORT_PRESETS, DEFAULT_EFFORT
 from core.llm_client import LLMClient
 
 
-def current_effort() -> dict:
-    """現在の推論エフォートのプリセット dict を返す。"""
-    level = config.get("effort", DEFAULT_EFFORT)
+def current_effort(override: str | None = None) -> dict:
+    """現在の推論エフォートのプリセット dict を返す。
+
+    override が指定されればそれを優先する（AUTO難易度ルーターによる一時上書き用。
+    §5.1 参照）。未指定時は従来どおり config.effort を見る。
+    """
+    level = override or config.get("effort", DEFAULT_EFFORT)
     return EFFORT_PRESETS.get(level, EFFORT_PRESETS[DEFAULT_EFFORT])
 
 
@@ -102,3 +106,40 @@ def assess_readiness(strong_id: str, fast_id: str) -> list[str]:
             "取り違えていないか確認してください。"
         )
     return warnings
+
+
+# ─── 難易度ルーター（オート振り分け） ─────────────────────────
+# AGENT_ARCHITECTURE.md §5.1。対象/コードの難易度を超軽量1コールで分類し、
+# エフォート（speed/balanced/quality）を自動選択する。判定はFASTモデルで行う想定
+# （呼び出し側が build_fast_client() 等で渡す）。
+
+_CLASSIFY_SYS = (
+    "You are a triage classifier for a security scan. Given a short description or excerpt of "
+    "the scan target, output EXACTLY ONE WORD: trivial, standard, or deep.\n"
+    "trivial = tiny/simple target; a quick surface check is enough.\n"
+    "standard = typical target; default scan depth is appropriate.\n"
+    "deep = large/complex/high-value target that warrants maximum scrutiny.\n"
+    "Output ONLY the single word, nothing else — no punctuation, no explanation."
+)
+
+_CLASSIFY_TO_EFFORT = {"trivial": "speed", "standard": "balanced", "deep": "quality"}
+
+
+def classify_effort(text: str, llm: LLMClient) -> str:
+    """対象/コードの説明を1コールで分類し、エフォートレベル（speed/balanced/quality）を返す。
+
+    trivial→speed / standard→balanced / deep→quality。LLM呼び出し失敗や
+    解析不能な応答の場合は DEFAULT_EFFORT（balanced）にフォールバックする。
+    ブロックはしない — GUIのAUTOトグルON時のみ呼ばれる想定。
+    """
+    try:
+        reply = llm.complete([
+            {"role": "system", "content": _CLASSIFY_SYS},
+            {"role": "user", "content": (text or "")[:4000]},
+        ]).strip().lower()
+    except Exception:
+        return DEFAULT_EFFORT
+    for word, level in _CLASSIFY_TO_EFFORT.items():
+        if word in reply:
+            return level
+    return DEFAULT_EFFORT

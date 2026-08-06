@@ -71,15 +71,17 @@
 **着手前に必ず `py tools/run_selftest.py`（`PYTHONUTF8=1`）で現状を確認**し、
 **完了後に §8 の検証**を通すこと。
 
-### 5.1 難易度ルーター（オート振り分け）〔中規模〕
+### 5.1 難易度ルーター（オート振り分け）〔実装済み〕
 - 参考: lokicode `specs/agent-v3.md` #1、`src/lib/router.ts` の `classifyTask`。
 - 目的: 対象/コードの難易度を超軽量1コール（FASTモデル）で `trivial|standard|deep` に分類し、
-  エフォートや LangGraph 有効/無効を自動選択する。
-- 実装案: `core/model_router.py` に `classify_effort(text, llm) -> str` を追加。
-  各パネルの開始時（例 `audit_panel._start_scan`）で「オート」トグルON時のみ分類し、
-  結果を config の一時上書きとしてエージェントへ渡す。厳格プロンプトで1語返し、
-  解析失敗時は `balanced` にフォールバック。
-- UI: 各パネルのオプションバーに「AUTO」チェックボックスを追加。
+  エフォートを自動選択する。
+- 実装: `core/model_router.classify_effort(text, llm) -> str`（FASTモデル1コール、
+  trivial→speed/standard→balanced/deep→quality、解析失敗・例外時は `balanced` にフォールバック）。
+  `current_effort(override)` が上書き値を優先する。`BaseAgent.set_effort_override(level)` で
+  1回のrun()だけに適用（`config.effort` グローバル設定は変更しない）。
+  `audit_panel`/`attack_panel`/`fuzz_panel` の「AUTO」チェックボックスON時、開始ボタン押下で
+  バックグラウンドスレッドが分類してからエージェントを起動する（UIをブロックしない）。
+  LangGraph有効/無効の自動選択は未実装（AuditPanelのENGINEトグルは引き続き手動選択）。
 
 ### 5.2 モデル要件ゲート（弱いモデルの警告）〔実装済み〕
 - 参考: lokicode `specs/model-gate.md`、`src/lib/modelGate.ts`。
@@ -90,16 +92,30 @@
   **ヒューリスティック警告**に留めている。未知slugは判定対象外（誤検知より見逃しを優先）。
   `settings_dialog._readiness_label` に琥珀色（AMBER）で表示。MODEL/FAST欄をtraceして自動更新。ブロックしない。
 
-### 5.3 検証器アンサンブル（judge ensembling）〔小規模・任意〕
-- 参考: lokicode `specs/effort-presets.md` §6（見送り扱いだが本ツールでも任意）。
+### 5.3 検証器アンサンブル（judge ensembling）〔実装済み〕
+- 参考: lokicode `specs/effort-presets.md` §6（見送り扱いだが本ツールでは実装）。
 - 目的: `quality` エフォートで `_verify_findings()` を複数回走らせ、共通して残った所見だけ採用。
-- 実装案: `_verify_findings()` に `samples: int` 引数を足し、`EFFORT_PRESETS["quality"]` に
-  `verify_samples: 2` を追加。マーカー単位で多数決。コスト増のため quality 限定。
+- 実装: `BaseAgent._verify_findings(evidence, draft, samples)`。`EFFORT_PRESETS["quality"]` の
+  `verify_samples: 2` により品質エフォート時のみ2回走る（他プリセットは `verify_samples: 1`＝
+  従来と同一挙動）。`agents/base_agent._vote_findings()`/`_parse_marker_findings()` が
+  NAME/TITLE+LINESをsignatureとしてマーカー単位の過半数一致を判定する
+  （audit/fuzzは`NAME:`+`LINES:`、recon（攻撃仮説）は`TITLE:`のみ。両対応）。
+  全会不一致（過半数が誰も取れない＝比較不能）なら安全側として最初のサンプルを採用する。
+  呼び出し元（`audit_agent`/`recon_agent`/`fuzz_agent`）は `effort.get("verify_samples", 1)` を渡すだけ。
+  **既知の限界**: signature一致は完全一致ベースの粗い近似で、独立したLLM呼び出し間の言い回しの
+  違い（例:「SQL Injection in login」↔「SQL injection via username param」）を吸収できない。
+  そのため過半数に届かない＝誤検知確定ではなく「比較不能」であり、`_verify_findings()` は
+  除外分を**出力ボックスに可視化してから**戻り値（＝最終レポート・検出数）からは除く。
+  サイレントな取りこぼしは行わない（本ツールの差別化ポイントである未知脆弱性の見逃し防止に反するため）。
 
-### 5.4 モデル別コスト×精度台帳〔大規模・将来〕
+### 5.4 モデル別コスト×精度台帳〔記録のみ実装済み〕
 - 参考: lokicode ロードマップ「モデル自動最適化（多腕バンディット）」。
 - 目的: スキャンごとに (model, 検出数, 所要時間) を `reports/telemetry.jsonl` へ記録し、
-  コスパ最良モデルを提案。まずは記録だけ実装。
+  将来的にコスパ最良モデルを提案する。
+- 実装: `BaseAgent._record_telemetry(mode, target, detections, elapsed)`。4エージェント
+  （audit/recon/fuzz/monitor）のrun()終端で呼ばれ、`{ts, mode, target, model, effort, detections,
+  total_detections, elapsed_sec}` をJSON Lines追記する。書き込み失敗は握りつぶし本処理を止めない。
+  **未実装**: 集計・分析・コスパ最良モデルの提案（現状は記録のみ）。
 
 ## 6. コスト/精度の考え方（運用者向け）
 

@@ -4,6 +4,7 @@ gui/panels/audit_panel.py — CODE AUDIT タブ
 
 from __future__ import annotations
 import os
+import threading
 import tkinter as tk
 from tkinter import filedialog
 import customtkinter as ctk
@@ -11,7 +12,9 @@ import customtkinter as ctk
 import core.event_bus as ev
 from core.event_bus import EventBus
 from core.llm_client import LLMClient
-from core.settings import BG_PANEL, BG_WIDGET, BG_INPUT, CYAN, TEXT_MID, TEXT_DIM, BG_ROOT, BORDER
+from core.settings import (
+    BG_PANEL, BG_WIDGET, BG_INPUT, CYAN, PURPLE, TEXT_MID, TEXT_DIM, BG_ROOT, BORDER,
+)
 from agents.audit_agent import AuditAgent, STEPS
 from gui.widgets.output_box import OutputBox
 from gui.widgets.progress_steps import ProgressSteps
@@ -32,6 +35,7 @@ class AuditPanel(ctk.CTkFrame):
         self._agent = AuditAgent(bus, llm)
         self._path  = tk.StringVar(value="検査対象ファイルを選択してください ...")
         self._engine_var = tk.StringVar(value="standard")
+        self._auto_var = tk.BooleanVar(value=False)
         self._build()
 
     def _build(self) -> None:
@@ -85,6 +89,13 @@ class AuditPanel(ctk.CTkFrame):
             ctk.CTkLabel(ebar, text="→ pip install langgraph",
                          font=ctk.CTkFont("Segoe UI", 9), text_color=TEXT_DIM,
                          ).pack(side="left", padx=8)
+
+        ctk.CTkCheckBox(
+            ebar, text="AUTO（難易度を自動判定してエフォート選択）", variable=self._auto_var,
+            font=ctk.CTkFont("Segoe UI", 10), text_color=TEXT_DIM,
+            fg_color=PURPLE, hover_color="#A96FE0",
+            checkbox_width=16, checkbox_height=16,
+        ).pack(side="left", padx=16)
 
         # ── メインペイン（左:進捗 / 右:出力） ─────────────
         pane = ctk.CTkFrame(self, fg_color="transparent")
@@ -143,6 +154,36 @@ class AuditPanel(ctk.CTkFrame):
             self._agent = LangGraphAuditAgent(self._bus, self._llm)
         else:
             self._agent = AuditAgent(self._bus, self._llm)
+        if self._auto_var.get():
+            threading.Thread(target=self._auto_classify, args=(path,), daemon=True).start()
+        else:
+            self._agent.set_effort_override(None)
+            self._agent.start(path=path)
+
+    def _auto_classify(self, path: str) -> None:
+        """AUTO: FASTモデルでコードの難易度を分類し、エフォートを一時上書きする（§5.1）。
+
+        分類自体・クライアント構築（例: APIキー未設定でOpenAI初期化が失敗）のどんな例外も
+        ここで揉み消し、balanced扱いでスキャンを続行する。バックグラウンドスレッドの例外は
+        呼び出し元に伝播しないため、揉み消さないとボタンが「実行中」のまま固まってしまう。
+        """
+        level = "balanced"
+        try:
+            from core.model_router import build_fast_client, classify_effort
+            try:
+                with open(path, "r", encoding="utf-8", errors="replace") as f:
+                    sample = f.read(4000)
+            except OSError:
+                sample = path
+            client = build_fast_client(self._llm)
+            level = classify_effort(sample, client)
+        except Exception:
+            pass
+        self.after(0, lambda: self._on_auto_classified(level, path))
+
+    def _on_auto_classified(self, level: str, path: str) -> None:
+        self._steps_widget.log(f"AUTO: 難易度分類 → エフォート = {level}")
+        self._agent.set_effort_override(level)
         self._agent.start(path=path)
 
     def _clear(self) -> None:

@@ -222,6 +222,7 @@ class AuditAgent(BaseAgent):
 
     def run(self, path: str) -> None:
         self.bus.clear()
+        t0 = time.time()
 
         # Step 0: ファイル読み込み
         self._step(0, "running")
@@ -289,10 +290,12 @@ class AuditAgent(BaseAgent):
 
         if self.is_stopped(): return
 
-        # 検証パス: 品質エフォート or balanced effort でも実行（FP検証強化）
+        # 検証パス: 品質エフォート時のみ実行（EFFORT_PRESETS["quality"]["verify_pass"]）。
+        # quality時はさらに verify_samples 回のアンサンブル多数決（§5.3）で誤検知を削減する。
         effort = self._effort()
         if effort.get("verify_pass"):
-            full = self._verify_findings(f"```python\n{source[:6000]}\n```", full)
+            full = self._verify_findings(
+                f"```python\n{source[:6000]}\n```", full, samples=effort.get("verify_samples", 1))
 
         # Step 4: 深刻度集計
         self._step(4, "running")
@@ -345,6 +348,7 @@ class AuditAgent(BaseAgent):
 
         total = sum(counts.values())
         self._stats(counts)
+        self._record_telemetry("CODE AUDIT", path, counts, time.time() - t0)
         self._out("\n\n" + "═" * 56 + "\n", "sep")
         self._out(f"  SCAN COMPLETE  |  {total} vulnerabilities detected\n", "green")
         self._out("═" * 56 + "\n", "sep")

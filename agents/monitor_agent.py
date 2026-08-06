@@ -58,6 +58,7 @@ class MonitorAgent(BaseAgent):
 
     def run(self, log_path: str, watch_mode: bool = True) -> None:
         self.bus.clear()
+        t0 = time.time()
         self._status(f"監視開始: {log_path}")
 
         self._out(
@@ -159,6 +160,7 @@ class MonitorAgent(BaseAgent):
         self._save_investigation("DEFENSE MODE", log_path, body)
 
         total = sum(total_alerts.values())
+        self._record_telemetry("DEFENSE MODE", log_path, total_alerts, time.time() - t0)
         self._out("\n" + "═" * 56 + "\n", "sep")
         self._out(f"  MONITORING ENDED  |  {total} alerts generated\n",
                   "critical" if total_alerts.get("CRITICAL", 0) else "green")

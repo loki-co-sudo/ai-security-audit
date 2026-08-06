@@ -32,6 +32,7 @@ reports/*.log
 reports/*.html
 reports/*.pdf
 reports/*.json
+reports/*.jsonl
 reports/*.md
 reports/*.txt
 # 自動保存される成果物（PoC・調査レポート）
