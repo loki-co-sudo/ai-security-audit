@@ -211,6 +211,11 @@ fix: fix ALERT event not firing in DEFENSE MODE
   PoC送信なし・非DoS）を一切変えない範囲に限る。→ [docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md)
 - 重要な変更後は `py tools/run_selftest.py` でリグレッションを確認する（`PYTHONUTF8=1` 推奨）。
   Windows のコンソールは cp932 のことがあり、`—` 等の出力で UnicodeEncodeError になるため。
+- **Markdown/ドキュメント中に `tools/`・`agents/` 等のパスを書くときは、直前にバックスラッシュを
+  置かない**（v2.5.0で `AGENTS.md` にmojibake混入 — `\a`/`\t`/`\r`/`\v`/`\b` が制御文字として
+  解釈され `a`/`t`/`r`/`v`/`b` の文字が消失した。原因はエスケープ解釈する何らかの中間処理を経由した
+  ことと推測。ファイル編集後は `python3 -c "print([c for c in open(f,encoding='utf-8').read() if ord(c)<32 and c!='\n'])"`
+  で制御文字混入がないか確認できる）。
 
 ---
 
@@ -219,16 +224,17 @@ fix: fix ALERT event not firing in DEFENSE MODE
 
 ### 実装済み（v2.5.0 — Phase 1 即効性改善 全7件 + 追加1件）
 
-- [x] 設定バリデーション強化 — core/config.py に alidate_config()・未知キー警告・ffort/	imeout/
-eport_lang の形式チェック
-- [x] CVEキャッシュ永続化 — 	ools/cve_client.py に 
-eports/cve_cache.json（TTL=1日）・_load_persistent_cache() / _save_persistent_cache()
-- [x] CVE照合の並列化 — 	ools/cve_client.py に search_batch()（ThreadPoolExecutor・全CWEを並列送出）
-- [x] AST静的解析プリプロセッサ — gents/audit_agent.py に st_scan() / _AstVisitor（危険カテゴリ13種・80+関数のパターン抽出→プロンプト注入）
-- [x] 入力トランケーション戦略の改善 — gents/audit_agent.py に smart_truncate()（末尾優先・importスキップ分割・制限値12000文字）・core/orchestrator.py でも採用
-- [x] 防御モニタリングのパターン集約フィルタ — gents/monitor_agent.py に (IP, pattern) キー・300秒ウィンドウ集約・LLM呼び出し削減
-- [x] 既知サービスバナーのローカル照合 — 	ools/known_vulns.yaml（14サービス・約30 CVE）・gents/recon_agent.py に lookup_known_vulns()（PyYAML非依存の簡易パーサ内蔵）・9ステップ化
-- [x] （追加）Deep AnalysisのFP検証強化 — gents/audit_agent.py で alanced effort時も検証パスを実行
+- [x] 設定バリデーション強化 — core/config.py に validate_config()・未知キー警告・effort/timeout/
+  report_lang の形式チェック
+- [x] CVEキャッシュ永続化 — tools/cve_client.py に
+  reports/cve_cache.json（TTL=1日）・_load_persistent_cache() / _save_persistent_cache()
+- [x] CVE照合の並列化 — tools/cve_client.py に search_batch()（ThreadPoolExecutor・全CWEを並列送出）
+- [x] AST静的解析プリプロセッサ — agents/audit_agent.py に ast_scan() / _AstVisitor（危険カテゴリ13種・80+関数のパターン抽出→プロンプト注入）
+- [x] 入力トランケーション戦略の改善 — agents/audit_agent.py に smart_truncate()（末尾優先・importスキップ分割・制限値12000文字）・core/orchestrator.py でも採用
+- [x] 防御モニタリングのパターン集約フィルタ — agents/monitor_agent.py に (IP, pattern) キー・300秒ウィンドウ集約・LLM呼び出し削減
+- [x] 既知サービスバナーのローカル照合 — tools/known_vulns.yaml（14サービス・約30 CVE）・agents/recon_agent.py に lookup_known_vulns()（PyYAML非依存の簡易パーサ内蔵）・9ステップ化
+- [x] （追加）Deep AnalysisのFP検証強化 — agents/audit_agent.py で balanced effort時も検証パスを実行
+
 ### 実装済み（v2.4.0 — ロール別モデルルーティング & 推論エフォート）
 - [x] `core/model_router.py` — STRONG/FAST ロール別モデルルーティング＋エフォート参照（lokicode移植）
 - [x] `settings.EFFORT_PRESETS`（speed/balanced/quality）＋ `config.effort`／`config.llm_fast_model` 等
@@ -294,12 +300,16 @@ eports/cve_cache.json（TTL=1日）・_load_persistent_cache() / _save_persisten
 - [x] `tools/run_selftest.py` — 全機能セルフテスト（31項目、実LLM/実ネットワークでE2E検証。PDF/WebFuzzer/FuzzAgentはローカルモックサーバで検証）
 - [x] バグ修正（レポート生成のキー不一致・サンプルログ生成の変数衝突・orchestratorのEventBus API誤用）
 
+### 実装済み（v2.5.1 — モデル要件ゲート）
+- [x] `core/model_router.assess_readiness(strong_id, fast_id)` — STRONG/FAST取り違えのヒューリスティック警告（`_MODEL_WEIGHT_HINTS` の既知slugパターン照合。未知slugは判定対象外＝誤検知より見逃しを優先）。ブロックはしない
+- [x] `gui/dialogs/settings_dialog.py` — MODEL/FAST欄の変更をtraceして`_readiness_label`にAMBER色で警告表示（`_update_readiness_hint()`）
+- [x] セルフテスト `2b` に `assess_readiness` の3パターン（同一/取り違え/未知slug）を追加
+
 ### 未実装（ロードマップ）
 
 **次のフェーズ（優先度高）— マルチモデル基盤の上に継続実装**
 詳細な設計と手順は [docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md) §5。
 - [ ] 難易度ルーター（オート振り分け）— 対象/コードの難易度を判定しエフォートを自動選択
-- [ ] モデル要件ゲート — 弱いモデル/検証に不向きな構成を設定画面で警告（lokicode `specs/model-gate.md`）
 - [ ] 検証器アンサンブル — 品質時に検証パスを複数回走らせ多数決で誤検知をさらに削減
 
 **長期**

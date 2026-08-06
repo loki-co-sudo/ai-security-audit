@@ -218,6 +218,16 @@ class SettingsDialog(RobustToplevel):
         self._add_entry(body, "FAST KEY", self._fast_key_var, True,
                         "任意: FAST URL を別にした場合のAPIキー")
 
+        # モデル要件ゲート（ヒューリスティック警告・ブロックしない） — AGENT_ARCHITECTURE.md §5.2
+        self._readiness_label = ctk.CTkLabel(
+            body, text="", font=ctk.CTkFont("Segoe UI", 9),
+            text_color=AMBER, anchor="w", justify="left", wraplength=580,
+        )
+        self._readiness_label.pack(anchor="w", pady=(2, 0))
+        self._model_var.trace_add("write", lambda *_a: self._update_readiness_hint())
+        self._fast_model_var.trace_add("write", lambda *_a: self._update_readiness_hint())
+        self._update_readiness_hint()
+
         # 検索ボックス + 件数表示
         search_row = ctk.CTkFrame(body, fg_color="transparent")
         search_row.pack(fill="x", pady=(10, 4))
@@ -278,6 +288,12 @@ class SettingsDialog(RobustToplevel):
             command=self._start_test,
         )
         self._test_btn.pack(side="left", padx=12, pady=10)
+
+    def _update_readiness_hint(self) -> None:
+        """STRONG/FAST モデル構成のヒューリスティック警告を表示する（非ブロッキング）。"""
+        from core.model_router import assess_readiness
+        warnings = assess_readiness(self._model_var.get().strip(), self._fast_model_var.get().strip())
+        self._readiness_label.configure(text=("⚠ " + " / ".join(warnings)) if warnings else "")
 
     def _effort_key(self) -> str:
         """表示ラベル（速度/バランス/品質）から保存キー（speed/balanced/quality）へ変換。"""

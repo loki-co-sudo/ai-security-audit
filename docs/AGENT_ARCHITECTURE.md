@@ -25,7 +25,7 @@
 | 強い検証器（JUDGE） | **検証パス** | `BaseAgent._verify_findings()`（STRONGで敵対的レビュー） |
 | エフォート（速度/バランス/品質） | **EFFORT** | `settings.EFFORT_PRESETS` / `config.effort` |
 | 難易度ルーター（オート） | 未実装（下記ロードマップ） | — |
-| モデル要件ゲート | 未実装（下記ロードマップ） | — |
+| モデル要件ゲート | **モデル要件ゲート** | `core/model_router.assess_readiness()`（`gui/dialogs/settings_dialog.py` で警告表示） |
 
 ### 中核の規約（これだけ守れば自動で最適化される）
 
@@ -81,13 +81,14 @@
   解析失敗時は `balanced` にフォールバック。
 - UI: 各パネルのオプションバーに「AUTO」チェックボックスを追加。
 
-### 5.2 モデル要件ゲート（弱いモデルの警告）〔小規模〕
+### 5.2 モデル要件ゲート（弱いモデルの警告）〔実装済み〕
 - 参考: lokicode `specs/model-gate.md`、`src/lib/modelGate.ts`。
 - 目的: FAST/STRONG が「賢さの壁」を下回る、または検証パスに向かないとき設定画面で警告。
-- 実装案: `core/model_router.py` に `assess_readiness(strong_id, fast_id, models) -> list[str]`。
-  `/v1/models` の応答に知能指数が無い OpenAI 互換が多いため、まずは
-  「STRONG と FAST が同一」「FAST が STRONG より高価そうな既知slug」等の**ヒューリスティック警告**に留める。
-  `settings_dialog` の接続テスト結果ラベル付近に琥珀色で表示。ブロックはしない。
+- 実装: `core/model_router.assess_readiness(strong_id, fast_id) -> list[str]`。
+  `/v1/models` の応答に知能指数が無い OpenAI 互換が多いため、
+  「STRONG と FAST が同一」「FAST が STRONG より高価そうな既知slug（`_MODEL_WEIGHT_HINTS`）」の
+  **ヒューリスティック警告**に留めている。未知slugは判定対象外（誤検知より見逃しを優先）。
+  `settings_dialog._readiness_label` に琥珀色（AMBER）で表示。MODEL/FAST欄をtraceして自動更新。ブロックしない。
 
 ### 5.3 検証器アンサンブル（judge ensembling）〔小規模・任意〕
 - 参考: lokicode `specs/effort-presets.md` §6（見送り扱いだが本ツールでも任意）。

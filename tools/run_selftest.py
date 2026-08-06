@@ -180,6 +180,21 @@ def test_model_router():
     finally:
         cfg._cfg.clear()
         cfg._cfg.update(saved)
+    # モデル要件ゲート（ヒューリスティック警告・ブロックしない）
+    try:
+        assert mr.assess_readiness("anthropic/claude-opus-4.8", "") == [], \
+            "FAST未設定は警告対象外であるべき"
+        assert mr.assess_readiness("anthropic/claude-opus-4.8", "anthropic/claude-opus-4.8"), \
+            "STRONG=FASTは警告すべき"
+        assert mr.assess_readiness("anthropic/claude-fable-5", "anthropic/claude-opus-4.8"), \
+            "FASTがSTRONGより重いと警告すべき"
+        assert mr.assess_readiness("anthropic/claude-opus-4.8", "anthropic/claude-fable-5") == [], \
+            "FASTがSTRONGより軽ければ警告なし"
+        assert mr.assess_readiness("some-unknown-model", "another-unknown-model") == [], \
+            "未知slug同士は判定対象外（誤検知よりも見逃しを優先）"
+        _ok("assess_readiness ヒューリスティック", "同一/取り違え/未知slugの3パターン")
+    except Exception as e:
+        _ng("assess_readiness", repr(e))
 
 
 def test_network_scanner():
