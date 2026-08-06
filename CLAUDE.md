@@ -29,7 +29,9 @@
 
 1. 【変更】コードを修正・追加する。
 2. 【検証】`PYTHONUTF8=1 py tools/run_selftest.py` を実行する
-   （Linux/macOS では `python3 tools/run_selftest.py`。UTF-8がデフォルトのため `PYTHONUTF8=1` は不要）。
+   （Linux/macOS では `.venv/bin/python3 tools/run_selftest.py`。UTF-8がデフォルトのため
+   `PYTHONUTF8=1` は不要。依存は本リポジトリ専用の `.venv` にのみ入っており、Kaliの
+   externally-managed-environment制約もあって素の `python3`/グローバルpipでは動かない）。
    - テスト**1〜8・2b**（EventBus/config/ModelRouter/NetworkScanner/WebProber/LogWatcher/
      パターン検出/ReportGenerator/CVEClient）はLLM呼び出しを行わず、常に全通過が必須。
      ただし3（`example.com` へのDNS解決）・4（`example.com` へのHTTPプローブ）・
