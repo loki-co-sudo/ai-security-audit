@@ -1,4 +1,4 @@
-# AI Security Audit System — 設計書 v2.3
+# AI Security Audit System — 設計書 v2.6
 ## Autonomous Penetration Testing & Defense Platform
 
 ---
@@ -349,6 +349,24 @@ WebProber(profile="stealth")            # UAローテーション＋ジッター
 
 ## 8. 開発ロードマップ
 
+### 完了済み（v2.6.0）
+- [x] 難易度ルーター（オート振り分け）— `core/model_router.classify_effort()`。FASTモデル1コールで
+  対象/コードを分類しエフォートを自動選択（AUDIT/ATTACK/WEB FUZZ の「AUTO」トグル）
+- [x] 検証器アンサンブル — `EFFORT_PRESETS["quality"]["verify_samples"]=2`。マーカー単位の過半数一致で
+  誤検知を削減（不一致所見は最終レポートから除外しつつ出力ログに可視化し見逃しを防止）
+- [x] モデル別コスト×精度台帳（記録のみ）— `reports/telemetry.jsonl`
+- [x] CI/CD統合・第一段階 — `.github/workflows/selftest.yml`（非LLM回帰テストの自動実行）
+
+### 完了済み（v2.5.x）
+- [x] Phase 1 精度・速度・堅牢性改善（AST静的解析プリプロセッサ・入力トランケーション戦略・
+  CVE照合並列化＋永続キャッシュ・防御モニタリングのパターン集約フィルタ・既知サービスローカル照合・
+  設定バリデーション強化）
+- [x] モデル要件ゲート — `core/model_router.assess_readiness()`。STRONG/FAST取り違えを設定画面で警告
+
+### 完了済み（v2.4.0）
+- [x] マルチモデル・ロール別ルーティング（STRONG/FAST）＋推論エフォート（速度/バランス/品質）
+- [x] 品質エフォート時の検証パス（STRONGモデルによる敵対的レビュー）
+
 ### 完了済み（v2.3.0）
 - [x] WEB FUZZ（web_fuzzer + fuzz_agent + fuzz_panel）— クロール→AI検出プローブ→検出のみファジング→AIトリアージ
 - [x] PDFレポート出力（pdf_writer、日本語対応・Pillowのみで依存追加なし）+ HTML/PDF共通エクスポート（export_util）
@@ -373,8 +391,13 @@ WebProber(profile="stealth")            # UAローテーション＋ジッター
 - [x] クロスプラットフォームランチャー（Windows / Linux / macOS）
 - [x] 全機能セルフテスト（tools/run_selftest.py）
 
+### 完了済み（このセクション作成後に実装）
+- [x] 拡張ポートスキャン（UDP対応 ＋ スコープ選択 `common`/`extended`/`full`）— v2.2〜v2.3
+- [x] 認証付きWebアプリのファジング（Cookie / ヘッダー / ログインフォーム＋CSRFトークン自動抽出）— v2.3
+- [x] CI/CD統合・第一段階（GitHub Actions — 非LLM回帰テスト） — v2.6.0（上記参照）
+
 ### 将来拡張
-- [ ] 拡張ポートスキャン（UDP対応 ※ステルス性とのトレードオフを検討）
-- [ ] 認証付きWebアプリのファジング（セッション/CSRFトークン対応）
-- [ ] CI/CD統合（GitHub Actions）
 - [ ] Slack/webhook アラート通知
+- [ ] 自動脆弱性スキャンCI（push毎に自リポジトリへCODE AUDITを実LLMで自動実行。secrets設定・
+  コスト発生の合意が必要。[AGENTS.md](../AGENTS.md) §4参照）
+- [ ] テレメトリ台帳の分析機能（`reports/telemetry.jsonl` を集計しコスパ最良モデルを提案）

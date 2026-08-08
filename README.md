@@ -1,5 +1,5 @@
 # AI Security Audit System
-**Autonomous Penetration Testing & Defense Platform v2.4**
+**Autonomous Penetration Testing & Defense Platform v2.6**
 
 > シグネチャ（既知パターン）に依存しない、AI駆動型・次世代自律ペネトレーションテスト＆脆弱性露出管理システム
 
@@ -403,13 +403,17 @@ BASE URL を OpenRouter（`https://openrouter.ai/api/v1`）にすると、Anthro
 - [x] 認証付きWebアプリのファジング（Cookie / ヘッダー / ログインフォーム＋CSRFトークン自動抽出）
 - [x] マルチモデル・ルーティング（STRONG/FAST の役割分担でコスト最適化）＋推論エフォート（速度/バランス/品質）
 - [x] 品質エフォート時の検証パス（STRONGモデルによる敵対的レビューで誤検知を削減）
+- [x] モデル要件ゲート（STRONG/FASTの取り違えをヒューリスティック検知し設定画面で警告）
+- [x] 難易度ルーター（オート振り分け）— 対象/コードの難易度をFASTモデル1コールで判定しエフォートを自動選択（AUDIT/ATTACK/WEB FUZZ の「AUTO」トグル）
+- [x] 検証器アンサンブル — 品質エフォート時に検証パスを2回走らせマーカー単位の多数決で誤検知を削減（不一致所見は最終レポートから除外しつつ出力ログには可視化し、見逃しを防止）
+- [x] モデル別コスト×精度台帳（`reports/telemetry.jsonl` へスキャンごとの記録。分析・提案機能は今後）
+- [x] CI/CD統合・第一段階（GitHub Actions — 秘密情報不要な非LLM回帰テストを自動実行）
 
 ### 今後の拡張予定
-主要なロードマップ項目は実装済みです。マルチモデル基盤の上に、以下を継続実装できます
-（設計・手順は [docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md) §5）:
-- [ ] 難易度ルーター（オート振り分け）— 対象の難易度を判定しエフォートを自動選択
-- [ ] モデル要件ゲート — 弱いモデル/検証に不向きな構成を設定画面で警告
-- [ ] 検証器アンサンブル — 品質時に検証パスを複数回走らせ多数決で誤検知をさらに削減
+マルチモデル基盤（[docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md) §5）の継続実装ガイド記載分は
+実装済みです。残っているのは長期・任意項目のみ:
+- [ ] 自動脆弱性スキャンCI — pushごとに自リポジトリへCODE AUDITを実LLMで自動実行しPRへコメント（GitHub Secretsの設定とコスト発生についてユーザーの明示的な合意が必要）
+- [ ] テレメトリ台帳の分析機能 — `reports/telemetry.jsonl` を集計しコスパ最良モデルを提案（現状は記録のみ）
 
 ---
 
