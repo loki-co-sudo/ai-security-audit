@@ -181,7 +181,8 @@ class MonitorAgent(BaseAgent):
         """パターン名から暫定深刻度を返す。AI分析前の速報用。"""
         critical = {"CMD_INJECTION", "SSRF"}
         high     = {"SQL_INJECTION", "LFI_RFI", "XSS"}
-        medium   = {"BRUTE_FORCE", "PATH_TRAVERSAL", "SCANNER"}
+        medium   = {"BRUTE_FORCE", "PATH_TRAVERSAL", "SCANNER",
+                    "SENSITIVE_FILE_PROBE", "CMS_PROBE"}
         if pattern_name in critical: return "CRITICAL"
         if pattern_name in high:     return "HIGH"
         if pattern_name in medium:   return "MEDIUM"

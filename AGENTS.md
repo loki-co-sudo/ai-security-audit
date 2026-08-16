@@ -473,6 +473,38 @@ lokicodeの `src/components/ModelPicker.tsx`（コスト階級分類・プロバ
   正しいサイズで開くようにした。xrandrが無い/失敗する環境（Wayland等）では
   従来通り `winfo_screenwidth()`/`winfo_screenheight()`・原点(0,0)にフォールバックする
 
+### 実装済み（設定ダイアログのスクロール対応・モデルピッカー可視性修正）
+- [x] `gui/dialogs/settings_dialog.py` — モデルピッカー追加後、ダイアログが固定高
+  （660x820）の非スクロール `CTkFrame` のままだったため、SCOPE欄より下（検索・
+  コスト階級/プロバイダフィルタ・モデル一覧）が画面外に隠れて操作不能になっていた
+  （実機スクリーンショットで発覚。ヘッドレス環境のpy_compile/AST検証では検知不能
+  だった教訓）。`body` を `CTkScrollableFrame` に変更し、スクロールで全項目に
+  到達できるようにした
+
+### 実装済み（試運転で発覚した検出漏れの修正・2026-08-17）
+実LLM（OpenRouter, STRONG=Claude Haiku 4.5, FAST=Qwen 2.5-7B）での試運転により、
+2件の構造的な検出漏れ（LLMの精度ではなく決定論的なコードの穴）が見つかり修正した:
+- [x] `tools/web_fuzzer.py` の `crawl()` — URL自身のクエリパラメータを注入点として
+  登録する処理が `text/html` 限定のContent-Typeチェックの中にあったため、JSON API・
+  ファイル配信系エンドポイント（`application/json`・`text/plain` 等を返す）の
+  パラメータが構造的に検出対象から漏れていた（IDOR・パストラバーサル検出の見逃しの
+  直接原因）。パラメータ登録をContent-Typeチェックより前に移動（フォーム抽出・
+  リンク追跡は引き続きHTML必須のため `text/html` 限定のまま）
+- [x] `core/settings.ATTACK_PATTERNS` — DEFENSE MODEのパターン集約フィルタが、
+  admin/config.php・`.env`・`.git/HEAD`・`?cmd=cat`形式のコマンドインジェクション・
+  wp-admin・xmlrpc.php の6種の攻撃シグネチャに対応するパターンを持たず、
+  `_pattern_match()` の時点（LLM分析より前）で無視されていた。新カテゴリ
+  `SENSITIVE_FILE_PROBE`・`CMS_PROBE` を追加し、`CMD_INJECTION` に `?cmd=` 形式も
+  追加（`agents/monitor_agent.py` の `_quick_severity()` にも両カテゴリをMEDIUMとして
+  登録）。`tools/run_selftest.py` に `tools/log_watcher.py` の `attack_lines` 全件が
+  最低1パターンにマッチすることを確認する回帰テストを追加
+
+**試運転で見つかったが今回は対応しなかった項目**（将来検討）: DEFENSE MODEの
+MITRE ATT&CKタグ付けが一部不正確だった（例: SQLiにT1021.001＝RDP横展開を誤って
+付与）。これはLLMのプロンプト/判断品質の問題であり、パターンマッチのような
+決定論的な修正では検証できない。再検証には実LLMでの再試運転（課金）が必要なため、
+今回は見送った
+
 ### 未実装（ロードマップ）
 
 **長期・任意**

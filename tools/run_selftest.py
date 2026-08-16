@@ -574,6 +574,14 @@ def test_pattern_match():
             "GET /run?x=; cat /etc/passwd":                    "CMD_INJECTION",
             "User-Agent: sqlmap/1.7":                          "SCANNER",
             "GET /index.html HTTP/1.1":                        None,
+            # 以下6件は試運転（2026-08-17）で検出漏れが発覚した回帰ケース。
+            # tools/log_watcher.py の attack_lines と同一文字列を使う。
+            "GET /admin/config.php HTTP/1.1":                  "SENSITIVE_FILE_PROBE",
+            "GET /.env HTTP/1.1":                              "SENSITIVE_FILE_PROBE",
+            "GET /.git/HEAD HTTP/1.1":                         "SENSITIVE_FILE_PROBE",
+            "POST /api/exec?cmd=cat%20/etc/passwd HTTP/1.1":   "CMD_INJECTION",
+            "GET /wp-admin/admin.php HTTP/1.1":                "CMS_PROBE",
+            "GET /xmlrpc.php HTTP/1.1":                        "CMS_PROBE",
         }
         for line, expect in cases.items():
             matched = m._pattern_match(line)
@@ -582,10 +590,24 @@ def test_pattern_match():
             else:
                 assert expect in matched, f"{line!r} -> {matched}, expected {expect}"
         _ok("_pattern_match 全パターン", f"{len(cases)} cases")
+        # log_watcher.py の attack_lines 全件が最低1パターンにマッチすることを確認
+        # （サンプルログ生成が想定する攻撃シグネチャに検出漏れが無いことの回帰チェック）
+        from tools.log_watcher import LogWatcher
+        import inspect
+        src = inspect.getsource(LogWatcher.generate_sample_log)
+        # attack_lines リスト内の文字列リテラルを雑にでも拾えれば十分（保守目的の緩いチェック）
+        import re as _re
+        literals = _re.findall(r'"([^"]{15,})"', src)
+        unmatched = [s for s in literals if s.startswith(("GET ", "POST ", "User-Agent"))
+                     and not m._pattern_match(s)]
+        assert not unmatched, f"attack_lines のうちパターン未マッチ: {unmatched}"
+        _ok("log_watcher.attack_lines 全件マッチ", f"{len(literals)}件中0件が未検出")
         # severity マッピング
         assert m._quick_severity("CMD_INJECTION") == "CRITICAL"
         assert m._quick_severity("SQL_INJECTION") == "HIGH"
         assert m._quick_severity("SCANNER") == "MEDIUM"
+        assert m._quick_severity("SENSITIVE_FILE_PROBE") == "MEDIUM"
+        assert m._quick_severity("CMS_PROBE") == "MEDIUM"
         _ok("_quick_severity マッピング")
     except Exception as e:
         _ng("pattern match", repr(e))
