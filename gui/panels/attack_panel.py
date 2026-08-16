@@ -147,6 +147,11 @@ class AttackPanel(ctk.CTkFrame):
                       border_color=RED_C, border_width=1,
                       text_color=RED_C, font=ctk.CTkFont("Segoe UI", 10),
                       command=self._export_report).pack(side="right", padx=(0, 6))
+        ctk.CTkButton(hdr, text="📝 MD", width=66, height=26,
+                      fg_color="#1A0808", hover_color="#2A1010",
+                      border_color=RED_C, border_width=1,
+                      text_color=RED_C, font=ctk.CTkFont("Segoe UI", 10),
+                      command=self._export_markdown).pack(side="right", padx=(0, 6))
 
         self._out_box = OutputBox(right)
         self._out_box.pack(fill="both", expand=True, padx=10, pady=(0, 10))
@@ -210,6 +215,14 @@ class AttackPanel(ctk.CTkFrame):
     def _export_report(self) -> None:
         from gui import export_util
         export_util.export_html(
+            "ATTACK MODE", self._target_entry.get().strip(),
+            self._out_box.get_text(), self._llm.model,
+            "attack_mode", self._steps_widget.log,
+        )
+
+    def _export_markdown(self) -> None:
+        from gui import export_util
+        export_util.export_markdown(
             "ATTACK MODE", self._target_entry.get().strip(),
             self._out_box.get_text(), self._llm.model,
             "attack_mode", self._steps_widget.log,

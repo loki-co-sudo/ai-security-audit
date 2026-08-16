@@ -321,6 +321,83 @@ def generate_pdf(
     )
 
 
+# ── Markdown 出力（バグバウンティ提出用） ─────────────────────
+def generate_markdown(
+    mode: str,
+    target: str,
+    raw_text: str,
+    model: str = "Unknown",
+    timestamp: str | None = None,
+    lang: str | None = None,
+) -> str:
+    """バグバウンティ提出用（HackerOne/Bugcrowd等）のMarkdownレポートを生成する。
+
+    既存の ---VULN_START/END--- パーサをそのまま再利用し、Summary / Steps to
+    Reproduce / Impact / Suggested Fix の4項目テンプレートで出力する
+    （BOUNTY_ROADMAP.md Phase D）。
+    """
+    if timestamp is None:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    lbl = _labels(lang)
+    findings, counts = _findings_and_counts(mode, raw_text)
+
+    lines = [
+        f"# {lbl['doc_title']} — {mode}",
+        "",
+        f"- **{lbl['target']}**: {target or '—'}",
+        f"- **{lbl['engine']}**: {model}",
+        f"- **{lbl['date']}**: {timestamp}",
+        f"- **{lbl['generated_by']}**: AI Security Audit System v{APP_VERSION}",
+        "",
+        f"## {lbl['summary']}",
+        "",
+        f"CRITICAL: {counts['CRITICAL']}  |  HIGH: {counts['HIGH']}  |  "
+        f"MEDIUM: {counts['MEDIUM']}  |  LOW: {counts['LOW']}",
+        "",
+    ]
+    for f in findings:
+        sev = (f.get("severity") or "LOW").upper()
+        name = f.get("name") or "Unknown"
+        lines.append(f"## [{sev}] {name}")
+        lines.append("")
+        lines.append("### Summary")
+        lines.append(name)
+        lines.append("")
+        if f.get("lines"):
+            lines.append(f"**Location**: {f['lines']}")
+            lines.append("")
+        lines.append("### Steps to Reproduce")
+        lines.append("```")
+        lines.append(f.get("snippet") or "(詳細はレポート全文参照)")
+        lines.append("```")
+        lines.append("")
+        lines.append("### Impact")
+        lines.append(f.get("attack") or "(記載なし)")
+        lines.append("")
+        lines.append("### Suggested Fix")
+        lines.append("```")
+        lines.append(f.get("fix") or "(記載なし)")
+        lines.append("```")
+        lines.append("")
+    if not findings:
+        lines.append("_（検出項目なし）_")
+        lines.append("")
+    lines.append("---")
+    lines.append(lbl["footer"])
+    return "\n".join(lines)
+
+
+def save_markdown(md_content: str, mode: str, reports_dir: str = "reports") -> str:
+    """Markdownレポートをファイルに保存してパスを返す。"""
+    os.makedirs(reports_dir, exist_ok=True)
+    ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
+    slug = re.sub(r"[^a-z0-9]", "_", mode.lower())[:20]
+    path = os.path.join(reports_dir, f"report_{slug}_{ts}.md")
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(md_content)
+    return path
+
+
 def save_pdf(pdf_bytes: bytes, mode: str, reports_dir: str = "reports") -> str:
     """PDFバイト列をファイルに保存してパスを返す。"""
     os.makedirs(reports_dir, exist_ok=True)

@@ -42,3 +42,14 @@ def export_pdf(
         log("PDF出力には Pillow が必要です: pip install Pillow")
         return
     _open(report_generator.save_pdf(pdf_bytes, slug), log)
+
+
+def export_markdown(
+    mode: str, target: str, raw: str, model: str,
+    slug: str, log: Callable[[str], None],
+) -> None:
+    """バグバウンティ提出用Markdownレポートを出力する（BOUNTY_ROADMAP.md Phase D）。"""
+    md_content = report_generator.generate_markdown(
+        mode=mode, target=target, raw_text=raw, model=model,
+    )
+    _open(report_generator.save_markdown(md_content, slug), log)
