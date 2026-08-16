@@ -24,6 +24,7 @@ STEPS = [
     "クロール・注入点検出中",
     "AIが検出プローブを生成中",
     "ファジング実行中（検出のみ）",
+    "認可チェック中（別セッション比較・第2アカウント設定時のみ）",
     "AIが結果をトリアージ中",
     "レポートを生成中",
 ]
@@ -40,7 +41,9 @@ SQLI, XSS, TRAVERSAL, SSTI. Keep each list to 3-5 short entries. No commentary."
 _TRIAGE_SYS = """You are an expert web application penetration tester triaging the results of \
 an authorized detection-only fuzzing run. You are given the injection points tested and the \
 anomalies observed (reflected payloads, DB error signatures, template evaluation, file-content \
-signatures). Assess each observation, discard likely false positives, and report confirmed or \
+signatures). You may also receive an ACCESS CONTROL CHECK section (2nd-session GET-only \
+comparison) — treat entries there as additional evidence of IDOR / broken access control. \
+Assess each observation, discard likely false positives, and report confirmed or \
 probable vulnerabilities.
 
 For each finding, output EXACTLY this block (the report generator parses these markers):
@@ -75,8 +78,11 @@ class FuzzAgent(BaseAgent):
         max_requests: int = 200,
         max_pages: int = 20,
         auth: dict | None = None,
+        auth_b: dict | None = None,
     ) -> None:
         self.bus.clear()
+        if not self._check_scope(target):
+            return
         t0 = time.time()
         self._status(f"ファジング開始: {target}")
 
@@ -105,7 +111,7 @@ class FuzzAgent(BaseAgent):
 
         fuzzer = WebFuzzer(
             profile=profile, max_pages=max_pages,
-            max_requests=max_requests, log=self._log, auth=auth,
+            max_requests=max_requests, log=self._log, auth=auth, auth_b=auth_b,
         )
 
         # 認証を適用（Cookie / ヘッダー / ログインフォーム）
@@ -113,6 +119,10 @@ class FuzzAgent(BaseAgent):
             ok, msg = fuzzer.authenticate()
             self._out(f"  [AUTH] {msg}\n", "green" if ok else "high")
             self._log(f"auth: {msg}")
+        if auth_b:
+            ok_b, msg_b = fuzzer.authenticate_b()
+            self._out(f"  [AUTH-B] {msg_b}\n", "green" if ok_b else "high")
+            self._log(f"auth_b: {msg_b}")
 
         # ── Step 1: クロール・注入点検出 ───────────────────
         self._step(1, "running")
@@ -170,13 +180,35 @@ class FuzzAgent(BaseAgent):
         if self.is_stopped():
             return
 
-        # ── Step 4: AIトリアージ ───────────────────────────
+        # ── Step 4: 認可チェック（第2アカウント設定時のみ・GET限定） ──
         self._step(4, "running")
+        idor_findings: list[dict] = []
+        if auth_b:
+            self._out("\n" + "─" * 56 + "\n", "sep")
+            self._out("  PHASE — ACCESS CONTROL CHECK (2nd session, GET-only)\n", "section")
+            self._out("─" * 56 + "\n", "sep")
+            self._status("認可チェック中（別セッション比較）...")
+            idor_findings = fuzzer._detect_idor(points)
+            if idor_findings:
+                self._out(f"\n  {len(idor_findings)} 件のアクセス制御不備の兆候を観測:\n\n", "high")
+                for f in idor_findings:
+                    self._out(f"    [IDOR?] {f['param']}@{f['url']}\n", "high")
+                    self._out(f"        evidence: {f['evidence']}\n", "dim")
+            else:
+                self._out("\n  (兆候なし)\n", "dim")
+        else:
+            self._out("\n  (第2アカウント未設定のためスキップ)\n", "dim")
+        self._step(4, "done")
+        if self.is_stopped():
+            return
+
+        # ── Step 5: AIトリアージ ───────────────────────────
+        self._step(5, "running")
         self._out("\n" + "─" * 56 + "\n", "sep")
         self._out("  PHASE 4 — AI TRIAGE & REPORT  (streaming)\n", "section")
         self._out("─" * 56 + "\n\n", "sep")
         self._status("AIが結果をトリアージ中 ...")
-        summary = self._build_summary(base_url, points, anomalies)
+        summary = self._build_summary(base_url, points, anomalies, idor_findings)
         full = self._stream_llm([
             self.llm.system(_TRIAGE_SYS),
             self.llm.user(f"Triage these authorized fuzzing results:\n\n{summary}"),
@@ -186,13 +218,13 @@ class FuzzAgent(BaseAgent):
         effort = self._effort()
         if effort.get("verify_pass") and not self.is_stopped():
             full = self._verify_findings(summary, full, samples=effort.get("verify_samples", 1))
-        self._step(4, "done")
+        self._step(5, "done")
 
         # 調査レポートをファイルに保存する。
         body = f"## Fuzzing Summary\n```\n{summary}\n```\n\n## AI Triage\n{full}\n"
         self._save_investigation("WEB FUZZ", base_url, body)
 
-        # ── Step 5: 完了 ───────────────────────────────────
+        # ── Step 6: 完了 ───────────────────────────────────
         counts = {s: len(re.findall(rf"SEVERITY:\s*{s}\b", full, re.I))
                   for s in ("CRITICAL", "HIGH", "MEDIUM", "LOW")}
         self._finish(sum(counts.values()), counts, target=base_url, t0=t0)
@@ -234,7 +266,7 @@ class FuzzAgent(BaseAgent):
         return out
 
     @staticmethod
-    def _build_summary(base_url, points, anomalies) -> str:
+    def _build_summary(base_url, points, anomalies, idor_findings: list[dict] | None = None) -> str:
         lines = [f"TARGET: {base_url}",
                  f"INJECTION POINTS TESTED: {len(points)}"]
         for ip in points[:30]:
@@ -248,12 +280,17 @@ class FuzzAgent(BaseAgent):
                 f"status={a['status']} severity_hint={a['severity']}\n"
                 f"    payload={a['payload']}\n    evidence={a['evidence']}"
             )
+        idor_findings = idor_findings or []
+        if idor_findings:
+            lines.append(f"\nACCESS CONTROL CHECK (2nd session, GET-only) — {len(idor_findings)} signal(s):")
+            for f in idor_findings:
+                lines.append(f"  - param={f['param']} url={f['url']} evidence={f['evidence']}")
         return "\n".join(lines)
 
     # ── 完了処理 ───────────────────────────────────────────
     def _finish(self, total: int, counts: dict | None = None,
                 target: str = "", t0: float | None = None) -> None:
-        self._step(5, "running")
+        self._step(6, "running")
         if counts:
             self._stats(counts)
         if t0 is not None:
@@ -261,6 +298,6 @@ class FuzzAgent(BaseAgent):
         self._out("\n\n" + "═" * 56 + "\n", "sep")
         self._out(f"  FUZZING COMPLETE  |  {total} findings reported\n", "green")
         self._out("═" * 56 + "\n", "sep")
-        self._step(5, "done")
+        self._step(6, "done")
         self._status(f"ファジング完了 — {total} findings")
         self._done()

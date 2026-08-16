@@ -49,6 +49,11 @@ _SSTI_PROBE_RESULT = "49"
 
 _SQL_ERR_RE = re.compile("|".join(_SQL_ERRORS), re.I)
 
+# オブジェクトID風パラメータの判定（数値ID or UUID）。IDOR比較の候補選定に使う。
+_OBJ_ID_RE = re.compile(
+    r"^\d+$|^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I,
+)
+
 
 # ── 既定の検出プローブ（AI生成ペイロードが無い場合のフォールバック） ──
 # いずれも標準的な脆弱性"検出"用テストベクタ（兆候観測が目的）。
@@ -72,6 +77,7 @@ class WebFuzzer:
         timeout: int = 8,
         log: Callable[[str], None] | None = None,
         auth: dict | None = None,
+        auth_b: dict | None = None,
     ):
         prof = SCAN_PROFILES.get(profile, SCAN_PROFILES[DEFAULT_SCAN_PROFILE])
         self.threads      = prof["path_threads"]
@@ -81,39 +87,56 @@ class WebFuzzer:
         self.timeout      = timeout
         self.log          = log or (lambda m: None)
         self.auth         = auth or {}          # 認証設定（cookie/header/login）
+        self.auth_b       = auth_b or {}        # 第2アカウント設定（IDOR比較用・任意）
         self._req_count   = 0
         self._user_agents = list(STEALTH_USER_AGENTS)
         self.session = requests.Session()
         self.session.verify = False
+        # 第2セッション（IDOR比較用）。auth_b 未設定なら None のまま
+        # （_detect_idor は None なら即座に空リストを返す＝既存挙動への影響なし）。
+        self.session_b = None
+        if self.auth_b:
+            self.session_b = requests.Session()
+            self.session_b.verify = False
 
     # ── 認証 ───────────────────────────────────────────────
     def authenticate(self) -> tuple[bool, str]:
-        """Cookie / ヘッダー / ログインフォーム認証をセッションへ適用する。
+        """主セッション（session）へ Cookie / ヘッダー / ログインフォーム認証を適用する。"""
+        return self._authenticate_session(self.session, self.auth)
+
+    def authenticate_b(self) -> tuple[bool, str]:
+        """第2セッション（session_b・IDOR比較用）へ認証を適用する。session_b 未設定なら何もしない。"""
+        if self.session_b is None:
+            return True, "第2セッション未設定"
+        return self._authenticate_session(self.session_b, self.auth_b)
+
+    def _authenticate_session(self, session, auth: dict) -> tuple[bool, str]:
+        """Cookie / ヘッダー / ログインフォーム認証を指定セッションへ適用する。
 
         ログインフォームは CSRF を含む hidden 入力を自動抽出して送信する。
         以後のクロール／ファジングはこの認証済みセッションで行われる。
         """
-        a = self.auth or {}
+        a = auth or {}
         applied: list[str] = []
 
         # 1) 生Cookie（例: "sessionid=abc; csrftoken=xyz"）
         #    ドメイン依存を避けるため Cookie ヘッダーとして全リクエストに付与する。
         raw = (a.get("cookie") or "").strip()
         if raw:
-            self.session.headers["Cookie"] = raw
+            session.headers["Cookie"] = raw
             applied.append("cookie")
 
         # 2) 任意ヘッダー（例: Authorization: Bearer ...）
         hn = (a.get("header_name") or "").strip()
         hv = (a.get("header_value") or "").strip()
         if hn and hv:
-            self.session.headers[hn] = hv
+            session.headers[hn] = hv
             applied.append("header")
 
         # 3) ログインフォーム（CSRF自動対応）
         login_url = (a.get("login_url") or "").strip()
         if login_url:
-            ok, msg = self._form_login(a, login_url)
+            ok, msg = self._form_login(session, a, login_url)
             applied.append(f"login({'ok' if ok else 'uncertain'})")
             if not ok:
                 return False, msg
@@ -122,9 +145,9 @@ class WebFuzzer:
             return True, "認証設定なし"
         return True, "認証適用: " + ", ".join(applied)
 
-    def _form_login(self, a: dict, login_url: str) -> tuple[bool, str]:
+    def _form_login(self, session, a: dict, login_url: str) -> tuple[bool, str]:
         try:
-            r = self.session.get(login_url, timeout=self.timeout, verify=False)
+            r = session.get(login_url, timeout=self.timeout, verify=False)
         except requests.RequestException as e:
             return False, f"ログインページ取得失敗: {e}"
 
@@ -139,12 +162,12 @@ class WebFuzzer:
 
         action = (a.get("post_url") or "").strip() or login_url
         try:
-            rp = self.session.post(action, data=fields, timeout=self.timeout,
-                                   allow_redirects=True, verify=False)
+            rp = session.post(action, data=fields, timeout=self.timeout,
+                              allow_redirects=True, verify=False)
         except requests.RequestException as e:
             return False, f"ログインPOST失敗: {e}"
 
-        if self._login_ok(rp):
+        if self._login_ok(session, rp):
             return True, "ログイン成功"
         return False, ("ログイン失敗の可能性（認証フォームが残存／"
                        "セッションCookie未設定）。認証なしで継続します。")
@@ -167,11 +190,11 @@ class WebFuzzer:
             return fields
         return {}
 
-    def _login_ok(self, resp) -> bool:
+    def _login_ok(self, session, resp) -> bool:
         """ログイン成否のヒューリスティック判定。"""
         body = resp.text.lower()
         still_login = "type=\"password\"" in body or "type='password'" in body
-        has_cookie  = len(self.session.cookies) > 0
+        has_cookie  = len(session.cookies) > 0
         return (not still_login) and (has_cookie or resp.status_code in (301, 302, 303))
 
     # ── 内部ヘルパー ───────────────────────────────────────
@@ -320,6 +343,82 @@ class WebFuzzer:
         if method == "POST":
             return self._get(url, data=fields, method="POST")
         return self._get(url, params=fields, method="GET")
+
+    # ── 3. アクセス制御不備(IDOR)チェック — 第2セッション比較（GET限定・検出のみ） ──
+    def _detect_idor(self, points: list[dict]) -> list[dict]:
+        """第2セッション（session_b）で、セッションAのみアクセス可能なはずの
+        オブジェクトID風パラメータへ、同一URLへのGETのみで再取得し比較する。
+
+        安全境界: GET等の非破壊メソッドに限定する（BOUNTY_ROADMAP.md Phase C）。
+        POST/PUT/DELETE等の書き込み系メソッドは対象外（データ改変のリスクを避けるため）。
+        GET限定は原則であり、サーバ側の実装次第（副作用のあるGETエンドポイント等）では
+        100%の安全性を保証するものではない（advisorレビュー指摘・2026-08-16）。
+        session_b が未設定（auth_b未設定）なら常に空リストを返す（後方互換）。
+        """
+        if self.session_b is None:
+            return []
+        findings: list[dict] = []
+        seen_urls: set[str] = set()
+        for p in points:
+            if not self._budget_left():
+                break
+            if p["method"] != "GET":
+                continue
+            value = str(p.get("fields", {}).get(p["param"], ""))
+            if not _OBJ_ID_RE.match(value):
+                continue
+            if p["url"] in seen_urls:
+                continue
+            seen_urls.add(p["url"])
+
+            full_url = p["url"]
+            if p.get("fields"):
+                full_url = full_url + "?" + urlencode(p["fields"])
+
+            resp_a = self._send_as(self.session, full_url)
+            if resp_a is None or resp_a.status_code >= 400:
+                continue
+            resp_b = self._send_as(self.session_b, full_url)
+            if resp_b is None:
+                continue
+            if resp_b.status_code == 200 and self._bodies_similar(resp_a.text, resp_b.text):
+                findings.append({
+                    "url": full_url, "param": p["param"], "method": p["method"],
+                    "status_a": resp_a.status_code, "status_b": resp_b.status_code,
+                    "evidence": (
+                        "第2セッションが同一URLへのGETで200・類似コンテンツを取得"
+                        "（本来アクセス権が無いはずの可能性 — 要人手確認）"
+                    ),
+                })
+                self.log(f"  [!] IDOR? 兆候: {p['param']}@{full_url}")
+        return findings
+
+    def _send_as(self, session, url: str):
+        """指定セッションで予算・ジッターを考慮してGETリクエストを送る。失敗時 None。"""
+        if not self._budget_left():
+            return None
+        lo, hi = self.jitter
+        if hi > 0:
+            time.sleep(random.uniform(lo, hi))
+        self._req_count += 1
+        headers = {"User-Agent": random.choice(self._user_agents)}
+        try:
+            return session.get(url, headers=headers, timeout=self.timeout,
+                               allow_redirects=False, verify=False)
+        except requests.RequestException:
+            return None
+
+    @staticmethod
+    def _bodies_similar(a: str, b: str, threshold: float = 0.6) -> bool:
+        """簡易類似度判定（同一オブジェクトのレスポンスかどうかの粗い近似）。
+
+        最終判定ではなく、AIトリアージに渡す追加エビデンスの選別に使うだけなので、
+        厳密な差分アルゴリズムではなく長さ比という粗い近似で十分とする。
+        """
+        if not a or not b:
+            return False
+        la, lb = len(a), len(b)
+        return min(la, lb) / max(la, lb) >= threshold
 
     def _detect(self, category, payload, resp, base_body, base_len):
         """(severity, evidence) を返す。兆候なしなら None。検出のみ。"""

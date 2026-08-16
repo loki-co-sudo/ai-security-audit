@@ -30,6 +30,7 @@ class FuzzPanel(ctk.CTkFrame):
         self._profile   = tk.StringVar(value="stealth")
         self._budget    = tk.StringVar(value="200")
         self._auth: dict = {}   # 認証設定（🔐ボタンで設定）
+        self._auth_b: dict = {}  # 第2アカウント設定（IDOR比較用・任意）
         self._auto_var  = tk.BooleanVar(value=False)
         self._build()
 
@@ -96,6 +97,19 @@ class FuzzPanel(ctk.CTkFrame):
         )
         self._auth_btn.pack(side="left", padx=(0, 8), pady=7)
 
+        self._auth_b_btn = ctk.CTkButton(
+            obar, text="🔐 認証B(IDOR比較・任意)", width=150, height=26,
+            fg_color=BG_INPUT, hover_color="#3A2400",
+            border_color=AMBER, border_width=1,
+            text_color=AMBER, font=ctk.CTkFont("Segoe UI", 10),
+            command=self._open_auth_b,
+        )
+        self._auth_b_btn.pack(side="left", padx=(0, 4), pady=7)
+        ctk.CTkLabel(
+            obar, text="※複数アカウント使用は対象プログラムの規約(ROE)で許可されているか要確認",
+            font=ctk.CTkFont("Segoe UI", 8), text_color=AMBER,
+        ).pack(side="left", padx=(0, 8))
+
         ctk.CTkCheckBox(
             obar, text="AUTO", variable=self._auto_var,
             font=ctk.CTkFont("Segoe UI", 10), text_color=TEXT_DIM,
@@ -138,6 +152,11 @@ class FuzzPanel(ctk.CTkFrame):
                       border_color=AMBER, border_width=1,
                       text_color=AMBER, font=ctk.CTkFont("Segoe UI", 10),
                       command=self._export_report).pack(side="right", padx=(0, 6))
+        ctk.CTkButton(hdr, text="📝 MD", width=66, height=26,
+                      fg_color="#1A1000", hover_color="#2A1A00",
+                      border_color=AMBER, border_width=1,
+                      text_color=AMBER, font=ctk.CTkFont("Segoe UI", 10),
+                      command=self._export_markdown).pack(side="right", padx=(0, 6))
 
         self._out_box = OutputBox(right)
         self._out_box.pack(fill="both", expand=True, padx=10, pady=(0, 10))
@@ -189,6 +208,7 @@ class FuzzPanel(ctk.CTkFrame):
             profile=self._profile.get(),
             max_requests=budget,
             auth=self._auth or None,
+            auth_b=self._auth_b or None,
         )
 
     def _open_auth(self) -> None:
@@ -198,6 +218,19 @@ class FuzzPanel(ctk.CTkFrame):
     def _on_auth_saved(self, data: dict) -> None:
         self._auth = data or {}
         self._auth_btn.configure(text="🔐 認証✓" if self._auth else "🔐 認証")
+
+    def _open_auth_b(self) -> None:
+        from gui.dialogs.auth_dialog import AuthDialog
+        AuthDialog(
+            self.winfo_toplevel(), initial=self._auth_b, on_save=self._on_auth_b_saved,
+            title="🔐  認証設定（第2セッション・IDOR比較用）",
+        )
+
+    def _on_auth_b_saved(self, data: dict) -> None:
+        self._auth_b = data or {}
+        self._auth_b_btn.configure(
+            text="🔐 認証B✓(IDOR比較)" if self._auth_b else "🔐 認証B(IDOR比較・任意)"
+        )
 
     def _stop(self) -> None:
         self._agent.stop()
@@ -216,6 +249,14 @@ class FuzzPanel(ctk.CTkFrame):
     def _export_pdf(self) -> None:
         from gui import export_util
         export_util.export_pdf(
+            "WEB FUZZ", self._target_entry.get().strip(),
+            self._out_box.get_text(), self._llm.model,
+            "web_fuzz", self._steps_widget.log,
+        )
+
+    def _export_markdown(self) -> None:
+        from gui import export_util
+        export_util.export_markdown(
             "WEB FUZZ", self._target_entry.get().strip(),
             self._out_box.get_text(), self._llm.model,
             "web_fuzz", self._steps_widget.log,

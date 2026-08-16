@@ -19,9 +19,11 @@ from gui.dialogs.base import RobustToplevel
 
 class AuthDialog(RobustToplevel):
 
-    def __init__(self, master, initial: dict | None = None, on_save: callable = None):
+    def __init__(self, master, initial: dict | None = None, on_save: callable = None,
+                 title: str = "🔐  認証設定（認証付きファジング）"):
         super().__init__(master)
         self._on_save = on_save
+        self._header_title = title
         init = initial or {}
 
         self.title("WEB FUZZ 認証設定")
@@ -64,7 +66,7 @@ class AuthDialog(RobustToplevel):
         hdr = ctk.CTkFrame(self, fg_color=BG_WIDGET, corner_radius=0, height=50)
         hdr.pack(fill="x")
         hdr.pack_propagate(False)
-        ctk.CTkLabel(hdr, text="🔐  認証設定（認証付きファジング）",
+        ctk.CTkLabel(hdr, text=self._header_title,
                      font=ctk.CTkFont("Segoe UI", 14, "bold"),
                      text_color=AMBER).pack(side="left", padx=16, pady=12)
 
