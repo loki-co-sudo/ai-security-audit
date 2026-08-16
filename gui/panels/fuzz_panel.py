@@ -73,7 +73,7 @@ class FuzzPanel(ctk.CTkFrame):
         ctk.CTkLabel(obar, text="PROFILE:", font=ctk.CTkFont("Segoe UI", 10),
                      text_color=TEXT_DIM).pack(side="left", padx=(14, 4), pady=8)
         ctk.CTkOptionMenu(
-            obar, values=["stealth", "passive", "moderate", "aggressive"],
+            obar, values=["stealth", "passive", "moderate", "aggressive", "bounty"],
             variable=self._profile, width=120, height=26,
             fg_color=BG_INPUT, button_color="#3A2400",
             font=ctk.CTkFont("Segoe UI", 10), text_color=TEXT_PRI,
