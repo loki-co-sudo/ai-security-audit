@@ -914,9 +914,19 @@ def _start_mock_web_server():
             qs = parse_qs(u.query)
             q = qs.get("q", [""])[0]
             pid = qs.get("id", [""])[0]
+            if u.path == "/api/data":
+                # 非HTML（JSON）応答のエンドポイント。クエリパラメータ（token）が
+                # Content-Type に関わらず注入点として登録されることを確認するため
+                # （試運転で発覚した検出漏れの回帰テスト）。
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"status":"ok"}')
+                return
             body = "<html><body>"
             if u.path == "/":
-                body += '<a href="/search?q=hi">s</a> <a href="/item?id=1">i</a>'
+                body += ('<a href="/search?q=hi">s</a> <a href="/item?id=1">i</a> '
+                         '<a href="/api/data?token=x">d</a>')
             elif u.path == "/search":
                 body += "Results for: " + q                     # 未エスケープ反射 → XSS
             elif u.path == "/item":
@@ -946,6 +956,11 @@ def test_web_fuzzer():
         params = {p["param"] for p in crawl["injection_points"]}
         assert {"q", "id"} <= params, f"注入点検出漏れ: {params}"
         _ok("crawl() 注入点検出", f"pages={crawl['pages']} params={sorted(params)}")
+        assert "token" in params, (
+            f"非HTML（application/json）応答のエンドポイントのパラメータが"
+            f"注入点として登録されていない（Content-Typeフィルタの回帰）: {params}"
+        )
+        _ok("crawl() 非HTML応答の注入点登録", "application/jsonのtokenパラメータを検出")
         findings = fz.fuzz(crawl["injection_points"])
         cats = {f["category"] for f in findings}
         assert "XSS" in cats, "XSS反射を検出できず"

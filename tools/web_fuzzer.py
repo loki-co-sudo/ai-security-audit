@@ -236,20 +236,30 @@ class WebFuzzer:
                 continue
             seen.add(norm)
             resp = self._get(norm)
-            if resp is None or "text/html" not in resp.headers.get("Content-Type", "text/html"):
+            if resp is None:
                 continue
-            pages_fetched += 1
-            body = resp.text
-            self.log(f"crawl [{pages_fetched}] {norm} ({resp.status_code})")
 
-            # URLに含まれるクエリパラメータを注入点として登録
+            # URLに含まれるクエリパラメータは、レスポンスのContent-Typeに関わらず
+            # 注入点として登録する（JSON API・ファイル配信系エンドポイント等、
+            # text/html以外を返すページのパラメータも対象に含める）。
+            # 以前はこの登録処理がtext/html限定のブロックの中にあったため、
+            # 非HTMLレスポンスを返すエンドポイント（例: /api/profile?id=、
+            # /files?name= のような JSON/plain-text 応答）のパラメータが
+            # 構造的に検出漏れになっていた（試運転で発覚・IDOR/パストラバーサル
+            # の検出漏れの原因）。
             for pname, pval in parse_qsl(urlsplit(norm).query):
                 injection_points.append({
                     "url": norm.split("?")[0], "method": "GET", "where": "query",
                     "param": pname, "fields": dict(parse_qsl(urlsplit(norm).query)),
                 })
 
-            # フォームを抽出
+            if "text/html" not in resp.headers.get("Content-Type", "text/html"):
+                continue
+            pages_fetched += 1
+            body = resp.text
+            self.log(f"crawl [{pages_fetched}] {norm} ({resp.status_code})")
+
+            # フォームを抽出（HTML必須のためtext/html限定のまま）
             injection_points += self._extract_forms(norm, body)
 
             # 同一オリジンのリンクを辿る
