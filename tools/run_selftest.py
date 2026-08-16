@@ -1142,6 +1142,29 @@ def test_model_picker():
         _ng("SettingsDialog._available_models", repr(e) + "\n" + traceback.format_exc())
 
 
+def test_monitor_geometry():
+    _section("20. GUI — マルチモニタ ウィンドウ配置（Linux/xrandr）")
+    from gui.app import _pick_monitor
+    try:
+        dual = (
+            "Screen 0: minimum 320 x 200, current 3840 x 1080, maximum 16384 x 16384\n"
+            "eDP-1 connected 1920x1080+0+0 (normal left inverted right x axis y axis) 294mm x 165mm\n"
+            "   1920x1080     59.93*+  30.00\n"
+            "HDMI-1 connected 1920x1080+1920+0 (normal left inverted right x axis y axis) 527mm x 296mm\n"
+            "   1920x1080     59.93*+  30.00\n"
+        )
+        assert _pick_monitor(dual) == (1920, 1080, 0, 0), \
+            "primary未指定時は位置(0,0)のモニタを選ぶべき"
+        primary_second = dual.replace("HDMI-1 connected", "HDMI-1 connected primary")
+        assert _pick_monitor(primary_second) == (1920, 1080, 1920, 0), \
+            "primaryマーク付きモニタを優先すべき（結合サイズ3840x1080を返してはいけない）"
+        assert _pick_monitor("") is None, "connected行が無ければ None"
+        assert _pick_monitor("Screen 0: minimum 320 x 200") is None, "解像度行が無ければ None"
+        _ok("_pick_monitor()", "primary優先・位置(0,0)優先・結合サイズを返さないことを確認")
+    except Exception as e:
+        _ng("_pick_monitor", repr(e) + "\n" + traceback.format_exc())
+
+
 def main():
     print("\n" + "#"*64)
     print("#  AI Security Audit System — 全機能セルフテスト")
@@ -1176,6 +1199,7 @@ def main():
     _skip_llm("17", "AGENT E2E — FuzzAgent（ローカルモック / 実LLM）", test_fuzz_agent)
     test_desktop_shortcut()
     test_model_picker()
+    test_monitor_geometry()
 
     dt = time.time() - t0
     print("\n" + "#"*64)

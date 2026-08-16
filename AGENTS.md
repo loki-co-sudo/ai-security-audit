@@ -77,7 +77,9 @@ AI-Security-tool/
 │   ├── run_selftest.py          # 全機能セルフテスト（GUI以外をEventBus経由でE2E検証）
 │   └── capture_screenshots.py   # README用スクリーンショット自動撮影
 ├── gui/
-│   ├── app.py                   # メインウィンドウ。DPI対応、4タブ、30msポーリング、アイコン設定
+│   ├── app.py                   # メインウィンドウ。DPI対応、4タブ、30msポーリング、アイコン設定。
+│   │                             Linuxではxrandrでプライマリモニタの解像度・位置を取得し
+│   │                             マルチモニタ環境での2画面またぎ起動を防止（_pick_monitor）
 │   ├── splash.py                # 起動スプラッシュ（tkinter製・重いモジュールロード前に高速表示）
 │   ├── export_util.py           # HTML/PDF/Markdownレポート出力の共通ヘルパー
 │   ├── dialogs/
@@ -459,6 +461,17 @@ lokicodeの `src/components/ModelPicker.tsx`（コスト階級分類・プロバ
   「19. CORE/GUI — モデルピッカー」でインスタンス化なしにテストする
 - [x] `available_models` キャッシュ形式を `list[str]`→`list[dict]` に変更（後方互換あり、
   旧形式が残っていても正規化して読める）
+
+### 実装済み（Linuxマルチモニタ ウィンドウ配置修正）
+- [x] `gui/app.py` — `_setup_window()` が `winfo_screenwidth()`/`winfo_screenheight()` を
+  そのまま使っていたため、X11のマルチモニタ環境（xrandrで複数モニタを結合した1つの仮想
+  スクリーンとして扱う構成）では、ウィンドウが2画面にまたがって開くバグがあった
+  （Windowsの `winfo_screenwidth()` はプライマリモニタのみを返すため気づかれずにいた）。
+  Linux（`sys.platform.startswith("linux")`）では `xrandr --query` の出力から
+  プライマリモニタ（無ければ位置(0,0)のモニタ、それも無ければ検出順の先頭）の
+  解像度・位置を `_pick_monitor()`（純粋関数）で選び、ウィンドウをそのモニタ上に
+  正しいサイズで開くようにした。xrandrが無い/失敗する環境（Wayland等）では
+  従来通り `winfo_screenwidth()`/`winfo_screenheight()`・原点(0,0)にフォールバックする
 
 ### 未実装（ロードマップ）
 

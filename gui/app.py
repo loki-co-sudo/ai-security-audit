@@ -5,6 +5,9 @@ gui/app.py — メインウィンドウ（4タブ統合エントリポイント�
 from __future__ import annotations
 import ctypes
 import os
+import re
+import subprocess
+import sys
 import customtkinter as ctk
 
 import core.event_bus as ev
@@ -32,6 +35,51 @@ _TABS = [
     ("◉  WEB FUZZ",      AMBER,       "fuzz"),
     ("◉  DEFENSE MODE",  GREEN,       "defense"),
 ]
+
+
+def _pick_monitor(xrandr_output: str) -> tuple[int, int, int, int] | None:
+    """xrandrの出力から使うべき1枚のモニタの (幅, 高さ, X位置, Y位置) を選ぶ純粋関数（副作用なし）。
+
+    優先順位: primaryマーク付き → 位置(0,0)のモニタ → 検出順の先頭。
+    「connected」行が1つも無ければ None（呼び出し側はフォールバックする）。
+    """
+    candidates: list[tuple[bool, bool, int, int, int, int]] = []
+    for line in xrandr_output.splitlines():
+        if " connected" not in line:
+            continue
+        m = re.search(r"(\d+)x(\d+)\+(\d+)\+(\d+)", line)
+        if not m:
+            continue
+        w, h, x, y = (int(v) for v in m.groups())
+        is_primary = " primary " in line
+        candidates.append((is_primary, x == 0 and y == 0, w, h, x, y))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda c: (not c[0], not c[1]))
+    _, _, w, h, x, y = candidates[0]
+    return w, h, x, y
+
+
+def _linux_monitor_geometry() -> tuple[int, int, int, int] | None:
+    """Linux（X11）でプライマリモニタの実解像度・位置を取得する。取得できなければ None。
+
+    Tkinterの winfo_screenwidth()/winfo_screenheight() は、Windowsではプライマリ
+    モニタのみを返すが、X11のマルチモニタ環境では複数モニタを結合した仮想スクリーン
+    全体のサイズを返してしまう（xrandrの `Screen 0: current WxH` が結合サイズ）。
+    これが「デスクトップアイコンから開くと2画面にまたがって開く」原因だった。
+    位置（X/Y）もあわせて返すのは、プライマリモニタが原点(0,0)に無い配置
+    （例: セカンダリが左側にある場合）でも正しいモニタ上に開かせるため。
+    xrandr が無い/失敗する環境（Wayland等）では None を返し、呼び出し側は
+    従来通り winfo_screenwidth()/winfo_screenheight()・原点(0,0)にフォールバックする。
+    """
+    try:
+        out = subprocess.run(
+            ["xrandr", "--query"], check=True, capture_output=True, text=True, timeout=3,
+        ).stdout
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError,
+            subprocess.TimeoutExpired):
+        return None
+    return _pick_monitor(out)
 
 
 class App(ctk.CTk):
@@ -75,9 +123,14 @@ class App(ctk.CTk):
 
         phys_w = self.winfo_screenwidth()
         phys_h = self.winfo_screenheight()
+        origin_x, origin_y = 0, 0
+        if sys.platform.startswith("linux"):
+            mon = _linux_monitor_geometry()
+            if mon:
+                phys_w, phys_h, origin_x, origin_y = mon
         log_w  = int(phys_w / scale * 0.91)
         log_h  = int(phys_h / scale * 0.89)
-        self.geometry(f"{log_w}x{log_h}+0+0")
+        self.geometry(f"{log_w}x{log_h}+{origin_x}+{origin_y}")
         self.minsize(int(720 / scale), int(500 / scale))
 
     def _set_icon(self) -> None:
