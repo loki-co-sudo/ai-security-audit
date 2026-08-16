@@ -126,7 +126,13 @@ class SettingsDialog(RobustToplevel):
             command=self._open_help,
         ).pack(side="right", padx=16, pady=10)
 
-        body = ctk.CTkFrame(self, fg_color="transparent")
+        # モデルピッカー追加でコンテンツがダイアログ固定高（660x820）を超えるようになった
+        # ため、body自体をスクロール可能にする（さもないとSCOPE欄より下＝モデルピッカーの
+        # 検索・フィルタ・一覧が画面外に隠れて操作不能になる。実機スクリーンショットで発覚）。
+        body = ctk.CTkScrollableFrame(
+            self, fg_color="transparent",
+            scrollbar_button_color=BORDER, scrollbar_button_hover_color=TEXT_DIM,
+        )
         body.pack(fill="both", expand=True, padx=20, pady=12)
 
         # プリセットボタン
