@@ -346,6 +346,8 @@ fix: fix ALERT event not firing in DEFENSE MODE
   自動実行しPRにコメント。secrets設定とコスト発生についてユーザーの明示的な合意が要る
 - [ ] モデル別コスト×精度台帳の分析機能 — `reports/telemetry.jsonl` の記録を集計し、
   コスパ最良モデルを提案する（現状は記録のみ）
+- [ ] バグバウンティ対応（スコープガード・サブドメイン列挙・IDOR検出・提出用Markdown出力） —
+  設計・実装計画は [docs/BOUNTY_ROADMAP.md](docs/BOUNTY_ROADMAP.md) 参照（2026-08-16策定、未着手）
 
 > 完了済み: 拡張ポートスキャン（UDP対応）・認証付きWebファジング（v2.3）／
 > マルチモデル・ルーティング＆推論エフォート（v2.4）／モデル要件ゲート（v2.5.1）／
