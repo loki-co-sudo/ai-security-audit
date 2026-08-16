@@ -2,7 +2,8 @@
 
 > 本書は、本ツールを合法なバグバウンティ（Bug Bounty）活動で実戦利用できるようにするための
 > 設計とロードマップをまとめたもの。関連: [DESIGN.md](DESIGN.md) / [AGENT_ARCHITECTURE.md](AGENT_ARCHITECTURE.md) /
-> [../AGENTS.md](../AGENTS.md)。
+> [../AGENTS.md](../AGENTS.md)。実装済み機能を実際に使う際の具体的な操作フローは
+> [BOUNTY_WEBFUZZ_WORKFLOW.md](BOUNTY_WEBFUZZ_WORKFLOW.md) を参照。
 >
 > 本書はロードマップとして先に作成され、advisorレビュー（2026-08-16）を経て
 > Phase A〜D を実装済み。実装時は [CLAUDE.md](../CLAUDE.md) の開発ループ

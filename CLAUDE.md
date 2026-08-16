@@ -12,6 +12,8 @@
 | マルチモデル（STRONG/FAST）ルーティング＆推論エフォートの設計・**継続実装ガイド** | [docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md) |
 | システム設計書 | [docs/DESIGN.md](docs/DESIGN.md) |
 | 学習ガイド（脆弱性・攻防・技術スタック） | [docs/ENGINEER_GUIDE.md](docs/ENGINEER_GUIDE.md) |
+| バグバウンティ対応の設計・実装計画 | [docs/BOUNTY_ROADMAP.md](docs/BOUNTY_ROADMAP.md) |
+| WEB FUZZ をバグバウンティで使う際の具体的な運用フロー | [docs/BOUNTY_WEBFUZZ_WORKFLOW.md](docs/BOUNTY_WEBFUZZ_WORKFLOW.md) |
 
 ## 絶対に守ること（要約）
 
