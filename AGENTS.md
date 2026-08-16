@@ -35,7 +35,7 @@ AI-Security-tool/
 ├── requirements.txt             # pip install -r requirements.txt
 ├── 起動.bat                     # Windowsランチャー（コンソールあり）
 ├── 起動_silent.bat              # Windowsランチャー（コンソールなし）
-├── 起動.sh                      # Linuxランチャー
+├── 起動.sh                      # Linuxランチャー（.venv/bin/python3 優先、無ければ system python3/python）
 ├── 起動.command                 # macOSランチャー（Finderダブルクリック対応）
 ├── samples/
 │   └── target_code.py           # CODE AUDIT 動作確認用のサンプル脆弱コード
@@ -72,7 +72,7 @@ AI-Security-tool/
 │   ├── cve_client.py            # NVD API v2クライアント。永続キャッシュ＋並列照合・サイレント失敗
 │   ├── report_generator.py      # HTML/PDF/Markdownレポート生成。---VULN_START---マーカーをパースして構造化出力
 │   ├── pdf_writer.py            # 日本語対応PDFレンダラー（Pillowのみ・依存追加なし）
-│   ├── create_shortcut.py       # デスクトップショートカット生成（Windows・OneDrive対応）
+│   ├── create_shortcut.py       # デスクトップショートカット生成（Windows・OneDrive対応／Linux・.desktop対応）
 │   ├── known_vulns.yaml         # 既知サービスバナー脆弱性DB（ローカル照合用・LLMコストゼロ）
 │   ├── run_selftest.py          # 全機能セルフテスト（GUI以外をEventBus経由でE2E検証）
 │   └── capture_screenshots.py   # README用スクリーンショット自動撮影
@@ -418,6 +418,21 @@ fix: fix ALERT event not firing in DEFENSE MODE
   4分類化＋ビームサーチ導入（lokicodeのdeep-hard判定＋escalation相当）は、検出精度（見逃し率）
   への影響を検証する実測データが無い段階でリスクが大きいため見送った。テレメトリ活用が
   軌道に乗り実績データが溜まってから再検討する
+
+### 実装済み（Linuxデスクトップショートカット対応）
+- [x] `tools/create_shortcut.py` — Windows専用だった `create()` にLinux分岐を追加。
+  `.venv/bin/python3`（無ければ system python3/python）で `main.py` を起動する
+  XDGデスクトップエントリ（`.desktop`）を、`xdg-user-dir DESKTOP`（日本語ロケール等の
+  「デスクトップ」リダイレクトにも対応、Windows版の`[Environment]::GetFolderPath('Desktop')`
+  と同じ思想）で取得した実デスクトップパスと `~/.local/share/applications/`（アプリメニュー
+  登録用・sudo不要）の両方に書き込む。実行ビット付与・`gio set ... trusted true`（GNOME系の
+  初回信頼マーク、無い環境ではスキップ）も行う。生成内容の組み立ては `_build_desktop_entry()`
+  として副作用のない純粋関数に分離し、`tools/run_selftest.py` の「18. TOOLS —
+  DesktopShortcut」でファイルI/Oなしにテストする
+- [x] `起動.sh` — system python3/python決め打ちだったのを `.venv/bin/python3` 優先に修正
+  （見つからなければ従来通り system python3/python にフォールバック）。理由: 本プロジェクトの
+  GUI依存（customtkinter等）は `.venv` にのみインストールされる方針（CLAUDE.md）のため、
+  system python3 では `ModuleNotFoundError` になり起動できないバグがあった
 
 ### 未実装（ロードマップ）
 

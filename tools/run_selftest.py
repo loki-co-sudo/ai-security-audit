@@ -1047,6 +1047,31 @@ def test_fuzz_agent():
             srv.shutdown()
 
 
+def test_desktop_shortcut():
+    _section("18. TOOLS — DesktopShortcut（Linuxデスクトップエントリ生成・純粋関数部分のみ）")
+    from tools.create_shortcut import _build_desktop_entry, _venv_python
+    try:
+        content = _build_desktop_entry(
+            "AI Security Audit", '"/x/.venv/bin/python3" "/x/main.py"', "/x/assets/icon.png", "/x",
+        )
+        assert content.startswith("[Desktop Entry]\n"), "ヘッダー行が正しくない"
+        for line in ("Type=Application", "Name=AI Security Audit",
+                     'Exec="/x/.venv/bin/python3" "/x/main.py"',
+                     "Icon=/x/assets/icon.png", "Path=/x", "Terminal=false"):
+            assert line in content, f"必須行が欠落: {line}"
+        _ok("_build_desktop_entry() 生成内容", "必須フィールドが揃っている")
+
+        # .venv が実在すればそちらを優先するはず（後方互換: 無ければ system python3/python）
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        py = _venv_python(root)
+        if os.path.exists(os.path.join(root, ".venv", "bin", "python3")):
+            assert py.endswith(os.path.join(".venv", "bin", "python3")), \
+                ".venv が存在するのに system python が選ばれた"
+        _ok("_venv_python() 優先順位", py)
+    except Exception as e:
+        _ng("DesktopShortcut", repr(e) + "\n" + traceback.format_exc())
+
+
 def main():
     print("\n" + "#"*64)
     print("#  AI Security Audit System — 全機能セルフテスト")
@@ -1079,6 +1104,7 @@ def main():
     test_web_fuzzer()
     test_web_fuzzer_idor()
     _skip_llm("17", "AGENT E2E — FuzzAgent（ローカルモック / 実LLM）", test_fuzz_agent)
+    test_desktop_shortcut()
 
     dt = time.time() - t0
     print("\n" + "#"*64)
