@@ -280,6 +280,16 @@ class SettingsDialog(RobustToplevel):
         self._fast_model_var.trace_add("write", lambda *_a: self._update_readiness_hint())
         self._update_readiness_hint()
 
+        # モデル別コスト×精度台帳の助言（記録の活用・自動切り替えはしない） — AGENT_ARCHITECTURE.md §5.4
+        self._ledger_hint_label = ctk.CTkLabel(
+            body, text="", font=ctk.CTkFont("Segoe UI", 9),
+            text_color=CYAN, anchor="w", justify="left", wraplength=580,
+        )
+        self._ledger_hint_label.pack(anchor="w", pady=(2, 0))
+        self._model_var.trace_add("write", lambda *_a: self._update_ledger_hint())
+        self._fast_model_var.trace_add("write", lambda *_a: self._update_ledger_hint())
+        self._update_ledger_hint()
+
         # 検索ボックス + 件数表示
         search_row = ctk.CTkFrame(body, fg_color="transparent")
         search_row.pack(fill="x", pady=(10, 4))
@@ -357,6 +367,24 @@ class SettingsDialog(RobustToplevel):
         from core.model_router import assess_readiness
         warnings = assess_readiness(self._model_var.get().strip(), self._fast_model_var.get().strip())
         self._readiness_label.configure(text=("⚠ " + " / ".join(warnings)) if warnings else "")
+
+    def _update_ledger_hint(self) -> None:
+        """テレメトリ実績に基づくモデル提案を表示する（参考情報のみ・設定は変更しない）。"""
+        from core.model_router import suggest_efficient_model
+        strong = self._model_var.get().strip()
+        fast = self._fast_model_var.get().strip()
+        hints: list[str] = []
+        for mode in ("CODE AUDIT", "ATTACK MODE", "WEB FUZZ", "DEFENSE MODE"):
+            for model_id in (strong, fast):
+                if not model_id:
+                    continue
+                hint = suggest_efficient_model(mode, model_id)
+                if hint:
+                    hints.append(hint)
+                    break  # モードごとに1件まで（表示が埋まりすぎないように）
+        self._ledger_hint_label.configure(
+            text=("\n".join(f"💡 {h}" for h in hints)) if hints else ""
+        )
 
     def _effort_key(self) -> str:
         """表示ラベル（速度/バランス/品質）から保存キー（speed/balanced/quality）へ変換。"""

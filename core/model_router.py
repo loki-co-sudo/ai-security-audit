@@ -15,9 +15,13 @@ FAST が未設定（空文字）のときは STRONG を共用するため、単�
 """
 
 from __future__ import annotations
+import json
+import os
 import core.config as config
 from core.settings import EFFORT_PRESETS, DEFAULT_EFFORT
 from core.llm_client import LLMClient
+
+_TELEMETRY_PATH = os.path.join("reports", "telemetry.jsonl")
 
 
 def current_effort(override: str | None = None) -> dict:
@@ -143,3 +147,91 @@ def classify_effort(text: str, llm: LLMClient) -> str:
         if word in reply:
             return level
     return DEFAULT_EFFORT
+
+
+# ─── モデル別コスト×精度台帳の活用（記録→助言） ─────────────────
+# AGENT_ARCHITECTURE.md §5.4。lokicode の lib/modelLedger.ts（EWMA記録 + ε-greedy選択）の
+# 思想を「読むだけ」で移植した版。ユーザーの明示設定は一切上書きしない — 参考情報の
+# 提示のみに使う。自動切り替え（lokicodeのbestModel相当）は意図的に実装しない。
+
+def summarize_telemetry(mode: str | None = None, min_runs: int = 5, path: str | None = None) -> list[dict]:
+    """reports/telemetry.jsonl を (mode, model) 単位で集計し、効率指標の高い順に返す。
+
+    件数が min_runs 未満のグループは「まだ信頼できる量ではない」として除外する
+    （lokicode の MIN_RUNS_TO_TRUST=5 を踏襲）。
+    効率指標 = 平均検出数 / 平均所要秒。実トークン単価は記録していないため、
+    所要時間をコストの代理指標として使う目安に過ぎない。
+    戻り値の各要素: {mode, model, runs, avg_detections, avg_elapsed_sec, efficiency}（効率指標降順）。
+    ファイルが無い・壊れている場合は空リストを返す（例外を投げない）。
+    """
+    target_path = path or _TELEMETRY_PATH
+    groups: dict[tuple[str, str], list[dict]] = {}
+    try:
+        if not os.path.exists(target_path):
+            return []
+        with open(target_path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except Exception:
+                    continue
+                rec_mode = rec.get("mode", "")
+                model = rec.get("model", "")
+                if not model:
+                    continue
+                if mode is not None and rec_mode != mode:
+                    continue
+                groups.setdefault((rec_mode, model), []).append(rec)
+    except Exception:
+        return []
+
+    out: list[dict] = []
+    for (rec_mode, model), recs in groups.items():
+        runs = len(recs)
+        if runs < min_runs:
+            continue
+        avg_det = sum(r.get("total_detections", 0) for r in recs) / runs
+        avg_elapsed = sum(r.get("elapsed_sec", 0) for r in recs) / runs
+        efficiency = (avg_det / avg_elapsed) if avg_elapsed > 0 else 0.0
+        out.append({
+            "mode": rec_mode, "model": model, "runs": runs,
+            "avg_detections": round(avg_det, 2),
+            "avg_elapsed_sec": round(avg_elapsed, 1),
+            "efficiency": round(efficiency, 4),
+        })
+    out.sort(key=lambda d: d["efficiency"], reverse=True)
+    return out
+
+
+def suggest_efficient_model(
+    mode: str, current_model: str, min_runs: int = 5, margin: float = 1.2, path: str | None = None,
+) -> str | None:
+    """指定モードで、現在のモデルより効率指標が margin 倍以上良い実績があれば助言文字列を返す。
+
+    現在のモデルの実績が十分にあり、かつ既に最良なら None。他モデルの実績が
+    margin倍を超えない程度の差なら助言しない（ノイズで揺れる小差を提案しないため）。
+    現在のモデルの実績が無くても、他モデルの実績が十分あれば参考として助言を返す。
+    設定を変更することは一切しない — 呼び出し側が任意で表示するだけの参考情報。
+    """
+    stats = summarize_telemetry(mode=mode, min_runs=min_runs, path=path)
+    if not stats:
+        return None
+    current = next((s for s in stats if s["model"] == current_model), None)
+    best = stats[0]
+    if best["model"] == current_model:
+        return None
+    if current is not None:
+        if best["efficiency"] < current["efficiency"] * margin:
+            return None
+        return (
+            f"{mode} では過去{best['runs']}件の実績上、{best['model']} の方が効率的でした"
+            f"（検出/秒の目安: {best['efficiency']:.2f} vs 現在の {current['efficiency']:.2f}）。"
+            "あくまで参考情報です。"
+        )
+    return (
+        f"{mode} では過去{best['runs']}件の実績上、{best['model']} が良い実績を残しています"
+        f"（検出/秒の目安: {best['efficiency']:.2f}）。あくまで参考情報です。"
+    )

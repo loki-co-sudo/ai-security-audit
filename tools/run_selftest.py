@@ -391,6 +391,65 @@ def test_scope_guard():
         config._cfg.update(saved)
 
 
+def test_telemetry_ledger():
+    _section("2f. CORE — テレメトリ台帳の要約・モデル提案（記録→助言・AIモデル運用最適化）")
+    import tempfile
+    from core.model_router import summarize_telemetry, suggest_efficient_model
+
+    def _rec(mode, model, detections, elapsed):
+        return json.dumps({
+            "ts": "2026-08-17T00:00:00", "mode": mode, "target": "t",
+            "model": model, "effort": "balanced",
+            "detections": {}, "total_detections": detections, "elapsed_sec": elapsed,
+        }, ensure_ascii=False)
+
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "telemetry.jsonl")
+            lines = []
+            # model-cheap: 効率が良い（検出数/秒が高い）実績を min_runs 分
+            for _ in range(5):
+                lines.append(_rec("SELFTEST_LEDGER", "model-cheap", 4, 2.0))  # 2.0 det/s
+            # model-current: 効率が悪い実績を min_runs 分
+            for _ in range(5):
+                lines.append(_rec("SELFTEST_LEDGER", "model-current", 2, 4.0))  # 0.5 det/s
+            # model-rare: 件数不足（min_runs未満）なので集計から除外されるべき
+            for _ in range(2):
+                lines.append(_rec("SELFTEST_LEDGER", "model-rare", 100, 0.1))
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("\n".join(lines) + "\n")
+
+            stats = summarize_telemetry(mode="SELFTEST_LEDGER", min_runs=5, path=path)
+            models = {s["model"] for s in stats}
+            assert "model-rare" not in models, "min_runs未満のグループは除外されるべき"
+            assert stats[0]["model"] == "model-cheap", "効率指標が高い順に並ぶべき"
+            assert stats[0]["runs"] == 5
+
+            empty = summarize_telemetry(mode="SELFTEST_LEDGER", min_runs=5,
+                                         path=os.path.join(tmpdir, "no-such-file.jsonl"))
+            assert empty == [], "ファイル不在時は空リストを返すべき"
+
+            same = suggest_efficient_model("SELFTEST_LEDGER", "model-cheap", min_runs=5, path=path)
+            assert same is None, "現在のモデルが既に最良ならNoneを返すべき"
+
+            hint = suggest_efficient_model("SELFTEST_LEDGER", "model-current", min_runs=5, path=path)
+            assert hint and "model-cheap" in hint, \
+                "劣るモデルが設定され効率差がmargin超なら助言文字列を返すべき"
+
+            no_data = suggest_efficient_model("SELFTEST_LEDGER_NONE", "model-current", min_runs=5, path=path)
+            assert no_data is None, "対象モードの実績が無ければNoneを返すべき"
+
+        # 一時ディレクトリを使ったため本番の reports/telemetry.jsonl は変更されていないはず
+        prod_path = os.path.join("reports", "telemetry.jsonl")
+        assert not os.path.isfile(prod_path) or "SELFTEST_LEDGER" not in open(
+            prod_path, encoding="utf-8").read(), "テスト用データが本番telemetry.jsonlに混入していないこと"
+
+        _ok("summarize_telemetry / suggest_efficient_model",
+            "集計・ソート・min_runsフィルタ・ファイル不在・助言/非助言の分岐・本番ファイル非汚染")
+    except Exception as e:
+        _ng("telemetry ledger advisory", repr(e))
+
+
 def test_subdomain_enum():
     _section("3b. TOOLS — SubdomainEnum（受動的資産発見・Phase B）")
     from tools import subdomain_enum
@@ -980,6 +1039,7 @@ def main():
     test_verify_ensemble()
     test_telemetry()
     test_scope_guard()
+    test_telemetry_ledger()
     test_subdomain_enum()
     test_network_scanner()
     test_web_prober()
