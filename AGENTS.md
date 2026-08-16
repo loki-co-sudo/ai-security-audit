@@ -44,30 +44,33 @@ AI-Security-tool/
 │   └── icon.ico / icon.png      # 生成済みアプリアイコン
 ├── docs/
 │   ├── DESIGN.md                # システム設計書（アーキテクチャ詳細）
+│   ├── BOUNTY_ROADMAP.md        # バグバウンティ対応の設計・実装計画（Phase A〜D・実装済み）
 │   └── screenshot_*.png         # README埋め込み用スクリーンショット
 ├── Dockerfile                   # Dockerコンテナ定義（X11フォワーディング必要）
 ├── docker-compose.yml           # Docker Compose設定
 ├── core/
 │   ├── settings.py              # 全定数（色・フォント・LLMデフォルト値・FASTモデル・EFFORT_PRESETS・スキャン設定・APP_VERSION）
-│   ├── config.py                # config.jsonの読み書き＋バリデーション。settings.pyをデフォルトとしてフォールバック（llm_fast_model/effort等）
+│   ├── config.py                # config.jsonの読み書き＋バリデーション。settings.pyをデフォルトとしてフォールバック（llm_fast_model/effort/allowed_targets/scope_mode等）
 │   ├── event_bus.py             # スレッドセーフUIイベントバス（queue.Queue基盤）
 │   ├── llm_client.py            # LLMClient。update()でホットリロード可能。OpenRouterヘッダー自動付与
 │   ├── model_router.py          # ロール別モデルルーティング（STRONG/FAST）＆推論エフォート（lokicode移植）
+│   ├── scope_guard.py           # バグバウンティ対応: 対象範囲(Scope)の機械的判定 in_scope()（許可リスト一致のみ・v1はdeny-list非対応）
 │   └── orchestrator.py          # LangGraph StateGraph。深層解析ループ回数はエフォート連動（smart_truncate採用）
 ├── agents/
-│   ├── base_agent.py            # 抽象基底クラス。threading.Eventで停止管理、EventBusヘルパー群
+│   ├── base_agent.py            # 抽象基底クラス。threading.Eventで停止管理、EventBusヘルパー群、_check_scope()（スコープガード）
 │   ├── audit_agent.py           # CODE AUDITエージェント（7ステップ。ASTプリプロセッサ＋並列CVE照合＋FP検証強化）
 │   ├── langgraph_audit_agent.py # LangGraph強化型監査エージェント（orchestrator.pyを使用）
-│   ├── recon_agent.py           # ATTACK MODEエージェント（9ステップ・既知サービスローカル照合付き）
-│   ├── fuzz_agent.py            # WEB FUZZエージェント（6ステップ・検出のみ）
+│   ├── recon_agent.py           # ATTACK MODEエージェント（10ステップ・Phase 0で受動的サブドメイン列挙(crt.sh)・既知サービスローカル照合付き）
+│   ├── fuzz_agent.py            # WEB FUZZエージェント（7ステップ・検出のみ・第2アカウント設定時はIDOR/アクセス制御チェックを追加実行）
 │   └── monitor_agent.py         # DEFENSE MODEエージェント（ログ監視＋パターン集約フィルタ＋バッチAI分析）
 ├── tools/
 │   ├── network_scanner.py       # socket-basedポートスキャナ、SSL証明書取得
 │   ├── web_prober.py            # HTTP探査、技術スタック指紋、センシティブパス列挙
-│   ├── web_fuzzer.py            # Webスマートファザー（クロール・注入点検出・異常観測／検出のみ）
+│   ├── web_fuzzer.py            # Webスマートファザー（クロール・注入点検出・異常観測／検出のみ）。第2セッション(session_b)によるIDOR比較はGET限定
+│   ├── subdomain_enum.py        # バグバウンティ対応: crt.shへの受動的サブドメイン列挙（単発GETのみ・サイレント失敗）
 │   ├── log_watcher.py           # tailf式ログ追跡ジェネレータ、サンプルログ生成
 │   ├── cve_client.py            # NVD API v2クライアント。永続キャッシュ＋並列照合・サイレント失敗
-│   ├── report_generator.py      # HTML/PDFレポート生成。---VULN_START---マーカーをパースして構造化出力
+│   ├── report_generator.py      # HTML/PDF/Markdownレポート生成。---VULN_START---マーカーをパースして構造化出力
 │   ├── pdf_writer.py            # 日本語対応PDFレンダラー（Pillowのみ・依存追加なし）
 │   ├── create_shortcut.py       # デスクトップショートカット生成（Windows・OneDrive対応）
 │   ├── known_vulns.yaml         # 既知サービスバナー脆弱性DB（ローカル照合用・LLMコストゼロ）
@@ -76,17 +79,18 @@ AI-Security-tool/
 ├── gui/
 │   ├── app.py                   # メインウィンドウ。DPI対応、4タブ、30msポーリング、アイコン設定
 │   ├── splash.py                # 起動スプラッシュ（tkinter製・重いモジュールロード前に高速表示）
-│   ├── export_util.py           # HTML/PDFレポート出力の共通ヘルパー
+│   ├── export_util.py           # HTML/PDF/Markdownレポート出力の共通ヘルパー
 │   ├── dialogs/
-│   │   └── settings_dialog.py   # LLM設定モーダル（接続テスト・config.json保存）
+│   │   ├── settings_dialog.py   # LLM設定モーダル（接続テスト・config.json保存・SCOPEセクション＝allowed_targets/scope_mode）
+│   │   └── auth_dialog.py       # WEB FUZZ認証設定（title引数でヘッダー文言を差し替え可能・第2セッション/IDOR比較用にも流用）
 │   ├── widgets/
 │   │   ├── output_box.py        # カラータグ付きスクロールテキストボックス（get_text()付き）
 │   │   └── progress_steps.py    # ステップ進捗＋深刻度カウンターウィジェット（DETECTION SUMMARY）
 │   └── panels/
-│       ├── audit_panel.py       # CODE AUDITタブ（LangGraphトグル・📊HTML/📄PDF出力）
-│       ├── attack_panel.py      # ATTACK MODEタブ（📊HTML/📄PDF出力）
-│       ├── fuzz_panel.py        # WEB FUZZタブ（プロファイル・REQ予算・📊HTML/📄PDF出力）
-│       └── defense_panel.py     # DEFENSE MODEタブ（📊HTML/📄PDF出力）
+│       ├── audit_panel.py       # CODE AUDITタブ（LangGraphトグル・📊HTML/📄PDF/📝MD出力）
+│       ├── attack_panel.py      # ATTACK MODEタブ（📊HTML/📄PDF/📝MD出力）
+│       ├── fuzz_panel.py        # WEB FUZZタブ（プロファイル・REQ予算・第2セッション/IDOR比較・📊HTML/📄PDF/📝MD出力）
+│       └── defense_panel.py     # DEFENSE MODEタブ（📊HTML/📄PDF/📝MD出力）
 └── reports/                     # スキャン結果出力先（ローカル保存のみ・gitignore済み）
 ```
 
@@ -204,6 +208,12 @@ fix: fix ALERT event not firing in DEFENSE MODE
 - **`WebProber` は自己申告UA（"Security Audit Tool" 等）を使わない**。ステルス前提のため `STEALTH_USER_AGENTS` の実在ブラウザUAをローテーションする。
 - **WEB FUZZ は「検出のみ・非エクスプロイト」を厳守する**。`web_fuzzer.py` はレスポンス異常（反射・DBエラー署名・テンプレ評価・既知ファイル署名）の観測に留め、データ窃取・RCE実行・認証回避は実装しない。総リクエスト数の上限（`max_requests`）・同一オリジン限定・ジッター/低並列でDoSを回避する。これらの安全境界を緩めない。
 - **レポート出力は `gui/export_util.py` 経由に統一する**。各パネルで `report_generator` を直接叩く重複実装をしない（HTML/PDF両対応のため一元化済み）。PDFは `tools/pdf_writer.py`（Pillowのみ）で日本語をラスタ描画する — 標準14フォントはCJK非対応のため。
+- **後方互換のためデフォルトを無効にする新しい安全機構は、UIに常時警告を表示する**。
+  スコープガード（`allowed_targets` 空リスト＝無効）は既存インストールとの後方互換のため
+  意図的にそうしているが、機能名だけ見て「設定すれば守られる」と誤解した初学者が設定を
+  忘れたまま無防備に使ってしまう false sense of security を防ぐため、`settings_dialog.py`
+  に常時警告文言を表示している（advisorレビュー指摘・2026-08-16、[docs/BOUNTY_ROADMAP.md](docs/BOUNTY_ROADMAP.md) Phase A）。
+  同様の「デフォルト無効・後方互換」設計を追加する際はこのパターンを踏襲する。
 - **LLM呼び出しの役割分担を守る**。最終的な専門推論は `_stream_llm()`（STRONG）、機械的・量の出る
   生成は `_complete_llm(role="fast")`（FAST）を使う。モデル名・エンドポイントをエージェントに直書きせず、
   必ず `core/model_router.py` 経由で解決する。エフォート依存の分岐は `self._effort()` の dict を見る
@@ -327,7 +337,8 @@ fix: fix ALERT event not firing in DEFENSE MODE
   elapsed_sec) を追記。4エージェント全てのrun()終端で呼び出し。分析・コスパ提案機能は未実装（将来）
 - [x] **CI/CD統合（第一段階）** — `.github/workflows/selftest.yml`。push/PR/手動実行で
   `SELFTEST_NON_LLM_ONLY=1 python tools/run_selftest.py` を走らせる（非LLM項目1〜8・2b〜2d・13〜16のみ。
-  実LLM API・実ネットワークを要するテスト9・10・11・12・17は秘密情報が無いためCIでは常にSKIP）。
+  実LLM API・実ネットワークを要するテスト9・10・11・12・17は秘密情報が無いためCIでは常にSKIP。
+  バグバウンティ対応で追加した2e・3b・7b・16bも非LLMのためこの対象に含まれる — 下記参照）。
   `tools/run_selftest.py` に `SELFTEST_NON_LLM_ONLY` 環境変数と `_skip_llm()` ヘルパーを追加。
   **スコープの注記**: ロードマップの原文「自動脆弱性スキャン」は自リポジトリへのCODE AUDIT自動実行
   （実LLM要・push毎にコスト発生）とも解釈できるが、まずは秘密情報なしで安全に回せる回帰テストCIを
@@ -339,6 +350,32 @@ fix: fix ALERT event not firing in DEFENSE MODE
   失敗など想定外の例外でもUIスレッドに `balanced` で復帰する（バックグラウンドスレッドの例外は
   呼び出し元に伝播しないため、揉み消さないと開始ボタンが押しっぱなし状態のまま固まる）
 
+### 実装済み（バグバウンティ対応 — Phase A〜D）
+詳細設計・advisorレビュー指摘の反映内容は [docs/BOUNTY_ROADMAP.md](docs/BOUNTY_ROADMAP.md)（2026-08-16策定、同日実装）。
+新モードは追加せず、既存の ATTACK MODE / WEB FUZZ を横断的に拡張した。
+- [x] **Phase A: スコープガード** — `core/scope_guard.py`（`in_scope()`純粋関数。許可リスト一致の
+  みでv1はdeny-list非対応）、`core/config.py`（`allowed_targets`/`scope_mode`。空リスト＝無効＝
+  既存インストールとの後方互換）、`BaseAgent._check_scope()`（recon_agent/fuzz_agentのrun()冒頭で
+  呼び出し）。`settings_dialog.py` にSCOPEセクションを追加し、空のままだと無防備になる旨の警告を
+  常時表示（false sense of security対策）
+- [x] **Phase B: 受動的サブドメイン列挙** — `tools/subdomain_enum.py`（crt.shへの単発GETのみ・
+  サイレント失敗）。`recon_agent.py` の新規Phase 0として実行し、スコープ外の発見は除外理由つきで
+  可視化。crt.sh由来の資産は生存確認・所有確認が別途必要である旨を出力に明記。v1は発見のみで
+  後続フェーズへの自動展開はしない。`SCAN_PROFILES["bounty"]` を追加（検知回避ではなく対象への
+  配慮が目的である点をstealth等と区別）
+- [x] **Phase C: IDOR/アクセス制御不備検出** — `tools/web_fuzzer.py` に第2セッション（`auth_b`/
+  `session_b`）と `_detect_idor()` を追加。GET等の非破壊メソッドのみに限定（書き込み系は対象外）。
+  `fuzz_agent.py` に認可チェックステップを追加しAIトリアージへ追加エビデンスとして渡す。
+  `fuzz_panel.py` に第2セッション入力欄（`AuthDialog`再利用）を追加し、複数アカウント使用が
+  プログラムのRules of Engagementで許可されているか確認する旨の注記を表示
+- [x] **Phase D: バグバウンティ提出用Markdown出力** — `report_generator.generate_markdown()`。
+  Summary/Steps to Reproduce/Impact/Suggested Fixの4項目形式。既存の`---VULN_START/END---`
+  パーサを再利用。4パネル共通で📝MDボタンを追加
+- [x] セルフテスト `2e`（ScopeGuard）・`3b`（SubdomainEnum）・`7b`（Markdown出力）・`16b`
+  （WebFuzzer IDOR）を追加。いずれも非LLM・非ネットワーク（モック使用）
+- [x] `.github/workflows/selftest.yml` が回す `SELFTEST_NON_LLM_ONLY=1` の対象範囲は
+  1〜8・2b〜2e・3b・7b・13〜16b（実LLM要のテストは引き続きSKIP）
+
 ### 未実装（ロードマップ）
 
 **長期・任意**
@@ -346,12 +383,15 @@ fix: fix ALERT event not firing in DEFENSE MODE
   自動実行しPRにコメント。secrets設定とコスト発生についてユーザーの明示的な合意が要る
 - [ ] モデル別コスト×精度台帳の分析機能 — `reports/telemetry.jsonl` の記録を集計し、
   コスパ最良モデルを提案する（現状は記録のみ）
-- [ ] バグバウンティ対応（スコープガード・サブドメイン列挙・IDOR検出・提出用Markdown出力） —
-  設計・実装計画は [docs/BOUNTY_ROADMAP.md](docs/BOUNTY_ROADMAP.md) 参照（2026-08-16策定、未着手）
+- [ ] `scope_guard.py` の除外リスト（deny-list）対応 — バグバウンティのスコープは包含と除外が
+  混在するケースが多いが、v1は許可リスト一致のみに対応（[docs/BOUNTY_ROADMAP.md](docs/BOUNTY_ROADMAP.md) Phase A参照）
+- [ ] Phase Bで発見したサブドメインへの自動展開・バグバウンティプログラムごとのレート制限値の
+  反映・重複報告チェック — いずれも[docs/BOUNTY_ROADMAP.md](docs/BOUNTY_ROADMAP.md) §7「将来検討」参照
 
 > 完了済み: 拡張ポートスキャン（UDP対応）・認証付きWebファジング（v2.3）／
 > マルチモデル・ルーティング＆推論エフォート（v2.4）／モデル要件ゲート（v2.5.1）／
-> 難易度ルーター・検証器アンサンブル・テレメトリ台帳・CI（v2.6.0）。
+> 難易度ルーター・検証器アンサンブル・テレメトリ台帳・CI（v2.6.0）／
+> バグバウンティ対応 Phase A〜D（スコープガード・サブドメイン列挙・IDOR検出・Markdown出力）。
 
 ---
 
