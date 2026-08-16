@@ -264,19 +264,27 @@ def test_verify_ensemble():
     title_fmt = "---FINDING_START---\nTITLE: Open Redis without auth\nSEVERITY: CRITICAL\n---FINDING_END---"
     try:
         assert len(_parse_marker_findings(b)) == 2
-        kept, discarded = _vote_findings([a, b, c])
-        assert "SQL Injection in login" in kept
-        assert "Weak random token" not in kept, "3件中1件のみの所見は多数決で落ちるべき"
-        assert len(discarded) == 1 and "Weak random token" in discarded[0], \
-            "落ちた所見はdiscardedとして返り、呼び出し側が可視化できるべき（サイレント消去はしない）"
+        kept, minority = _vote_findings([a, b, c])
+        assert a in kept, "多数決一致の所見はタグを付けずそのままkeptに含まれるべき"
+        assert "Weak random token" in kept, \
+            "3件中1件のみの所見も除外せずkeptに含めるべき（union方式・advisorレビュー指摘）"
+        assert "CONFIDENCE: ENSEMBLE_MINORITY" in kept, \
+            "少数意見にはCONFIDENCE: ENSEMBLE_MINORITYを付記すべき"
+        assert len(minority) == 1 and "Weak random token" in minority[0], \
+            "少数意見はminorityリストにも返り、呼び出し側が案内表示できるべき"
         d = "---VULN_START---\nNAME: A\nSEVERITY: LOW\nLINES: 1\n---VULN_END---"
         e = "---VULN_START---\nNAME: B\nSEVERITY: LOW\nLINES: 2\n---VULN_END---"
-        kept2, discarded2 = _vote_findings([d, e])
-        assert kept2 == d, "過半数一致が無ければ最初のサンプルを採用すべき"
-        assert discarded2 == [], "比較不能（全会不一致）の場合はdiscardedも空にすべき"
+        kept2, minority2 = _vote_findings([d, e])
+        assert "NAME: A" in kept2 and "NAME: B" in kept2, \
+            "全会不一致（比較不能）でも両方の所見をkeptに含めるべき（union方式）"
+        assert len(minority2) == 2, "全会不一致なら両方とも少数意見として案内されるべき"
+        # マーカーが1件も取れない場合のみ、最初のサンプルへフォールバックする
+        kept3, minority3 = _vote_findings(["no markers here", "also none"])
+        assert kept3 == "no markers here" and minority3 == []
         # TITLE:（recon_agentのフォーマット）でもsignatureが取れることを確認
         assert _parse_marker_findings(title_fmt)[0][0].startswith("open redis without auth")
-        _ok("_vote_findings", "2/3一致採用・1/3を可視化用discardedへ・全会不一致フォールバック・TITLE:対応")
+        _ok("_vote_findings", "多数決一致はそのまま・少数意見もCONFIDENCEタグ付きでunion採用・"
+                              "マーカー無しフォールバック・TITLE:対応")
     except Exception as e:
         _ng("_vote_findings", repr(e))
 
@@ -300,12 +308,13 @@ def test_verify_ensemble():
         agent = MonitorAgent(bus, _FakeVerifyLLM([a, b, c]))
         result = agent._verify_findings("evidence", "draft", samples=3)
         assert "SQL Injection in login" in result
-        assert "Weak random token" not in result, "除外分は返り値（最終レポート）には含めない"
+        assert "Weak random token" in result and "CONFIDENCE: ENSEMBLE_MINORITY" in result, \
+            "少数意見も除外せず、CONFIDENCEタグ付きで返り値（最終レポート）に含めるべき"
         output_text = "".join(
             ev.payload["text"] for ev in bus.drain(10000) if ev.kind == "output"
         )
         assert "Weak random token" in output_text, \
-            "除外分でも出力ボックスには表示し、人間が確認できる状態を保つべき（サイレント消去禁止）"
+            "少数意見であることも出力ボックスで案内し、人間が確認できる状態を保つべき"
         # samples=1 は従来どおり単発検証パスをそのまま返す（後方互換）
         agent2 = MonitorAgent(EventBus(), _FakeVerifyLLM([a]))
         assert agent2._verify_findings("evidence", "draft", samples=1) == a
@@ -313,7 +322,7 @@ def test_verify_ensemble():
         agent3 = MonitorAgent(EventBus(), _FakeVerifyLLM(["no markers here"]))
         assert agent3._verify_findings("evidence", "draft") == "draft"
         _ok("BaseAgent._verify_findings(samples=N)",
-            "アンサンブル多数決・除外分の可視化・後方互換を確認")
+            "アンサンブルunion採用（少数意見もCONFIDENCEタグ付きで保持）・後方互換を確認")
     except Exception as e:
         _ng("_verify_findings ensemble", repr(e))
 
@@ -608,6 +617,13 @@ SEVERITY: HIGH
 CWE: CWE-330
 LINES: 72
 ---VULN_END---
+---VULN_START---
+CONFIDENCE: ENSEMBLE_MINORITY
+NAME: Possible IDOR in profile view
+SEVERITY: MEDIUM
+CWE: CWE-639
+LINES: 90
+---VULN_END---
 """
     try:
         html = report_generator.generate(
@@ -617,7 +633,12 @@ LINES: 72
         assert "CRITICAL" in html and "CWE-89" in html
         # サマリ集計が反映されているか
         assert ">1<" in html.replace(" ", "")  # critical=1, high=1
-        _ok("generate() パース＆集計")
+        # AIモデル運用最適化: 検証器アンサンブルの少数意見（CONFIDENCE: ENSEMBLE_MINORITY）は
+        # レポートから除外されず、単独検証であることが分かる形で表示されるべき
+        assert "単独検証" in html and "Possible IDOR in profile view" in html, \
+            "CONFIDENCE: ENSEMBLE_MINORITY の所見は除外せず「単独検証」表示付きでレポートに含めるべき"
+        assert 'class="minority"' in html
+        _ok("generate() パース＆集計", "CONFIDENCE: ENSEMBLE_MINORITY の可視化を含む")
         path = report_generator.save(html, "selftest")
         assert os.path.isfile(path)
         _ok("save()", os.path.basename(path))

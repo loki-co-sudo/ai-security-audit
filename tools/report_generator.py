@@ -106,6 +106,7 @@ h2{color:var(--cyan);font-size:14px;border-bottom:1px solid var(--border);
 .bMEDIUM{background:rgba(255,215,0,.12);color:var(--yellow);border:1px solid rgba(255,215,0,.25)}
 .bLOW{background:rgba(57,255,117,.10);color:var(--green);border:1px solid rgba(57,255,117,.2)}
 .fname{font-weight:700;font-size:14px}
+.minority{color:var(--mid);font-size:11px;font-weight:400}
 .fmeta{color:var(--mid);font-size:12px;margin-bottom:10px}
 .fmeta b{color:var(--text)}
 pre{background:var(--widget);border-radius:6px;padding:12px 14px;
@@ -175,6 +176,7 @@ def _parse(text: str, start_marker: str, end_marker: str) -> list[dict]:
             "snippet": snippet.group(1).strip() if snippet else _field("TIMELINE"),
             "attack":  attack.group(1).strip()  if attack  else "",
             "fix":     fix.group(1).strip()     if fix     else "",
+            "confidence": _field("CONFIDENCE"),
         })
     return findings
 
@@ -183,6 +185,10 @@ def _render_finding(f: dict, lbl: dict) -> str:
     sev  = (f.get("severity") or "LOW").upper()
     name = html.escape(f.get("name") or "Unknown")
     bc   = f"b{sev}" if sev in ("CRITICAL", "HIGH", "MEDIUM", "LOW") else "bLOW"
+    # 検証器アンサンブルで過半数一致に届かなかった所見（agents/base_agent.py _vote_findings）。
+    # 除外はせず参考として本文に含めているため、ここでその旨を可視化する。
+    minority = f.get("confidence") == "ENSEMBLE_MINORITY"
+    name_html = f"{name} <span class=\"minority\">(単独検証)</span>" if minority else name
     meta_parts = [
         f"<b>{k}:</b> {html.escape(v)}"
         for k, v in [(lbl["ref"], f.get("ref", "")), (lbl["location"], f.get("lines", ""))]
@@ -198,7 +204,7 @@ def _render_finding(f: dict, lbl: dict) -> str:
     return (
         f'<div class="finding">'
         f'<div class="fhdr"><span class="badge {bc}">{sev}</span>'
-        f'<span class="fname">{name}</span></div>'
+        f'<span class="fname">{name_html}</span></div>'
         f'<div class="fbody">'
         f'<div class="fmeta">{" &nbsp;|&nbsp; ".join(meta_parts)}</div>'
         f'{"".join(parts)}</div></div>'

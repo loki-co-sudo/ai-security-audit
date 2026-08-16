@@ -56,7 +56,7 @@ def _parse_marker_findings(text: str) -> list[tuple[str, str]]:
     このマッチングは完全一致ベースであり、独立したLLM呼び出しの文言差（例:
     「SQL Injection in login」↔「SQL injection via username param」）を吸収できない粗い近似に
     過ぎない — 一致しなかった所見は「誤り」ではなく「比較不能」であり、呼び出し側
-    （_verify_findings）は除外した所見を必ず可視化し、黙って消さないこと。
+    （_verify_findings）は最終結果から所見を消さず、必ず含めた上で人間に可視化すること。
     """
     out: list[tuple[str, str]] = []
     for m in _MARKER_RE.finditer(text):
@@ -70,15 +70,28 @@ def _parse_marker_findings(text: str) -> list[tuple[str, str]]:
     return out
 
 
-def _vote_findings(samples: list[str]) -> tuple[str, list[str]]:
-    """複数の検証結果から、過半数のサンプルに登場した所見を残す（マーカー単位の多数決）。
+def _tag_minority(block: str) -> str:
+    """所見ブロックの先頭マーカー直後に CONFIDENCE 行を挿入する（過半数不一致の少数意見マーク）。"""
+    return re.sub(r"(---(?:VULN|FINDING)_START---)", r"\1\nCONFIDENCE: ENSEMBLE_MINORITY", block, count=1)
 
-    戻り値は (採用した所見の結合文字列, 除外した所見ブロックのリスト)。
-    シグネチャ一致は粗い近似（_parse_marker_findings 参照）のため、除外＝誤検知の確定では
-    ない。呼び出し側は除外分を必ず人間に見える形で提示すること（サイレントな取りこぼしは
-    「本ツールの差別化ポイントである未知脆弱性の見逃し防止」という方針に反する）。
-    どの所見も過半数に届かなければ（意見が割れすぎ・比較不能）、安全側として最初のサンプルを
-    そのまま採用し、除外リストは空にする。
+
+def _vote_findings(samples: list[str]) -> tuple[str, list[str]]:
+    """複数の検証結果から全所見を採用する（マーカー単位のunion方式）。
+
+    過半数のサンプルに登場した所見はそのまま、過半数に届かなかった所見は
+    `CONFIDENCE: ENSEMBLE_MINORITY` を付記した上で、どちらも最終結果に含める。
+    以前は過半数に届かない所見を最終レポートから除外していたが、これは
+    `_parse_marker_findings` 自身が明言する「除外＝誤検知の確定ではない・サイレントに
+    消さない」という方針と矛盾していた。加えて quality effort の既定値
+    `verify_samples=2` では、旧方式の閾値（過半数=2）が実質「全会一致必須」と等価になり、
+    2回中1回しか検出されなかった所見（見逃し防止の観点で本来一番拾いたいケース）が
+    機械的に落ちる設計不備だったため、union方式に変更した（advisorレビュー指摘）。
+
+    戻り値は (全所見を含む結合文字列, 少数意見としてタグ付けした所見ブロックのリスト)。
+    後者は呼び出し側が「こういう所見も参考として載っています」と案内するための情報であり、
+    最終結果からの除外リストではない（前者にも同じブロックが含まれる）。
+    シグネチャ一致は粗い近似（_parse_marker_findings 参照）のため、少数意見＝誤検知の
+    確定でもない。マーカー付き所見が1件も取れなければ、最初のサンプルをそのまま返す。
     """
     threshold = len(samples) // 2 + 1
     counts: dict[str, int] = {}
@@ -93,11 +106,19 @@ def _vote_findings(samples: list[str]) -> tuple[str, list[str]]:
             representative.setdefault(signature, block)
             if signature not in order:
                 order.append(signature)
-    kept = [representative[sig] for sig in order if counts.get(sig, 0) >= threshold]
-    if not kept:
+    if not order:
         return samples[0], []
-    discarded = [representative[sig] for sig in order if counts.get(sig, 0) < threshold]
-    return "\n\n".join(kept), discarded
+    kept_blocks: list[str] = []
+    minority: list[str] = []
+    for sig in order:
+        block = representative[sig]
+        if counts.get(sig, 0) >= threshold:
+            kept_blocks.append(block)
+        else:
+            tagged = _tag_minority(block)
+            kept_blocks.append(tagged)
+            minority.append(tagged)
+    return "\n\n".join(kept_blocks), minority
 
 # レポート/分析の出力言語をLLMに指示するディレクティブ。
 # 設定 (report_lang) に応じて全エージェントの system プロンプトへ自動付与する。
@@ -276,11 +297,11 @@ class BaseAgent(ABC):
         """品質エフォート時、STRONG モデルで所見を敵対的に再検証し誤検知を削減する。
 
         samples>1（検証器アンサンブル・§5.3）のときは検証パスを独立に複数回走らせ、
-        マーカー単位（NAME/TITLE+LINES）の過半数一致で採用する所見を決める（_vote_findings）。
+        マーカー単位（NAME/TITLE+LINES）でunion方式により全所見を採用する（_vote_findings）。
         一致判定は文言差を吸収できない粗い近似のため、過半数に届かなかった所見も
-        「誤検知と確定」はせず、除外理由つきで出力ボックスに可視化してから戻り値からは除く
-        （返り値＝最終レポートに載る内容。除外分は人間がその場で確認できるようにするだけで、
-        サイレントに消さない）。
+        「誤検知と確定」はせず、`CONFIDENCE: ENSEMBLE_MINORITY` を付記した上で戻り値
+        （＝最終レポートに載る内容）にそのまま含める（除外はしない。少数意見であることは
+        出力ボックスとレポートの両方で人間が確認できる）。
         検証後の全所見（マーカー形式）を返す。マーカーが失われた場合はドラフトを維持する。
         """
         self._out("\n" + "─" * 56 + "\n", "sep")
@@ -311,17 +332,17 @@ class BaseAgent(ABC):
         if len(results) == 1:
             return results[0]
         self._out("\n\n" + "─" * 56 + "\n", "sep")
-        self._out(f"  ENSEMBLE VOTE — {len(results)}回中、過半数一致の所見のみ採用\n", "section")
+        self._out(f"  ENSEMBLE VOTE — {len(results)}回の検証結果を統合（全所見を採用）\n", "section")
         self._out("─" * 56 + "\n\n", "sep")
-        kept, discarded = _vote_findings(results)
-        if discarded:
+        kept, minority = _vote_findings(results)
+        if minority:
             self._out(
-                f"\n  ⚠ 過半数一致に届かず最終レポートから除外された所見 {len(discarded)}件\n"
-                f"    （文言差により別所見と判定された可能性あり。誤検知と断定はできないため、"
-                f"参考として以下に残します — 最終レポート・検出数には含まれません）:\n\n",
+                f"\n  ℹ 過半数一致に届かなかった所見 {len(minority)}件\n"
+                f"    （文言差により別所見と判定された可能性あり。誤検知と断定はできないため "
+                f"CONFIDENCE: ENSEMBLE_MINORITY として本文にも含めています — 除外はしません）:\n\n",
                 "high",
             )
-            self._out("\n\n".join(discarded) + "\n", "dim")
+            self._out("\n\n".join(minority) + "\n", "dim")
         return kept
 
     # ── モデル別コスト×精度台帳（§5.4・記録のみ） ──────────
