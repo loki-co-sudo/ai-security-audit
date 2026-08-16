@@ -53,7 +53,7 @@ AI-Security-tool/
 │   ├── config.py                # config.jsonの読み書き＋バリデーション。settings.pyをデフォルトとしてフォールバック（llm_fast_model/effort/allowed_targets/scope_mode等）
 │   ├── event_bus.py             # スレッドセーフUIイベントバス（queue.Queue基盤）
 │   ├── llm_client.py            # LLMClient。update()でホットリロード可能。OpenRouterヘッダー自動付与
-│   ├── model_router.py          # ロール別モデルルーティング（STRONG/FAST）＆推論エフォート（lokicode移植）
+│   ├── model_router.py          # ロール別モデルルーティング（STRONG/FAST）＆推論エフォート（lokicode移植）。summarize_telemetry()/suggest_efficient_model()でテレメトリ実績を助言表示（自動切り替えはしない）
 │   ├── scope_guard.py           # バグバウンティ対応: 対象範囲(Scope)の機械的判定 in_scope()（許可リスト一致のみ・v1はdeny-list非対応）
 │   └── orchestrator.py          # LangGraph StateGraph。深層解析ループ回数はエフォート連動（smart_truncate採用）
 ├── agents/
@@ -214,6 +214,18 @@ fix: fix ALERT event not firing in DEFENSE MODE
   忘れたまま無防備に使ってしまう false sense of security を防ぐため、`settings_dialog.py`
   に常時警告文言を表示している（advisorレビュー指摘・2026-08-16、[docs/BOUNTY_ROADMAP.md](docs/BOUNTY_ROADMAP.md) Phase A）。
   同様の「デフォルト無効・後方互換」設計を追加する際はこのパターンを踏襲する。
+- **検証器アンサンブル（`_vote_findings`）は所見を除外しない**。過半数一致しない所見も
+  `CONFIDENCE: ENSEMBLE_MINORITY` を付けて最終結果に含める（union方式）。マーカーブロックへ
+  新しいフィールドを追加する場合は、`report_generator._parse()` の `_field()` パターン
+  （`^{key}:\s*(.+)` の行マッチ）に1行足すだけで安全に追加できる — 未知フィールドは
+  既存パーサに無視されるため後方互換を壊さない（advisorレビュー指摘・2026-08-17、
+  lokicodeの検証フェーズ設計との比較検討）。「本ツールの差別化ポイントである
+  未知脆弱性の見逃し防止」という方針上、多数決による除外は今後も導入しないこと。
+- **テレメトリ台帳（`reports/telemetry.jsonl`）の活用機能は助言のみに留め、自動切り替えを
+  実装しない**。`core/model_router.summarize_telemetry()`/`suggest_efficient_model()` は
+  ユーザーの明示設定を一切上書きしない（lokicodeの`lib/modelLedger.ts`のε-greedy自動選択は
+  意図的に移植しなかった）。実測データが十分に溜まり、助言の精度が検証できるまでは
+  この方針を変えないこと。
 - **LLM呼び出しの役割分担を守る**。最終的な専門推論は `_stream_llm()`（STRONG）、機械的・量の出る
   生成は `_complete_llm(role="fast")`（FAST）を使う。モデル名・エンドポイントをエージェントに直書きせず、
   必ず `core/model_router.py` 経由で解決する。エフォート依存の分岐は `self._effort()` の dict を見る
@@ -376,13 +388,47 @@ fix: fix ALERT event not firing in DEFENSE MODE
 - [x] `.github/workflows/selftest.yml` が回す `SELFTEST_NON_LLM_ONLY=1` の対象範囲は
   1〜8・2b〜2e・3b・7b・13〜16b（実LLM要のテストは引き続きSKIP）
 
+### 実装済み（AIモデル運用最適化 — テレメトリ活用 & 検証器アンサンブル見直し）
+背景: 個人開発アプリ「lokicode」（`/home/loki/projects/lokicode`）の `lib/modelLedger.ts`
+（EWMA記録+ε-greedy選択）・検証フェーズ（judge=常にsynthesis／min集約／defects union）の設計と
+本リポジトリを比較検討した上で実装。比較で出た4提案のうち、既存データを読むだけ・設定を一切
+上書きしない①と、コード自身の既存方針との矛盾を正す③のみを実装した（**明確に改善と言えるもの
+のみ**という方針のため）。
+- [x] **テレメトリ台帳の要約・モデル提案（①）** — `core/model_router.py` に
+  `summarize_telemetry()`（`reports/telemetry.jsonl` を(mode, model)単位で集計し
+  効率指標＝平均検出数/平均所要秒の高い順に返す。lokicodeの`MIN_RUNS_TO_TRUST=5`を踏襲し
+  件数不足のグループは除外）と `suggest_efficient_model()`（現在のモデルより効率指標が
+  margin倍以上良い実績があれば助言文字列を返す）を追加。**自動切り替えは実装しない**
+  （lokicodeのbestModel/ε-greedy選択に相当する機能はあえて移植せず、助言表示のみに留めた）。
+  `settings_dialog.py` に `_ledger_hint_label` を追加し、readiness_label と同じパターンで
+  STRONG/FASTモデルそれぞれ4モード分の助言を表示
+- [x] **検証器アンサンブルの集約方式見直し（③・fix）** — `agents/base_agent.py` の
+  `_vote_findings()` を、過半数不一致の所見を最終レポートから除外する方式から、
+  `CONFIDENCE: ENSEMBLE_MINORITY` を付記した上で全所見を採用するunion方式に変更。
+  `EFFORT_PRESETS["quality"]["verify_samples"]=2` が既定のため旧方式の閾値（過半数=2）が
+  実質「全会一致必須」と等価になっており、`_parse_marker_findings()` 自身が明言する
+  「除外＝誤検知の確定ではない・サイレントに消さない」という方針と矛盾していたための修正
+  （バグ修正）。`report_generator.py` の `_parse()`/`_render_finding()` がCONFIDENCEフィールドを
+  拾い、HTML出力で「(単独検証)」と可視化する（PDF/Markdown側の個別対応はスコープ外）
+- [x] セルフテスト `2f`（テレメトリ台帳の要約・助言、一時ディレクトリで本番ファイルを汚染しない）
+  を追加。`2c`（検証器アンサンブル）・`7`（ReportGenerator）のアサーションをunion方式・
+  CONFIDENCEフィールドに合わせて更新
+- **見送った提案とその理由**（将来セッションが同じ提案を再検討する際の文脈として記録）:
+  下書き生成をSTRONGからFASTへ移す案（lokicodeの0.27.0のDraft移行に相当）と、難易度ルーターの
+  4分類化＋ビームサーチ導入（lokicodeのdeep-hard判定＋escalation相当）は、検出精度（見逃し率）
+  への影響を検証する実測データが無い段階でリスクが大きいため見送った。テレメトリ活用が
+  軌道に乗り実績データが溜まってから再検討する
+
 ### 未実装（ロードマップ）
 
 **長期・任意**
 - [ ] 自動脆弱性スキャンCI — 上記CI/CD統合の拡張案。push毎に自リポジトリへCODE AUDITを実LLMで
   自動実行しPRにコメント。secrets設定とコスト発生についてユーザーの明示的な合意が要る
-- [ ] モデル別コスト×精度台帳の分析機能 — `reports/telemetry.jsonl` の記録を集計し、
-  コスパ最良モデルを提案する（現状は記録のみ）
+- [ ] モデル別コスト×精度台帳の**自動切り替え** — 上記の助言表示から一歩進めて、
+  lokicodeのε-greedy選択のように実行時に自動でモデルを選ぶ案。ユーザーの明示設定を尊重する
+  現方針から踏み込むため、助言機能の実績が十分に溜まってから改めて検討する
+- [ ] 下書き生成のFASTモデルへの移行・難易度ルーター4分類化＋ビームサーチ — 上記
+  「見送った提案」参照
 - [ ] `scope_guard.py` の除外リスト（deny-list）対応 — バグバウンティのスコープは包含と除外が
   混在するケースが多いが、v1は許可リスト一致のみに対応（[docs/BOUNTY_ROADMAP.md](docs/BOUNTY_ROADMAP.md) Phase A参照）
 - [ ] Phase Bで発見したサブドメインへの自動展開・バグバウンティプログラムごとのレート制限値の
