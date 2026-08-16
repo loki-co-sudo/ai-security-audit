@@ -52,7 +52,7 @@ AI-Security-tool/
 │   ├── settings.py              # 全定数（色・フォント・LLMデフォルト値・FASTモデル・EFFORT_PRESETS・スキャン設定・APP_VERSION）
 │   ├── config.py                # config.jsonの読み書き＋バリデーション。settings.pyをデフォルトとしてフォールバック（llm_fast_model/effort/allowed_targets/scope_mode等）
 │   ├── event_bus.py             # スレッドセーフUIイベントバス（queue.Queue基盤）
-│   ├── llm_client.py            # LLMClient。update()でホットリロード可能。OpenRouterヘッダー自動付与
+│   ├── llm_client.py            # LLMClient。update()でホットリロード可能。OpenRouterヘッダー自動付与。fetch_models()で価格・コンテキスト長・知能指数（Artificial Analysis）付きモデル一覧を取得。cost_tier()/sort_models()も提供
 │   ├── model_router.py          # ロール別モデルルーティング（STRONG/FAST）＆推論エフォート（lokicode移植）。summarize_telemetry()/suggest_efficient_model()でテレメトリ実績を助言表示（自動切り替えはしない）
 │   ├── scope_guard.py           # バグバウンティ対応: 対象範囲(Scope)の機械的判定 in_scope()（許可リスト一致のみ・v1はdeny-list非対応）
 │   └── orchestrator.py          # LangGraph StateGraph。深層解析ループ回数はエフォート連動（smart_truncate採用）
@@ -81,7 +81,7 @@ AI-Security-tool/
 │   ├── splash.py                # 起動スプラッシュ（tkinter製・重いモジュールロード前に高速表示）
 │   ├── export_util.py           # HTML/PDF/Markdownレポート出力の共通ヘルパー
 │   ├── dialogs/
-│   │   ├── settings_dialog.py   # LLM設定モーダル（接続テスト・config.json保存・SCOPEセクション＝allowed_targets/scope_mode）
+│   │   ├── settings_dialog.py   # LLM設定モーダル（接続テスト・config.json保存・SCOPEセクション＝allowed_targets/scope_mode）。MODEL/FASTは検索式モデルピッカー共用（コスト階級・プロバイダ・知能指数フィルタ/ソート、適用先セレクタで切替）
 │   │   └── auth_dialog.py       # WEB FUZZ認証設定（title引数でヘッダー文言を差し替え可能・第2セッション/IDOR比較用にも流用）
 │   ├── widgets/
 │   │   ├── output_box.py        # カラータグ付きスクロールテキストボックス（get_text()付き）
@@ -433,6 +433,32 @@ fix: fix ALERT event not firing in DEFENSE MODE
   （見つからなければ従来通り system python3/python にフォールバック）。理由: 本プロジェクトの
   GUI依存（customtkinter等）は `.venv` にのみインストールされる方針（CLAUDE.md）のため、
   system python3 では `ModuleNotFoundError` になり起動できないバグがあった
+
+### 実装済み（モデルピッカー — 検索・コスト階級・プロバイダ・知能指数）
+lokicodeの `src/components/ModelPicker.tsx`（コスト階級分類・プロバイダフィルタ・検索）と
+`src-tauri/src/openrouter.rs`（Artificial Analysis社の`intelligence_index`/`coding_index`
+ベンチマーク取得）を参考に、MODEL欄が自由入力のみだった設定画面を検索・フィルタ式に改善。
+- [x] `core/llm_client.py` — `fetch_models()` を openai SDK 経由（IDのみ取得）から
+  `requests` で `/models` の生JSONを直接取得する方式に変更し、`_parse_models_response()`
+  （純粋関数）で `price_out`（100万トークンあたりUSD・出力側）・`context`（コンテキスト長）・
+  `intelligence`/`coding`（Artificial Analysis指数、無いモデルはNone）を抽出するように拡張。
+  `cost_tier(price_out)` は lokicodeと同じ4階級閾値（無料/低=$1未満/中=$10未満/高）。
+  `sort_models(models, by="id"|"intelligence")` は**lokicodeのModelPicker.tsxには無い、
+  本ツール独自の追加**（知能指数降順、Noneは末尾固定＝未収録を0点扱いにしない）
+- [x] `gui/dialogs/settings_dialog.py` — MODEL/FAST欄を、既存の検索式スクロール一覧
+  （`_render_model_list()`等）に統合。追加した要素: 適用先セレクタ（MODEL/FASTどちらへ
+  クリック反映するか）・コスト階級フィルタチップ（複数選択）・プロバイダフィルタチップ
+  （取得件数の多い順に動的集計）・並び順トグル（ID順/知能指数順）。一覧の各行に
+  コスト階級・価格・コンテキスト長・知能指数（あれば）を表示する。**lokicodeとの意図的な差分**:
+  lokicodeは完全ボタン式（手入力不可）だが、本ツールはOllama等ローカル接続で一覧に出ない
+  モデルを使うケースがあるため、既存の手入力欄（CTkEntry）はそのまま残した。また
+  フィールドごとに独立したポップアップにせず、一覧を1つに共通化して適用先セレクタで
+  切り替える設計にした（ダイアログの縦幅を抑えるため）
+  `_available_models()` は self を使わない純粋ロジックのため `@staticmethod` にし、
+  旧形式（`list[str]`）キャッシュとの後方互換を含めて `tools/run_selftest.py` の
+  「19. CORE/GUI — モデルピッカー」でインスタンス化なしにテストする
+- [x] `available_models` キャッシュ形式を `list[str]`→`list[dict]` に変更（後方互換あり、
+  旧形式が残っていても正規化して読める）
 
 ### 未実装（ロードマップ）
 
