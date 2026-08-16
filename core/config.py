@@ -34,6 +34,11 @@ _DEFAULTS: dict = {
     "available_models": [],
     # レポート生成言語: "ja"（日本語）または "en"（英語）。
     "report_lang": "ja",
+    # バグバウンティ対応: 対象範囲（Scope）ガード（BOUNTY_ROADMAP.md Phase A）。
+    # 空 = 制限なし（既存インストールとの後方互換）。
+    "allowed_targets": [],
+    # 範囲外を検出したときの挙動: "warn"（警告のみ続行）| "block"（実行ブロック）。
+    "scope_mode": "warn",
 }
 
 # 設定キーの許容リスト（未知キー警告のため）
@@ -64,11 +69,17 @@ def _validate_port_range(v) -> str | None:
         return "port_range は 1-65535 の整数リストである必要があります"
     return None
 
+def _validate_scope_mode(v) -> str | None:
+    if v not in ("warn", "block"):
+        return "scope_mode は 'warn' または 'block' である必要があります"
+    return None
+
 _VALIDATORS = {
     "llm_timeout": _validate_timeout,
     "effort":      _validate_effort,
     "report_lang": _validate_report_lang,
     "port_range":  _validate_port_range,
+    "scope_mode":  _validate_scope_mode,
 }
 
 

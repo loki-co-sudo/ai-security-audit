@@ -14,6 +14,7 @@ import core.event_bus as ev
 import core.config as config
 from core.llm_client import LLMClient
 from core.model_router import build_fast_client, fast_signature, current_effort
+from core.scope_guard import in_scope
 
 _SEVERITIES = ("CRITICAL", "HIGH", "MEDIUM", "LOW")
 
@@ -170,6 +171,28 @@ class BaseAgent(ABC):
 
     def _done(self, error: bool = False) -> None:
         self.bus.done(error)
+
+    # ── スコープガード（バグバウンティ対応・BOUNTY_ROADMAP.md Phase A） ──
+    def _check_scope(self, target: str) -> bool:
+        """範囲外なら scope_mode に応じて警告 or ブロックする。呼び出し元は
+        False が返ったら即 return すること（block時は _done(error=True) 済み）。
+
+        allowed_targets が空（既定）なら常に True（後方互換・全対象許可）。
+        """
+        allowed = config.get("allowed_targets") or []
+        ok, msg = in_scope(target, allowed)
+        if ok:
+            return True
+        mode = config.get("scope_mode", "warn")
+        if mode == "block":
+            self._out(f"\n[ SCOPE BLOCK ] {msg}（scope_mode=block のため実行を中止しました）\n",
+                      "critical")
+            self._log(f"Scope block: {msg}")
+            self._done(error=True)
+            return False
+        self._out(f"\n[ SCOPE WARNING ] {msg}（scope_mode=warn のため続行します）\n", "high")
+        self._log(f"Scope warning: {msg}")
+        return True
 
     # ── LLM ヘルパー ──────────────────────────────────────
     @staticmethod

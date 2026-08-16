@@ -218,6 +218,58 @@ class SettingsDialog(RobustToplevel):
         self._add_entry(body, "FAST KEY", self._fast_key_var, True,
                         "任意: FAST URL を別にした場合のAPIキー")
 
+        # ── SCOPE（バグバウンティ対応・対象範囲ガード — 任意） ─────
+        # BOUNTY_ROADMAP.md Phase A。advisorレビュー指摘（2026-08-16）:
+        # allowed_targets が空だと無効（既存インストールとの後方互換）のため、
+        # 初学者が設定を忘れて無防備なまま使ってしまう false sense of security
+        # を防ぐ常時警告をここに表示する。
+        ctk.CTkLabel(
+            body, text="🎯 SCOPE（対象範囲・バグバウンティ対応 — 任意）",
+            font=ctk.CTkFont("Segoe UI", 10, "bold"), text_color=AMBER,
+        ).pack(anchor="w", pady=(10, 0))
+        self._scope_warn = ctk.CTkLabel(
+            body, text="", font=ctk.CTkFont("Segoe UI", 9), text_color=AMBER,
+            anchor="w", justify="left", wraplength=580,
+        )
+        self._scope_warn.pack(anchor="w", pady=(0, 2))
+
+        scope_row = ctk.CTkFrame(body, fg_color="transparent")
+        scope_row.pack(fill="x", pady=5)
+        ctk.CTkLabel(scope_row, text="ALLOWED", width=80,
+                     font=ctk.CTkFont("Consolas", 10, "bold"), text_color=TEXT_DIM,
+                     anchor="w").pack(side="left", anchor="n")
+        self._scope_text = ctk.CTkTextbox(
+            scope_row, height=70,
+            font=ctk.CTkFont("Consolas", 10),
+            fg_color=BG_INPUT, border_color=BORDER, border_width=1,
+            text_color=TEXT_PRI,
+        )
+        self._scope_text.insert("1.0", "\n".join(config.get("allowed_targets") or []))
+        self._scope_text.pack(side="left", fill="x", expand=True)
+        self._scope_text.bind("<KeyRelease>", lambda _e: self._update_scope_hint())
+
+        mode_row = ctk.CTkFrame(body, fg_color="transparent")
+        mode_row.pack(fill="x", pady=5)
+        ctk.CTkLabel(mode_row, text="MODE", width=80,
+                     font=ctk.CTkFont("Consolas", 10, "bold"), text_color=TEXT_DIM,
+                     anchor="w").pack(side="left")
+        self._scope_mode_var = tk.StringVar(self, value=config.get("scope_mode", "warn"))
+        ctk.CTkSegmentedButton(
+            mode_row, values=["warn", "block"], variable=self._scope_mode_var,
+            font=ctk.CTkFont("Segoe UI", 11),
+            fg_color=BG_INPUT, selected_color=AMBER, selected_hover_color="#CC8400",
+            unselected_color=BG_WIDGET, unselected_hover_color="#152030",
+            text_color=TEXT_PRI, height=30,
+        ).pack(side="left", padx=(0, 8))
+        ctk.CTkLabel(
+            mode_row,
+            text="1行1ルール（例: example.com / *.example.com / 203.0.113.0/24）。"
+                 "範囲外を warn=警告のみ続行 / block=実行ブロック。空欄=制限なし（既存動作）",
+            font=ctk.CTkFont("Segoe UI", 9), text_color=TEXT_DIM,
+            anchor="w", justify="left", wraplength=440,
+        ).pack(side="left")
+        self._update_scope_hint()
+
         # モデル要件ゲート（ヒューリスティック警告・ブロックしない） — AGENT_ARCHITECTURE.md §5.2
         self._readiness_label = ctk.CTkLabel(
             body, text="", font=ctk.CTkFont("Segoe UI", 9),
@@ -288,6 +340,17 @@ class SettingsDialog(RobustToplevel):
             command=self._start_test,
         )
         self._test_btn.pack(side="left", padx=12, pady=10)
+
+    def _update_scope_hint(self) -> None:
+        """空のままだと全対象が許可扱いになることを常時警告する（false sense of security対策）。"""
+        text = self._scope_text.get("1.0", "end").strip()
+        if not text:
+            self._scope_warn.configure(
+                text="⚠ 空のままだと全対象が許可扱いになります（既存動作との後方互換のため）。"
+                     "バグバウンティ利用では対象範囲の設定を強く推奨します。"
+            )
+        else:
+            self._scope_warn.configure(text="")
 
     def _update_readiness_hint(self) -> None:
         """STRONG/FAST モデル構成のヒューリスティック警告を表示する（非ブロッキング）。"""
@@ -453,6 +516,11 @@ class SettingsDialog(RobustToplevel):
             "llm_fast_base_url": self._fast_url_var.get().strip(),
             "llm_fast_api_key":  self._fast_key_var.get().strip(),
             "effort":            self._effort_key(),
+            "allowed_targets": [
+                line.strip() for line in self._scope_text.get("1.0", "end").split("\n")
+                if line.strip()
+            ],
+            "scope_mode": self._scope_mode_var.get(),
         }
         config.save(data)
         self._llm.update(
