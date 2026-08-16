@@ -12,7 +12,7 @@ from core.settings import (
     TEXT_PRI, TEXT_DIM, TEXT_MID, BORDER, EFFORT_PRESETS,
 )
 import core.config as config
-from core.llm_client import LLMClient
+from core.llm_client import LLMClient, cost_tier, sort_models
 from gui.dialogs.base import RobustToplevel
 from gui.dialogs.help_dialog import HelpDialog
 
@@ -65,6 +65,16 @@ class SettingsDialog(RobustToplevel):
         self._timeout_var = tk.StringVar(self, value=str(config.get("llm_timeout")))
         self._search_var  = tk.StringVar(self)
         self._search_job  = None  # 検索の debounce 用 after ID
+        # モデル一覧（検索・絞り込み・クリック選択）はMODEL/FASTで共有する。
+        # どちらの欄へ反映するかは _pick_target_var で切り替える（lokicode の
+        # ModelPicker.tsx はフィールドごとに独立したピッカーだが、本ツールはダイアログの
+        # 縦幅を抑えるため一覧を1つに共通化し、適用先セレクタで切り替える設計にしている）。
+        self._pick_target_var = tk.StringVar(self, value="MODEL")
+        self._cost_filter: set[str] = set()      # 選択中のコスト階級フィルタ（空=絞り込みなし）
+        self._provider_filter: set[str] = set()  # 選択中のプロバイダフィルタ（空=絞り込みなし）
+        # 並び順（表示は「ID順」「知能指数順」、内部キーへは _sort_key() で変換）。
+        # lokicodeには無い独自追加。
+        self._sort_display_var = tk.StringVar(self, value="ID順")
         # レポート言語（事前選択）。表示は「日本語/English」、保存値は ja/en。
         self._lang_var    = tk.StringVar(
             self, value="日本語" if config.get("report_lang", "ja") == "ja" else "English")
@@ -290,9 +300,23 @@ class SettingsDialog(RobustToplevel):
         self._fast_model_var.trace_add("write", lambda *_a: self._update_ledger_hint())
         self._update_ledger_hint()
 
+        # モデルピッカー: 適用先セレクタ（MODEL/FASTのどちらへクリック反映するか）
+        pick_row = ctk.CTkFrame(body, fg_color="transparent")
+        pick_row.pack(fill="x", pady=(10, 4))
+        ctk.CTkLabel(pick_row, text="一覧から選択 →", font=ctk.CTkFont("Segoe UI", 9),
+                     text_color=TEXT_DIM).pack(side="left", padx=(0, 6))
+        ctk.CTkSegmentedButton(
+            pick_row, values=["MODEL", "FAST"], variable=self._pick_target_var,
+            command=lambda _v: self._render_model_list(),
+            font=ctk.CTkFont("Segoe UI", 10),
+            fg_color=BG_INPUT, selected_color=CYAN, selected_hover_color="#00B5DD",
+            unselected_color=BG_WIDGET, unselected_hover_color="#152030",
+            text_color=TEXT_PRI, height=26,
+        ).pack(side="left")
+
         # 検索ボックス + 件数表示
         search_row = ctk.CTkFrame(body, fg_color="transparent")
-        search_row.pack(fill="x", pady=(10, 4))
+        search_row.pack(fill="x", pady=(6, 4))
         ctk.CTkEntry(
             search_row, textvariable=self._search_var,
             placeholder_text="🔍 モデル名で検索（例: claude, gpt-5, qwen3 ...）",
@@ -307,7 +331,40 @@ class SettingsDialog(RobustToplevel):
         self._count_label.pack(side="left", padx=(8, 0))
         self._search_var.trace_add("write", self._on_search_changed)
 
-        # スクロール可能なモデル一覧。クリックで MODEL 欄へ反映。
+        # コスト階級フィルタ（複数選択トグル。lokicode ModelPicker.tsx のコストチップ相当）
+        # ＋ 並び順トグル（ID順/知能指数順。lokicodeには無い本ツール独自の追加）。
+        cost_row = ctk.CTkFrame(body, fg_color="transparent")
+        cost_row.pack(fill="x", pady=(0, 4))
+        self._cost_chip_btns: dict[str, ctk.CTkButton] = {}
+        for tier in ("無料", "低", "中", "高"):
+            btn = ctk.CTkButton(
+                cost_row, text=f"コスト {tier}", width=76, height=22,
+                fg_color="transparent", hover_color="#152030",
+                border_color=BORDER, border_width=1,
+                text_color=TEXT_DIM, font=ctk.CTkFont("Segoe UI", 9),
+                command=lambda t=tier: self._toggle_cost_filter(t),
+            )
+            btn.pack(side="left", padx=(0, 4))
+            self._cost_chip_btns[tier] = btn
+
+        ctk.CTkLabel(cost_row, text="  並び順", font=ctk.CTkFont("Segoe UI", 9),
+                     text_color=TEXT_DIM).pack(side="left", padx=(8, 4))
+        ctk.CTkSegmentedButton(
+            cost_row, values=["ID順", "知能指数順"], variable=self._sort_display_var,
+            command=lambda _v: self._render_model_list(),
+            font=ctk.CTkFont("Segoe UI", 9),
+            fg_color=BG_INPUT, selected_color=PURPLE, selected_hover_color="#A96FE0",
+            unselected_color=BG_WIDGET, unselected_hover_color="#152030",
+            text_color=TEXT_PRI, height=22,
+        ).pack(side="left")
+
+        # プロバイダフィルタ（取得済み一覧から動的に集計。多い順）
+        self._provider_row = ctk.CTkFrame(body, fg_color="transparent")
+        self._provider_row.pack(fill="x", pady=(0, 4))
+        self._provider_chip_btns: dict[str, ctk.CTkButton] = {}
+        self._render_provider_chips()
+
+        # スクロール可能なモデル一覧。クリックで適用先（MODEL/FAST）欄へ反映。
         self._model_list = ctk.CTkScrollableFrame(
             body, fg_color=BG_INPUT, border_color=BORDER, border_width=1,
             scrollbar_button_color=BORDER, scrollbar_button_hover_color=TEXT_DIM,
@@ -415,11 +472,40 @@ class SettingsDialog(RobustToplevel):
     # ── モデル一覧の自動管理 ───────────────────────────────
     _LIST_CAP = 200  # 一度に描画する最大件数（多すぎる一覧の描画負荷を抑える）
 
-    def _available_models(self) -> list[str]:
-        """厳選デフォルト + 取得済みキャッシュ（重複排除、デフォルトを先頭）。"""
-        cached = config.get("available_models") or []
-        extra  = [m for m in cached if m not in _PRESET_MODELS]
-        return [*_PRESET_MODELS, *extra]
+    def _sort_key(self) -> str:
+        """表示ラベル（ID順/知能指数順）から sort_models() の by キーへ変換する。"""
+        return "intelligence" if self._sort_display_var.get() == "知能指数順" else "id"
+
+    @staticmethod
+    def _provider_of(model_id: str) -> str:
+        """モデルslugの '/' より前の部分をプロバイダとみなす（lokicode と同じ規則）。"""
+        i = model_id.find("/")
+        return model_id if i == -1 else model_id[:i]
+
+    @staticmethod
+    def _available_models() -> list[dict]:
+        """厳選デフォルト + 取得済みキャッシュ（重複排除、キャッシュのメタデータを優先）。
+
+        キャッシュは list[dict]（id/price_out/context/intelligence/coding）が現行形式だが、
+        旧バージョンの list[str] キャッシュが残っている環境向けに文字列要素も正規化して
+        受け付ける（後方互換）。同一idがpresetとキャッシュ両方にあれば、価格等が乗っている
+        キャッシュ側を残す。self を使わない純粋関数のため staticmethod にして
+        run_selftest.py からインスタンス化なしでテストできるようにしてある。
+        """
+        def _norm(m) -> dict:
+            if isinstance(m, str):
+                return {"id": m, "price_out": None, "context": None,
+                        "intelligence": None, "coding": None}
+            return {
+                "id": m.get("id", ""), "price_out": m.get("price_out"), "context": m.get("context"),
+                "intelligence": m.get("intelligence"), "coding": m.get("coding"),
+            }
+
+        cached = [_norm(m) for m in (config.get("available_models") or [])]
+        cached = [m for m in cached if m["id"]]
+        cached_ids = {m["id"] for m in cached}
+        presets = [_norm(m) for m in _PRESET_MODELS if m not in cached_ids]
+        return [*presets, *cached]
 
     def _on_search_changed(self, *_args) -> None:
         # キー入力ごとの再描画を避けるため debounce する。
@@ -427,29 +513,106 @@ class SettingsDialog(RobustToplevel):
             self.after_cancel(self._search_job)
         self._search_job = self.after(150, self._render_model_list)
 
+    def _toggle_cost_filter(self, tier: str) -> None:
+        if tier in self._cost_filter:
+            self._cost_filter.discard(tier)
+        else:
+            self._cost_filter.add(tier)
+        self._render_model_list()
+
+    def _toggle_provider_filter(self, provider: str) -> None:
+        if provider in self._provider_filter:
+            self._provider_filter.discard(provider)
+        else:
+            self._provider_filter.add(provider)
+        self._render_model_list()
+
+    def _render_provider_chips(self) -> None:
+        """取得済み一覧からプロバイダを多い順に集計し、フィルタチップとして描画する。"""
+        for child in self._provider_row.winfo_children():
+            child.destroy()
+        self._provider_chip_btns = {}
+
+        counts: dict[str, int] = {}
+        for m in self._available_models():
+            p = self._provider_of(m["id"])
+            counts[p] = counts.get(p, 0) + 1
+        top = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[:10]
+
+        for provider, n in top:
+            on = provider in self._provider_filter
+            btn = ctk.CTkButton(
+                self._provider_row, text=f"{provider} {n}", height=22,
+                fg_color="#152030" if on else "transparent",
+                hover_color="#152030",
+                border_color=CYAN if on else BORDER, border_width=1,
+                text_color=CYAN if on else TEXT_DIM, font=ctk.CTkFont("Segoe UI", 9),
+                command=lambda p=provider: self._toggle_provider_filter(p),
+            )
+            btn.pack(side="left", padx=(0, 4))
+            self._provider_chip_btns[provider] = btn
+
     def _render_model_list(self) -> None:
-        """検索条件でモデル一覧を絞り込み、スクロール一覧へ描画する。"""
+        """検索・コスト階級・プロバイダの各条件でモデル一覧を絞り込み描画する。"""
         self._search_job = None
         for child in self._model_list.winfo_children():
             child.destroy()
 
-        query   = self._search_var.get().strip().lower()
-        models  = self._available_models()
-        matched = [m for m in models if query in m.lower()] if query else models
+        # フィルタチップの選択状態（色）を更新する。
+        for tier, btn in self._cost_chip_btns.items():
+            on = tier in self._cost_filter
+            btn.configure(
+                fg_color="#152030" if on else "transparent",
+                border_color=CYAN if on else BORDER,
+                text_color=CYAN if on else TEXT_DIM,
+            )
+        for provider, btn in self._provider_chip_btns.items():
+            on = provider in self._provider_filter
+            btn.configure(
+                fg_color="#152030" if on else "transparent",
+                border_color=CYAN if on else BORDER,
+                text_color=CYAN if on else TEXT_DIM,
+            )
+
+        query  = self._search_var.get().strip().lower()
+        models = self._available_models()
+
+        def _match(m: dict) -> bool:
+            if query and query not in m["id"].lower():
+                return False
+            if self._cost_filter and cost_tier(m["price_out"]) not in self._cost_filter:
+                return False
+            if self._provider_filter and self._provider_of(m["id"]) not in self._provider_filter:
+                return False
+            return True
+
+        matched = sort_models([m for m in models if _match(m)], by=self._sort_key())
         shown   = matched[:self._LIST_CAP]
-        current = self._model_var.get().strip()
+
+        target_var = self._model_var if self._pick_target_var.get() == "MODEL" else self._fast_model_var
+        current = target_var.get().strip()
 
         for m in shown:
-            selected = (m == current)
+            selected = (m["id"] == current)
+            tier = cost_tier(m["price_out"])
+            meta_parts = [f"コスト {tier}"]
+            if m["price_out"] is not None and m["price_out"] > 0:
+                meta_parts.append(f"${m['price_out']:.2f}/M")
+            if m["context"]:
+                ctx_k = m["context"] // 1000
+                meta_parts.append(f"ctx {ctx_k}K" if ctx_k else f"ctx {m['context']}")
+            if m["intelligence"] is not None:
+                meta_parts.append(f"知能 {m['intelligence']:.0f}")
+            label = f"{m['id']}   [{' / '.join(meta_parts)}]"
             ctk.CTkButton(
-                self._model_list, text=m, height=26, anchor="w",
+                self._model_list, text=label, height=26, anchor="w",
                 fg_color="#152030" if selected else "transparent",
                 hover_color="#152030",
                 border_color=CYAN if selected else BORDER,
                 border_width=1 if selected else 0,
                 text_color=CYAN if selected else TEXT_PRI,
                 font=ctk.CTkFont("Consolas", 10),
-                command=lambda v=m: self._select_model(v),
+                command=lambda v=m["id"]: self._select_model(v),
             ).pack(fill="x", padx=4, pady=1)
 
         total = len(matched)
@@ -463,7 +626,9 @@ class SettingsDialog(RobustToplevel):
             self._count_label.configure(text=f"{total} 件")
 
     def _select_model(self, model: str) -> None:
-        self._model_var.set(model)
+        """一覧クリック時、適用先セレクタ（MODEL/FAST）に応じて反映する。"""
+        target_var = self._model_var if self._pick_target_var.get() == "MODEL" else self._fast_model_var
+        target_var.set(model)
         self._render_model_list()  # 選択状態のハイライトを更新
 
     def _start_fetch_models(self) -> None:
@@ -482,12 +647,13 @@ class SettingsDialog(RobustToplevel):
             msg = str(e)[:100]
             self.after(0, lambda: self._on_models_done(False, f"取得失敗: {msg}"))
 
-    def _on_models_fetched(self, models: list[str]) -> None:
+    def _on_models_fetched(self, models: list[dict]) -> None:
         if not models:
             self._on_models_done(False, "モデルが取得できませんでした")
             return
-        # キャッシュへ保存し、一覧を再描画する。
+        # キャッシュへ保存し、一覧・プロバイダチップを再描画する。
         config.save({"available_models": models})
+        self._render_provider_chips()
         self._render_model_list()
         self._on_models_done(True, f"{len(models)} 個のモデルを取得しました")
 

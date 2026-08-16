@@ -1072,6 +1072,76 @@ def test_desktop_shortcut():
         _ng("DesktopShortcut", repr(e) + "\n" + traceback.format_exc())
 
 
+def test_model_picker():
+    _section("19. CORE/GUI — モデルピッカー（価格・コンテキスト長・知能指数・ソート）")
+    from core.llm_client import _parse_models_response, cost_tier, sort_models
+
+    try:
+        raw = {"data": [
+            {"id": "anthropic/claude-haiku-4.5", "pricing": {"completion": "0.000004"},
+             "context_length": 200000,
+             "benchmarks": {"artificial_analysis": {"intelligence_index": 42.3, "coding_index": 51.1}}},
+            {"id": "openai/gpt-5.5", "pricing": {"completion": "0.00003"}, "context_length": 400000},
+            {"id": "qwen2.5-coder:14b"},  # Ollama等、pricing/context/benchmarksが一切無いケース
+            {"id": "z-dup", "pricing": {"completion": "bad-value"}},  # パース不能な価格
+            {"id": "z-dup"},  # 重複id（後勝ちではなく先勝ち＝1件のみ採用）
+        ]}
+        parsed = _parse_models_response(raw)
+        by_id = {m["id"]: m for m in parsed}
+        assert len(parsed) == 4, f"重複idは1件に統合されるべき: {[m['id'] for m in parsed]}"
+        assert by_id["anthropic/claude-haiku-4.5"]["price_out"] == 4.0, "USD/token→USD/M変換が正しくない"
+        assert by_id["anthropic/claude-haiku-4.5"]["intelligence"] == 42.3
+        assert by_id["anthropic/claude-haiku-4.5"]["coding"] == 51.1
+        assert by_id["openai/gpt-5.5"]["intelligence"] is None, "benchmarks欠落時はNoneであるべき"
+        assert by_id["qwen2.5-coder:14b"]["price_out"] is None
+        assert by_id["qwen2.5-coder:14b"]["context"] is None
+        assert by_id["z-dup"]["price_out"] is None, "パース不能な価格はNoneであるべき（例外を投げない）"
+        assert [m["id"] for m in parsed] == sorted(m["id"] for m in parsed), "id昇順ソートであるべき"
+        _ok("_parse_models_response()", "価格変換・欠落フィールド・重複id・パース不能値のケースを確認")
+
+        assert cost_tier(None) == "無料" and cost_tier(0) == "無料"
+        assert cost_tier(0.99) == "低" and cost_tier(1) == "中"  # 境界値: 1は「低」に含まれない
+        assert cost_tier(9.99) == "中" and cost_tier(10) == "高"
+        _ok("cost_tier()", "境界値（0/1/10）を含む4階級分類")
+
+        by_id_order = [m["id"] for m in sort_models(parsed, by="id")]
+        assert by_id_order == sorted(by_id_order), "by='id' は昇順であるべき"
+        by_intel = sort_models(parsed, by="intelligence")
+        assert by_intel[0]["id"] == "anthropic/claude-haiku-4.5", \
+            "intelligenceを持つモデルが先頭に来るべき"
+        assert all(m["intelligence"] is None for m in by_intel[1:]), \
+            "intelligence=Noneのモデルは末尾にまとまるべき"
+        _ok("sort_models()", "id順・知能指数降順（None末尾）を確認")
+    except Exception as e:
+        _ng("model_picker (llm_client)", repr(e) + "\n" + traceback.format_exc())
+
+    # settings_dialog._available_models(): 旧形式(list[str])キャッシュとの後方互換
+    try:
+        from gui.dialogs.settings_dialog import SettingsDialog, _PRESET_MODELS
+        saved = dict(config._cfg)
+        try:
+            config._cfg["available_models"] = [
+                "qwen3:30b-a3b",  # presetと重複するid（キャッシュ側の情報で上書きされるはず）
+                {"id": "anthropic/claude-haiku-4.5", "price_out": 4.0, "context": 200000,
+                 "intelligence": 42.3, "coding": 51.1},
+            ]
+            models = SettingsDialog._available_models()
+            by_id = {m["id"]: m for m in models}
+            assert "anthropic/claude-haiku-4.5" in by_id, "キャッシュのdict要素が含まれるべき"
+            assert by_id["anthropic/claude-haiku-4.5"]["intelligence"] == 42.3
+            assert by_id["qwen3:30b-a3b"]["price_out"] is None, \
+                "旧形式(文字列)キャッシュはメタデータNoneで正規化されるべき"
+            assert all(m["id"] for m in models), "全要素にidがあるべき"
+            other_presets = [m for m in _PRESET_MODELS if m != "qwen3:30b-a3b"]
+            assert all(p in by_id for p in other_presets), "キャッシュに無いpresetは残るべき"
+        finally:
+            config._cfg.clear()
+            config._cfg.update(saved)
+        _ok("SettingsDialog._available_models()", "旧形式キャッシュとの後方互換・preset併合を確認")
+    except Exception as e:
+        _ng("SettingsDialog._available_models", repr(e) + "\n" + traceback.format_exc())
+
+
 def main():
     print("\n" + "#"*64)
     print("#  AI Security Audit System — 全機能セルフテスト")
@@ -1105,6 +1175,7 @@ def main():
     test_web_fuzzer_idor()
     _skip_llm("17", "AGENT E2E — FuzzAgent（ローカルモック / 実LLM）", test_fuzz_agent)
     test_desktop_shortcut()
+    test_model_picker()
 
     dt = time.time() - t0
     print("\n" + "#"*64)
