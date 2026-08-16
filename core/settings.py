@@ -157,6 +157,15 @@ SCAN_PROFILES = {
         "randomize": False, "path_threads": 16, "path_jitter": (0.0, 0.0),
         "max_paths": None,
     },
+    # バグバウンティ対応（BOUNTY_ROADMAP.md）。思想の違い: stealth/passive等は
+    # 「検知回避」が目的だが、bounty は「対象インフラへの配慮（プログラム側の
+    # レート制限順守）」が目的。ジッターを入れる理由が「隠れるため」ではなく
+    # 「負荷を分散するため」である点をコードレベルでも区別する。
+    "bounty": {
+        "timeout": 1.5, "threads": 6,  "jitter": (0.2, 0.6),
+        "randomize": True,  "path_threads": 4,  "path_jitter": (0.2, 0.6),
+        "max_paths": None,
+    },
 }
 DEFAULT_SCAN_PROFILE = "stealth"
 

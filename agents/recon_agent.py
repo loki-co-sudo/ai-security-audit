@@ -1,6 +1,7 @@
 """
 agents/recon_agent.py — ペネトレーションテスト偵察エージェント
 
+Phase 0: 受動的サブドメイン列挙（crt.sh・バグバウンティ対応）
 Phase 1: ネットワーク偵察（ポートスキャン・バナーグラブ）
 Phase 2: Webターゲット列挙（ヘッダー・技術スタック・センシティブパス）
 Phase 3: 既知サービスバナーのローカル照合 (known_vulns.yaml)
@@ -14,12 +15,16 @@ import time
 from agents.base_agent import BaseAgent, _count_severities
 from tools.network_scanner import NetworkScanner, passive_os_fingerprint
 from tools.web_prober import WebProber
+from tools import subdomain_enum
+import core.config as config
+from core import scope_guard
 from core.settings import (
     SCAN_PROFILES, DEFAULT_SCAN_PROFILE,
     COMMON_PORTS, EXTENDED_PORTS, COMMON_UDP_PORTS,
 )
 
 STEPS = [
+    "サブドメイン列挙中（crt.sh・受動）",
     "ターゲット解析・接続確認",
     "ポートスキャン実行中",
     "サービス・バナー取得中",
@@ -47,6 +52,14 @@ def _assert_no_transmission() -> None:
             "Safety violation: exploit transmission must remain disabled. "
             "This tool only generates and displays PoCs; it never sends them to a target."
         )
+
+
+def _extract_domain(target: str) -> str | None:
+    """サブドメイン列挙(crt.sh)に使うドメイン名を抽出する。IPリテラルや形式不明なら None。"""
+    host = scope_guard.extract_host(target)
+    if scope_guard.is_ip_literal(host) or "." not in host:
+        return None
+    return host
 
 
 # ── 既知サービスバナーのローカル照合 (known_vulns.yaml) ──
@@ -240,6 +253,8 @@ class ReconAgent(BaseAgent):
             generate_exploit: bool = True, port_scope: str = "common",
             scan_udp: bool = False) -> None:
         self.bus.clear()
+        if not self._check_scope(target):
+            return
         t0 = time.time()
         self._status(f"偵察開始: {target}")
 
@@ -258,10 +273,48 @@ class ReconAgent(BaseAgent):
         scanner = NetworkScanner.from_profile(intensity, ports=scan_ports)
         prober  = WebProber(timeout=8, profile=intensity)
 
-        recon_data: dict = {"target": target, "ports": [], "udp_ports": [], "web": {}}
+        recon_data: dict = {"target": target, "ports": [], "udp_ports": [], "web": {},
+                            "subdomains": []}
 
-        # ── Step 0: ターゲット解析 ─────────────────────────
+        # ── Step 0: 受動的サブドメイン列挙（crt.sh・バグバウンティ対応） ──
         self._step(0, "running")
+        self._out("─" * 56 + "\n", "sep")
+        self._out("  PHASE 0 — PASSIVE SUBDOMAIN ENUMERATION (crt.sh)\n", "section")
+        self._out("─" * 56 + "\n", "sep")
+        domain = _extract_domain(target)
+        if domain:
+            self._status(f"サブドメイン列挙中（crt.sh）: {domain} ...")
+            found = subdomain_enum.query_crtsh(domain)
+            allowed = config.get("allowed_targets") or []
+            in_scope_subs, out_of_scope_subs = [], []
+            for sub in found:
+                ok, _ = scope_guard.in_scope(sub, allowed)
+                (in_scope_subs if ok else out_of_scope_subs).append(sub)
+            if found:
+                self._out(f"\n  {len(found)} 件のサブドメインを証明書ログから発見:\n\n", "green")
+                for s in in_scope_subs:
+                    self._out(f"    ▸ {s}\n", "medium")
+                if out_of_scope_subs:
+                    self._out(f"\n  発見したがスコープ外のため除外: {len(out_of_scope_subs)}件\n", "dim")
+                    for s in out_of_scope_subs:
+                        self._out(f"    ✗ {s}（スコープ外）\n", "dim")
+                self._out(
+                    "\n  [ NOTE ] 発見した資産が現在も対象組織の管理下にあるとは限りません"
+                    "（証明書発行履歴に基づくため）。生存確認・所有確認は別途行ってください。\n"
+                    "  [ NOTE ] v1では発見のみで、後続フェーズ（ポートスキャン等）への自動展開は行いません。\n",
+                    "high",
+                )
+            else:
+                self._out("\n  (crt.sh: 該当なし、または照会失敗)\n", "dim")
+            recon_data["subdomains"] = in_scope_subs
+        else:
+            self._out("\n  (URLからドメイン名を抽出できないためスキップ — IPアドレス指定など)\n", "dim")
+        self._step(0, "done")
+
+        if self.is_stopped(): return
+
+        # ── Step 1: ターゲット解析 ─────────────────────────
+        self._step(1, "running")
         self._out(
             "╔══════════════════════════════════════════════════════╗\n"
             "║      ATTACK MODE — AUTONOMOUS RECON INITIATED        ║\n"
@@ -295,12 +348,12 @@ class ReconAgent(BaseAgent):
             recon_data["ip"]   = resolved_ip
         else:
             self._out(f"[ WARNING ] ホスト解決失敗: {target}\n", "high")
-        self._step(0, "done")
+        self._step(1, "done")
 
         if self.is_stopped(): return
 
-        # ── Step 1: ポートスキャン ─────────────────────────
-        self._step(1, "running")
+        # ── Step 2: ポートスキャン ─────────────────────────
+        self._step(2, "running")
         self._out("─" * 56 + "\n", "sep")
         self._out("  PHASE 1 — PORT SCAN\n", "section")
         self._out("─" * 56 + "\n", "sep")
@@ -335,17 +388,17 @@ class ReconAgent(BaseAgent):
                     )
             else:
                 self._out("  No UDP ports responded.\n", "dim")
-        self._step(1, "done")
+        self._step(2, "done")
 
         if self.is_stopped(): return
 
-        # ── Step 2: バナー詳細 ─────────────────────────────
-        self._step(2, "running")
-        time.sleep(0.2)
-        self._step(2, "done")
-
-        # ── Step 3: 既知サービス脆弱性ローカル照合 (P0) ───
+        # ── Step 3: バナー詳細 ─────────────────────────────
         self._step(3, "running")
+        time.sleep(0.2)
+        self._step(3, "done")
+
+        # ── Step 4: 既知サービス脆弱性ローカル照合 (P0) ───
+        self._step(4, "running")
         known_hits = lookup_known_vulns(
             open_ports,
             recon_data.get("web", {}).get("technologies"),
@@ -370,12 +423,12 @@ class ReconAgent(BaseAgent):
                 )
         else:
             self._out("\n  (ローカル照合: ヒットなし)\n", "dim")
-        self._step(3, "done")
+        self._step(4, "done")
 
         if self.is_stopped(): return
 
-        # ── Step 4: Webプローブ ────────────────────────────
-        self._step(4, "running")
+        # ── Step 5: Webプローブ ────────────────────────────
+        self._step(5, "running")
         if scan_web and (any(p["port"] in (80, 443, 8080, 8443, 8000) for p in open_ports) or
                          target.startswith("http")):
             self._out("\n" + "─" * 56 + "\n", "sep")
@@ -416,12 +469,12 @@ class ReconAgent(BaseAgent):
                 for h in web_data["missing_headers"]:
                     self._out(f"    ✗ {h}\n", "high")
 
-        self._step(4, "done")
+        self._step(5, "done")
 
         if self.is_stopped(): return
 
-        # ── Step 5: 受動OSフィンガープリント ──────────────
-        self._step(5, "running")
+        # ── Step 6: 受動OSフィンガープリント ──────────────
+        self._step(6, "running")
         os_guess = passive_os_fingerprint(
             recon_data["ports"], recon_data.get("web", {}).get("headers"),
         )
@@ -429,10 +482,10 @@ class ReconAgent(BaseAgent):
             recon_data["os_guess"] = os_guess
             self._out("\n  Passive OS Fingerprint:\n", "label")
             self._out(f"    ▸ {os_guess}  (バナー解析による受動推定／追加通信なし)\n", "high")
-        self._step(5, "done")
+        self._step(6, "done")
 
-        # ── Step 6: AI 脆弱性仮説 ─────────────────────────
-        self._step(6, "running")
+        # ── Step 7: AI 脆弱性仮説 ─────────────────────────
+        self._step(7, "running")
         self._out("\n" + "─" * 56 + "\n", "sep")
         self._out("  PHASE 3 — AI ATTACK HYPOTHESIS  (streaming)\n", "section")
         self._out("─" * 56 + "\n\n", "sep")
@@ -449,12 +502,12 @@ class ReconAgent(BaseAgent):
         effort = self._effort()
         if effort.get("verify_pass") and not self.is_stopped():
             full = self._verify_findings(recon_summary, full, samples=effort.get("verify_samples", 1))
-        self._step(6, "done")
+        self._step(7, "done")
 
         if self.is_stopped(): return
 
-        # ── Step 7: エクスプロイト(PoC)生成 — ローカル生成のみ・送信なし ──
-        self._step(7, "running")
+        # ── Step 8: エクスプロイト(PoC)生成 — ローカル生成のみ・送信なし ──
+        self._step(8, "running")
         exploit_text = ""
         if generate_exploit:
             _assert_no_transmission()
@@ -474,10 +527,10 @@ class ReconAgent(BaseAgent):
                 ),
             ])
             self._save_poc(target, exploit_text)
-        self._step(7, "done")
+        self._step(8, "done")
 
-        # ── Step 8: レポート生成 ──────────────────────────
-        self._step(8, "running")
+        # ── Step 9: レポート生成 ──────────────────────────
+        self._step(9, "running")
         body = (
             f"## Reconnaissance Data\n{recon_summary}\n\n"
             f"## AI Attack Hypotheses\n{full}\n\n"
@@ -485,7 +538,7 @@ class ReconAgent(BaseAgent):
         )
         self._save_investigation("ATTACK MODE", target, body)
         time.sleep(0.2)
-        self._step(8, "done")
+        self._step(9, "done")
 
         total_ports = len(recon_data["ports"])
         self._record_telemetry("ATTACK MODE", target, _count_severities(full), time.time() - t0)
@@ -506,6 +559,13 @@ class ReconAgent(BaseAgent):
             lines.append(f"IP: {recon['ip']}")
         if recon.get("os_guess"):
             lines.append(f"OS GUESS: {recon['os_guess']}")
+
+        # 受動サブドメイン列挙結果（スコープ内のみ）
+        subs = recon.get("subdomains", [])
+        if subs:
+            lines.append(f"\n## Passive Subdomain Enumeration (crt.sh, in-scope only) — {len(subs)} found")
+            for s in subs:
+                lines.append(f"- {s}")
 
         # ポート
         ports = recon.get("ports", [])
