@@ -343,6 +343,92 @@ def test_telemetry():
         _ng("_record_telemetry", repr(e))
 
 
+def test_scope_guard():
+    _section("2e. CORE — ScopeGuard（バグバウンティ対応・Phase A）")
+    from core.scope_guard import in_scope
+    try:
+        ok, _ = in_scope("example.com", [])
+        assert ok, "空リストは常に許可されるべき（後方互換）"
+        ok, _ = in_scope("example.com", ["example.com"])
+        assert ok, "完全一致は許可されるべき"
+        ok, _ = in_scope("api.example.com", ["*.example.com"])
+        assert ok, "ワイルドカード接尾辞一致は許可されるべき"
+        ok, _ = in_scope("example.com", ["*.example.com"])
+        assert ok, "ワイルドカードはapexドメインも許可すべき"
+        ok, _ = in_scope("http://10.0.0.5:8080/path", ["10.0.0.0/24"])
+        assert ok, "IPリテラルのCIDR一致は許可されるべき"
+        ok, msg = in_scope("evil.example.org", ["example.com"])
+        assert not ok and msg, "不一致は範囲外として拒否されるべき"
+        ok, _ = in_scope("example.com", ["10.0.0.0/24"])
+        assert not ok, "ドメイン文字列に対するCIDRルールは判定不能→範囲外扱いにすべき"
+        _ok("in_scope()", "空リスト/完全一致/ワイルドカード/CIDR/不一致/エッジケース")
+    except Exception as e:
+        _ng("in_scope", repr(e))
+
+    # 後方互換: allowed_targets 未設定（既定=空）なら _check_scope は scope_mode に
+    # 関わらず常に許可すべき（既存の非バグバウンティ利用者への挙動が変わらないこと）。
+    from agents.monitor_agent import MonitorAgent
+    saved = dict(config._cfg)
+    try:
+        config._cfg["allowed_targets"] = []
+        config._cfg["scope_mode"] = "block"
+        agent = MonitorAgent(EventBus(), None)
+        assert agent._check_scope("anything.example") is True, \
+            "allowed_targets 未設定時は scope_mode に関わらず常に許可すべき（後方互換）"
+        config._cfg["allowed_targets"] = ["good.example.com"]
+        config._cfg["scope_mode"] = "block"
+        assert agent._check_scope("evil.example.com") is False, \
+            "block モードで範囲外なら False を返すべき"
+        assert agent._check_scope("good.example.com") is True
+        config._cfg["scope_mode"] = "warn"
+        assert agent._check_scope("evil.example.com") is True, \
+            "warn モードでは範囲外でも続行（True）を返すべき"
+        _ok("BaseAgent._check_scope", "後方互換（未設定=常に許可）/ block / warn")
+    except Exception as e:
+        _ng("BaseAgent._check_scope", repr(e))
+    finally:
+        config._cfg.clear()
+        config._cfg.update(saved)
+
+
+def test_subdomain_enum():
+    _section("3b. TOOLS — SubdomainEnum（受動的資産発見・Phase B）")
+    from tools import subdomain_enum
+    import unittest.mock as mock
+
+    class _FakeResp:
+        def __init__(self, status_code, text):
+            self.status_code = status_code
+            self.text = text
+
+    try:
+        fake_data = (
+            '[{"name_value": "api.example.com"}, '
+            '{"name_value": "*.dev.example.com\\nwww.example.com"}, '
+            '{"name_value": "api.example.com"}]'
+        )
+        with mock.patch("requests.get", return_value=_FakeResp(200, fake_data)):
+            names = subdomain_enum.query_crtsh("example.com")
+        assert names == sorted(set(names)), "重複排除・ソートされているべき"
+        assert "api.example.com" in names and "dev.example.com" in names \
+            and "www.example.com" in names, names
+        _ok("query_crtsh() パース・重複排除", f"{len(names)} 件: {names}")
+
+        with mock.patch("requests.get", return_value=_FakeResp(500, "")):
+            assert subdomain_enum.query_crtsh("example.com") == [], \
+                "非200はサイレントに空リストを返すべき"
+        with mock.patch("requests.get", return_value=_FakeResp(200, "not json")):
+            assert subdomain_enum.query_crtsh("example.com") == [], \
+                "JSON異常はサイレントに空リストを返すべき"
+        import requests as _requests
+        with mock.patch("requests.get", side_effect=_requests.exceptions.ConnectionError("down")):
+            assert subdomain_enum.query_crtsh("example.com") == [], \
+                "ネットワーク失敗はサイレントに空リストを返すべき"
+        _ok("query_crtsh() サイレント失敗", "非200/JSON異常/ネットワーク失敗")
+    except Exception as e:
+        _ng("subdomain_enum", repr(e) + "\n" + traceback.format_exc())
+
+
 def test_network_scanner():
     _section("3. TOOLS — NetworkScanner")
     from tools.network_scanner import NetworkScanner
@@ -478,6 +564,52 @@ LINES: 72
         _ok("save()", os.path.basename(path))
     except Exception as e:
         _ng("report_generator", repr(e))
+
+
+def test_report_generator_markdown():
+    _section("7b. TOOLS — ReportGenerator Markdown出力（バグバウンティ対応・Phase D）")
+    from tools import report_generator
+    sample = """
+---VULN_START---
+NAME: SQL Injection in authenticate()
+SEVERITY: CRITICAL
+CWE: CWE-89
+LINES: 65
+SNIPPET:
+```
+query = f"SELECT * FROM users WHERE username = '{username}'"
+```
+ATTACK:
+Inject ' OR '1'='1' --
+FIX:
+```
+cursor.execute("... WHERE username = ?", (username,))
+```
+---VULN_END---
+"""
+    try:
+        md = report_generator.generate_markdown(
+            mode="WEB FUZZ", target="https://example.com", raw_text=sample,
+            model="openai/gpt-4o")
+        assert "# " in md.splitlines()[0], "見出しが無い"
+        for section in ("### Summary", "### Steps to Reproduce", "### Impact", "### Suggested Fix"):
+            assert section in md, f"{section} 見出しが無い"
+        assert "SQL Injection in authenticate()" in md
+        assert "CRITICAL" in md
+        _ok("generate_markdown()", "4項目見出し（Summary/Steps/Impact/Fix）を確認")
+        path = report_generator.save_markdown(md, "selftest_md")
+        assert os.path.isfile(path) and path.endswith(".md")
+        _ok("save_markdown()", os.path.basename(path))
+        os.remove(path)
+
+        # 検出項目が無い場合も例外にならないこと
+        md_empty = report_generator.generate_markdown(
+            mode="WEB FUZZ", target="https://example.com", raw_text="(no findings)",
+            model="openai/gpt-4o")
+        assert "検出項目なし" in md_empty
+        _ok("generate_markdown() 空所見時のフォールバック")
+    except Exception as e:
+        _ng("generate_markdown", repr(e) + "\n" + traceback.format_exc())
 
 
 def test_cve_client():
@@ -747,6 +879,71 @@ def test_web_fuzzer():
             srv.shutdown()
 
 
+def _start_idor_mock_server():
+    """IDOR検出ロジック検証用: /resource?id=1 をCookieに関わらず同一内容で返す
+    （脆弱なアプリを再現する）モックHTTPサーバを起動し base_url を返す。"""
+    import http.server
+    import socketserver
+    import threading
+    from urllib.parse import urlparse
+
+    class _H(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_GET(self):
+            u = urlparse(self.path)
+            cookie = self.headers.get("Cookie", "")
+            body = "<html><body>"
+            if u.path == "/":
+                body += '<a href="/resource?id=1">r</a>'
+            elif u.path == "/resource":
+                # 脆弱: セッション種別を確認せずid=1の内容を返す（IDOR再現用モック）
+                body += f"secret data for resource 1 (cookie={cookie})"
+            body += "</body></html>"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(body.encode())
+
+    srv = socketserver.TCPServer(("127.0.0.1", 0), _H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, f"http://127.0.0.1:{srv.server_address[1]}/"
+
+
+def test_web_fuzzer_idor():
+    _section("16b. TOOLS — WebFuzzer IDOR/アクセス制御チェック（バグバウンティ対応・Phase C）")
+    from tools.web_fuzzer import WebFuzzer
+    srv = None
+    try:
+        srv, base = _start_idor_mock_server()
+        fz = WebFuzzer(
+            profile="aggressive", max_requests=500, log=lambda m: None,
+            auth={"cookie": "session=alice"}, auth_b={"cookie": "session=bob"},
+        )
+        fz.authenticate()
+        fz.authenticate_b()
+        crawl = fz.crawl(base)
+        points = crawl["injection_points"]
+        findings = fz._detect_idor(points)
+        assert findings, "脆弱なモックでIDOR兆候を検出できず"
+        assert all(f["method"] == "GET" for f in findings), \
+            "安全境界違反: GET以外のメソッドが使われている"
+        _ok("_detect_idor() 検出", f"{len(findings)} 件")
+
+        # 後方互換: auth_b未設定なら session_b は None のままで、_detect_idor は
+        # 常に空リストを返す（既存の非バグバウンティ利用者への挙動が変わらないこと）。
+        fz2 = WebFuzzer(profile="aggressive", max_requests=500, log=lambda m: None)
+        assert fz2.session_b is None
+        assert fz2._detect_idor(points) == [], "auth_b未設定時は空リストを返すべき（後方互換）"
+        _ok("_detect_idor() 後方互換", "auth_b未設定時は常にsession_b=None・空リスト")
+    except Exception as e:
+        _ng("web_fuzzer idor", repr(e) + "\n" + traceback.format_exc())
+    finally:
+        if srv:
+            srv.shutdown()
+
+
 def test_fuzz_agent():
     _section("17. AGENT E2E — FuzzAgent（ローカルモック / 実LLM）")
     from agents.fuzz_agent import FuzzAgent
@@ -782,11 +979,14 @@ def main():
     test_model_router()
     test_verify_ensemble()
     test_telemetry()
+    test_scope_guard()
+    test_subdomain_enum()
     test_network_scanner()
     test_web_prober()
     log_path = test_log_watcher()
     test_pattern_match()
     test_report_generator()
+    test_report_generator_markdown()
     test_cve_client()
     _skip_llm("9", "CORE — LLMClient (OpenRouter)", test_llm)
     _skip_llm("10", "AGENT E2E — AuditAgent (実LLM)", test_audit_agent)
@@ -796,6 +996,7 @@ def main():
     test_stealth_features()
     test_pdf_report()
     test_web_fuzzer()
+    test_web_fuzzer_idor()
     _skip_llm("17", "AGENT E2E — FuzzAgent（ローカルモック / 実LLM）", test_fuzz_agent)
 
     dt = time.time() - t0
