@@ -9,6 +9,7 @@ Phase 4: LLMが発見情報から脆弱性仮説を構築
 """
 
 from __future__ import annotations
+import json
 import os
 import re
 import time
@@ -247,11 +248,47 @@ RECOMMENDED_ACTION:
 Be thorough. Think like an attacker who has just done initial recon and is planning the next move."""
 
 
+# ── CTF FLAG HUNT: 認可された偵察レスポンスからのローカルフラグ検出（送信なし） ──
+# 攻撃の動き（ペイロード送信・注入・認証回避・ブルートフォース等）は一切行わず、
+# 既に実施した偵察で取得済みのバナー・Webボディ・ヘッダー内からフラグ形式を
+# 正規表現で検出するだけ。追加リクエストや対象への送信は発生しない。
+_FLAG_BRACE_RE = re.compile(r"((?:flag|ctf)\s*\{[^}]{1,200}\})", re.I)
+# 裸の 32/40/64 桁 hex は HTTP では殆どフラグではない（MD5/SHA1/SHA256/ETag/CSPハッシュ/
+# Cookie等の誤検知源）。文脈（flag/ctf ラベルの直後）に限定して初めて検出する。
+_FLAG_HEX_RE = re.compile(
+    r"(?:flag|ctf)\s*[:=_-]?\s*(?<![A-Fa-f0-9])"
+    r"([A-Fa-f0-9]{32}|[A-Fa-f0-9]{40}|[A-Fa-f0-9]{64})(?![A-Fa-f0-9])",
+    re.I,
+)
+
+
+def _detect_flags(*texts: str) -> list[str]:
+    """与えられた文字列群からCTFフラグ形式（flag{...}/ctf{...}・文脈付きhex）を検出する。
+
+    純ローカル・決定的な検出であり、対象への送信や追加リクエストは一切行わない。
+    出現順を保ったまま重複を除去して返す。hex はラベル（flag/ctf）の直後に限る
+    （裸の MD5/SHA/ETag 等を誤検出しないため）。
+    """
+    collected: list[str] = []
+    for t in texts:
+        if not t:
+            continue
+        collected.extend(_FLAG_BRACE_RE.findall(t))
+        collected.extend(_FLAG_HEX_RE.findall(t))
+    seen, out = set(), []
+    for c in collected:
+        key = c.lower()
+        if key not in seen:
+            seen.add(key)
+            out.append(c)
+    return out
+
+
 class ReconAgent(BaseAgent):
 
     def run(self, target: str, scan_web: bool = True, intensity: str = DEFAULT_SCAN_PROFILE,
             generate_exploit: bool = True, port_scope: str = "common",
-            scan_udp: bool = False) -> None:
+            scan_udp: bool = False, ctf_mode: bool = False) -> None:
         self.bus.clear()
         if not self._check_scope(target):
             return
@@ -441,7 +478,7 @@ class ReconAgent(BaseAgent):
             self._log(f"Web probe: {base_url}")
             self._status(f"Webプローブ中: {base_url} ...")
 
-            web_data = prober.probe(base_url, on_progress=self._log)
+            web_data = prober.probe(base_url, on_progress=self._log, capture_body=ctf_mode)
             recon_data["web"] = web_data
 
             # ヘッダー表示
@@ -506,6 +543,10 @@ class ReconAgent(BaseAgent):
 
         if self.is_stopped(): return
 
+        # ── CTF FLAG HUNT（トグル時のみ・検出のみ・送信なし） ──
+        if ctf_mode:
+            self._detect_and_report_flags(recon_data)
+
         # ── Step 8: エクスプロイト(PoC)生成 — ローカル生成のみ・送信なし ──
         self._step(8, "running")
         exploit_text = ""
@@ -533,7 +574,9 @@ class ReconAgent(BaseAgent):
         self._step(9, "running")
         body = (
             f"## Reconnaissance Data\n{recon_summary}\n\n"
-            f"## AI Attack Hypotheses\n{full}\n\n"
+            + (f"## CTF Flags Detected (local detection only)\n{self._format_flags(recon_data.get('flags', []))}\n\n"
+               if ctf_mode and recon_data.get("flags") else "")
+            + f"## AI Attack Hypotheses\n{full}\n\n"
             + (f"## Generated PoCs (local only)\n{exploit_text}\n" if exploit_text else "")
         )
         self._save_investigation("ATTACK MODE", target, body)
@@ -614,3 +657,34 @@ class ReconAgent(BaseAgent):
             for h in web["missing_headers"]:
                 lines.append(f"  - {h}")
         return "\n".join(lines)
+
+    # ── CTF FLAG HUNT（トグル時のみ・検出のみ・送信なし） ─────
+    def _detect_and_report_flags(self, recon: dict) -> None:
+        """既に取得した認可偵察レスポンスからフラグを検出して報告する。
+
+        追加リクエストや対象への送信は一切発生しない。既存の recon_data を
+        一遍にシリアライズして走査するため、フィールド（バナー・Webボディ・
+        ヘッダー・パス名・TLS情報等）の取りこぼしがなく、また web 偵察が
+        空/失敗でもバナー等のみで確実に走る。JSON化できない値は str へ落とす。
+        """
+        flat = json.dumps(recon, ensure_ascii=False, default=str)
+        flags = _detect_flags(flat)
+        recon["flags"] = flags
+
+        self._out("\n" + "─" * 56 + "\n", "sep")
+        self._out("  🔑 CTF FLAG HUNT  — local detection of recon responses\n", "section")
+        self._out("─" * 56 + "\n", "sep")
+        if flags:
+            for f in flags:
+                self._out("\n    FLAG  >>>  " + str(f) + "\n", "green")
+            self._status(f"CTF Flag Hunt: {len(flags)} flag(s) detected")
+            self._log(f"CTF Flag Hunt: detected {len(flags)} flag(s)")
+        else:
+            self._out("\n  (認可された偵察レスポンスにフラグ形式は検出されませんでした)\n", "mid")
+            self._log("CTF Flag Hunt: no flags detected")
+
+    @staticmethod
+    def _format_flags(flags: list[str]) -> str:
+        if not flags:
+            return "(no flags)"
+        return "\n".join(f"- {f}" for f in flags)

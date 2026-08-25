@@ -240,6 +240,15 @@ fix: fix ALERT event not firing in DEFENSE MODE
   解釈され `a`/`t`/`r`/`v`/`b` の文字が消失した。原因はエスケープ解釈する何らかの中間処理を経由した
   ことと推測。ファイル編集後は `python3 -c "print([c for c in open(f,encoding='utf-8').read() if ord(c)<32 and c!='\n'])"`
   で制御文字混入がないか確認できる）。
+- **トグルで新機能をONにする設計では、既定OFF時の挙動が「完全に元通り」であることをテストで
+  保証する**。CTF Flag Hunt（`agents/recon_agent.py`）実装時、共有ヘルパー `WebProber.probe()`
+  に無条件で `result["body"]`（最大20万文字）を保存する変更が設計書の記載外で混入し、
+  `ctf_mode=False`（既定）でもメモリ使用量が増える差分が生じていた（LLMプロンプト
+  `_build_recon_summary()` には混入せず、レポート保存も経由しないため実害はなし）。
+  `probe()` に `capture_body: bool = False` を追加し、呼び出し側で `ctf_mode` のときだけ
+  `True` を渡す形に修正、`tools/run_selftest.py` に既定オフでは `body is None` を確認する
+  回帰テストを追加（れいレビュー指摘・2026-08-26、[docs/CTF_FLAG_HUNT.md](docs/CTF_FLAG_HUNT.md) §3）。
+  共有モジュールに手を入れるトグル機能では、この「オフ時は完全に元通り」を必ずテストで固定すること。
 
 ---
 
@@ -505,7 +514,39 @@ MITRE ATT&CKタグ付けが一部不正確だった（例: SQLiにT1021.001＝RD
 決定論的な修正では検証できない。再検証には実LLMでの再試運転（課金）が必要なため、
 今回は見送った
 
+### 実装済み（CTF Flag Hunt モード・2026-08-26）
+ATTACK MODE に、認可された偵察レスポンスからCTF形式のフラグ（`flag{...}` / `ctf{...}`・
+ラベル文脈付きの32/40/64桁hex）をローカル検出するトグルを追加。設計は
+[docs/CTF_FLAG_HUNT.md](docs/CTF_FLAG_HUNT.md) 参照:
+- [x] `agents/recon_agent.py` — `run()` に `ctf_mode: bool = False`（既定オフ）、
+  `_detect_flags()`（正規表現・純ローカル・送信なし）、`_detect_and_report_flags()`
+  （recon_data 全体を検出対象にし取りこぼしを防ぐ）を追加
+- [x] `gui/panels/attack_panel.py` — 「CTF Flag Hunt」チェックボックス（既定オフ）を追加
+- [x] `tools/web_prober.py` — `WebProber.probe()` に `capture_body: bool = False` を追加し、
+  `ctf_mode=True` のときだけ `result["body"]`（最大20万文字）を保存。既定オフでは従来の
+  `WebProber` の挙動・メモリ使用量と完全に同一（レビューで発覚した設計書外の副作用を是正
+  — 上記§3の再発防止ルール参照）
+- [x] `testlab/vuln_server.py` — 検証用のダミーフラグ（HTMLコメント）を埋め込み
+- [x] `tools/run_selftest.py` — `_detect_flags()` の形式検出・誤検知防止（裸hexの非検出）の
+  単体テスト、および `WebProber.probe()` の `capture_body` 既定オフ/明示オンの回帰テストを追加
+- [x] `EXPLOIT_TRANSMISSION_ENABLED` / `_assert_no_transmission()` は無変更（安全境界維持を確認済み）
+
+**方針の確認**: 現状は「既に取得済みの認可レスポンスからの検出」のみで、対象への追加の
+攻撃的リクエスト（ペイロード送信によるSQLi/LFI/RCE等の自動実行）は実装していない。
+「LLMが脆弱性を判断して能動的にフラグを回収する」という、より踏み込んだ方向への拡張は
+`EXPLOIT_TRANSMISSION_ENABLED` を含む本ツールの安全設計の根幹に関わるため、対象範囲
+（自前のtestlab限定か、外部CTFプラットフォームも含むか）を含めユーザーとの合意が別途必要
+（→ 下記「未実装」参照）。
+
 ### 未実装（ロードマップ）
+
+**CTF Flag Hunt の拡張（要方針確認・上記参照）**
+- [ ] 能動的な脆弱性判断＋フラグ回収 — LLMが偵察結果から脆弱性を判断し、対象へ実際に
+  ペイロードを送って（例: パストラバーサルで `/flag.txt` を能動的に読みにいく等）フラグを
+  取得する機能。現行の「検出のみ・送信なし」の安全境界を踏み込んで緩める必要があるため、
+  対象範囲の明確化（自前のtestlab限定 / 外部CTFプラットフォーム許容）とセットでユーザー
+  合意のうえ、既存の `EXPLOIT_TRANSMISSION_ENABLED` とは別の、CTF用途に安全にスコープされた
+  新しいフラグ（例: 対象を自前のtestlabドメインに限定するガード付き）として設計すべき
 
 **長期・任意**
 - [ ] 自動脆弱性スキャンCI — 上記CI/CD統合の拡張案。push毎に自リポジトリへCODE AUDITを実LLMで

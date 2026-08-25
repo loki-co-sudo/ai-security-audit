@@ -30,6 +30,7 @@ class AttackPanel(ctk.CTkFrame):
         self._intensity = tk.StringVar(value="stealth")
         self._scan_web  = tk.BooleanVar(value=True)
         self._gen_exploit = tk.BooleanVar(value=True)
+        self._ctf = tk.BooleanVar(value=False)
         self._port_scope = tk.StringVar(value="common")
         self._scan_udp  = tk.BooleanVar(value=False)
         self._auto_var  = tk.BooleanVar(value=False)
@@ -107,6 +108,13 @@ class AttackPanel(ctk.CTkFrame):
             obar, text="PoC生成 (送信なし)", variable=self._gen_exploit,
             font=ctk.CTkFont("Segoe UI", 10), text_color=TEXT_DIM,
             fg_color=RED_C, hover_color="#CC2828",
+            checkbox_width=16, checkbox_height=16,
+        ).pack(side="left", padx=8)
+
+        ctk.CTkCheckBox(
+            obar, text="CTF Flag Hunt", variable=self._ctf,
+            font=ctk.CTkFont("Segoe UI", 10), text_color=TEXT_DIM,
+            fg_color=PURPLE, hover_color="#A96FE0",
             checkbox_width=16, checkbox_height=16,
         ).pack(side="left", padx=8)
 
@@ -204,6 +212,7 @@ class AttackPanel(ctk.CTkFrame):
             generate_exploit=self._gen_exploit.get(),
             port_scope=self._port_scope.get(),
             scan_udp=self._scan_udp.get(),
+            ctf_mode=self._ctf.get(),
         )
 
     def _stop_scan(self) -> None:

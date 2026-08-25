@@ -120,6 +120,7 @@ def _home(authed: bool = False) -> str:
         '<div class="hero"><h1>DemoShop へようこそ</h1>'
         '<p>テスト用のダミー通販サイトです。商品検索・記事・ログインを試せます。</p></div>'
         f'{member}'
+        '<!-- CTF_FLAG=flag{ctf_lab_local_easy_b94f2a7c} -->'
         '<h2 style="margin-bottom:12px">おすすめ商品</h2>'
         f'<div class="grid">{cards}</div>')
 

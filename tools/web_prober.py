@@ -67,6 +67,7 @@ class WebProber:
         self,
         base_url: str,
         on_progress: Callable[[str], None] | None = None,
+        capture_body: bool = False,
     ) -> dict:
         """ターゲットURLを総合的にプローブし、収集情報をdictで返す。"""
         result: dict = {
@@ -79,6 +80,7 @@ class WebProber:
             "ssl_info":         None,
             "cookies":          [],
             "forms_info":       [],
+            "body":             None,
         }
 
         def _log(msg): on_progress(msg) if on_progress else None
@@ -89,6 +91,10 @@ class WebProber:
             resp = self.session.get(base_url, timeout=self.timeout, allow_redirects=True)
             result["status_code"] = resp.status_code
             result["headers"]     = dict(resp.headers)
+            if capture_body:
+                # CTF Flag Hunt向け（既定オフ）。capture_body=False（既定）では従来どおり
+                # result["body"] は None のままで、メモリ/レポートへの影響は一切ない。
+                result["body"] = resp.text[:200000]
             body = resp.text[:50000]
 
             # セキュリティヘッダー確認

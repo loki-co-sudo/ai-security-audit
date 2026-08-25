@@ -2,8 +2,9 @@
 """
 tools/run_selftest.py — 全機能セルフテスト（GUI以外を網羅）
 
-実行:  py tools/run_selftest.py
-ネットワーク・LLM(OpenRouter)を実際に使用する。
+実行:  py tools/run_selftest.py            # フル回帰（実LLM/実ネットワーク込み）
+       py tools/run_selftest.py --quick   # 快速モード（npm test / CI向け。60秒以内に完了）
+ネットワーク・LLM(OpenRouter)を実際に使用する（--quick 指定時はスキップ）。
 """
 from __future__ import annotations
 import sys
@@ -46,9 +47,13 @@ def _selftest_llm(timeout: int):
 
 _PASS, _FAIL, _SKIP = [], [], []
 
-# SELFTEST_NON_LLM_ONLY=1 で実LLM/実ネットワークAPIキーを要求するテストをスキップする
-# （CI・オフライン環境向け。CLAUDE.md の「開発ループ」の1〜8・2b〜2dに相当）。
-NON_LLM_ONLY = os.environ.get("SELFTEST_NON_LLM_ONLY") == "1"
+# --quick（または SELFTEST_QUICK=1 / SELFTEST_NON_LLM_ONLY=1）で、
+# 実LLM/実ネットワークAPIキーを要求するテストをスキップする。
+# （CI・npm test の検証ハーネス向け。60秒以内に完了することを目的とする。
+#  CLAUDE.md の「開発ループ」の1〜8・2b〜2dに相当。）
+# フル回帰（実LLM込み）は引数なしで tools/run_selftest.py を実行する。
+QUICK = "--quick" in sys.argv or os.environ.get("SELFTEST_QUICK") == "1"
+NON_LLM_ONLY = QUICK or os.environ.get("SELFTEST_NON_LLM_ONLY") == "1"
 
 
 def _ok(name, detail=""):
@@ -535,6 +540,12 @@ def test_web_prober():
             f"status={data['status_code']} "
             f"missing_headers={len(data['missing_headers'])} "
             f"tech={data['technologies']}")
+        # CTF_FLAG_HUNT.md AC1: capture_body 既定Falseでは body を保存しない
+        # （ctf_mode=False の既存 ATTACK MODE 実行を完全に元通りに保つための回帰確認）。
+        assert data["body"] is None, f"capture_body 既定なのに body が保存された: {data['body']!r}"
+        data2 = wp.probe("https://example.com", on_progress=lambda m: None, capture_body=True)
+        assert data2["body"], "capture_body=True なのに body が保存されなかった"
+        _ok("probe() capture_body 既定オフ/明示オンの切り替え", "body は明示オン時のみ保存")
     except Exception as e:
         _ng("probe()", repr(e))
 
@@ -812,6 +823,29 @@ def test_recon_agent():
             f"findings={r['stats']} chars={len(r['text'])}")
     except Exception as e:
         _ng("ReconAgent", repr(e) + "\n" + traceback.format_exc())
+
+
+def test_ctf_flag_hunt():
+    _section("12.5 CTF — フラグ検出ヘルパー（ローカル・送信なし）")
+    from agents.recon_agent import _detect_flags
+    # 波括弧形式は「ラベルごと全キャプチャ」（flag{...} 全体）で返す
+    sample = ("backup: flag{ctf_easy_123abc} leaked <ctf{lab_unused_0}> deadbeef\n"
+              "session=fc94b0c34fd5ac2ddefd7bb3a04a05c (bare noise hex)"
+              " extra=7922511f806bb1e3d5d1e6b1e565bdb1e")
+    flags = _detect_flags(sample)
+    assert "flag{ctf_easy_123abc}" in flags, flags
+    assert "ctf{lab_unused_0}" in flags, flags
+    # 裸の 32/40/64 桁 hex はフラグ文脈が無ければ誤検出しない（MD5/SHA/ETag/CSPハッシュ等）
+    for noise in ("fc94b0c34fd5ac2d37a7bb3a04a05c", "9f2a1b3c4d5e6f7a8b9c0d1e2f3a4b5c",
+                  "7929bcc60f8064bb1e1d5d1e6b1e565bdb1e"):
+        assert noise not in flags, f"bare hex {noise} を誤検出"
+    # flag/ctf ラベル直後の 64 桁 hex は文脈付きのため検出する
+    hex64 = "c9a2b3d4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f708192a3b4c5d6e7f8a1"
+    assert len(hex64) == 64, len(hex64)
+    ctx = "flag: " + hex64
+    ctx_flags = _detect_flags(ctx)
+    assert hex64 in ctx_flags, ctx_flags
+    _ok("_detect_flags 形式検出", f"{len(flags)} flags: {flags[:3]}")
 
 
 def test_orchestrator_bug():
@@ -1209,6 +1243,8 @@ def main():
     print("#"*64)
     t0 = time.time()
 
+    if QUICK:
+        print("#  モード: QUICK（実LLM/実ネットワーク要求のテストはスキップ）")
     test_event_bus()
     test_config()
     test_model_router()
@@ -1219,6 +1255,7 @@ def main():
     test_subdomain_enum()
     test_network_scanner()
     test_web_prober()
+    test_ctf_flag_hunt()
     log_path = test_log_watcher()
     test_pattern_match()
     test_report_generator()
@@ -1241,8 +1278,9 @@ def main():
     dt = time.time() - t0
     print("\n" + "#"*64)
     if NON_LLM_ONLY:
+        label = "--quick" if QUICK else "SELFTEST_NON_LLM_ONLY=1"
         print(f"#  結果: {len(_PASS)} PASS / {len(_FAIL)} FAIL / {len(_SKIP)} SKIP   ({dt:.1f}s)")
-        print(f"#  SELFTEST_NON_LLM_ONLY=1 — 実LLM/実ネットワーク要求の{len(_SKIP)}項目はスキップ")
+        print(f"#  {label} — 実LLM/実ネットワーク要求の{len(_SKIP)}項目はスキップ")
     else:
         print(f"#  結果: {len(_PASS)} PASS / {len(_FAIL)} FAIL   ({dt:.1f}s)")
     print("#"*64)

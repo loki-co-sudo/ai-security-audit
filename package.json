@@ -4,7 +4,7 @@
   "description": "AI Security Audit System — マルチLLM対応の自律型セキュリティ監査フレームワーク",
   "private": true,
   "scripts": {
-    "test": "py -X utf8 tools/run_selftest.py"
+    "test": "if [ -x .venv/bin/python ]; then .venv/bin/python -X utf8 tools/run_selftest.py; else python -X utf8 tools/run_selftest.py; fi"
   },
   "license": "MIT"
 }
