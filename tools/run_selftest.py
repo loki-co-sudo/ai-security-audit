@@ -848,6 +848,216 @@ def test_ctf_flag_hunt():
     _ok("_detect_flags 形式検出", f"{len(flags)} flags: {flags[:3]}")
 
 
+def _start_ctf_vuln_server():
+    """testlab/vuln_server.py の VulnHandler を127.0.0.1のランダムポートで起動する。
+
+    _start_mock_web_server() と同じパターン（インプロセス・デーモンスレッド）。
+    """
+    import threading
+    from http.server import ThreadingHTTPServer
+    from testlab.vuln_server import VulnHandler
+
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), VulnHandler)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, f"http://127.0.0.1:{srv.server_address[1]}"
+
+
+class _DummyLLM:
+    """CTF Active Retrieval のLLMガイド付きTierをモックするための最小スタブ。
+
+    system()/user() は core.llm_client.LLMClient の同名静的メソッドと同じ辞書を返す。
+    実際のLLM呼び出し（_complete_llm）はテスト側で monkeypatch する。
+    """
+    @staticmethod
+    def system(content):
+        return {"role": "system", "content": content}
+
+    @staticmethod
+    def user(content):
+        return {"role": "user", "content": content}
+
+
+def test_ctf_active_retrieval():
+    _section("12.6 CTF ACTIVE — 安全装置(is_destructive/scope/予算) と Tier実行")
+    import json as _json
+    from core.ctf_safety import is_destructive, require_explicit_scope, CtfSafetyGuard
+    from agents.recon_agent import ReconAgent
+
+    # ① 層2: 破壊的操作の機械的ブロック（見逃しなし・誤検知なし）
+    try:
+        destructive = [
+            "' ; DROP TABLE users --", "rm -rf /", "rm -fr /home",
+            ":(){ :|:& };:", "shutdown -h now", "DELETE FROM accounts WHERE 1=1",
+            "UPDATE users SET password='x'", "TRUNCATE TABLE logs",
+        ]
+        for p in destructive:
+            hit, _r = is_destructive(p)
+            assert hit, f"破壊的ペイロードを見逃した: {p!r}"
+        safe = [
+            "' UNION SELECT username,password FROM users --",
+            "../../../etc/passwd", "id", "whoami", "' OR 1=1 --",
+        ]
+        for p in safe:
+            hit, r = is_destructive(p)
+            assert not hit, f"非破壊ペイロードを誤検知: {p!r} ({r})"
+        _ok("is_destructive() 見逃し/誤検知なし",
+            f"{len(destructive)}件ブロック・{len(safe)}件許可を確認")
+    except Exception as e:
+        _ng("is_destructive()", repr(e) + "\n" + traceback.format_exc())
+
+    # ② 層1: スコープの厳格化（空リストは拒否。既存 scope_guard.in_scope() とは別基準）
+    try:
+        ok, _r = require_explicit_scope([])
+        assert not ok, "空リストが許可されてしまった"
+        ok, _r = require_explicit_scope(None)
+        assert not ok, "Noneが許可されてしまった"
+        ok, _r = require_explicit_scope(["10.10.10.5"])
+        assert ok, "明示ホストがあるのに拒否された"
+        _ok("require_explicit_scope() 空リスト拒否", "空/None拒否・明示ホスト許可を確認")
+    except Exception as e:
+        _ng("require_explicit_scope()", repr(e) + "\n" + traceback.format_exc())
+
+    # ③ 層3: CtfSafetyGuard — 予算超過・連続エラーでの自動停止
+    try:
+        import requests as _requests
+        guard = CtfSafetyGuard(max_requests=3, jitter=(0, 0), max_consecutive_errors=2)
+        sess = _requests.Session()
+        for _ in range(3):
+            guard.send(sess, "GET", "http://127.0.0.1:1", tier=2)  # 即座に接続エラーになるポート
+        stop, reason = guard.should_stop()
+        assert stop, "連続エラー/予算超過で停止しなかった"
+        _ok("CtfSafetyGuard 予算/連続エラー停止", reason)
+    except Exception as e:
+        _ng("CtfSafetyGuard", repr(e) + "\n" + traceback.format_exc())
+
+    # ④ _parse_ctf_candidates: フェンス付き/前後説明文/壊れたJSONを救済
+    try:
+        cases = [
+            ('[{"path": "/x", "method": "GET"}]', 1),
+            ('```json\n[{"path": "/y"}]\n```', 1),
+            ('説明文\n[{"path": "/z"}]\nそのあと', 1),
+            ('壊れたJSON [{', 0),
+            ('{}', 0),
+        ]
+        for raw, expect_n in cases:
+            got = ReconAgent._parse_ctf_candidates(raw)
+            assert len(got) == expect_n, f"{raw!r} -> {got}"
+        _ok("_parse_ctf_candidates() 救済パース", f"{len(cases)}パターン確認")
+    except Exception as e:
+        _ng("_parse_ctf_candidates()", repr(e) + "\n" + traceback.format_exc())
+
+    # ⑤ Tier1: testlab/vuln_server.py に対する実行（隠しパス /notes.txt のフラグ検出）
+    srv = None
+    try:
+        import requests as _requests
+        srv, base = _start_ctf_vuln_server()
+        agent = ReconAgent(EventBus(), llm=_DummyLLM())
+        sess = _requests.Session()
+        guard = CtfSafetyGuard(max_requests=30, jitter=(0, 0))
+        flags = agent._ctf_tier1(base, sess, guard)
+        assert "flag{ctf_lab_tier1_hidden_path}" in flags, flags
+        _ok("Tier1 拡張パス巡回", f"flags={flags}")
+    except Exception as e:
+        _ng("CTF Active Tier1", repr(e) + "\n" + traceback.format_exc())
+    finally:
+        if srv:
+            srv.shutdown()
+
+    # ⑥ Tier2: LLMガイド付き（モック）— LFI/SQLi検出、破壊的候補のブロックを確認
+    srv = None
+    try:
+        import requests as _requests
+        srv, base = _start_ctf_vuln_server()
+        agent = ReconAgent(EventBus(), llm=_DummyLLM())
+        sess = _requests.Session()
+
+        lfi_payload = _json.dumps([{
+            "method": "GET", "path": "/download",
+            "params": {"file": "../../../etc/passwd"}, "rationale": "read-only LFI check",
+        }])
+        agent._complete_llm = lambda messages, role="fast": lfi_payload
+        guard = CtfSafetyGuard(max_requests=30, jitter=(0, 0))
+        flags = agent._ctf_llm_guided_tier(2, base, "dummy summary", sess, guard)
+        assert "flag{ctf_lab_tier2_lfi_readonly}" in flags, flags
+
+        sqli_payload = _json.dumps([{
+            "method": "GET", "path": "/account",
+            "params": {"id": "1 UNION SELECT username,password FROM users"},
+            "rationale": "read-only UNION SQLi check",
+        }])
+        agent._complete_llm = lambda messages, role="fast": sqli_payload
+        guard2 = CtfSafetyGuard(max_requests=30, jitter=(0, 0))
+        flags2 = agent._ctf_llm_guided_tier(2, base, "dummy summary", sess, guard2)
+        assert "flag{ctf_lab_tier2_sqli_union}" in flags2, flags2
+
+        # LLMが誤って破壊的な候補を提案しても、層2で機械的にブロックされ送信されない
+        destructive_payload = _json.dumps([{
+            "method": "POST", "path": "/account",
+            "data": {"id": "1; DROP TABLE users; --"}, "rationale": "(誤り)",
+        }])
+        agent._complete_llm = lambda messages, role="fast": destructive_payload
+        guard3 = CtfSafetyGuard(max_requests=30, jitter=(0, 0))
+        flags3 = agent._ctf_llm_guided_tier(2, base, "dummy summary", sess, guard3)
+        assert flags3 == [], f"破壊的候補がブロックされず送信された: {flags3}"
+        assert any(e["status"] == "BLOCKED" for e in guard3.log), \
+            f"BLOCKEDログが記録されなかった: {guard3.log}"
+
+        _ok("Tier2 LLMガイド(モック) LFI/SQLi検出・破壊的候補ブロック",
+            f"lfi={flags} sqli={flags2} blocked={guard3.log[0]['status']}")
+    except Exception as e:
+        _ng("CTF Active Tier2", repr(e) + "\n" + traceback.format_exc())
+    finally:
+        if srv:
+            srv.shutdown()
+
+    # ⑦ _ctf_active_retrieval: スコープ未指定/スコープ外では送信ゼロで中断すること
+    srv = None
+    try:
+        import requests as _requests
+        srv, base = _start_ctf_vuln_server()
+        agent = ReconAgent(EventBus(), llm=_DummyLLM())
+        recon = {"web": {"url": base}}
+        agent._ctf_active_retrieval(recon, "summary", _requests.Session(), [], 2)
+        assert recon.get("flags") is None, "空スコープなのに実行されてしまった"
+
+        recon2 = {"web": {"url": base}}
+        agent._ctf_active_retrieval(recon2, "summary", _requests.Session(), ["example.com"], 2)
+        assert recon2.get("flags") is None, "スコープ外なのに実行されてしまった"
+
+        recon3 = {"web": {"url": base}}
+        agent._ctf_active_retrieval(recon3, "summary", _requests.Session(), ["127.0.0.1"], 2)
+        assert recon3.get("flags"), "正しいスコープなのにフラグが見つからなかった"
+
+        _ok("_ctf_active_retrieval スコープ強制", "空/スコープ外で中断・正しいスコープで実行を確認")
+    except Exception as e:
+        _ng("_ctf_active_retrieval scope", repr(e) + "\n" + traceback.format_exc())
+    finally:
+        if srv:
+            srv.shutdown()
+
+    # ⑧ Tierの段階的エスカレーション: Tier1で見つかったらTier2のLLM呼び出しが
+    # 一切発生しないこと（CTF_ACTIVE_FLAG_RETRIEVAL.md AC4）。
+    srv = None
+    try:
+        import requests as _requests
+        srv, base = _start_ctf_vuln_server()
+        agent = ReconAgent(EventBus(), llm=_DummyLLM())
+        tier2_called = []
+        agent._complete_llm = lambda messages, role="fast": (
+            tier2_called.append(1) or "[]"
+        )
+        recon = {"web": {"url": base}}
+        agent._ctf_active_retrieval(recon, "summary", _requests.Session(), ["127.0.0.1"], 3)
+        assert recon.get("flags") == ["flag{ctf_lab_tier1_hidden_path}"], recon.get("flags")
+        assert not tier2_called, "Tier1で見つかったのにTier2のLLM呼び出しが発生した"
+        _ok("Tier段階的エスカレーション", "Tier1で発見 → Tier2/3のLLM呼び出しなしを確認")
+    except Exception as e:
+        _ng("Tier escalation", repr(e) + "\n" + traceback.format_exc())
+    finally:
+        if srv:
+            srv.shutdown()
+
+
 def test_orchestrator_bug():
     _section("13. STATIC — Orchestrator/LangGraph 整合性")
     # orchestrator.py が EventBus の正しい API (emit) のみを使用しているか確認
@@ -1256,6 +1466,7 @@ def main():
     test_network_scanner()
     test_web_prober()
     test_ctf_flag_hunt()
+    test_ctf_active_retrieval()
     log_path = test_log_watcher()
     test_pattern_match()
     test_report_generator()

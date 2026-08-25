@@ -249,6 +249,14 @@ fix: fix ALERT event not firing in DEFENSE MODE
   `True` を渡す形に修正、`tools/run_selftest.py` に既定オフでは `body is None` を確認する
   回帰テストを追加（れいレビュー指摘・2026-08-26、[docs/CTF_FLAG_HUNT.md](docs/CTF_FLAG_HUNT.md) §3）。
   共有モジュールに手を入れるトグル機能では、この「オフ時は完全に元通り」を必ずテストで固定すること。
+- **「データを保存する」実装と「そのデータをレポート/ログに出す」配線は別物であり、後者を
+  実装の最後に必ず確認する**。CTF Active Retrieval（`agents/recon_agent.py`）実装時、
+  `CtfSafetyGuard.format_log()`（送信したペイロードの監査ログ）を`recon_data`に保存する
+  処理は書いたが、Step9のレポート`body`組み立て（f-string連結）にそれを含める一行が
+  当初抜けていた（受け入れチェックAC6「監査可能」のレビューで発覚・是正、
+  [docs/CTF_ACTIVE_FLAG_RETRIEVAL.md](docs/CTF_ACTIVE_FLAG_RETRIEVAL.md) §6）。
+  「変数に保存した」で満足せず、それを人間が実際に読む出力（レポート・ログ・UI）まで
+  たどり着くか、実装の最後に配線元から配線先まで指でなぞって確認すること。
 
 ---
 
@@ -531,22 +539,45 @@ ATTACK MODE に、認可された偵察レスポンスからCTF形式のフラ�
   単体テスト、および `WebProber.probe()` の `capture_body` 既定オフ/明示オンの回帰テストを追加
 - [x] `EXPLOIT_TRANSMISSION_ENABLED` / `_assert_no_transmission()` は無変更（安全境界維持を確認済み）
 
-**方針の確認**: 現状は「既に取得済みの認可レスポンスからの検出」のみで、対象への追加の
-攻撃的リクエスト（ペイロード送信によるSQLi/LFI/RCE等の自動実行）は実装していない。
-「LLMが脆弱性を判断して能動的にフラグを回収する」という、より踏み込んだ方向への拡張は
-`EXPLOIT_TRANSMISSION_ENABLED` を含む本ツールの安全設計の根幹に関わるため、対象範囲
-（自前のtestlab限定か、外部CTFプラットフォームも含むか）を含めユーザーとの合意が別途必要
-（→ 下記「未実装」参照）。
+**方針の確認**: 上記は「既に取得済みの認可レスポンスからの検出」のみ。対象への追加の
+攻撃的リクエストを伴う拡張（能動的なフラグ回収）はユーザー合意のうえ別機能として実装した
+（下記「実装済み（CTF Active Flag Retrieval）」参照）。
+
+### 実装済み（CTF Active Flag Retrieval・2026-08-26）
+上記CTF Flag Huntを拡張し、LLMが偵察結果から脆弱性を判断して**実際にペイロードを送信し**
+フラグを探すモードを追加（THM等、ユーザーが利用許可を持つ外部CTFプラットフォームを含む
+対象を想定）。`EXPLOIT_TRANSMISSION_ENABLED`（既存の通常ATTACK MODEの安全設計）は無変更、
+完全に独立した新しい実行パスとして追加。設計は
+[docs/CTF_ACTIVE_FLAG_RETRIEVAL.md](docs/CTF_ACTIVE_FLAG_RETRIEVAL.md) 参照:
+- [x] `core/ctf_safety.py`（新設） — `is_destructive()`（DROP TABLE/rm -rf/fork bomb等の
+  破壊的パターンを機械的にブロック。LLMの判断だけに頼らない）、`require_explicit_scope()`
+  （許可ホスト空リストは実行そのものを拒否 — 通常の`scope_guard.in_scope()`の
+  「空=制限なし」という後方互換は本機能では採用しない）、`CtfSafetyGuard`（送信予算・
+  連続エラー自動停止・監査ログを1箇所に集約する送信ラッパー）
+- [x] `agents/recon_agent.py` — `run()` に `ctf_active`/`ctf_active_targets`/
+  `ctf_active_max_tier`（既定オフ・Tier2まで）を追加。CTF Flag Hunt（送信なし）で
+  見つからなかった場合のみ、Tier1（隠しファイル名の拡張パス巡回・LLM不要）→
+  Tier2（LLMガイド・読み取り専用のLFI/UNION SQLi/コマンドインジェクション確認）→
+  Tier3（既定オフ・認証バイパス等）の順で段階的に試行し、見つかった時点で即終了
+- [x] `gui/panels/attack_panel.py` — 「CTF Active Retrieval」チェックボックス（既定オフ・
+  赤系）と許可ホスト入力欄を追加。空のままでは実行できない旨を常時警告表示
+  （`_update_scope_hint()` と同じ「false sense of security対策」パターン）
+- [x] `testlab/vuln_server.py` — Tier1/Tier2検証用の読み取り専用エンドポイント
+  （`/notes.txt`・`/download?file=`・`/account?id=`）を追加。実ファイルシステム/DBは
+  一切使わず、パターンマッチによるシミュレーションに留める
+- [x] `tools/run_selftest.py` — 破壊的操作の機械的ブロック（見逃し/誤検知なし）・
+  スコープ空リスト拒否・予算/連続エラー自動停止・LLM応答の救済パース・Tier1/Tier2の
+  実HTTP確認（インプロセスのtestlabサーバー）・Tierの段階的エスカレーション（Tier1で
+  発見時はTier2のLLM呼び出し自体が発生しないこと）の8項目を追加
+- [x] レポート監査ログ配線（レビューで発覚した抜け・是正済み） — 実装当初、Step9の
+  レポートbody組み立てに`ctf_active_log`（送信したペイロード一覧）を含める配線が
+  漏れていた。AC6「監査可能」を満たすため追加（下記再発防止ルール参照）
+- [x] `EXPLOIT_TRANSMISSION_ENABLED` / `_assert_no_transmission()` は無変更（git diffで確認済み）
+
+**未実施（実施にはユーザーの許可確認が必要）**: GUI起動での目視確認、実LLM
+（STRONG/FAST）でのTier2/3実走、実際のTHM等CTFターゲットに対する実走。
 
 ### 未実装（ロードマップ）
-
-**CTF Flag Hunt の拡張（要方針確認・上記参照）**
-- [ ] 能動的な脆弱性判断＋フラグ回収 — LLMが偵察結果から脆弱性を判断し、対象へ実際に
-  ペイロードを送って（例: パストラバーサルで `/flag.txt` を能動的に読みにいく等）フラグを
-  取得する機能。現行の「検出のみ・送信なし」の安全境界を踏み込んで緩める必要があるため、
-  対象範囲の明確化（自前のtestlab限定 / 外部CTFプラットフォーム許容）とセットでユーザー
-  合意のうえ、既存の `EXPLOIT_TRANSMISSION_ENABLED` とは別の、CTF用途に安全にスコープされた
-  新しいフラグ（例: 対象を自前のtestlabドメインに限定するガード付き）として設計すべき
 
 **長期・任意**
 - [ ] 自動脆弱性スキャンCI — 上記CI/CD統合の拡張案。push毎に自リポジトリへCODE AUDITを実LLMで

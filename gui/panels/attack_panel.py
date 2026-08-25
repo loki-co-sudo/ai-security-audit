@@ -31,6 +31,12 @@ class AttackPanel(ctk.CTkFrame):
         self._scan_web  = tk.BooleanVar(value=True)
         self._gen_exploit = tk.BooleanVar(value=True)
         self._ctf = tk.BooleanVar(value=False)
+        # CTF Active Retrieval（docs/CTF_ACTIVE_FLAG_RETRIEVAL.md）: 送信を伴うため
+        # 既定オフ・別トグル。allowed_targets（設定ダイアログのバグバウンティ用グローバル
+        # スコープ）とは独立させ、このパネル内だけの一時的な対象入力にする — THM等は
+        # VPN接続ごとにIPが変わるため、グローバル設定を毎回書き換えさせたくない。
+        self._ctf_active = tk.BooleanVar(value=False)
+        self._ctf_active_tier3 = tk.BooleanVar(value=False)
         self._port_scope = tk.StringVar(value="common")
         self._scan_udp  = tk.BooleanVar(value=False)
         self._auto_var  = tk.BooleanVar(value=False)
@@ -125,6 +131,42 @@ class AttackPanel(ctk.CTkFrame):
             checkbox_width=16, checkbox_height=16,
         ).pack(side="left", padx=8)
 
+        # ── CTF Active Retrieval バー（送信を伴うため別立て・既定オフ） ──────
+        cabar = ctk.CTkFrame(self, fg_color=BG_WIDGET, corner_radius=6)
+        cabar.pack(fill="x", pady=(0, 4))
+
+        ctk.CTkCheckBox(
+            cabar, text="CTF Active Retrieval (実際に送信します)",
+            variable=self._ctf_active,
+            font=ctk.CTkFont("Segoe UI", 10, "bold"), text_color=RED_C,
+            fg_color=RED_C, hover_color="#CC2828",
+            checkbox_width=16, checkbox_height=16,
+            command=self._update_ctf_active_hint,
+        ).pack(side="left", padx=(12, 8), pady=(8, 0))
+
+        ctk.CTkLabel(cabar, text="許可ホスト:", font=ctk.CTkFont("Segoe UI", 10),
+                     text_color=TEXT_DIM).pack(side="left", padx=(4, 4), pady=(8, 0))
+        self._ctf_active_targets_entry = ctk.CTkEntry(
+            cabar, placeholder_text="例: 10.10.10.5, target.thm.labs（カンマ区切り・空だと実行不可）",
+            font=ctk.CTkFont("Consolas", 10), fg_color=BG_INPUT,
+            border_color=RED_C, border_width=1, text_color=TEXT_PRI, width=280,
+        )
+        self._ctf_active_targets_entry.pack(side="left", fill="x", expand=True, padx=(0, 8), pady=(8, 0))
+        self._ctf_active_targets_entry.bind("<KeyRelease>", lambda e: self._update_ctf_active_hint())
+
+        ctk.CTkCheckBox(
+            cabar, text="Tier3まで試す（踏み込む）", variable=self._ctf_active_tier3,
+            font=ctk.CTkFont("Segoe UI", 10), text_color=TEXT_DIM,
+            fg_color=RED_C, hover_color="#CC2828",
+            checkbox_width=16, checkbox_height=16,
+        ).pack(side="left", padx=(0, 12), pady=(8, 0))
+
+        self._ctf_active_warn = ctk.CTkLabel(
+            cabar, text="", font=ctk.CTkFont("Segoe UI", 9),
+            text_color=RED_C, anchor="w",
+        )
+        self._ctf_active_warn.pack(side="left", padx=(0, 12), pady=(0, 6))
+
         # ── メインペイン ──────────────────────────────────
         pane = ctk.CTkFrame(self, fg_color="transparent")
         pane.pack(fill="both", expand=True)
@@ -164,11 +206,41 @@ class AttackPanel(ctk.CTkFrame):
         self._out_box = OutputBox(right)
         self._out_box.pack(fill="both", expand=True, padx=10, pady=(0, 10))
 
+        self._update_ctf_active_hint()
+
     # ── ロジック ──────────────────────────────────────────
+    def _update_ctf_active_hint(self) -> None:
+        """CTF Active Retrievalの状態に応じた常時警告（false sense of security対策・
+        settings_dialog.py の _update_scope_hint と同じパターン）。"""
+        if not self._ctf_active.get():
+            self._ctf_active_warn.configure(text="")
+            return
+        targets = self._parse_ctf_active_targets()
+        if not targets:
+            self._ctf_active_warn.configure(
+                text="⚠ 許可ホストが空のままでは実行できません（対象を明示してください）"
+            )
+        else:
+            self._ctf_active_warn.configure(
+                text=f"⚠ {', '.join(targets)} へ実際に検証リクエストを送信します"
+            )
+
+    def _parse_ctf_active_targets(self) -> list[str]:
+        raw = self._ctf_active_targets_entry.get().strip()
+        if not raw:
+            return []
+        return [t.strip() for t in raw.replace("\n", ",").split(",") if t.strip()]
+
     def _start_scan(self) -> None:
         target = self._target_entry.get().strip()
         if not target:
             self._out_box.append("[ ERROR ] ターゲットを入力してください。\n", "critical")
+            return
+        if self._ctf_active.get() and not self._parse_ctf_active_targets():
+            self._out_box.append(
+                "[ ERROR ] CTF Active Retrieval は許可ホストの入力が必須です"
+                "（空のままでは実行できません）。\n", "critical",
+            )
             return
         self._steps_widget.reset()
         self._scan_btn.configure(state="disabled", text="  SCANNING  ●", fg_color="#601010")
@@ -213,6 +285,9 @@ class AttackPanel(ctk.CTkFrame):
             port_scope=self._port_scope.get(),
             scan_udp=self._scan_udp.get(),
             ctf_mode=self._ctf.get(),
+            ctf_active=self._ctf_active.get(),
+            ctf_active_targets=self._parse_ctf_active_targets(),
+            ctf_active_max_tier=3 if self._ctf_active_tier3.get() else 2,
         )
 
     def _stop_scan(self) -> None:

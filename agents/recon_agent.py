@@ -13,12 +13,14 @@ import json
 import os
 import re
 import time
+import requests
 from agents.base_agent import BaseAgent, _count_severities
 from tools.network_scanner import NetworkScanner, passive_os_fingerprint
 from tools.web_prober import WebProber
 from tools import subdomain_enum
 import core.config as config
 from core import scope_guard
+from core.ctf_safety import CtfSafetyGuard, is_destructive, require_explicit_scope
 from core.settings import (
     SCAN_PROFILES, DEFAULT_SCAN_PROFILE,
     COMMON_PORTS, EXTENDED_PORTS, COMMON_UDP_PORTS,
@@ -284,11 +286,60 @@ def _detect_flags(*texts: str) -> list[str]:
     return out
 
 
+# ── CTF ACTIVE RETRIEVAL: 送信を伴うフラグ探索（docs/CTF_ACTIVE_FLAG_RETRIEVAL.md） ──
+# EXPLOIT_TRANSMISSION_ENABLED / _assert_no_transmission() の経路とは完全に独立。
+# 既定オフ・スコープ明示必須・破壊的操作は core.ctf_safety.is_destructive() で機械的に拒否。
+
+# Tier1: 軽い・読み取り専用の拡張パス巡回。core.settings.SENSITIVE_PATHS（CMS/フレーム
+# ワークの管理パス中心）とは別に、CTF演習でよく使われる「隠しメモ」系のファイル名に絞る。
+_CTF_TIER1_WORDLIST = [
+    "notes.txt", "note.txt", "secret.txt", "secrets.txt", "flag.txt", "flags.txt",
+    "todo.txt", "credentials.txt", "backup.txt", "hidden.txt", ".secret",
+    "flag", "config.bak", "config.old", "database.sql", "dump.sql", "users.txt",
+]
+
+_CTF_TIER_NOTES = {
+    2: (
+        "Tier 2: prefer read-only path traversal/LFI, UNION SELECT-only SQL injection, "
+        "read-only SSRF, and non-destructive command injection probes (id/whoami/cat only)."
+    ),
+    3: (
+        "Tier 3: you may also propose authentication-bypass probes (e.g. JWT tampering, "
+        "session fixation) and read-only deserialization probes, as long as they only "
+        "READ data and do not modify server state."
+    ),
+}
+
+CTF_ACTIVE_SYSTEM_PROMPT = """You are assisting with an AUTHORIZED CTF (Capture The Flag) \
+exercise on a platform the operator has explicit permission to test (e.g. TryHackMe). Your \
+job is to propose READ-ONLY verification requests that the tool will actually SEND to the \
+target, to help locate a hidden flag.
+
+CRITICAL SAFETY CONTEXT — READ CAREFULLY:
+- Propose ONLY requests whose effect is to READ/OBSERVE data. NEVER propose anything that \
+writes, deletes, or modifies data, brute-forces credentials, or could degrade availability \
+(DoS). A machine-enforced filter independently rejects destructive-looking payloads \
+regardless of your rationale — do not try to word around it. If a technique requires any of \
+those, skip it entirely.
+- {tier_note}
+
+Given the reconnaissance summary and attack hypotheses below, propose up to {n} distinct, \
+READ-ONLY verification requests as a JSON array (and nothing else — no prose, no markdown \
+fences). Each element must have this exact shape:
+{{"method": "GET", "path": "/relative/path", "params": {{"key": "value"}}, "rationale": \
+"one short sentence"}}
+`method` is "GET" or "POST" only. `params` (for GET, query string) or `data` (for POST, form \
+body) may be omitted if not needed. `path` is relative to the target root (starts with "/").
+"""
+
+
 class ReconAgent(BaseAgent):
 
     def run(self, target: str, scan_web: bool = True, intensity: str = DEFAULT_SCAN_PROFILE,
             generate_exploit: bool = True, port_scope: str = "common",
-            scan_udp: bool = False, ctf_mode: bool = False) -> None:
+            scan_udp: bool = False, ctf_mode: bool = False,
+            ctf_active: bool = False, ctf_active_targets: list[str] | None = None,
+            ctf_active_max_tier: int = 2) -> None:
         self.bus.clear()
         if not self._check_scope(target):
             return
@@ -547,6 +598,18 @@ class ReconAgent(BaseAgent):
         if ctf_mode:
             self._detect_and_report_flags(recon_data)
 
+        if self.is_stopped(): return
+
+        # ── CTF ACTIVE RETRIEVAL（トグル時のみ・既定オフ・実送信あり） ──
+        # docs/CTF_ACTIVE_FLAG_RETRIEVAL.md 参照。EXPLOIT_TRANSMISSION_ENABLED の経路
+        # とは完全に独立しており、通常のATTACK MODE（本フラグ=False）には一切影響しない。
+        # フラグ検出済み（Step7.5で見つかった）ならスキップ — 送信を伴う処理は最小限に。
+        if ctf_active and not recon_data.get("flags"):
+            self._ctf_active_retrieval(
+                recon_data, recon_summary, prober.session,
+                ctf_active_targets or [], ctf_active_max_tier,
+            )
+
         # ── Step 8: エクスプロイト(PoC)生成 — ローカル生成のみ・送信なし ──
         self._step(8, "running")
         exploit_text = ""
@@ -574,8 +637,10 @@ class ReconAgent(BaseAgent):
         self._step(9, "running")
         body = (
             f"## Reconnaissance Data\n{recon_summary}\n\n"
-            + (f"## CTF Flags Detected (local detection only)\n{self._format_flags(recon_data.get('flags', []))}\n\n"
-               if ctf_mode and recon_data.get("flags") else "")
+            + (f"## CTF Flags Detected\n{self._format_flags(recon_data.get('flags', []))}\n\n"
+               if (ctf_mode or ctf_active) and recon_data.get("flags") else "")
+            + (f"## CTF Active Retrieval — Sent Requests (audit log)\n{recon_data['ctf_active_log']}\n\n"
+               if ctf_active and recon_data.get("ctf_active_log") else "")
             + f"## AI Attack Hypotheses\n{full}\n\n"
             + (f"## Generated PoCs (local only)\n{exploit_text}\n" if exploit_text else "")
         )
@@ -688,3 +753,170 @@ class ReconAgent(BaseAgent):
         if not flags:
             return "(no flags)"
         return "\n".join(f"- {f}" for f in flags)
+
+    # ── CTF ACTIVE RETRIEVAL（トグル時のみ・既定オフ・実送信あり） ──────────
+    def _ctf_active_retrieval(
+        self, recon: dict, recon_summary: str, session: requests.Session,
+        allowed_targets: list[str], max_tier: int,
+    ) -> None:
+        """送信を伴うフラグ探索。docs/CTF_ACTIVE_FLAG_RETRIEVAL.md 参照。
+
+        EXPLOIT_TRANSMISSION_ENABLED / _assert_no_transmission() とは完全に独立した
+        経路。通常のATTACK MODE実行（ctf_active=False、既定）には一切影響しない。
+        """
+        self._out("\n" + "─" * 56 + "\n", "sep")
+        self._out("  🎯 CTF ACTIVE RETRIEVAL  — sends non-destructive verification requests\n", "section")
+        self._out("─" * 56 + "\n", "sep")
+
+        ok, reason = require_explicit_scope(allowed_targets)
+        if not ok:
+            self._out(f"\n  [ABORTED] {reason}\n", "high")
+            self._log(f"CTF Active Retrieval aborted: {reason}")
+            return
+
+        base_url = recon.get("web", {}).get("url")
+        if not base_url:
+            self._out("\n  [SKIPPED] Web対象が特定できないため実行できません（Web偵察が未実行/失敗）\n", "mid")
+            self._log("CTF Active Retrieval skipped: no web target")
+            return
+
+        in_scope_ok, scope_reason = scope_guard.in_scope(base_url, allowed_targets)
+        if not in_scope_ok:
+            self._out(f"\n  [ABORTED] {scope_reason}\n", "high")
+            self._log(f"CTF Active Retrieval aborted: {scope_reason}")
+            return
+
+        guard = CtfSafetyGuard(max_requests=30)
+        found: list[str] = []
+
+        self._out("\n  Tier 1 — extended path enumeration (read-only)\n", "label")
+        found.extend(self._ctf_tier1(base_url, session, guard))
+
+        for tier in (2, 3):
+            if found or tier > max_tier or self.is_stopped():
+                break
+            stop, stop_reason = guard.should_stop()
+            if stop:
+                self._out(f"\n  [STOPPED before Tier {tier}] {stop_reason}\n", "mid")
+                break
+            self._out(f"\n  Tier {tier} — LLM-guided non-destructive probing\n", "label")
+            found.extend(self._ctf_llm_guided_tier(tier, base_url, recon_summary, session, guard))
+
+        existing = recon.get("flags", []) or []
+        seen = {f.lower() for f in existing}
+        for f in found:
+            if f.lower() not in seen:
+                existing.append(f)
+                seen.add(f.lower())
+        recon["flags"] = existing
+        recon["ctf_active_log"] = guard.format_log()
+
+        if found:
+            for f in found:
+                self._out("\n    FLAG  >>>  " + f + "\n", "green")
+            self._status(f"CTF Active Retrieval: {len(found)} flag(s) found")
+            self._log(f"CTF Active Retrieval: found {len(found)} flag(s)")
+        else:
+            self._out("\n  (Active Retrievalでもフラグは見つかりませんでした)\n", "mid")
+            self._log("CTF Active Retrieval: no flags found")
+
+        stop, stop_reason = guard.should_stop()
+        if stop:
+            self._out(f"\n  [{stop_reason}]\n", "mid")
+
+    def _ctf_tier1(
+        self, base_url: str, session: requests.Session, guard: CtfSafetyGuard,
+    ) -> list[str]:
+        """Tier1: CTF向けの隠しファイル名ワードリストを、既定GETで巡回するだけ。
+
+        LLMは介さない決定的な処理。見つかった時点で即座に打ち切り、以降の候補への
+        不要な送信をしない（層3のリクエスト予算節約と兼ねる）。
+        """
+        base = base_url.rstrip("/")
+        for word in _CTF_TIER1_WORDLIST:
+            stop, _ = guard.should_stop()
+            if stop or self.is_stopped():
+                break
+            url = f"{base}/{word}"
+            resp, msg = guard.send(session, "GET", url, tier=1, rationale=f"wordlist:{word}")
+            self._log(f"  [Tier1] {msg}")
+            if resp is not None and resp.status_code == 200:
+                hits = _detect_flags(resp.text)
+                if hits:
+                    return hits
+        return []
+
+    def _ctf_llm_guided_tier(
+        self, tier: int, base_url: str, recon_summary: str,
+        session: requests.Session, guard: CtfSafetyGuard,
+    ) -> list[str]:
+        """Tier2/3共通: LLMに読み取り専用の検証候補を提案させ、1件ずつ層2(is_destructive)・
+        層3(CtfSafetyGuard)のガード付きで送信する。候補のフォーマットが崩れていたり
+        LLM呼び出しが失敗した場合は、静かに空リストを返す（このTierは何も見つからなかった
+        扱いにして次に進む／終了する。例外を上に投げてスキャン全体を落とさない）。
+        """
+        n = 5
+        prompt = CTF_ACTIVE_SYSTEM_PROMPT.format(tier_note=_CTF_TIER_NOTES[tier], n=n)
+        # _complete_llm は例外を握りつぶしログに記録したうえで "" を返す設計
+        # （base_agent.py）。ここでの追加の try/except は不要。
+        raw = self._complete_llm([
+            self.llm.system(prompt),
+            self.llm.user(
+                f"Reconnaissance summary:\n{recon_summary}\n\n"
+                f"Propose up to {n} read-only verification requests."
+            ),
+        ], role="fast")
+
+        candidates = self._parse_ctf_candidates(raw)
+        if not candidates:
+            self._log(f"  [Tier{tier}] LLMから有効な候補が得られませんでした")
+            return []
+
+        base = base_url.rstrip("/")
+        for cand in candidates[:n]:
+            stop, _ = guard.should_stop()
+            if stop or self.is_stopped():
+                break
+            method = str(cand.get("method", "GET")).upper()
+            if method not in ("GET", "POST"):
+                method = "GET"
+            path = str(cand.get("path", ""))
+            if not path.startswith("/"):
+                path = "/" + path
+            url = base + path
+            rationale = str(cand.get("rationale", ""))
+            kwargs: dict = {}
+            if cand.get("params"):
+                kwargs["params"] = cand["params"]
+            if cand.get("data"):
+                kwargs["data"] = cand["data"]
+            resp, msg = guard.send(session, method, url, tier=tier, rationale=rationale, **kwargs)
+            self._log(f"  [Tier{tier}] {msg} ({rationale})")
+            if resp is not None and resp.status_code < 500:
+                hits = _detect_flags(resp.text)
+                if hits:
+                    return hits
+        return []
+
+    @staticmethod
+    def _parse_ctf_candidates(raw: str) -> list[dict]:
+        """LLM応答からJSON配列を抽出する（```json フェンス・前後の説明文を許容）。
+
+        パース不能・配列でない・要素がdictでない場合は空リストを返す（例外にしない —
+        このTierを「候補なし」として扱えば、呼び出し側は安全にスキップできる）。
+        """
+        text = raw.strip()
+        m = re.search(r"```(?:json)?\s*(\[.*?\])\s*```", text, re.S)
+        if m:
+            text = m.group(1)
+        else:
+            start, end = text.find("["), text.rfind("]")
+            if start != -1 and end != -1 and end > start:
+                text = text[start:end + 1]
+        try:
+            data = json.loads(text)
+        except (json.JSONDecodeError, ValueError):
+            return []
+        if not isinstance(data, list):
+            return []
+        return [c for c in data if isinstance(c, dict) and c.get("path")]

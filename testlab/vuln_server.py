@@ -37,7 +37,27 @@ _EXPOSED_PATHS = {
     "/api":           '{"status":"ok","version":"1.0"}',
     "/phpinfo.php":   "<html><body><h1>PHP Version 7.4.3</h1></body></html>",
     "/server-status": "<html><body>Apache Server Status</body></html>",
+    # CTF Active Retrieval（docs/CTF_ACTIVE_FLAG_RETRIEVAL.md）Tier1 検証用:
+    # robots.txt には出てこない「隠しパス」に置く（Tier0の巡回では見つからず、
+    # Tier1の拡張パス巡回で初めて見つかる想定）。
+    "/notes.txt":     "TODO: rotate the staging credentials\nflag{ctf_lab_tier1_hidden_path}\n",
 }
+
+# CTF Active Retrieval Tier2 検証用のダミーデータ（本物のファイルシステム/DBは
+# 一切使わない。パターンマッチで「読み取り専用の脆弱性が刺さった場合の応答」を
+# シミュレートするだけ — testlab自体が実際に危険な操作をできないようにするため）。
+_FAKE_ETC_PASSWD = (
+    "root:x:0:0:root:/root:/bin/bash\n"
+    "daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\n"
+    "ctf:x:1000:1000:CTF User:/home/ctf:/bin/bash\n"
+    "# flag{ctf_lab_tier2_lfi_readonly}\n"
+)
+_FAKE_ACCOUNTS_TABLE = (
+    "id | username | password_hash                       | note\n"
+    "---+----------+--------------------------------------+------------------------\n"
+    "1  | admin    | 5f4dcc3b5aa765d61d8327deb882cf99     | flag{ctf_lab_tier2_sqli_union}\n"
+    "2  | guest    | 084e0343a0486ff05530df6c705c8bb4     | (regular account)\n"
+)
 
 _CSS = """
 *{box-sizing:border-box;margin:0;padding:0}
@@ -163,6 +183,31 @@ def _detail(title: str, lead: str, value: str) -> str:
         f'<div class="panel"><h2>{title}</h2><p>{lead}</p>{_vuln_panel(value)}</div>')
 
 
+def _download_response(filename: str) -> str:
+    """CTF Active Retrieval Tier2（読み取り専用LFI確認）検証用。
+
+    パストラバーサル風の入力（../ や etc/passwd）を検出したときだけ、
+    ダミーの /etc/passwd 相当を返す。実ファイルシステムへは一切アクセスしない
+    （シミュレーションであり、本物の脆弱性は再現しない）。
+    """
+    if re.search(r"(\.\.[\\/]|etc[\\/]passwd|%2e%2e)", filename, re.I):
+        return _page("ダウンロード", f'<div class="result">{_FAKE_ETC_PASSWD}</div>')
+    return _page("ダウンロード",
+        f'<div class="panel"><p>ファイル "{filename}" が見つかりません。</p></div>')
+
+
+def _account_response(query_id: str) -> str:
+    """CTF Active Retrieval Tier2（読み取り専用 UNION-based SQLi 確認）検証用。
+
+    UNION SELECT 系の入力を検出したときだけ、ダミーのテーブル内容を返す。
+    実際のSQL実行は一切行わない（シミュレーションであり、本物のDBは無い）。
+    """
+    if re.search(r"(?i)\bUNION\b.*\bSELECT\b", query_id):
+        return _page("アカウント情報", f'<div class="result">{_FAKE_ACCOUNTS_TABLE}</div>')
+    return _page("アカウント情報",
+        f'<div class="panel"><p>ID {query_id} のアカウントは見つかりません。</p></div>')
+
+
 def _login_form(msg: str = "") -> str:
     note = f'<div class="result">{msg}</div>' if msg else ""
     # CSRFトークン（hidden）を含める。ツールの自動抽出を検証するための要素。
@@ -238,6 +283,10 @@ class VulnHandler(BaseHTTPRequestHandler):
                 "会員専用の検索結果:", qs.get("q", ""))); return
         if path == "/login":
             self._respond(200, _login_form()); return
+        if path == "/download":
+            self._respond(200, _download_response(qs.get("file", ""))); return
+        if path == "/account":
+            self._respond(200, _account_response(qs.get("id", ""))); return
 
         self._respond(404, _page("404", '<div class="panel"><h2>404 Not Found</h2></div>'))
 
