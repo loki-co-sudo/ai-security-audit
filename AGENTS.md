@@ -579,6 +579,20 @@ ATTACK MODE に、認可された偵察レスポンスからCTF形式のフラ�
 
 ### 未実装（ロードマップ）
 
+**実践運用対応（[docs/PRACTICAL_ROADMAP.md](docs/PRACTICAL_ROADMAP.md)・2026-09-02策定）**
+運用シーン（バグバウンティ実戦／診断案件・内部レッドチーム／自インフラ継続モニタリング）を
+想定した足回りの整備。詳細・対象ファイル・テスト方針は同ドキュメント §3/§8 を正とする。
+- [ ] フェーズ1.1 ヘッドレス CLI / バッチ実行（`cli.py`。EventBus 流用・エージェント本体は無変更）
+- [ ] フェーズ1.2 所見台帳（`reports/findings.jsonl` 追記式）+ `diff`/`suppress`/`status`（SQLiteは不足顕在化まで不採用）
+- [ ] フェーズ1.3 エンゲージメント別プロファイル（`config.json` の `profiles`）
+- [ ] フェーズ2.1 ベンチマークハーネス（`tools/benchmark.py`・testlab 正解ラベル。2.2 より先に実施）
+- [ ] フェーズ2.2 WEB FUZZ 高価値クラス拡張（SSRF/オープンリダイレクト/CORS/シークレット露出/サブドメインテイクオーバー/GraphQL・検出のみ）
+- [ ] フェーズ2.3 証拠バンドル + レート適応（429/`Retry-After`・プロファイル連動レート）
+- [ ] フェーズ3.1 DEFENSE MODE 実ログ対応（journald/syslog/JSON Lines）
+- [ ] フェーズ3.2 Slack/Webhook アラート出力（所見の生データではなく深刻度・要約の通知に限定）
+- [ ] フェーズ3.3 チェックポイント/再開（`cli.py --resume`）
+- 別枠（スコープ外）: CODE AUDIT ポリグロット化（JS/TS・別パーサ依存）・HackerOne/Bugcrowd API連携
+
 **長期・任意**
 - [ ] 自動脆弱性スキャンCI — 上記CI/CD統合の拡張案。push毎に自リポジトリへCODE AUDITを実LLMで
   自動実行しPRにコメント。secrets設定とコスト発生についてユーザーの明示的な合意が要る

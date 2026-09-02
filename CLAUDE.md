@@ -14,6 +14,7 @@
 | 学習ガイド（脆弱性・攻防・技術スタック） | [docs/ENGINEER_GUIDE.md](docs/ENGINEER_GUIDE.md) |
 | バグバウンティ対応の設計・実装計画 | [docs/BOUNTY_ROADMAP.md](docs/BOUNTY_ROADMAP.md) |
 | WEB FUZZ をバグバウンティで使う際の具体的な運用フロー | [docs/BOUNTY_WEBFUZZ_WORKFLOW.md](docs/BOUNTY_WEBFUZZ_WORKFLOW.md) |
+| 実践運用対応（CLI・所見台帳・ベンチマーク等）の方針とロードマップ | [docs/PRACTICAL_ROADMAP.md](docs/PRACTICAL_ROADMAP.md) |
 
 ## 絶対に守ること（要約）
 
