@@ -150,6 +150,13 @@ def test_config():
             "存在しないCAファイルパスで警告が出ていない"
         assert config.validate_config({"tls_ca_bundle": ""}) == [], "空文字列(標準ストア)で警告が出た"
         _ok("config: tls_verify/tls_ca_bundleバリデーション", "既定値維持・不正値検出を確認")
+
+        # 証拠保存設定のバリデーション（P1.2）。既定OFF（既存設定との後方互換）。
+        assert config.get("save_evidence") is False, "save_evidenceの既定値が変わっている(後方互換違反)"
+        assert config.validate_config({"save_evidence": True}) == []
+        assert config.validate_config({"save_evidence": "yes"}), \
+            "不正値でsave_evidenceの警告が出ていない"
+        _ok("config: save_evidenceバリデーション", "既定値False維持・不正値検出を確認")
     except Exception as e:
         _ng("config", repr(e))
 
@@ -609,6 +616,124 @@ def test_findings_contract():
         _ok("verification_stateはseverityと独立に設定可能", "")
     except Exception as e:
         _ng("findings_contract", repr(e) + "\n" + traceback.format_exc())
+
+
+def test_redaction():
+    _section("2i. CORE — redaction マスキング(P1.2・固定ダミー秘密値の非漏えい検証)")
+    import core.redaction as redaction
+    # 固定ダミー秘密値（実際の秘密ではない・テスト専用の識別しやすい文字列）
+    DUMMY_COOKIE = "sessionid=SELFTEST_DUMMY_COOKIE_VALUE_777"
+    DUMMY_TOKEN = "SELFTEST_DUMMY_BEARER_TOKEN_888"
+    DUMMY_PASSWORD = "SELFTEST_DUMMY_PASSWORD_999"
+    known = {DUMMY_COOKIE, DUMMY_TOKEN, DUMMY_PASSWORD}
+    try:
+        # 1) ヘッダー: Cookie/Authorizationは常にマスク、既知の値はカスタムヘッダーでもマスク
+        headers = {
+            "Cookie": DUMMY_COOKIE,
+            "Authorization": f"Bearer {DUMMY_TOKEN}",
+            "X-Custom-Auth": DUMMY_TOKEN,  # ユーザー設定の任意ヘッダー(既知の値で一致)
+            "X-Harmless": "no-secret-here",
+        }
+        masked = redaction.mask_headers(headers, known_secrets=known)
+        blob = json.dumps(masked)
+        assert DUMMY_COOKIE not in blob and DUMMY_TOKEN not in blob and DUMMY_PASSWORD not in blob
+        assert masked["X-Harmless"] == "no-secret-here", "無害な値まで変更してはいけない"
+        assert "Cookie" in masked and "Authorization" in masked, "ヘッダー名自体は保持すべき"
+        _ok("mask_headers(): Cookie/Authorization/既知値ヘッダーを全てマスク", "")
+
+        # 2) URL: 機密パラメータ名・既知の値の両方をマスク
+        url = f"http://x/login?user=bob&password={DUMMY_PASSWORD}&token={DUMMY_TOKEN}&q=hello"
+        masked_url = redaction.mask_url(url, known_secrets=known)
+        assert DUMMY_PASSWORD not in masked_url and DUMMY_TOKEN not in masked_url
+        assert "hello" in masked_url and "bob" in masked_url, "無害なパラメータまで消してはいけない"
+        _ok("mask_url(): 機密パラメータ名・既知の値をマスクし無害な値は保持", "")
+
+        # 3) body: JSON形式・form形式のどちらも機密キー名・既知の値をマスク
+        json_body = f'{{"username": "bob", "password": "{DUMMY_PASSWORD}", "note": "hi"}}'
+        form_body = f"user=bob&password={DUMMY_PASSWORD}&remember=1"
+        masked_json = redaction.mask_body(json_body, known_secrets=known)
+        masked_form = redaction.mask_body(form_body, known_secrets=known)
+        assert DUMMY_PASSWORD not in masked_json and DUMMY_PASSWORD not in masked_form
+        assert '"hi"' in masked_json and "remember=1" in masked_form
+        _ok("mask_body(): JSON/form双方で機密値をマスクし無害な値は保持", "")
+
+        # 4) ハッシュは改ざん検出補助であり匿名化ではない(同じ値→同じハッシュ)
+        h1 = redaction.mask_value(DUMMY_PASSWORD)
+        h2 = redaction.mask_value(DUMMY_PASSWORD)
+        assert h1 == h2, "同じ値は同じマスク結果(ハッシュ)になるべき"
+        _ok("mask_value(): 同一値は同一ハッシュ(改ざん検出補助・匿名化ではない)", "")
+
+        # 5) known_secrets未指定でも既定の機密ヘッダー/パラメータ名は保護される
+        headers_no_known = redaction.mask_headers({"Cookie": DUMMY_COOKIE})
+        assert DUMMY_COOKIE not in json.dumps(headers_no_known), \
+            "known_secrets未指定でもCookieヘッダーはマスクされるべき"
+        _ok("既定の機密ヘッダー名はknown_secrets未指定でも保護される", "")
+    except Exception as e:
+        _ng("redaction", repr(e) + "\n" + traceback.format_exc())
+
+
+def test_evidence_store():
+    _section("2j. CORE — EvidenceStore 証拠保存(P1.2・容量上限・保存失敗・pathトラバーサル対策)")
+    import shutil
+    import tempfile
+    from core.evidence_store import EvidenceStore
+    DUMMY_SECRET = "SELFTEST_DUMMY_EVIDENCE_SECRET_555"
+    tmp_root = tempfile.mkdtemp(prefix="selftest_evidence_")
+    try:
+        # 1) 保存したファイルにダミー秘密値が残らない
+        store = EvidenceStore("scan_selftest_1", root=tmp_root)
+        eid = store.save_http_evidence(
+            method="GET", url=f"http://x/?token={DUMMY_SECRET}", status=200,
+            headers={"Cookie": f"sessionid={DUMMY_SECRET}"},
+            body=f"password={DUMMY_SECRET}",
+            known_secrets={DUMMY_SECRET},
+        )
+        assert eid is not None
+        raw_path = os.path.join(store.dir, f"{eid}.json")
+        with open(raw_path, encoding="utf-8") as f:
+            raw_on_disk = f.read()
+        assert DUMMY_SECRET not in raw_on_disk, "保存物にダミー秘密値が残っている"
+        _ok("save_http_evidence(): 保存物にダミー秘密値が残らない", "")
+
+        # 2) load()でも同じ内容が読める
+        loaded = store.load(eid)
+        assert loaded is not None and loaded["status"] == 200
+        assert DUMMY_SECRET not in json.dumps(loaded)
+        _ok("load(): 保存済み証拠を復元できる(マスク済みのまま)", "")
+
+        # 3) 件数上限
+        store_limited = EvidenceStore("scan_selftest_2", root=tmp_root, max_items=1)
+        e1 = store_limited.save_http_evidence(method="GET", url="http://x/a", status=200)
+        e2 = store_limited.save_http_evidence(method="GET", url="http://x/b", status=200)
+        assert e1 is not None and e2 is None, "件数上限を超えたらNoneを返すべき"
+        _ok("件数上限(max_items)超過でNoneを返す", "")
+
+        # 4) 総容量上限
+        store_small_total = EvidenceStore("scan_selftest_3", root=tmp_root,
+                                          max_total_bytes=1, max_items=100)
+        e3 = store_small_total.save_http_evidence(method="GET", url="http://x/a", status=200,
+                                                  body="x" * 500)
+        assert e3 is None, "総容量上限を超えたらNoneを返すべき"
+        _ok("総容量上限(max_total_bytes)超過でNoneを返す", "")
+
+        # 5) 1件あたりの上限超過時は本文を省略しつつ理由を残して保存する(所見自体は破棄しない)
+        store_small_item = EvidenceStore("scan_selftest_4", root=tmp_root, max_item_bytes=50)
+        e4 = store_small_item.save_http_evidence(method="GET", url="http://x/a", status=200,
+                                                  body="y" * 500)
+        assert e4 is not None, "1件あたりの上限超過でも省略保存はできるべき(破棄しない)"
+        loaded4 = store_small_item.load(e4)
+        assert loaded4["omitted_reason"], "省略理由が記録されているべき"
+        assert loaded4["body_excerpt"] == ""
+        _ok("1件あたりの上限超過は本文省略+理由記録で保存(所見を破棄しない)", "")
+
+        # 6) evidence_idをそのままpathに使わない(pathトラバーサル対策)
+        assert store.load("../../../etc/passwd") is None
+        assert store.load("../evidence") is None
+        _ok("load(): 不正なevidence_id(pathトラバーサル)を拒否", "")
+    except Exception as e:
+        _ng("evidence_store", repr(e) + "\n" + traceback.format_exc())
+    finally:
+        shutil.rmtree(tmp_root, ignore_errors=True)
 
 
 def test_subdomain_enum():
@@ -2686,6 +2811,8 @@ def main():
     test_telemetry_ledger()
     test_base_agent_lifecycle()
     test_findings_contract()
+    test_redaction()
+    test_evidence_store()
     test_subdomain_enum()
     test_network_scanner()
     test_web_prober()

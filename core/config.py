@@ -43,6 +43,9 @@ _DEFAULTS: dict = {
     # 新しい案件ではtrueにし、必要ならtls_ca_bundleで自己署名CAを個別指定する。
     "tls_verify": TLS_VERIFY_DEFAULT,
     "tls_ca_bundle": TLS_CA_BUNDLE_DEFAULT,
+    # 証拠保存（P1.2）。既定OFF（既存設定との後方互換）。ONでもマスキング後のみ保存し、
+    # 生の認証情報は保存しない（core/redaction.py・core/evidence_store.py）。
+    "save_evidence": False,
 }
 
 # 設定キーの許容リスト（未知キー警告のため）
@@ -90,6 +93,11 @@ def _validate_tls_ca_bundle(v) -> str | None:
         return f"tls_ca_bundle のファイルが見つかりません: {v}"
     return None
 
+def _validate_save_evidence(v) -> str | None:
+    if not isinstance(v, bool):
+        return "save_evidence は true/false である必要があります"
+    return None
+
 _VALIDATORS = {
     "llm_timeout": _validate_timeout,
     "effort":      _validate_effort,
@@ -98,6 +106,7 @@ _VALIDATORS = {
     "scope_mode":  _validate_scope_mode,
     "tls_verify":  _validate_tls_verify,
     "tls_ca_bundle": _validate_tls_ca_bundle,
+    "save_evidence": _validate_save_evidence,
 }
 
 
