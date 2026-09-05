@@ -56,6 +56,9 @@ AI-Security-tool/
 │   ├── model_router.py          # ロール別モデルルーティング（STRONG/FAST）＆推論エフォート（lokicode移植）。summarize_telemetry()/suggest_efficient_model()でテレメトリ実績を助言表示（自動切り替えはしない）
 │   ├── scope_guard.py           # バグバウンティ対応: 対象範囲(Scope)の機械的判定 in_scope()（許可リスト一致のみ・v1はdeny-list非対応）
 │   ├── http_transport.py        # P0.1/P0.2: WEB FUZZ全送信経路の唯一の送信口。normalize_origin()・HttpTransport（同一origin検査・共有予算・手動リダイレクト制御・RequestPolicyでレート/429リトライ/STOP中断/応答サイズ上限）。TLS設定・認証状態判定はtools/web_fuzzer.py側
+│   ├── findings.py              # P1.1: 構造化所見・実行ライフサイクルのデータ契約。ScanResult/Finding/CoverageItem/ScanState/VerificationState/CoverageStatus（dataclass/Enum）
+│   ├── redaction.py             # P1.2: 証拠のマスキング。mask_headers()/mask_url()/mask_body()（既知の機密値の完全一致＋キー名ヒューリスティック）、mask_value()でsha256先頭12文字付与
+│   ├── evidence_store.py        # P1.2: reports/evidence/<scan_id>/へのHTTP証拠保存。EvidenceStore（件数/1件サイズ/総容量の上限、保存失敗はsave_errorsへ記録）
 │   └── orchestrator.py          # LangGraph StateGraph。深層解析ループ回数はエフォート連動（smart_truncate採用）
 ├── agents/
 │   ├── base_agent.py            # 抽象基底クラス。threading.Eventで停止管理、EventBusヘルパー群、_check_scope()（スコープガード）
@@ -693,7 +696,48 @@ P1.2以降はすべて未実装。文書整備を機能実装完了として扱�
   環境ではSKIP）・16i（FuzzAgentの_build_coverage/_determine_stateの単体テスト）・
   16j（注入点0件の実run()でのRESULT/DONE確定、非LLM E2E）を追加。
   （`tools/run_selftest.py` 124 PASS / 0 FAIL、実LLM系5件は既定どおりSKIP・2026-09-05）
-- [ ] P1.2 証拠保存・保存/表示/LLM送信前マスキング・共通レポート
+- [ ] P1.2 証拠保存・保存/表示/LLM送信前マスキング・共通レポート（**証拠の保存・
+  マスキング・検証は実装済み。レポート表示への配線は未実装・継続中**）。
+  新規`core/redaction.py`: ディスク保存・GUI/ログ表示・LLM送信より前に機密値を
+  マスクする。Cookie/Set-Cookie/Authorization等の既定センシティブヘッダー＋呼び出し側
+  が把握している既知の機密値（設定済みcookie/token/password等）の完全一致マスクを主とし、
+  キー名ヒューリスティック（password/token/api_key等）をURL/JSON/form本文への補助
+  マスクとして併用。マスク済み値にsha256先頭12文字を付与（改ざん検出の補助であり
+  匿名化ではない）。
+  新規`core/evidence_store.py`: `reports/evidence/<scan_id>/`へHTTP証拠をJSON保存。
+  件数・1件あたりのサイズ・総容量に上限（既定200件/20KB/5MB）を持ち、全通信の
+  無制限保存はしない。1件あたりの上限超過時は本文を省略し理由を記録した上で保存する
+  （所見自体は破棄しない）。保存失敗は`save_errors`に記録するのみで例外を投げない。
+  evidence_idをそのままパスへ使わず正規表現で検証する（pathトラバーサル対策）。
+  `core/config.py`に`save_evidence`設定を追加（既定False=既存動作維持）。
+  `agents/base_agent.py`に`_begin_scan()`を追加し、`_finalize()`より前にscan_idを
+  確定できるようにした（証拠保存がfinalize前からscan_idを参照するため）。
+  `_findings_from_markers()`は`known_evidence_ids`引数を受け取り、LLM出力の
+  `EVIDENCE_IDS:`行（カンマ/空白区切り）から**実在するIDのみ**`Finding.evidence_ids`
+  へ採用する（存在しないID＝LLMの誤記・幻覚は黙って除外）。これは証拠の紐付けが
+  意味的に正しいという保証ではない — LLMが対応する証拠を正しく引用したかまでは検証
+  できない。`tools/report_generator._parse()`は`EVIDENCE_IDS`フィールドを追加抽出する
+  （既存のNAME/SEVERITY/CWE/LINES等の抽出結果に影響なし）。
+  **`agents/fuzz_agent.py`（WEB FUZZ）で実際に配線済み**: AIトリアージ呼び出しより前に
+  `save_evidence`有効時のみ各異常(anomaly)のHTTP証拠を保存し、evidence_idを
+  `_build_summary()`のプロンプトへ埋め込み、`_TRIAGE_SYS`にEVIDENCE_IDS引用の指示を
+  追加した（未提供時は指示自体が発火しないよう条件付きの文言にした）。
+  **未実装（次の継続作業）**: AUDIT/ATTACK/DEFENSEへの証拠保存配線（コード抜粋・ログ
+  抜粋の証拠種別は未着手）。HTML/MD/PDFレポートへの証拠リンク表示——現状のGUI
+  エクスポート（`gui/export_util.py`）はストリーミング表示テキストを再パースする
+  経路のままで、RESULT イベントで確定した`ScanResult`/`Finding.evidence_ids`を
+  一切参照していない（P1.1で残した「GUIはRESULTイベントを消費しない」というギャップが
+  ここにも波及している）。これを繋ぐには`report_generator.generate()`系が
+  `Finding`のリストを受け取れるようにするか、GUIパネルがRESULTイベントを保持して
+  それを渡すか、どちらかの設計判断が必要（未着手）。IDOR所見（`_detect_idor`の結果）
+  は応答本文を保持していないため証拠保存の対象外のまま。AUDIT/ATTACK/DEFENSEの
+  `_findings_from_markers()`呼び出しは`known_evidence_ids`を渡していないため、
+  それらのモードでは`EVIDENCE_IDS`行があっても常に無視される（意図した後方互換）。
+  セルフテスト2i（redactionの固定ダミー秘密値非漏えい検証）・2j（EvidenceStoreの
+  保存物非漏えい・容量上限・pathトラバーサル対策）・2g2（evidence_ids検証: 既知ID採用・
+  未知ID除外）・16k（FuzzAgentでの実際の証拠保存〜evidence_id引用〜検証の一連の流れ）
+  を追加。
+  （`tools/run_selftest.py` 142 PASS / 0 FAIL、実LLM系5件は既定どおりSKIP・2026-09-05）
 - [ ] P2.1 CLI非依存の最小ベンチマーク（正常例と未検査を含む）
 - [ ] P2.2 IDOR/SSTI/XSSの既存検出品質改善（P2.1の基準値取得後）
 - [ ] P3.1 CLI・案件プロファイル・除外優先・実行設定分離

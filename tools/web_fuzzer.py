@@ -69,6 +69,11 @@ DEFAULT_PROBES = {
 # XSSリフレクション判定に使うユニークマーカー
 _XSS_MARKER = "fzx9q7"
 
+# 異常兆候の証拠として保持する応答本文の上限文字数（P1.2・メモリ膨張対策）。
+# EvidenceStore側にも独立した容量上限があるため、ここは呼び出し側へ渡す前の
+# 一次的な上限に過ぎない（二重の安全弁）。
+_EVIDENCE_BODY_CAP = 5000
+
 
 class WebFuzzer:
     def __init__(
@@ -488,6 +493,11 @@ class WebFuzzer:
                         "category": category, "payload": send_payload,
                         "severity": ev[0], "evidence": ev[1],
                         "status": resp.status_code,
+                        # 証拠保存用の生データ（P1.2・_EVIDENCE_BODY_CAP文字で切り詰め）。
+                        # 呼び出し側(FuzzAgent)がsave_evidence有効時のみ実際に保存する。
+                        "response_headers": dict(resp.headers),
+                        "response_body": resp.text[:_EVIDENCE_BODY_CAP],
+                        "baseline_body": base_body[:_EVIDENCE_BODY_CAP],
                     })
                     self.log(f"  [!] {category} 兆候: {param}@{url}")
                     break  # 同カテゴリは最初の兆候で十分

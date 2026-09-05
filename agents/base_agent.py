@@ -146,6 +146,7 @@ class BaseAgent(ABC):
         self._last_scan_result = None
         self._current_mode = ""
         self._current_target = ""
+        self._scan_id: str | None = None
 
     # ── ライフサイクル ─────────────────────────────────────
     def start(self, **kwargs) -> None:
@@ -153,6 +154,7 @@ class BaseAgent(ABC):
         self._stop_event.clear()
         self._result_finalized = False
         self._last_scan_result = None
+        self._scan_id = None
         self._thread = threading.Thread(
             target=self._safe_run,
             kwargs=kwargs,
@@ -186,6 +188,17 @@ class BaseAgent(ABC):
     def run(self, **kwargs) -> None:
         """サブクラスが実装するメイン処理。バックグラウンドスレッドで実行される。"""
 
+    def _begin_scan(self) -> str:
+        """スキャンIDを確定する（P1.2）。
+
+        run()冒頭（_current_mode/_current_target設定直後）で呼ぶと、証拠保存
+        （core/evidence_store.EvidenceStore）等がfinalize前からscan_idを参照できる。
+        呼ばない場合は_finalize()が初回確定時に新規生成する（後方互換・呼び出し必須ではない）。
+        """
+        if self._scan_id is None:
+            self._scan_id = new_id("scan")
+        return self._scan_id
+
     def _finalize(self, *, state: str, errors: list[str] | None = None,
                   findings: list[Finding] | None = None,
                   coverage: list[CoverageItem] | None = None,
@@ -209,6 +222,8 @@ class BaseAgent(ABC):
             target=target or self._current_target,
             engagement_id=engagement_id,
         )
+        if self._scan_id:
+            sr.scan_id = self._scan_id  # _begin_scan()で先に確定済みならそれを使う(P1.2)
         sr.state = state
         sr.errors = list(errors or [])
         sr.findings = list(findings or [])
@@ -401,9 +416,10 @@ class BaseAgent(ABC):
             self._out("\n\n".join(minority) + "\n", "dim")
         return kept
 
-    # ── 構造化所見への変換（P1.1） ─────────────────────────
+    # ── 構造化所見への変換（P1.1/P1.2） ────────────────────
     @staticmethod
-    def _findings_from_markers(parsed: list[dict], corroborated: bool) -> list[Finding]:
+    def _findings_from_markers(parsed: list[dict], corroborated: bool,
+                               known_evidence_ids: set[str] | None = None) -> list[Finding]:
         """`tools.report_generator._findings_and_counts()`が返す辞書列をFindingへ変換する
         共通ヘルパー。NAME/SEVERITY/CWE/LINES/FIXマーカー形式（---VULN_START---等）を
         前提とするため、DEFENSE MODEのTHREAT形式など異なるスキーマは個別に変換すること。
@@ -411,12 +427,25 @@ class BaseAgent(ABC):
         品質エフォートの検証パス（`_verify_findings`）を通過した所見のみ
         verification_state="corroborated"とし、アンサンブル少数意見(ENSEMBLE_MINORITY)は
         LLMの同意だけで昇格させず"observed"のまま残す。
+
+        `known_evidence_ids`（P1.2）が渡された場合、LLM出力の`EVIDENCE_IDS:`行を
+        カンマ/空白区切りで解釈し、この集合に存在するIDのみ`Finding.evidence_ids`へ
+        採用する。存在しないID（LLMの誤記・幻覚）は黙って除外する（採用しない）。
+        これは証拠の紐付けが正しいという意味論的な保証ではない —
+        LLMが実際に対応する証拠を正しく引用したかどうかまでは検証できない。
+        `known_evidence_ids`がNoneの場合（save_evidence未対応/無効の呼び出し元）は
+        EVIDENCE_IDS行自体を無視する（空リストのまま）。
         """
         out: list[Finding] = []
         for f in parsed:
             is_minority = f.get("confidence") == "ENSEMBLE_MINORITY"
             vstate = (VerificationState.CORROBORATED.value if (corroborated and not is_minority)
                       else VerificationState.OBSERVED.value)
+            evidence_ids: list[str] = []
+            if known_evidence_ids:
+                raw = f.get("evidence_ids_raw") or ""
+                candidates = [c.strip() for c in re.split(r"[,\s]+", raw) if c.strip()]
+                evidence_ids = [c for c in candidates if c in known_evidence_ids]
             out.append(Finding(
                 finding_id=new_id("finding"),
                 rule_id=f.get("ref") or "UNSPECIFIED",
@@ -426,6 +455,7 @@ class BaseAgent(ABC):
                 description=f.get("name") or "",
                 remediation=f.get("fix") or "",
                 verifier_support={"ensemble_minority": True} if is_minority else {},
+                evidence_ids=evidence_ids,
             ))
         return out
 

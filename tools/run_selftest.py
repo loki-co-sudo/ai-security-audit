@@ -582,6 +582,37 @@ def test_base_agent_lifecycle():
         _ng("base_agent_lifecycle", repr(e) + "\n" + traceback.format_exc())
 
 
+def test_findings_from_markers_evidence_ids():
+    _section("2g2. CORE — BaseAgent._findings_from_markers() evidence_ids検証(P1.2)")
+    from agents.base_agent import BaseAgent
+    try:
+        known = {"evidence_aaa111", "evidence_bbb222"}
+        parsed = [
+            {"name": "SQLi", "severity": "HIGH", "ref": "CWE-89", "lines": "url",
+             "evidence_ids_raw": "evidence_aaa111, evidence_bbb222"},
+            {"name": "XSS with hallucinated ID", "severity": "MEDIUM", "ref": "CWE-79", "lines": "url2",
+             "evidence_ids_raw": "evidence_aaa111, evidence_does_not_exist_999"},
+            {"name": "No evidence cited", "severity": "LOW", "ref": "CWE-1", "lines": "url3",
+             "evidence_ids_raw": ""},
+        ]
+        findings = BaseAgent._findings_from_markers(parsed, corroborated=False, known_evidence_ids=known)
+        assert findings[0].evidence_ids == ["evidence_aaa111", "evidence_bbb222"], \
+            "既知IDは両方採用されるべき"
+        assert findings[1].evidence_ids == ["evidence_aaa111"], \
+            "存在しないID(evidence_does_not_exist_999)は採用せず黙って除外すべき"
+        assert findings[2].evidence_ids == []
+        _ok("evidence_ids: 既知IDのみ採用・未知IDは黙って除外(LLMの誤記/幻覚に対する防御)", "")
+
+        # known_evidence_ids未指定(None)ならEVIDENCE_IDS行自体を無視する
+        findings_no_known = BaseAgent._findings_from_markers(parsed, corroborated=False,
+                                                              known_evidence_ids=None)
+        assert all(f.evidence_ids == [] for f in findings_no_known), \
+            "known_evidence_ids未指定時はevidence_idsを一切採用しないべき"
+        _ok("known_evidence_ids未指定時はEVIDENCE_IDS行を無視", "")
+    except Exception as e:
+        _ng("findings_from_markers_evidence_ids", repr(e) + "\n" + traceback.format_exc())
+
+
 def test_findings_contract():
     _section("2h. CORE — findings データ契約 ScanResult/Finding/CoverageItem(P1.1)")
     from core.findings import (
@@ -2652,6 +2683,86 @@ def test_fuzz_agent_no_points_lifecycle():
         srv.shutdown()
 
 
+def test_fuzz_agent_evidence_wiring():
+    _section("16k. AGENT — FuzzAgent 証拠保存・evidence_id引用検証(P1.2)")
+    import shutil
+    import tempfile
+    from agents.fuzz_agent import FuzzAgent
+    from tools import report_generator
+    from core.evidence_store import EvidenceStore
+    DUMMY_SECRET = "SELFTEST_DUMMY_FUZZ_EVIDENCE_SECRET_444"
+    tmp_root = tempfile.mkdtemp(prefix="selftest_fuzz_evidence_")
+    try:
+        # 1) _known_secrets(): auth/auth_bからcookie/header_value/pass_valを収集する
+        secrets = FuzzAgent._known_secrets(
+            {"cookie": "sessionid=abc", "header_value": "Bearer xyz"},
+            {"pass_val": "hunter2"},
+        )
+        assert secrets == {"sessionid=abc", "Bearer xyz", "hunter2"}
+        _ok("_known_secrets(): auth/auth_bからcookie/header_value/pass_valを収集", "")
+
+        # 2) 実際のEvidenceStoreで異常データ(実際のXSS検出データ相当)を保存する
+        #    (WebFuzzer._fuzz_pointが実際に返す形の辞書を使う)
+        store = EvidenceStore("scan_selftest_fuzz", root=tmp_root)
+        anomalies = [{
+            "url": "http://x/?q=1", "method": "GET", "param": "q", "category": "XSS",
+            "payload": "<svg/onload=alert(1)>", "severity": "HIGH",
+            "evidence": "reflected unescaped", "status": 200,
+            "response_headers": {"Set-Cookie": DUMMY_SECRET, "Content-Type": "text/html"},
+            "response_body": f"<html>{DUMMY_SECRET} reflected <svg/onload=alert(1)></html>",
+            "baseline_body": "<html>ok</html>",
+        }]
+        known_secrets = {DUMMY_SECRET}
+        known_evidence_ids = set()
+        eid = None
+        for a in anomalies:
+            eid = store.save_http_evidence(
+                method=a["method"], url=a["url"], status=a["status"],
+                headers=a["response_headers"], body=a["response_body"],
+                baseline_body=a["baseline_body"], known_secrets=known_secrets,
+            )
+            assert eid is not None
+            a["evidence_id"] = eid
+            known_evidence_ids.add(eid)
+
+        raw_path = os.path.join(store.dir, f"{eid}.json")
+        with open(raw_path, encoding="utf-8") as f:
+            raw_on_disk = f.read()
+        assert DUMMY_SECRET not in raw_on_disk, "保存物にダミー秘密値が残っている"
+        _ok("evidence保存: 実際のXSS異常データからでもダミー秘密値が保存物に残らない", "")
+
+        # 3) _build_summary()にevidence_idが埋め込まれ、LLMプロンプトへ渡る形になる
+        summary = FuzzAgent._build_summary("http://x/", [], anomalies, [])
+        assert f"evidence_id={eid}" in summary
+        _ok("_build_summary(): evidence_idがプロンプト用サマリーに埋め込まれる", "")
+
+        # 4) LLM出力(想定)が実在IDと幻覚ID(存在しないID)を両方引用した場合、
+        #    実在IDのみがFinding.evidence_idsへ採用される
+        canned = (
+            "---VULN_START---\n"
+            "NAME: Reflected XSS in q\n"
+            "SEVERITY: HIGH\n"
+            "CWE: CWE-79\n"
+            f"LINES: {anomalies[0]['url']} q\n"
+            f"EVIDENCE_IDS: {eid}, evidence_hallucinated_999\n"
+            "SNIPPET:\n```\n<svg/onload=alert(1)>\n```\n"
+            "ATTACK:\nReflected without escaping.\n"
+            "FIX:\n```\nescape output\n```\n"
+            "---VULN_END---\n"
+        )
+        parsed, _counts = report_generator._findings_and_counts("WEB FUZZ", canned)
+        findings = FuzzAgent._findings_from_markers(parsed, corroborated=False,
+                                                     known_evidence_ids=known_evidence_ids)
+        assert len(findings) == 1
+        assert findings[0].evidence_ids == [eid], \
+            f"実在するIDのみ採用されるべき: {findings[0].evidence_ids}"
+        _ok("LLM引用のevidence_ids: 実在IDのみ採用・幻覚IDは黙って除外", "")
+    except Exception as e:
+        _ng("fuzz_agent_evidence_wiring", repr(e) + "\n" + traceback.format_exc())
+    finally:
+        shutil.rmtree(tmp_root, ignore_errors=True)
+
+
 def test_fuzz_agent():
     _section("17. AGENT E2E — FuzzAgent（ローカルモック / 実LLM）")
     from agents.fuzz_agent import FuzzAgent
@@ -2810,6 +2921,7 @@ def main():
     test_scope_guard()
     test_telemetry_ledger()
     test_base_agent_lifecycle()
+    test_findings_from_markers_evidence_ids()
     test_findings_contract()
     test_redaction()
     test_evidence_store()
@@ -2845,6 +2957,7 @@ def main():
     test_http_transport_tls_handshake()
     test_fuzz_agent_p11_wiring()
     test_fuzz_agent_no_points_lifecycle()
+    test_fuzz_agent_evidence_wiring()
     _skip_llm("17", "AGENT E2E — FuzzAgent（ローカルモック / 実LLM）", test_fuzz_agent)
     test_desktop_shortcut()
     test_model_picker()

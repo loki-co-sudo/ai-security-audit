@@ -184,6 +184,10 @@ def _parse(text: str, start_marker: str, end_marker: str) -> list[dict]:
             "fix":     (fix.group(1).strip() if fix
                        else recommended.group(1).strip() if recommended else ""),
             "confidence": _field("CONFIDENCE"),
+            # LLMが入力中のevidence_id(P1.2でsave_evidence有効時のみ提示)を引用した場合の
+            # 生テキスト（カンマ/空白区切りを想定）。存在しないIDを採用しない検証は
+            # 呼び出し側（agents/base_agent._findings_from_markers）の責務。
+            "evidence_ids_raw": _field("EVIDENCE_IDS"),
         })
     return findings
 

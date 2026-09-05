@@ -18,8 +18,10 @@ import time
 from agents.base_agent import BaseAgent
 from tools.web_fuzzer import WebFuzzer, DEFAULT_PROBES
 from tools.report_generator import _findings_and_counts
+import core.config as config
 from core.settings import SCAN_PROFILES, DEFAULT_SCAN_PROFILE
 from core.findings import Finding, CoverageItem, ScanState, CoverageStatus
+from core.evidence_store import EvidenceStore
 
 def idor_skip_reason(fuzzer: WebFuzzer) -> str | None:
     """認証必須のIDORチェックをskipすべき理由を返す（skip不要ならNone、P0.2）。
@@ -82,6 +84,12 @@ FIX:
 ```
 ---VULN_END---
 
+If (and only if) an entry in the input has an "evidence_id" field and you rely on that entry \
+to support a finding, add one more line right after LINES in that finding's block: \
+EVIDENCE_IDS: [comma-separated evidence_id value(s) that support this finding]. \
+Only cite evidence_id values that were literally given to you in the input — never invent one. \
+If no entry in the input has an evidence_id, omit this field entirely.
+
 If no credible vulnerability is supported by the evidence, say so plainly and recommend \
 manual verification. Be precise and avoid overclaiming."""
 
@@ -100,6 +108,7 @@ class FuzzAgent(BaseAgent):
         tls_ca_bundle: str | None = None,
     ) -> None:
         self._current_mode, self._current_target = "WEB FUZZ", target
+        scan_id = self._begin_scan()  # 証拠保存(EvidenceStore)がfinalize前から使うため(P1.2)
         self.bus.clear()
         if not self._check_scope(target):
             return
@@ -242,6 +251,27 @@ class FuzzAgent(BaseAgent):
         if self.is_stopped():
             return
 
+        # ── 証拠保存（P1.2・save_evidence設定時のみ。既定OFF） ──
+        # AIトリアージより前に保存し、evidence_idをプロンプトへ渡す（LLMに引用させ、
+        # 実在するIDのみ採用する検証は_findings_from_markers側で行う）。
+        known_evidence_ids: set[str] = set()
+        evidence_errors: list[str] = []
+        if config.get("save_evidence", False):
+            store = EvidenceStore(scan_id)
+            known_secrets = self._known_secrets(auth, auth_b)
+            for a in anomalies:
+                eid = store.save_http_evidence(
+                    method=a["method"], url=a["url"], status=a.get("status"),
+                    headers=a.get("response_headers") or {}, body=a.get("response_body", ""),
+                    baseline_body=a.get("baseline_body", ""), known_secrets=known_secrets,
+                )
+                if eid:
+                    a["evidence_id"] = eid
+                    known_evidence_ids.add(eid)
+            if store.save_errors:
+                evidence_errors = [f"証拠保存エラー: {e}" for e in store.save_errors]
+                self._log(f"evidence: {len(store.save_errors)}件の保存に失敗")
+
         # ── Step 5: AIトリアージ ───────────────────────────
         self._step(5, "running")
         self._out("\n" + "─" * 56 + "\n", "sep")
@@ -266,16 +296,36 @@ class FuzzAgent(BaseAgent):
 
         # ── Step 6: 完了 ───────────────────────────────────
         parsed, counts = _findings_and_counts("WEB FUZZ", full)
-        findings = self._findings_from_markers(parsed, corroborated=bool(effort.get("verify_pass")))
+        findings = self._findings_from_markers(
+            parsed, corroborated=bool(effort.get("verify_pass")),
+            known_evidence_ids=known_evidence_ids or None,
+        )
         coverage = self._build_coverage(points, auth, auth_b, idor_ran, idor_skip_reason_val)
         state, errors = self._determine_state(
             fuzzer, triage_ran=True, triage_text=full,
             had_signals=bool(anomalies or idor_findings),
         )
+        errors = errors + evidence_errors
         self._finish(sum(counts.values()), counts, target=base_url, t0=t0,
                     findings=findings, coverage=coverage, state=state, errors=errors)
 
-    # ── 構造化所見・実行状態(P1.1) ─────────────────────────
+    # ── 構造化所見・実行状態(P1.1/P1.2) ────────────────────
+    @staticmethod
+    def _known_secrets(auth: dict | None, auth_b: dict | None) -> set[str]:
+        """証拠マスキング（core/redaction.py）に渡す既知の機密値の集合を作る（P1.2）。
+
+        設定済みのCookie全体・カスタム認証ヘッダー値・ログインパスワードを対象とする
+        （厳密なキー単位のマスキングは冪等ではないため、値そのものの完全一致マスクで
+        確実に隠す）。
+        """
+        secrets: set[str] = set()
+        for a in (auth or {}, auth_b or {}):
+            for key in ("cookie", "header_value", "pass_val"):
+                v = (a.get(key) or "").strip()
+                if v:
+                    secrets.add(v)
+        return secrets
+
     @staticmethod
     def _build_coverage(points: list[dict], auth: dict | None, auth_b: dict | None,
                         idor_ran: bool, idor_skip_reason_val: str | None) -> list[CoverageItem]:
@@ -373,10 +423,11 @@ class FuzzAgent(BaseAgent):
         if not anomalies:
             lines.append("  (no anomalies — inputs appear to be handled safely)")
         for a in anomalies:
+            evidence_id_line = f"\n    evidence_id={a['evidence_id']}" if a.get("evidence_id") else ""
             lines.append(
                 f"  - category={a['category']} param={a['param']} url={a['url']} "
                 f"status={a['status']} severity_hint={a['severity']}\n"
-                f"    payload={a['payload']}\n    evidence={a['evidence']}"
+                f"    payload={a['payload']}\n    evidence={a['evidence']}{evidence_id_line}"
             )
         idor_findings = idor_findings or []
         if idor_findings:
