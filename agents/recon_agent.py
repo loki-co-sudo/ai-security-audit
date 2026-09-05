@@ -14,13 +14,15 @@ import os
 import re
 import time
 import requests
-from agents.base_agent import BaseAgent, _count_severities
+from agents.base_agent import BaseAgent
 from tools.network_scanner import NetworkScanner, passive_os_fingerprint
 from tools.web_prober import WebProber
 from tools import subdomain_enum
+from tools.report_generator import _findings_and_counts
 import core.config as config
 from core import scope_guard
 from core.ctf_safety import CtfSafetyGuard, is_destructive, require_explicit_scope
+from core.findings import CoverageItem, ScanState, CoverageStatus
 from core.settings import (
     SCAN_PROFILES, DEFAULT_SCAN_PROFILE,
     COMMON_PORTS, EXTENDED_PORTS, COMMON_UDP_PORTS,
@@ -518,8 +520,9 @@ class ReconAgent(BaseAgent):
 
         # ── Step 5: Webプローブ ────────────────────────────
         self._step(5, "running")
-        if scan_web and (any(p["port"] in (80, 443, 8080, 8443, 8000) for p in open_ports) or
-                         target.startswith("http")):
+        web_ran = scan_web and (any(p["port"] in (80, 443, 8080, 8443, 8000) for p in open_ports) or
+                                target.startswith("http"))
+        if web_ran:
             self._out("\n" + "─" * 56 + "\n", "sep")
             self._out("  PHASE 2 — WEB ENUMERATION\n", "section")
             self._out("─" * 56 + "\n", "sep")
@@ -650,13 +653,83 @@ class ReconAgent(BaseAgent):
         self._step(9, "done")
 
         total_ports = len(recon_data["ports"])
-        self._record_telemetry("ATTACK MODE", target, _count_severities(full), time.time() - t0)
+        parsed_findings, counts = _findings_and_counts("ATTACK MODE", full)
+        self._record_telemetry("ATTACK MODE", target, counts, time.time() - t0)
         self._out("\n\n" + "═" * 56 + "\n", "sep")
         self._out(f"  RECON COMPLETE  |  {total_ports} open ports discovered\n", "green")
         self._out("═" * 56 + "\n", "sep")
         self._log(f"Recon complete. {total_ports} open ports.")
         self._status(f"Recon complete — {total_ports} open ports.")
-        self._done()
+
+        findings = self._findings_from_markers(parsed_findings, corroborated=bool(effort.get("verify_pass")))
+        coverage = self._build_coverage(
+            target, host, scan_ports, port_scope, scan_web, web_ran, scan_udp, domain,
+        )
+        state, errors = self._determine_state(triage_text=full, host_resolved=bool(resolved_ip))
+        self._finalize(state=state, errors=errors, findings=findings, coverage=coverage,
+                       mode="ATTACK", target=target)
+
+    # ── 構造化所見・実行状態(P1.1) ─────────────────────────
+    @staticmethod
+    def _build_coverage(target: str, host: str, scan_ports: list[int], port_scope: str,
+                        scan_web: bool, web_ran: bool, scan_udp: bool,
+                        domain: str | None) -> list[CoverageItem]:
+        """ポートスキャン・Web列挙・UDPスキャン・サブドメイン列挙の実施状況を
+        CoverageItemへ変換する（P1.1）。CTF Flag Hunt/Active Retrievalは既存仕様どおり
+        独立した機能のため、本計画のcoverageには含めない（roadmap §1）。
+        """
+        ref = host or target
+        coverage = [CoverageItem(
+            target_ref=ref, rule_id="PORT_SCAN", parameter=port_scope,
+            status=CoverageStatus.TESTED.value,
+            reason=f"{len(scan_ports)} port(s) scanned ({port_scope})",
+        )]
+        if scan_udp:
+            coverage.append(CoverageItem(target_ref=ref, rule_id="UDP_SCAN",
+                                         status=CoverageStatus.TESTED.value))
+        else:
+            coverage.append(CoverageItem(target_ref=ref, rule_id="UDP_SCAN",
+                                         status=CoverageStatus.SKIPPED.value,
+                                         reason="scan_udp未指定"))
+        if not scan_web:
+            coverage.append(CoverageItem(target_ref=target, rule_id="WEB_ENUM",
+                                         status=CoverageStatus.SKIPPED.value,
+                                         reason="scan_web=False"))
+        elif web_ran:
+            coverage.append(CoverageItem(target_ref=target, rule_id="WEB_ENUM",
+                                         status=CoverageStatus.TESTED.value))
+        else:
+            coverage.append(CoverageItem(
+                target_ref=target, rule_id="WEB_ENUM", status=CoverageStatus.SKIPPED.value,
+                reason="Web関連ポート(80/443/8080/8443/8000)が未開放・httpスキームでもない",
+            ))
+        if domain:
+            coverage.append(CoverageItem(target_ref=domain, rule_id="SUBDOMAIN_ENUM",
+                                         status=CoverageStatus.TESTED.value))
+        else:
+            coverage.append(CoverageItem(
+                target_ref=target, rule_id="SUBDOMAIN_ENUM", status=CoverageStatus.SKIPPED.value,
+                reason="対象からドメイン名を抽出できない(IPアドレス指定等)",
+            ))
+        return coverage
+
+    def _determine_state(self, *, triage_text: str, host_resolved: bool) -> tuple[str, list[str]]:
+        """実行状態(completed/partial/failed/cancelled)を判定する（P1.1）。
+
+        completedは「指定した検査範囲について完了した」意味であり、対象に脆弱性が
+        無い保証ではない。ホスト解決失敗やAI推論の空応答は、検査の実績に応じて
+        partialとする（検出0件の成功とは区別する）。
+        """
+        errors: list[str] = []
+        if self.is_stopped():
+            return ScanState.CANCELLED.value, errors
+        if not host_resolved:
+            errors.append("ホスト名解決に失敗しました（ポートスキャン等が制限された可能性）")
+            return ScanState.PARTIAL.value, errors
+        if not triage_text.strip():
+            errors.append("AI攻撃仮説が空応答でした（LLM呼び出し失敗の可能性）")
+            return ScanState.PARTIAL.value, errors
+        return ScanState.COMPLETED.value, errors
 
     # ── 偵察サマリー生成 ──────────────────────────────────
     def _build_recon_summary(self, recon: dict,

@@ -1048,6 +1048,59 @@ def test_monitor_agent(log_path):
         _ng("MonitorAgent", repr(e) + "\n" + traceback.format_exc())
 
 
+def test_recon_agent_p11_wiring():
+    _section("11b. AGENT — ReconAgent P1.1 Coverage/State変換ロジック")
+    from agents.recon_agent import ReconAgent
+    from core.findings import ScanState, CoverageStatus
+    try:
+        # 1) _build_coverage(): scan_web/scan_udp/domainの各組み合わせでtested/skippedを記録
+        cov = ReconAgent._build_coverage(
+            "10.0.0.5", "10.0.0.5", [22, 80, 443], "common",
+            scan_web=True, web_ran=True, scan_udp=False, domain=None,
+        )
+        by_rule = {c.rule_id: c for c in cov}
+        assert by_rule["PORT_SCAN"].status == CoverageStatus.TESTED.value
+        assert by_rule["UDP_SCAN"].status == CoverageStatus.SKIPPED.value
+        assert by_rule["WEB_ENUM"].status == CoverageStatus.TESTED.value
+        assert by_rule["SUBDOMAIN_ENUM"].status == CoverageStatus.SKIPPED.value, \
+            "IPアドレス指定(domain=None)はSUBDOMAIN_ENUMをskippedにすべき"
+
+        cov2 = ReconAgent._build_coverage(
+            "example.com", "example.com", [22], "common",
+            scan_web=True, web_ran=False, scan_udp=True, domain="example.com",
+        )
+        by_rule2 = {c.rule_id: c for c in cov2}
+        assert by_rule2["UDP_SCAN"].status == CoverageStatus.TESTED.value
+        assert by_rule2["WEB_ENUM"].status == CoverageStatus.SKIPPED.value, \
+            "Web関連ポート未開放時はWEB_ENUMをskippedにすべき"
+        assert by_rule2["SUBDOMAIN_ENUM"].status == CoverageStatus.TESTED.value
+
+        cov3 = ReconAgent._build_coverage(
+            "example.com", "example.com", [22], "common",
+            scan_web=False, web_ran=False, scan_udp=False, domain="example.com",
+        )
+        by_rule3 = {c.rule_id: c for c in cov3}
+        assert by_rule3["WEB_ENUM"].status == CoverageStatus.SKIPPED.value
+        assert "scan_web" in by_rule3["WEB_ENUM"].reason
+        _ok("_build_coverage(): scan_web/scan_udp/domainの組み合わせでtested/skippedを記録", "")
+
+        # 2) _determine_state(): STOP最優先・ホスト解決失敗/空応答はpartial・通常はcompleted
+        agent = ReconAgent(EventBus(), None)
+        state, errors = agent._determine_state(triage_text="---FINDING_START---...---FINDING_END---",
+                                                host_resolved=True)
+        assert state == ScanState.COMPLETED.value and errors == []
+        state, errors = agent._determine_state(triage_text="anything", host_resolved=False)
+        assert state == ScanState.PARTIAL.value and errors, "ホスト解決失敗はpartialとすべき"
+        state, errors = agent._determine_state(triage_text="   ", host_resolved=True)
+        assert state == ScanState.PARTIAL.value and errors, "AI攻撃仮説が空応答ならpartialとすべき"
+        agent.stop()
+        state, errors = agent._determine_state(triage_text="", host_resolved=False)
+        assert state == ScanState.CANCELLED.value, "STOPは他の判定より優先されるべき"
+        _ok("_determine_state(): STOP最優先・ホスト解決失敗/空応答はpartial・通常completed", "")
+    except Exception as e:
+        _ng("recon_agent_p11_wiring", repr(e) + "\n" + traceback.format_exc())
+
+
 def test_recon_agent():
     _section("12. AGENT E2E — ReconAgent (scanme.nmap.org / 実LLM)")
     from agents.recon_agent import ReconAgent
@@ -2590,6 +2643,7 @@ def main():
     test_audit_agent_p11_wiring()
     _skip_llm("10", "AGENT E2E — AuditAgent (実LLM)", test_audit_agent)
     _skip_llm("11", "AGENT E2E — MonitorAgent (single-pass, 実LLM)", test_monitor_agent, log_path)
+    test_recon_agent_p11_wiring()
     _skip_llm("12", "AGENT E2E — ReconAgent (scanme.nmap.org / 実LLM)", test_recon_agent)
     test_orchestrator_bug()
     test_langgraph_audit_agent_p11_wiring()

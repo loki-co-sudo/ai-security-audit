@@ -583,9 +583,9 @@ ATTACK MODE に、認可された偵察レスポンスからCTF形式のフラ�
 **実践運用対応（[docs/PRACTICAL_ROADMAP.md](docs/PRACTICAL_ROADMAP.md)・2026-09-05改訂）**
 
 実装順序・対象ファイル・データ契約・受け入れ条件は同ドキュメントを正とする。
-旧CLI先行案は置換済み。次の実装単位は **P1.1の続き: ATTACK（recon_agent）・
-DEFENSE（monitor_agent）のFinding/CoverageItem配線**（データ契約・RESULT/DONE
-ライフサイクルの基盤、WEB FUZZ・AUDIT(標準/LangGraph)分の配線は実装済み・下記参照）。
+旧CLI先行案は置換済み。次の実装単位は **P1.1の続き: DEFENSE（monitor_agent）の
+Finding/CoverageItem配線**（データ契約・RESULT/DONEライフサイクルの基盤、
+WEB FUZZ・AUDIT(標準/LangGraph)・ATTACK分の配線は実装済み・下記参照）。
 P1.2以降はすべて未実装。文書整備を機能実装完了として扱わない。
 
 - [x] P0.1 送信境界・共通予算（新規 `core/http_transport.py`。WEB FUZZの全送信経路
@@ -660,18 +660,30 @@ P1.2以降はすべて未実装。文書整備を機能実装完了として扱�
     `phase="stopped"`のまま次工程へ進める設計のため、final_stateだけでは
     「読み込み失敗」と「STOP中断」を区別できない点に対応し、エージェント自身の
     `is_stopped()`を優先判定に使う（そうしないと読み込み失敗をcancelledと誤認する）。
-  **未実装（次の継続作業）**: ATTACK（recon_agent）・DEFENSE（monitor_agent）は
-  まだ基盤（空のfindings/coverageで確定するフォールバック）のまま。対象HTML/コード/
-  ログを信頼しない入力として区切る処理、全4モード+LangGraphでの受け入れ条件
-  （LLM空応答/例外/不正マーカー/STOP/scope拒否/注入点なし/予算切れの結果とイベント順）の
-  網羅的な検証も未着手（WEB FUZZ・AUDIT(両方)分のみセルフテストで検証済み）。
+  - `agents/recon_agent.py`（ATTACK）: `_build_coverage()`がポートスキャン（scope別）・
+    UDPスキャン・Web列挙・受動的サブドメイン列挙の各tested/skippedを`CoverageItem`へ
+    変換（CTF Flag Hunt/Active Retrievalは既存仕様どおり独立機能のためcoverageに含めない
+    — roadmap §1の方針を維持）。`_determine_state()`はSTOP最優先→ホスト名解決失敗/
+    AI攻撃仮説の空応答は`partial`→それ以外は`completed`。
+    **副産物のバグ修正**: `tools/report_generator._findings_and_counts()`が
+    ATTACK MODE（`---FINDING_START/END---`、TITLE/CATEGORY/EVIDENCE/ATTACK_SCENARIO/
+    RECOMMENDED_ACTION形式）を`---VULN_START/END---`で検索していたため、ATTACK MODEの
+    HTML/PDF/Markdownエクスポートが所見抽出0件になる既存バグを発見・修正した
+    （P1.1でFinding変換の再利用元を調査中に発覚。VULN/THREAT側の抽出結果は無変更）。
+  **未実装（次の継続作業）**: DEFENSE（monitor_agent）はまだ基盤（空のfindings/coverage
+  で確定するフォールバック）のまま。対象HTML/コード/ログを信頼しない入力として区切る
+  処理、全4モード+LangGraphでの受け入れ条件（LLM空応答/例外/不正マーカー/STOP/scope拒否/
+  注入点なし/予算切れの結果とイベント順）の網羅的な検証も未着手（WEB FUZZ・AUDIT(両方)・
+  ATTACK分のみセルフテストで検証済み）。
   セルフテスト2g（ライフサイクル: 正常/STOP/例外/二重呼び出しの4パターン）・
   2h（データ契約のdict化/JSON化）・2e拡張（scope block時のRESULT/DONE確定）・
+  7c（report_generatorのATTACK MODE/FINDINGマーカー抽出バグの回帰テスト）・
   9b（AuditAgentの_build_coverage/_determine_state単体テスト＋ファイル読込失敗の非LLM
-  E2E）・13b（LangGraphAuditAgentの_determine_state単体テスト＋同E2E。langgraph未導入
+  E2E）・11b（ReconAgentの_build_coverage/_determine_state単体テスト）・
+  13b（LangGraphAuditAgentの_determine_state単体テスト＋同E2E。langgraph未導入
   環境ではSKIP）・16i（FuzzAgentの_build_coverage/_determine_stateの単体テスト）・
   16j（注入点0件の実run()でのRESULT/DONE確定、非LLM E2E）を追加。
-  （`tools/run_selftest.py` 117 PASS / 0 FAIL、実LLM系5件は既定どおりSKIP・2026-09-05）
+  （`tools/run_selftest.py` 121 PASS / 0 FAIL、実LLM系5件は既定どおりSKIP・2026-09-05）
 - [ ] P1.2 証拠保存・保存/表示/LLM送信前マスキング・共通レポート
 - [ ] P2.1 CLI非依存の最小ベンチマーク（正常例と未検査を含む）
 - [ ] P2.2 IDOR/SSTI/XSSの既存検出品質改善（P2.1の基準値取得後）
