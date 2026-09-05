@@ -15,7 +15,9 @@ import core.config as config
 from core.llm_client import LLMClient
 from core.model_router import build_fast_client, fast_signature, current_effort
 from core.scope_guard import in_scope
-from core.findings import ScanState, Finding, CoverageItem, ScanResult, new_scan_result
+from core.findings import (
+    ScanState, VerificationState, Finding, CoverageItem, ScanResult, new_scan_result, new_id,
+)
 
 _SEVERITIES = ("CRITICAL", "HIGH", "MEDIUM", "LOW")
 
@@ -398,6 +400,34 @@ class BaseAgent(ABC):
             )
             self._out("\n\n".join(minority) + "\n", "dim")
         return kept
+
+    # ── 構造化所見への変換（P1.1） ─────────────────────────
+    @staticmethod
+    def _findings_from_markers(parsed: list[dict], corroborated: bool) -> list[Finding]:
+        """`tools.report_generator._findings_and_counts()`が返す辞書列をFindingへ変換する
+        共通ヘルパー。NAME/SEVERITY/CWE/LINES/FIXマーカー形式（---VULN_START---等）を
+        前提とするため、DEFENSE MODEのTHREAT形式など異なるスキーマは個別に変換すること。
+
+        品質エフォートの検証パス（`_verify_findings`）を通過した所見のみ
+        verification_state="corroborated"とし、アンサンブル少数意見(ENSEMBLE_MINORITY)は
+        LLMの同意だけで昇格させず"observed"のまま残す。
+        """
+        out: list[Finding] = []
+        for f in parsed:
+            is_minority = f.get("confidence") == "ENSEMBLE_MINORITY"
+            vstate = (VerificationState.CORROBORATED.value if (corroborated and not is_minority)
+                      else VerificationState.OBSERVED.value)
+            out.append(Finding(
+                finding_id=new_id("finding"),
+                rule_id=f.get("ref") or "UNSPECIFIED",
+                location=f.get("lines") or "",
+                severity=(f.get("severity") or "LOW").upper(),
+                verification_state=vstate,
+                description=f.get("name") or "",
+                remediation=f.get("fix") or "",
+                verifier_support={"ensemble_minority": True} if is_minority else {},
+            ))
+        return out
 
     # ── モデル別コスト×精度台帳（§5.4・記録のみ） ──────────
     def _record_telemetry(self, mode: str, target: str, detections: dict, elapsed: float) -> None:

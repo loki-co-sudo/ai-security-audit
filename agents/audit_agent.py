@@ -12,6 +12,8 @@ import re
 import time
 from agents.base_agent import BaseAgent
 from tools import cve_client
+from tools.report_generator import _findings_and_counts
+from core.findings import CoverageItem, ScanState, CoverageStatus
 
 # ---------- AST 静的解析プリプロセッサ ----------
 
@@ -235,7 +237,8 @@ class AuditAgent(BaseAgent):
         except OSError as e:
             self._log(f"File error: {e}")
             self._step(0, "error")
-            self._done(error=True)
+            self._finalize(state=ScanState.FAILED.value, errors=[f"ファイル読み込みエラー: {e}"],
+                           mode="AUDIT", target=path)
             return
         lines = source.count("\n") + 1
         self._log(f"Loaded {lines} lines ({len(source)} bytes)")
@@ -272,7 +275,9 @@ class AuditAgent(BaseAgent):
         self._out("  AI REASONING OUTPUT  (streaming)\n", "section")
         self._out("─" * 56 + "\n\n", "sep")
 
-        truncated = smart_truncate(source)
+        audit_max_chars = 12000
+        was_truncated = len(source) > audit_max_chars
+        truncated = smart_truncate(source, audit_max_chars)
         user_prompt = (
             f"Analyze this code for unknown and logic-based security vulnerabilities:\n\n"
             f"```python\n{truncated}\n```"
@@ -300,8 +305,7 @@ class AuditAgent(BaseAgent):
 
         # Step 4: 深刻度集計
         self._step(4, "running")
-        counts = {s: len(re.findall(rf"SEVERITY:\s*{s}\b", full, re.I))
-                  for s in ("CRITICAL", "HIGH", "MEDIUM", "LOW")}
+        parsed_findings, counts = _findings_and_counts("CODE AUDIT", full)
         time.sleep(0.2)
         self._step(4, "done")
 
@@ -355,4 +359,41 @@ class AuditAgent(BaseAgent):
         self._out("═" * 56 + "\n", "sep")
         self._log(f"Audit complete. {total} issues found.")
         self._status(f"Audit complete — {total} vulnerabilities detected.")
-        self._done()
+
+        findings = self._findings_from_markers(parsed_findings, corroborated=bool(effort.get("verify_pass")))
+        coverage = self._build_coverage(path, was_truncated)
+        state, errors = self._determine_state(triage_text=full)
+        self._finalize(state=state, errors=errors, findings=findings, coverage=coverage,
+                       mode="AUDIT", target=path)
+
+    # ── 構造化所見・実行状態(P1.1) ─────────────────────────
+    @staticmethod
+    def _build_coverage(path: str, was_truncated: bool) -> list[CoverageItem]:
+        """対象ファイルの検査状況をCoverageItemへ変換する（P1.1）。
+
+        smart_truncate()によりファイルサイズ上限を超えた分（中間部分）はLLMへ渡って
+        いないため、"未検査"として明示する（ページ数等の代用指標にしない方針）。
+        """
+        coverage = [CoverageItem(target_ref=path, status=CoverageStatus.TESTED.value,
+                                 rule_id="LLM_CODE_REVIEW")]
+        if was_truncated:
+            coverage.append(CoverageItem(
+                target_ref=f"{path} (中間部分)", status=CoverageStatus.SKIPPED.value,
+                rule_id="LLM_CODE_REVIEW",
+                reason="ファイルサイズがsmart_truncateの上限を超えたため中間部分を省略",
+            ))
+        return coverage
+
+    def _determine_state(self, *, triage_text: str) -> tuple[str, list[str]]:
+        """実行状態(completed/partial/failed/cancelled)を判定する（P1.1）。
+
+        completedは「対象ファイルについて解析を完了した」意味であり、脆弱性が
+        無い保証ではない。AI推論が空応答の場合は検出0件の成功と区別しpartialとする。
+        """
+        errors: list[str] = []
+        if self.is_stopped():
+            return ScanState.CANCELLED.value, errors
+        if not triage_text.strip():
+            errors.append("AI推論が空応答でした（LLM呼び出し失敗の可能性）")
+            return ScanState.PARTIAL.value, errors
+        return ScanState.COMPLETED.value, errors

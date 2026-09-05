@@ -915,6 +915,49 @@ def test_llm():
         _ng("stream()", repr(e))
 
 
+def test_audit_agent_p11_wiring():
+    _section("9b. AGENT — AuditAgent P1.1 Coverage/State変換ロジック・非LLM E2E")
+    from agents.audit_agent import AuditAgent
+    from core.findings import ScanState, CoverageStatus
+    try:
+        # 1) _build_coverage(): 通常/truncated時の記録
+        cov = AuditAgent._build_coverage("sample.py", was_truncated=False)
+        assert len(cov) == 1 and cov[0].status == CoverageStatus.TESTED.value
+        cov_t = AuditAgent._build_coverage("sample.py", was_truncated=True)
+        assert len(cov_t) == 2
+        skipped = next(c for c in cov_t if c.status == CoverageStatus.SKIPPED.value)
+        assert "smart_truncate" in skipped.reason
+        _ok("_build_coverage(): 通常/truncated時の記録", "")
+
+        # 2) _determine_state(): STOP優先・空応答→partial・通常はcompleted
+        agent = AuditAgent(EventBus(), None)
+        state, errors = agent._determine_state(triage_text="---VULN_START---...---VULN_END---")
+        assert state == ScanState.COMPLETED.value and errors == []
+        state, errors = agent._determine_state(triage_text="   ")
+        assert state == ScanState.PARTIAL.value and errors
+        agent.stop()
+        state, errors = agent._determine_state(triage_text="anything")
+        assert state == ScanState.CANCELLED.value
+        _ok("_determine_state(): STOP優先・空応答はpartial・通常completed", "")
+
+        # 3) 非LLM E2E: ファイル読み込みエラー時もRESULT(failed)→DONE(error=True)を確定
+        bus = EventBus()
+        agent2 = AuditAgent(bus, None)
+        agent2.start(path="/nonexistent/path/does-not-exist.py")
+        agent2._thread.join(timeout=5)
+        events = bus.drain(50)
+        kinds = [e.kind for e in events]
+        assert kinds.count(ev.RESULT) == 1 and kinds.count(ev.DONE) == 1, kinds
+        result = next(e.payload for e in events if e.kind == ev.RESULT)
+        assert result["state"] == ScanState.FAILED.value
+        assert result["target"] == "/nonexistent/path/does-not-exist.py"
+        done = next(e.payload for e in events if e.kind == ev.DONE)
+        assert done["error"] is True
+        _ok("AuditAgent: ファイル読み込みエラーでRESULT(failed)→DONE(error=True)を確定", "")
+    except Exception as e:
+        _ng("audit_agent_p11_wiring", repr(e) + "\n" + traceback.format_exc())
+
+
 def test_audit_agent():
     _section("10. AGENT E2E — AuditAgent (実LLM)")
     from agents.audit_agent import AuditAgent
@@ -1217,6 +1260,56 @@ def test_orchestrator_bug():
         _ok("orchestrator.py は bus.emit のみ使用")
     except Exception as e:
         _ng("orchestrator static check", repr(e))
+
+
+def test_langgraph_audit_agent_p11_wiring():
+    _section("13b. AGENT — LangGraphAuditAgent P1.1 State変換ロジック・非LLM E2E")
+    from agents.langgraph_audit_agent import LangGraphAuditAgent, LANGGRAPH_AVAILABLE
+    from core.findings import ScanState
+    if not LANGGRAPH_AVAILABLE:
+        _SKIP.append("LangGraphAuditAgent P1.1 wiring (langgraph unavailable)")
+        print("  [SKIP] langgraph未インストールのためスキップ")
+        return
+    try:
+        # 1) _determine_state(): 読み込み失敗→failed、STOP優先→cancelled、
+        #    空応答→partial、通常→completed
+        agent1 = LangGraphAuditAgent(EventBus(), None)
+        state, errors = agent1._determine_state({"source_code": "", "phase": "stopped"}, "")
+        assert state == ScanState.FAILED.value and errors, "source_code空・非STOPはfailedにすべき"
+
+        agent1.stop()
+        state, errors = agent1._determine_state({"source_code": "", "phase": "stopped"}, "")
+        assert state == ScanState.CANCELLED.value, \
+            "source_code空でもSTOP中はcancelledを優先すべき(読み込み失敗と誤判定しない)"
+        state, errors = agent1._determine_state({"source_code": "x = 1", "phase": "stopped"}, "")
+        assert state == ScanState.CANCELLED.value
+
+        agent2 = LangGraphAuditAgent(EventBus(), None)
+        state, errors = agent2._determine_state({"source_code": "x = 1", "phase": "done"}, "   ")
+        assert state == ScanState.PARTIAL.value and errors
+        state, errors = agent2._determine_state(
+            {"source_code": "x = 1", "phase": "done"}, "---VULN_START---...---VULN_END---")
+        assert state == ScanState.COMPLETED.value and errors == []
+        _ok("_determine_state(): 読み込み失敗/STOP優先/空応答partial/通常completed", "")
+
+        # 2) 非LLM E2E: ファイル読み込み失敗時もRESULT(failed)→DONE(error=True)を確定
+        #    (load_code→surface_scanの経路はsource_code空時にLLM呼び出し無しで
+        #    グラフ末尾まで進む設計のため、llm=Noneでも安全に検証できる)
+        bus = EventBus()
+        agent3 = LangGraphAuditAgent(bus, None)
+        agent3.start(path="/nonexistent/path/does-not-exist.py")
+        agent3._thread.join(timeout=15)
+        assert not agent3._thread.is_alive(), "スレッドが終了していない"
+        events = bus.drain(200)
+        kinds = [e.kind for e in events]
+        assert kinds.count(ev.RESULT) == 1 and kinds.count(ev.DONE) == 1, kinds
+        result = next(e.payload for e in events if e.kind == ev.RESULT)
+        assert result["state"] == ScanState.FAILED.value, result["state"]
+        done = next(e.payload for e in events if e.kind == ev.DONE)
+        assert done["error"] is True
+        _ok("LangGraphAuditAgent: ファイル読み込み失敗でRESULT(failed)→DONE(error=True)を確定", "")
+    except Exception as e:
+        _ng("langgraph_audit_agent_p11_wiring", repr(e) + "\n" + traceback.format_exc())
 
 
 def test_stealth_features():
@@ -2148,14 +2241,14 @@ def test_fuzz_agent_p11_wiring():
     from agents.fuzz_agent import FuzzAgent
     from core.findings import ScanState, VerificationState, CoverageStatus
     try:
-        # 1) _to_findings(): corroborated/observed/ENSEMBLE_MINORITYの判定
+        # 1) _findings_from_markers()（BaseAgent共通）: corroborated/observed/ENSEMBLE_MINORITYの判定
         parsed = [
             {"name": "XSS in q", "severity": "high", "ref": "CWE-79", "lines": "http://x/?q=1",
              "fix": "escape output", "confidence": ""},
             {"name": "SQLi in id", "severity": "CRITICAL", "ref": "CWE-89", "lines": "http://x/?id=1",
              "fix": "use parameterized queries", "confidence": "ENSEMBLE_MINORITY"},
         ]
-        findings = FuzzAgent._to_findings(parsed, corroborated=True)
+        findings = FuzzAgent._findings_from_markers(parsed, corroborated=True)
         assert len(findings) == 2
         assert findings[0].severity == "HIGH" and findings[0].rule_id == "CWE-79"
         assert findings[0].verification_state == VerificationState.CORROBORATED.value, \
@@ -2163,10 +2256,10 @@ def test_fuzz_agent_p11_wiring():
         assert findings[1].verification_state == VerificationState.OBSERVED.value, \
             "ENSEMBLE_MINORITYはcorroboratedへ昇格させないべき"
         assert findings[1].verifier_support.get("ensemble_minority") is True
-        findings_no_verify = FuzzAgent._to_findings(parsed, corroborated=False)
+        findings_no_verify = FuzzAgent._findings_from_markers(parsed, corroborated=False)
         assert all(f.verification_state == VerificationState.OBSERVED.value for f in findings_no_verify), \
             "検証パス無し(corroborated=False)は全てobservedのべき"
-        _ok("_to_findings(): corroborated/observed/minorityの判定", "")
+        _ok("_findings_from_markers(): corroborated/observed/minorityの判定", "")
 
         # 2) _build_coverage(): 注入点+IDOR実施/skipの記録
         points = [{"url": "http://x/a", "param": "q", "method": "GET", "where": "query", "fields": {}}]
@@ -2441,10 +2534,12 @@ def main():
     test_report_generator_markdown()
     test_cve_client()
     _skip_llm("9", "CORE — LLMClient (OpenRouter)", test_llm)
+    test_audit_agent_p11_wiring()
     _skip_llm("10", "AGENT E2E — AuditAgent (実LLM)", test_audit_agent)
     _skip_llm("11", "AGENT E2E — MonitorAgent (single-pass, 実LLM)", test_monitor_agent, log_path)
     _skip_llm("12", "AGENT E2E — ReconAgent (scanme.nmap.org / 実LLM)", test_recon_agent)
     test_orchestrator_bug()
+    test_langgraph_audit_agent_p11_wiring()
     test_stealth_features()
     test_pdf_report()
     test_web_fuzzer()

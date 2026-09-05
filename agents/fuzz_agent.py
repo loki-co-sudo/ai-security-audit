@@ -19,9 +19,7 @@ from agents.base_agent import BaseAgent
 from tools.web_fuzzer import WebFuzzer, DEFAULT_PROBES
 from tools.report_generator import _findings_and_counts
 from core.settings import SCAN_PROFILES, DEFAULT_SCAN_PROFILE
-from core.findings import (
-    Finding, CoverageItem, ScanState, VerificationState, CoverageStatus, new_id,
-)
+from core.findings import Finding, CoverageItem, ScanState, CoverageStatus
 
 def idor_skip_reason(fuzzer: WebFuzzer) -> str | None:
     """認証必須のIDORチェックをskipすべき理由を返す（skip不要ならNone、P0.2）。
@@ -268,7 +266,7 @@ class FuzzAgent(BaseAgent):
 
         # ── Step 6: 完了 ───────────────────────────────────
         parsed, counts = _findings_and_counts("WEB FUZZ", full)
-        findings = self._to_findings(parsed, corroborated=bool(effort.get("verify_pass")))
+        findings = self._findings_from_markers(parsed, corroborated=bool(effort.get("verify_pass")))
         coverage = self._build_coverage(points, auth, auth_b, idor_ran, idor_skip_reason_val)
         state, errors = self._determine_state(
             fuzzer, triage_ran=True, triage_text=full,
@@ -278,30 +276,6 @@ class FuzzAgent(BaseAgent):
                     findings=findings, coverage=coverage, state=state, errors=errors)
 
     # ── 構造化所見・実行状態(P1.1) ─────────────────────────
-    @staticmethod
-    def _to_findings(parsed: list[dict], corroborated: bool) -> list[Finding]:
-        """AIトリアージのマーカー出力(report_generator._findings_and_counts)から
-        Findingを構築する。verification_stateは、品質エフォートの検証パスを通過した
-        所見のみ"corroborated"とし、アンサンブル少数意見(ENSEMBLE_MINORITY)や
-        検証パス無しの場合は"observed"のままとする（LLMの同意だけで昇格させない）。
-        """
-        out = []
-        for f in parsed:
-            is_minority = f.get("confidence") == "ENSEMBLE_MINORITY"
-            vstate = (VerificationState.CORROBORATED.value if (corroborated and not is_minority)
-                      else VerificationState.OBSERVED.value)
-            out.append(Finding(
-                finding_id=new_id("finding"),
-                rule_id=f.get("ref") or "UNSPECIFIED",
-                location=f.get("lines") or "",
-                severity=(f.get("severity") or "LOW").upper(),
-                verification_state=vstate,
-                description=f.get("name") or "",
-                remediation=f.get("fix") or "",
-                verifier_support={"ensemble_minority": True} if is_minority else {},
-            ))
-        return out
-
     @staticmethod
     def _build_coverage(points: list[dict], auth: dict | None, auth_b: dict | None,
                         idor_ran: bool, idor_skip_reason_val: str | None) -> list[CoverageItem]:

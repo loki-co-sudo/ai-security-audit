@@ -583,9 +583,9 @@ ATTACK MODE に、認可された偵察レスポンスからCTF形式のフラ�
 **実践運用対応（[docs/PRACTICAL_ROADMAP.md](docs/PRACTICAL_ROADMAP.md)・2026-09-05改訂）**
 
 実装順序・対象ファイル・データ契約・受け入れ条件は同ドキュメントを正とする。
-旧CLI先行案は置換済み。次の実装単位は **P1.1の続き: AUDIT/ATTACK/DEFENSE
-（+LangGraph版AUDIT）のFinding/CoverageItem配線**（データ契約・RESULT/DONEライフサイクル
-の基盤、およびWEB FUZZ分の配線は実装済み・下記参照）。
+旧CLI先行案は置換済み。次の実装単位は **P1.1の続き: ATTACK（recon_agent）・
+DEFENSE（monitor_agent）のFinding/CoverageItem配線**（データ契約・RESULT/DONE
+ライフサイクルの基盤、WEB FUZZ・AUDIT(標準/LangGraph)分の配線は実装済み・下記参照）。
 P1.2以降はすべて未実装。文書整備を機能実装完了として扱わない。
 
 - [x] P0.1 送信境界・共通予算（新規 `core/http_transport.py`。WEB FUZZの全送信経路
@@ -636,25 +636,42 @@ P1.2以降はすべて未実装。文書整備を機能実装完了として扱�
   全5エージェント（audit/recon/monitor/fuzz/langgraph-audit）の`run()`冒頭で
   `self._current_mode`/`self._current_target`を設定し、フォールバック確定時の
   `ScanResult`にも正しいmode/targetが載るようにした。
-  **`agents/fuzz_agent.py`（WEB FUZZ）は所見・coverage・実行状態まで配線済み**:
-  `_to_findings()`がAIトリアージのマーカー出力（`report_generator._findings_and_counts`
-  を再利用）から`Finding`を構築し、品質エフォートの検証パスを通過した所見のみ
-  `verification_state="corroborated"`とする（アンサンブル少数意見`ENSEMBLE_MINORITY`は
-  "observed"のまま・LLMの同意だけで昇格させない）。`_build_coverage()`が注入点ごとの
-  検査記録とIDORチェックのtested/skipped（`idor_skip_reason()`との連携）を
-  `CoverageItem`へ変換。`_determine_state()`がSTOP最優先→予算切れ/AIトリアージ空応答は
-  `partial`（検出0件の成功とは区別）→それ以外は`completed`と判定する。
-  **未実装（次の継続作業）**: 他3エージェント（AUDIT/ATTACK/DEFENSE）とLangGraph版は
-  まだ基盤（空のfindings/coverageで確定するフォールバック）のままで、fuzz_agentと同様の
-  変換配線が必要。`verification_state`はfuzz_agent以外では未割り当て。対象HTML/コード/
+  `agents/base_agent.py`に共通ヘルパー`_findings_from_markers()`を追加し、
+  `report_generator._findings_and_counts()`が返す辞書列（NAME/SEVERITY/CWE/LINES/FIX
+  マーカー形式）から`Finding`を構築する処理を各エージェントで共有する
+  （品質エフォートの検証パスを通過した所見のみ`verification_state="corroborated"`とし、
+  アンサンブル少数意見`ENSEMBLE_MINORITY`はLLMの同意だけで昇格させず"observed"のまま残す）。
+  **所見・coverage・実行状態まで配線済み**:
+  - `agents/fuzz_agent.py`（WEB FUZZ）: `_build_coverage()`が注入点ごとの検査記録と
+    IDORチェックのtested/skipped（`idor_skip_reason()`との連携）を`CoverageItem`へ変換。
+    `_determine_state()`がSTOP最優先→予算切れ/AIトリアージ空応答は`partial`
+    （検出0件の成功とは区別）→それ以外は`completed`と判定する。
+  - `agents/audit_agent.py`（AUDIT・標準）: `_build_coverage()`が対象ファイル1件の
+    検査記録に加え、`smart_truncate()`がファイルサイズ上限超過で中間部分を省略した
+    場合はその範囲を`skipped`として明示する（未検査の可視化）。`_determine_state()`は
+    STOP最優先→AI推論空応答は`partial`→それ以外は`completed`。ファイル読み込み
+    エラー時（`OSError`）も`_finalize(failed, ...)`で理由を残すよう変更。
+  - `agents/langgraph_audit_agent.py`（AUDIT・LangGraph版）: `graph.invoke()`の戻り値
+    （最終`AuditState`）を捕捉し、`outputs`を結合して同じ`_findings_and_counts`経由で
+    `Finding`化（アンサンブル検証パスが無いためcorroborated=False固定）。coverage判定は
+    `agents/audit_agent.AuditAgent._build_coverage()`を再利用（cross-module import。
+    `smart_truncate`の既存の共有パターンに倣う）。`_determine_state()`は
+    `load_code`/`surface_scan`ノードがOSError時・STOP時の両方で`source_code`を空・
+    `phase="stopped"`のまま次工程へ進める設計のため、final_stateだけでは
+    「読み込み失敗」と「STOP中断」を区別できない点に対応し、エージェント自身の
+    `is_stopped()`を優先判定に使う（そうしないと読み込み失敗をcancelledと誤認する）。
+  **未実装（次の継続作業）**: ATTACK（recon_agent）・DEFENSE（monitor_agent）は
+  まだ基盤（空のfindings/coverageで確定するフォールバック）のまま。対象HTML/コード/
   ログを信頼しない入力として区切る処理、全4モード+LangGraphでの受け入れ条件
   （LLM空応答/例外/不正マーカー/STOP/scope拒否/注入点なし/予算切れの結果とイベント順）の
-  網羅的な検証も未着手（WEB FUZZ分のみセルフテスト16i/16jで検証済み）。
+  網羅的な検証も未着手（WEB FUZZ・AUDIT(両方)分のみセルフテストで検証済み）。
   セルフテスト2g（ライフサイクル: 正常/STOP/例外/二重呼び出しの4パターン）・
   2h（データ契約のdict化/JSON化）・2e拡張（scope block時のRESULT/DONE確定）・
-  16i（_to_findings/_build_coverage/_determine_stateの単体テスト）・
+  9b（AuditAgentの_build_coverage/_determine_state単体テスト＋ファイル読込失敗の非LLM
+  E2E）・13b（LangGraphAuditAgentの_determine_state単体テスト＋同E2E。langgraph未導入
+  環境ではSKIP）・16i（FuzzAgentの_build_coverage/_determine_stateの単体テスト）・
   16j（注入点0件の実run()でのRESULT/DONE確定、非LLM E2E）を追加。
-  （`tools/run_selftest.py` 112 PASS / 0 FAIL、実LLM系5件は既定どおりSKIP・2026-09-05）
+  （`tools/run_selftest.py` 117 PASS / 0 FAIL、実LLM系5件は既定どおりSKIP・2026-09-05）
 - [ ] P1.2 証拠保存・保存/表示/LLM送信前マスキング・共通レポート
 - [ ] P2.1 CLI非依存の最小ベンチマーク（正常例と未検査を含む）
 - [ ] P2.2 IDOR/SSTI/XSSの既存検出品質改善（P2.1の基準値取得後）
