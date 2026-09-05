@@ -24,7 +24,7 @@
 | 思考（安）モデル | **FAST** | `config.llm_fast_model`。機械的生成。`BaseAgent._complete_llm(role="fast")` |
 | 強い検証器（JUDGE） | **検証パス** | `BaseAgent._verify_findings()`（STRONGで敵対的レビュー） |
 | エフォート（速度/バランス/品質） | **EFFORT** | `settings.EFFORT_PRESETS` / `config.effort` |
-| 難易度ルーター（オート） | 未実装（下記ロードマップ） | — |
+| 難易度ルーター（オート） | **実装済み** | `core/model_router.classify_effort()`、AUDIT/ATTACK/WEB FUZZのAUTO |
 | モデル要件ゲート | **モデル要件ゲート** | `core/model_router.assess_readiness()`（`gui/dialogs/settings_dialog.py` で警告表示） |
 
 ### 中核の規約（これだけ守れば自動で最適化される）
@@ -94,28 +94,30 @@
 
 ### 5.3 検証器アンサンブル（judge ensembling）〔実装済み〕
 - 参考: lokicode `specs/effort-presets.md` §6（見送り扱いだが本ツールでは実装）。
-- 目的: `quality` エフォートで `_verify_findings()` を複数回走らせ、共通して残った所見だけ採用。
+- 目的: `quality` エフォートで `_verify_findings()` を複数回走らせ、支持状況を可視化しつつ少数意見も保持する。
 - 実装: `BaseAgent._verify_findings(evidence, draft, samples)`。`EFFORT_PRESETS["quality"]` の
   `verify_samples: 2` により品質エフォート時のみ2回走る（他プリセットは `verify_samples: 1`＝
   従来と同一挙動）。`agents/base_agent._vote_findings()`/`_parse_marker_findings()` が
   NAME/TITLE+LINESをsignatureとしてマーカー単位の過半数一致を判定する
   （audit/fuzzは`NAME:`+`LINES:`、recon（攻撃仮説）は`TITLE:`のみ。両対応）。
-  全会不一致（過半数が誰も取れない＝比較不能）なら安全側として最初のサンプルを採用する。
+  過半数に届かない所見も `CONFIDENCE: ENSEMBLE_MINORITY` を付けて最終結果に含める（union方式）。
   呼び出し元（`audit_agent`/`recon_agent`/`fuzz_agent`）は `effort.get("verify_samples", 1)` を渡すだけ。
   **既知の限界**: signature一致は完全一致ベースの粗い近似で、独立したLLM呼び出し間の言い回しの
   違い（例:「SQL Injection in login」↔「SQL injection via username param」）を吸収できない。
-  そのため過半数に届かない＝誤検知確定ではなく「比較不能」であり、`_verify_findings()` は
-  除外分を**出力ボックスに可視化してから**戻り値（＝最終レポート・検出数）からは除く。
-  サイレントな取りこぼしは行わない（本ツールの差別化ポイントである未知脆弱性の見逃し防止に反するため）。
+  そのため過半数に届かないことを誤検知確定と扱わず、最終レポートにも保持する。
+  過半数不一致を除外する旧方式へ戻さない。将来の安定ID・確認状態への移行は
+  [実践運用計画 P1/P3](PRACTICAL_ROADMAP.md) に従う。
 
-### 5.4 モデル別コスト×精度台帳〔記録のみ実装済み〕
+### 5.4 モデル別テレメトリ台帳〔記録・集計・助言実装済み〕
 - 参考: lokicode ロードマップ「モデル自動最適化（多腕バンディット）」。
 - 目的: スキャンごとに (model, 検出数, 所要時間) を `reports/telemetry.jsonl` へ記録し、
-  将来的にコスパ最良モデルを提案する。
+  実績に基づくモデル選択の助言を表示する。
 - 実装: `BaseAgent._record_telemetry(mode, target, detections, elapsed)`。4エージェント
   （audit/recon/fuzz/monitor）のrun()終端で呼ばれ、`{ts, mode, target, model, effort, detections,
   total_detections, elapsed_sec}` をJSON Lines追記する。書き込み失敗は握りつぶし本処理を止めない。
-  **未実装**: 集計・分析・コスパ最良モデルの提案（現状は記録のみ）。
+  `core/model_router.summarize_telemetry()` / `suggest_efficient_model()` が集計・助言を行う。
+  自動切替は行わない。検出数/時間は効率の参考値であり正解ラベルに基づく精度ではない。
+  精度評価は [実践運用計画 P2](PRACTICAL_ROADMAP.md) で別途実装する。
 
 ## 6. コスト/精度の考え方（運用者向け）
 

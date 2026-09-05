@@ -14,7 +14,12 @@
 | 学習ガイド（脆弱性・攻防・技術スタック） | [docs/ENGINEER_GUIDE.md](docs/ENGINEER_GUIDE.md) |
 | バグバウンティ対応の設計・実装計画 | [docs/BOUNTY_ROADMAP.md](docs/BOUNTY_ROADMAP.md) |
 | WEB FUZZ をバグバウンティで使う際の具体的な運用フロー | [docs/BOUNTY_WEBFUZZ_WORKFLOW.md](docs/BOUNTY_WEBFUZZ_WORKFLOW.md) |
-| 実践運用対応（CLI・所見台帳・ベンチマーク等）の方針とロードマップ | [docs/PRACTICAL_ROADMAP.md](docs/PRACTICAL_ROADMAP.md) |
+| 次の実装順序・対象ファイル・データ契約・受け入れ条件の正本（P0〜P4） | [docs/PRACTICAL_ROADMAP.md](docs/PRACTICAL_ROADMAP.md) |
+
+実践運用対応の実装依頼では、同ロードマップ §3の未完了IDを選んで該当節を読む。
+次の作業はP0.1（WEB FUZZの送信境界・共通予算）。旧CLI先行案は置換済み。
+新規機能と既存境界の不備修正を区別し、未検査を修正済みと判定しないこと。
+文書のみの整理ではリンク・差分・未実装表記を検証し、下記コーディング用セルフテストは不要。
 
 ## 絶対に守ること（要約）
 

@@ -349,6 +349,9 @@ WebProber(profile="stealth")            # UAローテーション＋ジッター
 
 ## 8. 開発ロードマップ
 
+今後の実装順序・受け入れ条件は [PRACTICAL_ROADMAP.md](PRACTICAL_ROADMAP.md) を正とする。
+本節の完了済み一覧は設計履歴として保持する。
+
 ### 完了済み（v2.6.0）
 - [x] 難易度ルーター（オート振り分け）— `core/model_router.classify_effort()`。FASTモデル1コールで
   対象/コードを分類しエフォートを自動選択（AUDIT/ATTACK/WEB FUZZ の「AUTO」トグル）
@@ -397,7 +400,6 @@ WebProber(profile="stealth")            # UAローテーション＋ジッター
 - [x] CI/CD統合・第一段階（GitHub Actions — 非LLM回帰テスト） — v2.6.0（上記参照）
 
 ### 将来拡張
-- [ ] Slack/webhook アラート通知
-- [ ] 自動脆弱性スキャンCI（push毎に自リポジトリへCODE AUDITを実LLMで自動実行。secrets設定・
-  コスト発生の合意が必要。[AGENTS.md](../AGENTS.md) §4参照）
-- [ ] テレメトリ台帳の分析機能（`reports/telemetry.jsonl` を集計しコスパ最良モデルを提案）
+
+将来案は [実践運用計画](PRACTICAL_ROADMAP.md) と [AGENTS.md](../AGENTS.md) §4に集約する。
+テレメトリの集計・モデル助言は実装済み（`summarize_telemetry()` / `suggest_efficient_model()`）。自動切替は行わない。
