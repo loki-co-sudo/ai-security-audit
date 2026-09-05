@@ -826,6 +826,58 @@ LINES: 90
         _ng("report_generator", repr(e))
 
 
+def test_report_generator_attack_mode():
+    _section("7c. TOOLS — ReportGenerator ATTACK MODE(FINDING marker)所見抽出(P1.1調査で発見・修正)")
+    from tools import report_generator
+    # agents/recon_agent.py の実際のSYSTEM_PROMPTが指示する形式
+    # （---FINDING_START/END---、TITLE/CATEGORY/EVIDENCE/ATTACK_SCENARIO/
+    #   RECOMMENDED_ACTION。VULN/THREATとはフィールド名もコードフェンス有無も異なる）。
+    sample = """
+---FINDING_START---
+TITLE: Outdated OpenSSH exposes known CVEs
+SEVERITY: HIGH
+CATEGORY: Network
+EVIDENCE: banner shows OpenSSH_7.2p2 on port 22
+ATTACK_SCENARIO:
+Attacker fingerprints the SSH banner and cross-references known CVEs for this version.
+RECOMMENDED_ACTION:
+Upgrade OpenSSH to the latest stable release.
+---FINDING_END---
+---FINDING_START---
+TITLE: Missing security headers
+SEVERITY: MEDIUM
+CATEGORY: Web
+EVIDENCE: X-Frame-Options and CSP headers absent
+ATTACK_SCENARIO:
+Clickjacking / content injection surface widened by missing headers.
+RECOMMENDED_ACTION:
+Add X-Frame-Options, Content-Security-Policy.
+---FINDING_END---
+"""
+    try:
+        parsed, counts = report_generator._findings_and_counts("ATTACK MODE", sample)
+        assert len(parsed) == 2, f"ATTACK MODEのFINDINGマーカーが抽出されていない: {parsed}"
+        assert parsed[0]["name"] == "Outdated OpenSSH exposes known CVEs"
+        assert parsed[0]["severity"] == "HIGH"
+        assert parsed[0]["ref"] == "Network", "CATEGORYがrefへフォールバックしていない"
+        assert parsed[0]["lines"] == "banner shows OpenSSH_7.2p2 on port 22", \
+            "EVIDENCEがlinesへフォールバックしていない"
+        assert "fingerprints the SSH banner" in parsed[0]["attack"], \
+            "コードフェンス無しのATTACK_SCENARIO本文が取得できていない"
+        assert "Upgrade OpenSSH" in parsed[0]["fix"], \
+            "コードフェンス無しのRECOMMENDED_ACTION本文が取得できていない"
+        assert counts == {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 1, "LOW": 0}
+        _ok("_findings_and_counts('ATTACK MODE', ...)がFINDINGマーカーを抽出", f"{len(parsed)}件")
+
+        html = report_generator.generate(mode="ATTACK MODE", target="10.10.10.10",
+                                         raw_text=sample, model="openai/gpt-4o")
+        assert "Outdated OpenSSH" in html and "Missing security headers" in html, \
+            "ATTACK MODEのHTMLレポートに所見が反映されていない(修正前は常に0件だった)"
+        _ok("generate(mode='ATTACK MODE') がFINDING所見をHTMLへ反映", "")
+    except Exception as e:
+        _ng("report_generator_attack_mode", repr(e) + "\n" + traceback.format_exc())
+
+
 def test_report_generator_markdown():
     _section("7b. TOOLS — ReportGenerator Markdown出力（バグバウンティ対応・Phase D）")
     from tools import report_generator
@@ -2531,6 +2583,7 @@ def main():
     log_path = test_log_watcher()
     test_pattern_match()
     test_report_generator()
+    test_report_generator_attack_mode()
     test_report_generator_markdown()
     test_cve_client()
     _skip_llm("9", "CORE — LLMClient (OpenRouter)", test_llm)

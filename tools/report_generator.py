@@ -168,14 +168,21 @@ def _parse(text: str, start_marker: str, end_marker: str) -> list[dict]:
         snippet = re.search(r"SNIPPET:\s*```[^\n]*\n(.*?)```", block, re.DOTALL)
         fix     = re.search(r"FIX:\s*```[^\n]*\n(.*?)```",     block, re.DOTALL)
         attack  = re.search(r"ATTACK:\n(.*?)(?=\nFIX:|\Z)",     block, re.DOTALL)
+        # ATTACK MODE(agents/recon_agent.py)のFINDINGマーカーはコードフェンス無しの
+        # ATTACK_SCENARIO:/RECOMMENDED_ACTION:を使う（VULN/THREATのATTACK:/FIX:とは別形式）。
+        attack_scenario = re.search(r"ATTACK_SCENARIO:\n(.*?)(?=\nRECOMMENDED_ACTION:|\Z)",
+                                    block, re.DOTALL)
+        recommended = re.search(r"RECOMMENDED_ACTION:\n(.*?)(?=\n---|\Z)", block, re.DOTALL)
         findings.append({
-            "name":    _field("NAME") or _field("THREAT_TYPE"),
+            "name":    _field("NAME") or _field("THREAT_TYPE") or _field("TITLE"),
             "severity": _field("SEVERITY"),
-            "ref":     _field("CWE") or _field("MITRE_TTP"),
-            "lines":   _field("LINES") or _field("ATTACKER_IP"),
+            "ref":     _field("CWE") or _field("MITRE_TTP") or _field("CATEGORY"),
+            "lines":   _field("LINES") or _field("ATTACKER_IP") or _field("EVIDENCE"),
             "snippet": snippet.group(1).strip() if snippet else _field("TIMELINE"),
-            "attack":  attack.group(1).strip()  if attack  else "",
-            "fix":     fix.group(1).strip()     if fix     else "",
+            "attack":  (attack.group(1).strip() if attack
+                       else attack_scenario.group(1).strip() if attack_scenario else ""),
+            "fix":     (fix.group(1).strip() if fix
+                       else recommended.group(1).strip() if recommended else ""),
             "confidence": _field("CONFIDENCE"),
         })
     return findings
@@ -212,9 +219,15 @@ def _render_finding(f: dict, lbl: dict) -> str:
 
 
 def _findings_and_counts(mode: str, raw_text: str) -> tuple[list[dict], dict[str, int]]:
-    """モードに応じて findings を抽出し、重大度カウントを返す（HTML/PDF共用）。"""
-    if "DEFENSE" in mode.upper():
+    """モードに応じて findings を抽出し、重大度カウントを返す（HTML/PDF/MD共用）。"""
+    mode_u = mode.upper()
+    if "DEFENSE" in mode_u:
         findings = _parse(raw_text, "---THREAT_START---", "---THREAT_END---")
+    elif "ATTACK" in mode_u:
+        # agents/recon_agent.py の SYSTEM_PROMPT は ---FINDING_START/END--- を使う
+        # （VULN/THREATとはフィールド名も異なる。以前はここがVULNマーカーのまま
+        # 検索しており、ATTACK MODEレポートの所見抽出が常に0件になっていた）。
+        findings = _parse(raw_text, "---FINDING_START---", "---FINDING_END---")
     else:
         findings = _parse(raw_text, "---VULN_START---", "---VULN_END---")
 
