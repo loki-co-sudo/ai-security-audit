@@ -586,9 +586,26 @@ ATTACK MODE に、認可された偵察レスポンスからCTF形式のフラ�
 **実践運用対応（[docs/PRACTICAL_ROADMAP.md](docs/PRACTICAL_ROADMAP.md)・2026-09-05改訂）**
 
 実装順序・対象ファイル・データ契約・受け入れ条件は同ドキュメントを正とする。
-旧CLI先行案は置換済み。次の実装単位は **P1.2: 証拠保存と出力の移行**
-（P1.1のデータ契約・全4モード+LangGraphのFinding/CoverageItem配線は実装済み・下記参照）。
-P1.2以降はすべて未実装。文書整備を機能実装完了として扱わない。
+旧CLI先行案は置換済み。次の実装単位は **P1.2の続き**（P1.1のデータ契約・
+全4モード+LangGraphのFinding/CoverageItem配線、P1.2の証拠マスキング・保存基盤・
+WEB FUZZへの証拠配線は実装済み・下記参照）。P1.2の残りタスクは2つ、優先順で:
+
+1. **AUDIT/ATTACK/DEFENSEへの証拠保存配線**（`agents/fuzz_agent.py`の
+   `_known_secrets()`/`EvidenceStore`呼び出し/`_TRIAGE_SYS`のEVIDENCE_IDS指示/
+   `_findings_from_markers(..., known_evidence_ids=...)`の呼び方をそのまま踏襲できる。
+   低リスク・パターン確立済み）。AUDITは相対path+行範囲+コード抜粋、DEFENSEは
+   時刻+入力元+マスク済みログ抜粋が証拠の中身になる（`core/evidence_store.py`に
+   `HttpEvidence`と並ぶ新しいdataclassを追加する設計判断が必要）。ATTACKは
+   受け入れ条件で明示されていないため保留可（§9相当の判断でスキップしてよい）。
+2. **HTML/MD/PDFレポートへの証拠リンク表示**（設計判断を要する・上より重い）。
+   現状のGUIエクスポート（`gui/export_util.py`→`tools/report_generator.py`）は
+   ストリーミング表示テキスト（`out_box.get_text()`）を毎回再パースする経路のままで、
+   RESULTイベントで確定した`ScanResult`/`Finding.evidence_ids`を一切参照していない。
+   繋ぐには (a) `report_generator.generate()`系が`Finding`のリストを直接受け取れる
+   ようにする、(b) GUIパネルがRESULTイベントのpayloadを保持し、それをレポート生成へ
+   渡す、のどちらか（または両方）の設計が必要。着手前に一度読み直すこと:
+   下記の`- [ ] P1.2 ...`項目（詳細）と、GUI各panelの`dispatch()`
+   （`ev.RESULT`が現状どこにもハンドルされていないことを確認できる）。
 
 - [x] P0.1 送信境界・共通予算（新規 `core/http_transport.py`。WEB FUZZの全送信経路
   `_get()`/`_send_as()`/ログインGET・POSTを`HttpTransport.request()`に一元化。
