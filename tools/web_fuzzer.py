@@ -25,10 +25,11 @@ import requests
 from requests.packages.urllib3.exceptions import InsecureRequestWarning  # type: ignore
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
+import core.config as config
 from core.settings import (
     SCAN_PROFILES, DEFAULT_SCAN_PROFILE, STEALTH_USER_AGENTS,
 )
-from core.http_transport import HttpTransport, OriginRejected
+from core.http_transport import HttpTransport, OriginRejected, RequestPolicy
 
 # ── 検出シグネチャ ─────────────────────────────────────────
 # SQLインジェクションを示唆するDBエラーメッセージ断片
@@ -81,6 +82,8 @@ class WebFuzzer:
         auth_b: dict | None = None,
         target: str | None = None,
         stop_event: threading.Event | None = None,
+        tls_verify: bool | None = None,
+        tls_ca_bundle: str | None = None,
     ):
         prof = SCAN_PROFILES.get(profile, SCAN_PROFILES[DEFAULT_SCAN_PROFILE])
         self.threads      = prof["path_threads"]
@@ -94,19 +97,41 @@ class WebFuzzer:
         self._user_agents = list(STEALTH_USER_AGENTS)
         # 全送信経路の唯一の送信口（同一origin検査・共有予算・レート/429/STOP制御・
         # 手動リダイレクト制御）。A/Bセッションはこのインスタンスを共有する
-        # （P0.1/P0.2: PRACTICAL_ROADMAP.md §4）。
-        self.transport = HttpTransport(max_requests=max_requests, timeout=timeout,
-                                       stop_event=stop_event)
+        # （P0.1/P0.2: PRACTICAL_ROADMAP.md §4）。レート上限はプロファイル値を使う
+        # （settings.pyに集約。aggressiveはNone=無制限で既存の速度を維持）。
+        policy = RequestPolicy(max_requests=max_requests, timeout=timeout,
+                               rate_per_sec=prof.get("path_rate_per_sec"))
+        self.transport = HttpTransport(policy=policy, stop_event=stop_event)
         if target:
             self.bind_target(target)
+
+        # TLS検証（P0.2）。未指定ならconfig.jsonの設定を使う（既定はFalse=既存動作維持）。
+        # tls_ca_bundleは tls_verify=True の場合のみ独自CAとして使う。
+        if tls_verify is None:
+            tls_verify = bool(config.get("tls_verify", False))
+        if tls_ca_bundle is None:
+            tls_ca_bundle = config.get("tls_ca_bundle", "") or None
+        verify_value = tls_ca_bundle if (tls_verify and tls_ca_bundle) else bool(tls_verify)
+        if not tls_verify:
+            self.log("[TLS] 証明書検証は無効です（既定・既存インストールとの後方互換）。"
+                     "新しい案件では有効化を推奨します。")
+        self.tls_verify = tls_verify
+
         self.session = requests.Session()
-        self.session.verify = False
+        self.session.verify = verify_value
         # 第2セッション（IDOR比較用）。auth_b 未設定なら None のまま
         # （_detect_idor は None なら即座に空リストを返す＝既存挙動への影響なし）。
         self.session_b = None
         if self.auth_b:
             self.session_b = requests.Session()
-            self.session_b.verify = False
+            self.session_b.verify = verify_value
+        # 認証状態: authenticated / anonymous / expired / unknown（P0.2）。
+        # Cookie/ヘッダー設定だけでは"authenticated"と断定しない。auth未設定は"anonymous"、
+        # confirm_url未設定でログインフォームも使わない場合は"unknown"（判定不能）とする。
+        self.auth_state, self.auth_state_reason = ("anonymous", "認証設定なし") if not self.auth \
+            else ("unknown", "未認証（authenticate()未実行）")
+        self.auth_state_b, self.auth_state_reason_b = ("anonymous", "認証設定なし") if not self.auth_b \
+            else ("unknown", "未認証（authenticate_b()未実行）")
 
     @property
     def _req_count(self) -> int:
@@ -123,6 +148,8 @@ class WebFuzzer:
             "network_error": "通信エラー",
             "retry_after_exceeded": "429のRetry-Afterが待機上限を超えたため再送せず終了",
             "rate_limited": "429が連続し再送上限に達した",
+            "tls_error": "TLS証明書検証エラー（自己署名証明書等。tls_ca_bundleの設定を確認）",
+            "tls_config_error": "TLS設定エラー（tls_ca_bundleのパスが不正）",
         }.get(reason, "送信不可: 原因不明")
 
     def bind_target(self, base_url: str) -> None:
@@ -137,20 +164,80 @@ class WebFuzzer:
 
     # ── 認証 ───────────────────────────────────────────────
     def authenticate(self) -> tuple[bool, str]:
-        """主セッション（session）へ Cookie / ヘッダー / ログインフォーム認証を適用する。"""
-        return self._authenticate_session(self.session, self.auth)
+        """主セッション（session）へ Cookie / ヘッダー / ログインフォーム認証を適用する。
+
+        戻り値は従来どおり(bool, str)。認証状態(authenticated/anonymous/expired/unknown)は
+        `self.auth_state`/`self.auth_state_reason`に副作用として保存する（P0.2）。
+        """
+        ok, msg, login_outcome = self._authenticate_session(self.session, self.auth)
+        self.auth_state, self.auth_state_reason = self._resolve_auth_state(
+            self.session, self.auth, login_outcome)
+        return ok, msg
 
     def authenticate_b(self) -> tuple[bool, str]:
         """第2セッション（session_b・IDOR比較用）へ認証を適用する。session_b 未設定なら何もしない。"""
         if self.session_b is None:
             return True, "第2セッション未設定"
-        return self._authenticate_session(self.session_b, self.auth_b)
+        ok, msg, login_outcome = self._authenticate_session(self.session_b, self.auth_b)
+        self.auth_state_b, self.auth_state_reason_b = self._resolve_auth_state(
+            self.session_b, self.auth_b, login_outcome)
+        return ok, msg
 
-    def _authenticate_session(self, session, auth: dict) -> tuple[bool, str]:
+    def _resolve_auth_state(self, session, auth: dict, login_outcome: str) -> tuple[str, str]:
+        """認証状態を判定する（P0.2）。
+
+        Cookie/ヘッダー設定だけでは"authenticated"と断定しない。`confirm_url`が
+        設定されていれば同一origin確認URLの内容で判定し（最も信頼できる）、
+        未設定の場合はログインフォームの`login_outcome`（_form_login参照）で判定する。
+        "expired"は'failed'（パスワードフォーム残存等の実証拠）のときだけ断定し、
+        'unconfirmed'（送信不可・リダイレクト未追跡等）は"unknown"に留める
+        （P0.1のPOSTリダイレクト未追跡により、ただの成功ログインまで
+        "失敗"と誤認しないようにするため）。
+        """
+        confirm_url = (auth.get("confirm_url") or "").strip()
+        if confirm_url:
+            return self.check_auth_state(auth, session)
+        if not auth:
+            return "anonymous", "認証設定なし"
+        if login_outcome == "ok":
+            return "authenticated", "ログイン成功のヒューリスティック判定(confirm_url未設定)"
+        if login_outcome == "failed":
+            return "expired", "ログインフォームが残存する等、失敗の実証拠あり"
+        if login_outcome == "unconfirmed":
+            return "unknown", ("ログイン結果を確認できず(送信不可、または別origin転送/POST"
+                               "リダイレクト未追跡のため)。confirm_urlの設定で判定可能")
+        return "unknown", "Cookie/ヘッダーのみ設定・確認手段なし（confirm_urlの設定を推奨）"
+
+    def check_auth_state(self, auth: dict, session=None) -> tuple[str, str]:
+        """confirm_url（同一origin限定）へGETし、expect_textの有無で認証状態を判定する。
+
+        confirm_urlが別originの場合はHttpTransportが送信を拒否しNoneが返る
+        （＝確認用URLとして外部originを指定しても到達しない）。
+        """
+        session = session or self.session
+        confirm_url = (auth.get("confirm_url") or "").strip()
+        expect_text = auth.get("expect_text", "")
+        if not confirm_url:
+            return "unknown", "confirm_url未設定のため判定不能"
+        resp = self.transport.request(session, "GET", confirm_url, allow_redirects=True)
+        if resp is None:
+            return "unknown", f"confirm_url取得失敗（{self._transport_error_reason()}）"
+        body = resp.text.lower()
+        still_login = "type=\"password\"" in body or "type='password'" in body
+        if still_login:
+            return "expired", "confirm_urlの内容にログインフォームが残存"
+        if not expect_text:
+            return "unknown", "confirm_urlは取得できたがexpect_text未設定のため判定不能"
+        if expect_text in resp.text:
+            return "authenticated", "confirm_urlにexpect_textを確認"
+        return "expired", "confirm_urlの内容にexpect_textが見当たらない"
+
+    def _authenticate_session(self, session, auth: dict) -> tuple[bool, str, str]:
         """Cookie / ヘッダー / ログインフォーム認証を指定セッションへ適用する。
 
         ログインフォームは CSRF を含む hidden 入力を自動抽出して送信する。
         以後のクロール／ファジングはこの認証済みセッションで行われる。
+        戻り値3つ目はlogin_outcome（_form_login参照。login_url未設定なら"not_attempted"）。
         """
         a = auth or {}
         applied: list[str] = []
@@ -171,17 +258,22 @@ class WebFuzzer:
 
         # 3) ログインフォーム（CSRF自動対応）
         login_url = (a.get("login_url") or "").strip()
+        login_outcome = "not_attempted"
         if login_url:
-            ok, msg = self._form_login(session, a, login_url)
+            ok, msg, login_outcome = self._form_login(session, a, login_url)
             applied.append(f"login({'ok' if ok else 'uncertain'})")
             if not ok:
-                return False, msg
+                return False, msg, login_outcome
 
         if not applied:
-            return True, "認証設定なし"
-        return True, "認証適用: " + ", ".join(applied)
+            return True, "認証設定なし", login_outcome
+        return True, "認証適用: " + ", ".join(applied), login_outcome
 
-    def _form_login(self, session, a: dict, login_url: str) -> tuple[bool, str]:
+    def _form_login(self, session, a: dict, login_url: str) -> tuple[bool, str, str]:
+        """戻り値3つ目はlogin_outcome: 'ok'（成功と判定）/ 'failed'（失敗の実証拠あり）/
+        'unconfirmed'（送信不可・リダイレクト未追跡等で真偽不明）。
+        認証状態(_resolve_auth_state)は'failed'のときだけ"expired"と断定する。
+        """
         # 基準originが未確定ならここで確定する（bind_target未使用の直接呼び出し互換）。
         if self.transport.base_origin is None:
             try:
@@ -189,10 +281,10 @@ class WebFuzzer:
                     login_url if login_url.startswith("http") else "http://" + login_url
                 )
             except OriginRejected as e:
-                return False, f"ログインURLのorigin確定に失敗: {e}"
+                return False, f"ログインURLのorigin確定に失敗: {e}", "unconfirmed"
         r = self.transport.request(session, "GET", login_url, allow_redirects=True)
         if r is None:
-            return False, f"ログインページ取得失敗（{self._transport_error_reason()}）"
+            return False, f"ログインページ取得失敗（{self._transport_error_reason()}）", "unconfirmed"
 
         # ログインフォーム（password入力を含むform）の hidden 入力を収集（CSRF等）
         fields = self._login_form_fields(r.text)
@@ -206,18 +298,18 @@ class WebFuzzer:
         action = (a.get("post_url") or "").strip() or login_url
         rp = self.transport.request(session, "POST", action, data=fields, allow_redirects=True)
         if rp is None:
-            return False, f"ログインPOST失敗（{self._transport_error_reason()}）"
+            return False, f"ログインPOST失敗（{self._transport_error_reason()}）", "unconfirmed"
 
         if rp.status_code in (301, 302, 303, 307, 308):
             return False, (
                 f"ログインPOSTがリダイレクト(HTTP {rp.status_code})のまま完了しました。"
                 "別originへの転送、またはPOSTの301/302/307/308は初期版では自動追跡しない"
                 "ため（認証転送は同一origin限定）、認証未確認として継続します。"
-            )
+            ), "unconfirmed"
         if self._login_ok(session, rp):
-            return True, "ログイン成功"
+            return True, "ログイン成功", "ok"
         return False, ("ログイン失敗の可能性（認証フォームが残存／"
-                       "セッションCookie未設定）。認証なしで継続します。")
+                       "セッションCookie未設定）。認証なしで継続します。"), "failed"
 
     @staticmethod
     def _login_form_fields(html_text: str) -> dict:

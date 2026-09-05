@@ -286,6 +286,34 @@ class SettingsDialog(RobustToplevel):
         ).pack(side="left")
         self._update_scope_hint()
 
+        # ── TLS（WEB FUZZ証明書検証 — 任意・P0.2） ─────────
+        ctk.CTkLabel(
+            body, text="🔒 TLS（WEB FUZZ証明書検証 — 任意）",
+            font=ctk.CTkFont("Segoe UI", 10, "bold"), text_color=AMBER,
+        ).pack(anchor="w", pady=(10, 0))
+        ctk.CTkLabel(
+            body, text="既定は無効（自己署名証明書のラボ環境が多いため・既存動作を維持）。"
+                       "実サービスを対象にする案件では有効化を推奨します。",
+            font=ctk.CTkFont("Segoe UI", 9), text_color=TEXT_DIM,
+            anchor="w", justify="left", wraplength=580,
+        ).pack(anchor="w", pady=(0, 2))
+        tls_row = ctk.CTkFrame(body, fg_color="transparent")
+        tls_row.pack(fill="x", pady=5)
+        self._tls_verify_var = tk.BooleanVar(self, value=bool(config.get("tls_verify", False)))
+        ctk.CTkCheckBox(
+            tls_row, text="証明書を検証する(tls_verify)", variable=self._tls_verify_var,
+            font=ctk.CTkFont("Segoe UI", 10), text_color=TEXT_PRI,
+            fg_color=AMBER, hover_color="#CC8400", checkbox_width=16, checkbox_height=16,
+        ).pack(side="left", padx=(0, 12))
+        self._tls_ca_var = tk.StringVar(self, value=config.get("tls_ca_bundle", "") or "")
+        ctk.CTkEntry(
+            tls_row, textvariable=self._tls_ca_var,
+            placeholder_text="独自CA証明書のパス(任意・空欄=標準ストア)",
+            font=ctk.CTkFont("Consolas", 10),
+            fg_color=BG_INPUT, border_color=BORDER, border_width=1,
+            text_color=TEXT_PRI, height=28,
+        ).pack(side="left", fill="x", expand=True)
+
         # モデル要件ゲート（ヒューリスティック警告・ブロックしない） — AGENT_ARCHITECTURE.md §5.2
         self._readiness_label = ctk.CTkLabel(
             body, text="", font=ctk.CTkFont("Segoe UI", 9),
@@ -721,6 +749,8 @@ class SettingsDialog(RobustToplevel):
                 if line.strip()
             ],
             "scope_mode": self._scope_mode_var.get(),
+            "tls_verify": bool(self._tls_verify_var.get()),
+            "tls_ca_bundle": self._tls_ca_var.get().strip(),
         }
         config.save(data)
         self._llm.update(

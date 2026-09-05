@@ -354,8 +354,16 @@ class HttpTransport:
             resp = session.request(method, url, params=params, data=data,
                                    headers=headers, timeout=self.policy.timeout,
                                    allow_redirects=False, stream=True)
+        except requests.exceptions.SSLError:
+            self._last_error = "tls_error"  # 証明書検証失敗・ハンドシェイクエラー
+            return None
         except requests.RequestException:
             self._last_error = "network_error"
+            return None
+        except OSError:
+            # requestsは不正な tls_ca_bundle パス（存在しないファイル等）を
+            # RequestExceptionでラップせず素のOSErrorとして送出する。
+            self._last_error = "tls_config_error"
             return None
         self._cap_response_body(resp)
         self._last_error = None

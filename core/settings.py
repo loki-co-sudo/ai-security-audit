@@ -136,26 +136,29 @@ WEB_REQUEST_TIMEOUT = 10   # 秒
 #   path_threads : Webパス探索の同時接続数
 #   path_jitter  : Webパス探索のランダム遅延 (min, max) 秒
 #   max_paths    : センシティブパス探索数の上限（None=全件）
+#   path_rate_per_sec: WEB FUZZ送信の秒あたり上限（HttpTransport.RequestPolicy、P0.2）。
+#                      None=無制限。path_jitter/path_threadsが既に課す実効ペースより
+#                      下げない値を選び、安全上限として働かせる（速度そのものの変更ではない）。
 SCAN_PROFILES = {
     "stealth": {
         "timeout": 2.0, "threads": 4,  "jitter": (0.15, 0.6),
         "randomize": True,  "path_threads": 2,  "path_jitter": (0.2, 0.8),
-        "max_paths": 12,
+        "max_paths": 12, "path_rate_per_sec": 5,
     },
     "passive": {
         "timeout": 1.5, "threads": 10, "jitter": (0.05, 0.25),
         "randomize": True,  "path_threads": 4,  "path_jitter": (0.05, 0.3),
-        "max_paths": None,
+        "max_paths": None, "path_rate_per_sec": 10,
     },
     "moderate": {
         "timeout": 1.0, "threads": 30, "jitter": (0.0, 0.05),
         "randomize": True,  "path_threads": 8,  "path_jitter": (0.0, 0.05),
-        "max_paths": None,
+        "max_paths": None, "path_rate_per_sec": 20,
     },
     "aggressive": {
         "timeout": 0.5, "threads": 80, "jitter": (0.0, 0.0),
         "randomize": False, "path_threads": 16, "path_jitter": (0.0, 0.0),
-        "max_paths": None,
+        "max_paths": None, "path_rate_per_sec": None,
     },
     # バグバウンティ対応（BOUNTY_ROADMAP.md）。思想の違い: stealth/passive等は
     # 「検知回避」が目的だが、bounty は「対象インフラへの配慮（プログラム側の
@@ -164,10 +167,16 @@ SCAN_PROFILES = {
     "bounty": {
         "timeout": 1.5, "threads": 6,  "jitter": (0.2, 0.6),
         "randomize": True,  "path_threads": 4,  "path_jitter": (0.2, 0.6),
-        "max_paths": None,
+        "max_paths": None, "path_rate_per_sec": 5,
     },
 }
 DEFAULT_SCAN_PROFILE = "stealth"
+
+# WEB FUZZ TLS検証（P0.2）。既存インストールはverify=False（自己署名・ラボ環境が多いため）
+# を暗黙のデフォルトとしてきた。この既定値は変更しない（既存動作の維持）が、新規案件では
+# config.jsonのtls_verify=trueを明示することを推奨する（GUI設定画面から変更可能）。
+TLS_VERIFY_DEFAULT = False
+TLS_CA_BUNDLE_DEFAULT = ""  # 空 = 標準のCA証明書ストアを使う（tls_verify=true時）
 
 # 実在ブラウザを模した User-Agent プール（ステルス時にローテーション）。
 # 自己申告型UA（"Security Audit Tool"）は検知を誘発するため使用しない。

@@ -19,6 +19,21 @@ from agents.base_agent import BaseAgent
 from tools.web_fuzzer import WebFuzzer, DEFAULT_PROBES
 from core.settings import SCAN_PROFILES, DEFAULT_SCAN_PROFILE
 
+def idor_skip_reason(fuzzer: WebFuzzer) -> str | None:
+    """認証必須のIDORチェックをskipすべき理由を返す（skip不要ならNone、P0.2）。
+
+    どちらのセッションであっても認証状態が"expired"（失敗の実証拠あり）なら、
+    未認証セッション同士（またはそれに準ずる状態）の比較になり「アクセス制御が
+    機能している」という誤判定を招くため実行しない。"unknown"（判定不能）は
+    従来どおり実行し、所見側の「要人手確認」表記に委ねる。
+    """
+    if fuzzer.auth_state == "expired":
+        return f"第1セッションの認証状態=expired — {fuzzer.auth_state_reason}"
+    if fuzzer.auth_state_b == "expired":
+        return f"第2セッションの認証状態=expired — {fuzzer.auth_state_reason_b}"
+    return None
+
+
 STEPS = [
     "ターゲット解析・接続確認",
     "クロール・注入点検出中",
@@ -79,6 +94,8 @@ class FuzzAgent(BaseAgent):
         max_pages: int = 20,
         auth: dict | None = None,
         auth_b: dict | None = None,
+        tls_verify: bool | None = None,
+        tls_ca_bundle: str | None = None,
     ) -> None:
         self.bus.clear()
         if not self._check_scope(target):
@@ -103,7 +120,7 @@ class FuzzAgent(BaseAgent):
         self._out(f"  REQ BUDGET   : {max_requests} (DoS防止上限)\n", "dim")
         self._out("  MODE         : 検出のみ（兆候観測・非エクスプロイト）\n", "green")
         self._out("  SCOPE        : 同一オリジン限定 — 認可された対象のみ\n", "green")
-        self._out(f"  AUTH         : {'設定あり（認証付きファジング）' if auth else 'なし'}\n\n",
+        self._out(f"  AUTH         : {'設定あり（認証付きファジング）' if auth else 'なし'}\n",
                   "green" if auth else "dim")
         self._step(0, "done")
         if self.is_stopped():
@@ -114,17 +131,24 @@ class FuzzAgent(BaseAgent):
             max_requests=max_requests, log=self._log, auth=auth, auth_b=auth_b,
             target=base_url,  # 基準originを認証より前に確定する (P0.1)
             stop_event=self._stop_event,  # STOP後は新しい送信を開始しない (P0.2)
+            tls_verify=tls_verify, tls_ca_bundle=tls_ca_bundle,
         )
+        self._out(f"  TLS VERIFY   : {'有効' if fuzzer.tls_verify else '無効（既定・後方互換）'}\n\n",
+                  "green" if fuzzer.tls_verify else "dim")
 
         # 認証を適用（Cookie / ヘッダー / ログインフォーム）
         if auth:
             ok, msg = fuzzer.authenticate()
             self._out(f"  [AUTH] {msg}\n", "green" if ok else "high")
-            self._log(f"auth: {msg}")
+            self._out(f"  [AUTH-STATE] {fuzzer.auth_state} — {fuzzer.auth_state_reason}\n",
+                      "green" if fuzzer.auth_state == "authenticated" else "dim")
+            self._log(f"auth: {msg} (state={fuzzer.auth_state})")
         if auth_b:
             ok_b, msg_b = fuzzer.authenticate_b()
             self._out(f"  [AUTH-B] {msg_b}\n", "green" if ok_b else "high")
-            self._log(f"auth_b: {msg_b}")
+            self._out(f"  [AUTH-B-STATE] {fuzzer.auth_state_b} — {fuzzer.auth_state_reason_b}\n",
+                      "green" if fuzzer.auth_state_b == "authenticated" else "dim")
+            self._log(f"auth_b: {msg_b} (state={fuzzer.auth_state_b})")
 
         # ── Step 1: クロール・注入点検出 ───────────────────
         self._step(1, "running")
@@ -189,15 +213,22 @@ class FuzzAgent(BaseAgent):
             self._out("\n" + "─" * 56 + "\n", "sep")
             self._out("  PHASE — ACCESS CONTROL CHECK (2nd session, GET-only)\n", "section")
             self._out("─" * 56 + "\n", "sep")
-            self._status("認可チェック中（別セッション比較）...")
-            idor_findings = fuzzer._detect_idor(points)
-            if idor_findings:
-                self._out(f"\n  {len(idor_findings)} 件のアクセス制御不備の兆候を観測:\n\n", "high")
-                for f in idor_findings:
-                    self._out(f"    [IDOR?] {f['param']}@{f['url']}\n", "high")
-                    self._out(f"        evidence: {f['evidence']}\n", "dim")
+            skip_reason = idor_skip_reason(fuzzer)
+            if skip_reason:
+                # 認証必須検査は失敗を検知した場合skipし理由を残す(P0.2)。未認証セッション
+                # 同士の比較は「アクセス制御が機能している」との誤判定を招くため実行しない。
+                self._out(f"\n  (スキップ: {skip_reason})\n", "high")
+                self._log(f"idor: skip ({skip_reason})")
             else:
-                self._out("\n  (兆候なし)\n", "dim")
+                self._status("認可チェック中（別セッション比較）...")
+                idor_findings = fuzzer._detect_idor(points)
+                if idor_findings:
+                    self._out(f"\n  {len(idor_findings)} 件のアクセス制御不備の兆候を観測:\n\n", "high")
+                    for f in idor_findings:
+                        self._out(f"    [IDOR?] {f['param']}@{f['url']}\n", "high")
+                        self._out(f"        evidence: {f['evidence']}\n", "dim")
+                else:
+                    self._out("\n  (兆候なし)\n", "dim")
         else:
             self._out("\n  (第2アカウント未設定のためスキップ)\n", "dim")
         self._step(4, "done")

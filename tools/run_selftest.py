@@ -139,6 +139,17 @@ def test_config():
         config.save({"llm_model": cfg["llm_model"]})
         assert config.get("llm_model") == cfg["llm_model"]
         _ok("config.save/get round-trip")
+
+        # TLS設定のバリデーション（P0.2）。validate_config()は保存しない純粋関数なので
+        # config.jsonを汚染しない。
+        assert config.get("tls_verify") is False, "tls_verifyの既定値が変わっている(後方互換違反)"
+        assert config.validate_config({"tls_verify": True}) == [], "正しいbool値で警告が出た"
+        assert config.validate_config({"tls_verify": "yes"}), "不正値でtls_verifyの警告が出ていない"
+        assert config.validate_config({"tls_ca_bundle": 123}), "不正型でtls_ca_bundleの警告が出ていない"
+        assert config.validate_config({"tls_ca_bundle": "/no/such/file.pem"}), \
+            "存在しないCAファイルパスで警告が出ていない"
+        assert config.validate_config({"tls_ca_bundle": ""}) == [], "空文字列(標準ストア)で警告が出た"
+        _ok("config: tls_verify/tls_ca_bundleバリデーション", "既定値維持・不正値検出を確認")
     except Exception as e:
         _ng("config", repr(e))
 
@@ -1490,6 +1501,9 @@ def test_web_fuzzer_cross_origin():
                               "user_val": "a", "pass_val": "b"},
                         auth_b={"cookie": "session=bob"})
         fz3.authenticate()
+        # POST->302(同一origin・未追跡)は「失敗の実証拠」ではないため"expired"と断定せず
+        # "unknown"に留める(confirm_url未設定でもログイン自体は成功しうるケースの回帰防止)。
+        assert fz3.auth_state == "unknown", f"{fz3.auth_state}: {fz3.auth_state_reason}"
         fz3.authenticate_b()
         for _ in range(10):
             fz3._send_as(fz3.session, base + "page2")
@@ -1732,6 +1746,267 @@ def test_http_transport_rate_limits():
             srv.shutdown()
 
 
+def _start_authstate_mock_server():
+    """認証状態判定(confirm_url/expect_text)を検証するためのモックサーバ（P0.2）。"""
+    import http.server
+    import socketserver
+    import threading
+
+    class _H(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_GET(self):
+            if self.path == "/whoami":
+                cookie = self.headers.get("Cookie", "")
+                if "session=valid" in cookie:
+                    body = b"<html><body>Welcome, User! dashboard area</body></html>"
+                else:
+                    body = (b"<html><body><form method=\"POST\" action=\"/login\">"
+                            b"<input type=\"password\" name=\"pw\"></form></body></html>")
+            elif self.path == "/login":
+                body = (b"<html><body><form method=\"POST\" action=\"/login\">"
+                        b"<input type=\"password\" name=\"pw\"></form></body></html>")
+            else:
+                body = b"<html><body>ok</body></html>"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_POST(self):
+            length = int(self.headers.get("Content-Length", 0) or 0)
+            if length:
+                self.rfile.read(length)
+            if self.path == "/login":
+                # 常に失敗するモックログイン（パスワードフォームが残存・Cookie未設定）。
+                # login_outcome="failed"（実証拠あり）→auth_state="expired"を検証するため。
+                body = (b"<html><body><form method=\"POST\" action=\"/login\">"
+                        b"<input type=\"password\" name=\"pw\"></form></body></html>")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.end_headers()
+                self.wfile.write(body)
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(b"<html><body>ok</body></html>")
+
+    srv = socketserver.TCPServer(("127.0.0.1", 0), _H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, f"http://127.0.0.1:{srv.server_address[1]}/"
+
+
+def test_web_fuzzer_auth_state():
+    _section("16f. TOOLS — WebFuzzer 認証状態判定 authenticated/expired/unknown(P0.2)")
+    from tools.web_fuzzer import WebFuzzer
+    srv = None
+    try:
+        srv, base = _start_authstate_mock_server()
+
+        # 1) confirm_url + expect_text が一致すればauthenticated
+        fz = WebFuzzer(profile="aggressive", max_requests=50, log=lambda m: None,
+                       target=base,
+                       auth={"cookie": "session=valid", "confirm_url": base + "whoami",
+                             "expect_text": "Welcome, User!"})
+        ok, _msg = fz.authenticate()
+        assert ok
+        assert fz.auth_state == "authenticated", f"{fz.auth_state}: {fz.auth_state_reason}"
+        _ok("認証状態: confirm_url+expect_text一致でauthenticated", fz.auth_state_reason)
+
+        # 2) Cookieが無効ならconfirm_url先にログインフォームが残存 → expired
+        fz2 = WebFuzzer(profile="aggressive", max_requests=50, log=lambda m: None,
+                        target=base,
+                        auth={"cookie": "session=invalid", "confirm_url": base + "whoami",
+                              "expect_text": "Welcome, User!"})
+        fz2.authenticate()
+        assert fz2.auth_state == "expired", f"{fz2.auth_state}: {fz2.auth_state_reason}"
+        _ok("認証状態: 無効Cookie(confirm_url先がログイン画面)でexpired", fz2.auth_state_reason)
+
+        # 3) Cookie設定だけ(confirm_url未設定)では成功と断定せずunknown
+        fz3 = WebFuzzer(profile="aggressive", max_requests=50, log=lambda m: None,
+                        auth={"cookie": "session=valid"})
+        fz3.authenticate()
+        assert fz3.auth_state == "unknown", f"{fz3.auth_state}: {fz3.auth_state_reason}"
+        _ok("認証状態: Cookie設定のみでは断定せずunknown", fz3.auth_state_reason)
+
+        # 4) auth未設定はanonymous
+        fz4 = WebFuzzer(profile="aggressive", max_requests=50, log=lambda m: None)
+        assert fz4.auth_state == "anonymous"
+        _ok("認証状態: auth未設定はanonymous", "")
+
+        # 5) confirm_urlが別originなら送信自体が拒否されunknown(誤って外部originへ到達しない)
+        fz5 = WebFuzzer(profile="aggressive", max_requests=50, log=lambda m: None,
+                        target=base,
+                        auth={"cookie": "session=valid",
+                              "confirm_url": "http://evil.example.invalid/whoami",
+                              "expect_text": "Welcome"})
+        fz5.authenticate()
+        assert fz5.auth_state == "unknown", f"{fz5.auth_state}: {fz5.auth_state_reason}"
+        assert "origin" in fz5.auth_state_reason, f"別origin拒否の理由が出ていない: {fz5.auth_state_reason}"
+        _ok("認証状態: confirm_urlが別originなら送信されずunknown", fz5.auth_state_reason)
+
+        # 6) login_url経由で実際に失敗(パスワードフォーム残存・Cookie未設定)した場合のみexpired
+        #    （POSTリダイレクト未追跡による"unconfirmed"とは区別する — advisorレビュー指摘）
+        fz6 = WebFuzzer(profile="aggressive", max_requests=50, log=lambda m: None,
+                        target=base,
+                        auth={"login_url": base + "login", "user_field": "u", "pass_field": "pw",
+                              "user_val": "a", "pass_val": "b"})
+        ok6, _msg6 = fz6.authenticate()
+        assert not ok6
+        assert fz6.auth_state == "expired", f"{fz6.auth_state}: {fz6.auth_state_reason}"
+        _ok("認証状態: ログイン失敗(パスワードフォーム残存)でexpired", fz6.auth_state_reason)
+
+        # 7) idor_skip_reason(): どちらのセッションがexpiredでもskip理由を返す(対称性)
+        from agents.fuzz_agent import idor_skip_reason
+        fz_ok = WebFuzzer(profile="aggressive", max_requests=10, log=lambda m: None)
+        fz_ok.auth_state, fz_ok.auth_state_b = "authenticated", "authenticated"
+        assert idor_skip_reason(fz_ok) is None, "両方authenticatedなのにskip理由が返った"
+        fz_a_expired = WebFuzzer(profile="aggressive", max_requests=10, log=lambda m: None)
+        fz_a_expired.auth_state, fz_a_expired.auth_state_reason = "expired", "第1セッション失敗"
+        assert idor_skip_reason(fz_a_expired) is not None, "第1セッションexpiredでskipされていない"
+        fz_b_expired = WebFuzzer(profile="aggressive", max_requests=10, log=lambda m: None)
+        fz_b_expired.auth_state_b, fz_b_expired.auth_state_reason_b = "expired", "第2セッション失敗"
+        assert idor_skip_reason(fz_b_expired) is not None, "第2セッションexpiredでskipされていない(非対称バグ回帰)"
+        _ok("idor_skip_reason(): 第1/第2どちらのexpiredでも対称にskip", "")
+    except Exception as e:
+        _ng("web_fuzzer_auth_state", repr(e) + "\n" + traceback.format_exc())
+    finally:
+        if srv:
+            srv.shutdown()
+
+
+def test_web_fuzzer_tls():
+    _section("16g. TOOLS — WebFuzzer TLS検証設定(P0.2)")
+    from tools.web_fuzzer import WebFuzzer
+    try:
+        # 1) 未指定時は config.json の値(既定False)に従う（既存動作を維持）
+        fz = WebFuzzer(profile="aggressive", max_requests=10, log=lambda m: None)
+        assert fz.session.verify is False, f"既定でTLS検証が有効になっている: {fz.session.verify}"
+        assert fz.tls_verify is False
+        _ok("TLS: 未指定時はconfig既定値(False)に従う", f"session.verify={fz.session.verify}")
+
+        # 2) 明示的にtls_verify=Trueを指定すれば有効化される
+        fz2 = WebFuzzer(profile="aggressive", max_requests=10, log=lambda m: None, tls_verify=True)
+        assert fz2.session.verify is True, f"tls_verify=Trueが反映されていない: {fz2.session.verify}"
+        assert fz2.tls_verify is True
+        _ok("TLS: tls_verify=Trueで検証を有効化", f"session.verify={fz2.session.verify}")
+
+        # 3) tls_verify=True + tls_ca_bundle指定で独自CAパスがsession.verifyに渡る
+        fz3 = WebFuzzer(profile="aggressive", max_requests=10, log=lambda m: None,
+                        tls_verify=True, tls_ca_bundle="/tmp/dummy-ca.pem")
+        assert fz3.session.verify == "/tmp/dummy-ca.pem", \
+            f"独自CAパスが反映されていない: {fz3.session.verify}"
+        _ok("TLS: tls_verify=True+tls_ca_bundleで独自CAパスを使用", fz3.session.verify)
+
+        # 4) tls_verify=False時はtls_ca_bundleを指定していても無視される(検証自体をしない)
+        fz4 = WebFuzzer(profile="aggressive", max_requests=10, log=lambda m: None,
+                        tls_verify=False, tls_ca_bundle="/tmp/dummy-ca.pem")
+        assert fz4.session.verify is False, \
+            f"tls_verify=FalseなのにCAパスが有効になった: {fz4.session.verify}"
+        _ok("TLS: tls_verify=False時はtls_ca_bundleを無視", f"session.verify={fz4.session.verify}")
+
+        # 5) auth_b設定時、session_bにも同じverify設定が適用される
+        fz5 = WebFuzzer(profile="aggressive", max_requests=10, log=lambda m: None,
+                        tls_verify=True, auth_b={"cookie": "x=1"})
+        assert fz5.session_b.verify is True, f"session_bにTLS設定が伝播していない: {fz5.session_b.verify}"
+        _ok("TLS: session_bにも同じ検証設定を適用", f"session_b.verify={fz5.session_b.verify}")
+    except Exception as e:
+        _ng("web_fuzzer_tls", repr(e) + "\n" + traceback.format_exc())
+
+
+def test_http_transport_tls_handshake():
+    _section("16h. CORE — HttpTransport TLSハンドシェイク成否・不正CA設定(P0.2)")
+    import shutil
+    if shutil.which("openssl") is None:
+        _SKIP.append("TLS handshake (openssl unavailable)")
+        print("  [SKIP] opensslコマンドが見つからないためスキップ（証明書検証成否は未検証）")
+        return
+
+    import ssl
+    import socketserver
+    import http.server
+    import subprocess
+    import tempfile
+    import threading
+    import requests as _requests
+    from core.http_transport import HttpTransport, RequestPolicy
+
+    tmpdir = tempfile.mkdtemp(prefix="selftest_tls_")
+    cert_path = f"{tmpdir}/cert.pem"
+    key_path = f"{tmpdir}/key.pem"
+    srv = None
+    try:
+        subprocess.run(
+            ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+             "-keyout", key_path, "-out", cert_path,
+             "-days", "1", "-subj", "/CN=127.0.0.1",
+             # SAN必須（CNのみの証明書は現代のurllib3/cryptographyでは
+             # ホスト名検証に失敗するため、IP SANを明示する）。
+             "-addext", "subjectAltName=IP:127.0.0.1"],
+            check=True, capture_output=True, timeout=30,
+        )
+
+        class _H(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_GET(self):
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain")
+                self.end_headers()
+                self.wfile.write(b"secure-ok")
+
+        srv = socketserver.TCPServer(("127.0.0.1", 0), _H)
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.load_cert_chain(certfile=cert_path, keyfile=key_path)
+        srv.socket = ctx.wrap_socket(srv.socket, server_side=True)
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        base = f"https://127.0.0.1:{port}/"
+
+        session = _requests.Session()
+
+        # 1) tls_verify=True・CA未指定(標準ストア)では自己署名証明書を拒否しtls_error
+        session.verify = True
+        t1 = HttpTransport(policy=RequestPolicy(max_requests=10))
+        t1.bind_origin(base)
+        r1 = t1.request(session, "GET", base)
+        assert r1 is None, "自己署名証明書がverify=Trueで通ってしまった"
+        assert t1.last_error == "tls_error", f"TLSエラーの理由が記録されていない: {t1.last_error}"
+        _ok("TLS: 標準CAストアで自己署名証明書を拒否", "last_error=tls_error")
+
+        # 2) tls_ca_bundleに自己署名証明書自体を指定すれば検証成功する
+        session2 = _requests.Session()
+        session2.verify = cert_path
+        t2 = HttpTransport(policy=RequestPolicy(max_requests=10))
+        t2.bind_origin(base)
+        r2 = t2.request(session2, "GET", base)
+        assert r2 is not None and r2.status_code == 200 and r2.text == "secure-ok", \
+            f"独自CA指定でのTLSハンドシェイクに失敗: {r2}"
+        _ok("TLS: 独自CA(tls_ca_bundle)指定でハンドシェイク成功", f"status={r2.status_code}")
+
+        # 3) 存在しないtls_ca_bundleパスはOSError(RequestException非継承)を送出しうるが
+        #    クラッシュせずtls_config_errorとして捕捉される
+        session3 = _requests.Session()
+        session3.verify = "/tmp/selftest-does-not-exist-ca.pem"
+        t3 = HttpTransport(policy=RequestPolicy(max_requests=10))
+        t3.bind_origin(base)
+        r3 = t3.request(session3, "GET", base)
+        assert r3 is None, "不正なtls_ca_bundleパスなのに応答が返ってしまった"
+        assert t3.last_error == "tls_config_error", \
+            f"TLS設定エラーの理由が記録されていない: {t3.last_error}"
+        _ok("TLS: 不正なtls_ca_bundleパスはクラッシュせずtls_config_error", "")
+    except Exception as e:
+        _ng("http_transport_tls_handshake", repr(e) + "\n" + traceback.format_exc())
+    finally:
+        if srv:
+            srv.shutdown()
+        import shutil as _shutil
+        _shutil.rmtree(tmpdir, ignore_errors=True)
+
+
 def test_fuzz_agent():
     _section("17. AGENT E2E — FuzzAgent（ローカルモック / 実LLM）")
     from agents.fuzz_agent import FuzzAgent
@@ -1911,6 +2186,9 @@ def main():
     test_http_transport()
     test_web_fuzzer_cross_origin()
     test_http_transport_rate_limits()
+    test_web_fuzzer_auth_state()
+    test_web_fuzzer_tls()
+    test_http_transport_tls_handshake()
     _skip_llm("17", "AGENT E2E — FuzzAgent（ローカルモック / 実LLM）", test_fuzz_agent)
     test_desktop_shortcut()
     test_model_picker()

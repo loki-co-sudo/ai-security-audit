@@ -28,15 +28,15 @@ class AuthDialog(RobustToplevel):
 
         self.title("WEB FUZZ 認証設定")
         self.configure(fg_color=BG_PANEL)
-        self.geometry("620x560")
-        self.minsize(620, 560)
+        self.geometry("620x660")
+        self.minsize(620, 660)
 
         # 各フィールドの変数（master=self でデフォルトルート非依存）
         self._v = {
             k: tk.StringVar(self, value=init.get(k, ""))
             for k in ("cookie", "header_name", "header_value",
                       "login_url", "post_url", "user_field", "user_val",
-                      "pass_field", "pass_val")
+                      "pass_field", "pass_val", "confirm_url", "expect_text")
         }
 
         self.protocol("WM_DELETE_WINDOW", self.destroy)
@@ -92,6 +92,16 @@ class AuthDialog(RobustToplevel):
         self._entry(body, "ユーザー名", "user_val", "admin")
         self._entry(body, "パスワード欄", "pass_field", "password")
         self._entry(body, "パスワード", "pass_val", "secret", secret=True)
+
+        self._section(body, "④ 認証状態の確認（任意・推奨）")
+        ctk.CTkLabel(
+            body, text="Cookie/ヘッダー設定だけでは認証成功と断定しません。"
+                       "同一オリジンの確認URLと、ログイン後にだけ表示される文字列を"
+                       "指定すると authenticated/expired を判定できます。",
+            font=ctk.CTkFont("Segoe UI", 9), text_color=TEXT_DIM,
+            anchor="w", justify="left", wraplength=560).pack(fill="x", anchor="w", pady=(0, 4))
+        self._entry(body, "確認URL", "confirm_url", "http://127.0.0.1:8000/account")
+        self._entry(body, "期待する文字列", "expect_text", "ログイン後だけ表示される文言")
 
         btn_row = ctk.CTkFrame(self, fg_color=BG_WIDGET, corner_radius=0, height=56)
         btn_row.pack(fill="x", side="bottom")

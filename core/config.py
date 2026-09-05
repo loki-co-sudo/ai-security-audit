@@ -12,7 +12,7 @@ import logging
 from core.settings import (
     LLM_BASE_URL, LLM_API_KEY, LLM_MODEL, LLM_TIMEOUT,
     LLM_FAST_MODEL, LLM_FAST_BASE_URL, LLM_FAST_API_KEY, DEFAULT_EFFORT,
-    EFFORT_LEVELS, PORT_SCOPES,
+    EFFORT_LEVELS, PORT_SCOPES, TLS_VERIFY_DEFAULT, TLS_CA_BUNDLE_DEFAULT,
 )
 
 _CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.json")
@@ -39,6 +39,10 @@ _DEFAULTS: dict = {
     "allowed_targets": [],
     # 範囲外を検出したときの挙動: "warn"（警告のみ続行）| "block"（実行ブロック）。
     "scope_mode": "warn",
+    # WEB FUZZ TLS検証（P0.2）。既定はFalse（既存動作の維持・自己署名ラボ環境が多いため）。
+    # 新しい案件ではtrueにし、必要ならtls_ca_bundleで自己署名CAを個別指定する。
+    "tls_verify": TLS_VERIFY_DEFAULT,
+    "tls_ca_bundle": TLS_CA_BUNDLE_DEFAULT,
 }
 
 # 設定キーの許容リスト（未知キー警告のため）
@@ -74,12 +78,26 @@ def _validate_scope_mode(v) -> str | None:
         return "scope_mode は 'warn' または 'block' である必要があります"
     return None
 
+def _validate_tls_verify(v) -> str | None:
+    if not isinstance(v, bool):
+        return "tls_verify は true/false である必要があります"
+    return None
+
+def _validate_tls_ca_bundle(v) -> str | None:
+    if not isinstance(v, str):
+        return "tls_ca_bundle は文字列（ファイルパス）である必要があります"
+    if v and not os.path.isfile(v):
+        return f"tls_ca_bundle のファイルが見つかりません: {v}"
+    return None
+
 _VALIDATORS = {
     "llm_timeout": _validate_timeout,
     "effort":      _validate_effort,
     "report_lang": _validate_report_lang,
     "port_range":  _validate_port_range,
     "scope_mode":  _validate_scope_mode,
+    "tls_verify":  _validate_tls_verify,
+    "tls_ca_bundle": _validate_tls_ca_bundle,
 }
 
 

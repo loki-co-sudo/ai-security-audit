@@ -55,7 +55,7 @@ AI-Security-tool/
 │   ├── llm_client.py            # LLMClient。update()でホットリロード可能。OpenRouterヘッダー自動付与。fetch_models()で価格・コンテキスト長・知能指数（Artificial Analysis）付きモデル一覧を取得。cost_tier()/sort_models()も提供
 │   ├── model_router.py          # ロール別モデルルーティング（STRONG/FAST）＆推論エフォート（lokicode移植）。summarize_telemetry()/suggest_efficient_model()でテレメトリ実績を助言表示（自動切り替えはしない）
 │   ├── scope_guard.py           # バグバウンティ対応: 対象範囲(Scope)の機械的判定 in_scope()（許可リスト一致のみ・v1はdeny-list非対応）
-│   ├── http_transport.py        # P0.1: WEB FUZZ全送信経路の唯一の送信口。normalize_origin()・HttpTransport（同一origin検査・共有予算・手動リダイレクト制御）。P0.2一部実装: RequestPolicy（レート/429リトライ/STOP中断/応答サイズ上限）。TLS・認証状態判定は未実装
+│   ├── http_transport.py        # P0.1/P0.2: WEB FUZZ全送信経路の唯一の送信口。normalize_origin()・HttpTransport（同一origin検査・共有予算・手動リダイレクト制御・RequestPolicyでレート/429リトライ/STOP中断/応答サイズ上限）。TLS設定・認証状態判定はtools/web_fuzzer.py側
 │   └── orchestrator.py          # LangGraph StateGraph。深層解析ループ回数はエフォート連動（smart_truncate採用）
 ├── agents/
 │   ├── base_agent.py            # 抽象基底クラス。threading.Eventで停止管理、EventBusヘルパー群、_check_scope()（スコープガード）
@@ -583,17 +583,44 @@ ATTACK MODE に、認可された偵察レスポンスからCTF形式のフラ�
 **実践運用対応（[docs/PRACTICAL_ROADMAP.md](docs/PRACTICAL_ROADMAP.md)・2026-09-05改訂）**
 
 実装順序・対象ファイル・データ契約・受け入れ条件は同ドキュメントを正とする。
-旧CLI先行案は置換済み。次の実装単位は **P0.2: レート・停止・認証状態・TLS設定**。
-P0.1以降はすべて未実装。文書整備を機能実装完了として扱わない。
+旧CLI先行案は置換済み。次の実装単位は **P1.1: 構造化所見・実行状態・EventBus配線**。
+P1.1以降はすべて未実装。文書整備を機能実装完了として扱わない。
 
 - [x] P0.1 送信境界・共通予算（新規 `core/http_transport.py`。WEB FUZZの全送信経路
   `_get()`/`_send_as()`/ログインGET・POSTを`HttpTransport.request()`に一元化。
   送信直前の同一origin検査＋原子的な予算予約、301/302/303/307/308の手動リダイレクト
   追跡（GETは追跡・POSTは303→GETのみ追跡、それ以外のPOSTリダイレクトは追跡せず
   認証未確認として理由を返す）、別originへの転送・外部SSO/IdPは追跡しない。
-  セルフテスト16c/16dで別origin送信ゼロ・予算共有・0予算時の未送信を検証済み
-  （`tools/run_selftest.py` 72 PASS / 0 FAIL、実LLM系5件は既定どおりSKIP・2026-09-05）
-- [ ] P0.2 レート・STOP・認証状態・TLS設定
+  セルフテスト16c/16dで別origin送信ゼロ・予算共有・0予算時の未送信を検証済み。
+- [x] P0.2 レート・STOP・認証状態・TLS設定（`core/http_transport.py`の`RequestPolicy`に
+  rate_per_sec/max_consecutive_429/max_backoff_seconds/max_response_bytesを集約し
+  `core/settings.SCAN_PROFILES`の`path_rate_per_sec`から配線。429はGET限定でRetry-After
+  （秒/HTTP-date、不正値は上限付きバックオフ、上限超過や連続打ち切りは`last_error`に理由）
+  に従い有限回・予算内で再送、POSTは自動再試行しない。STOPは送信前チェック・待機中の
+  仮想時計対応interruptible sleep・WebFuzzer側のジッター待機/crawlループにも配線し
+  停止後は新規送信を一切開始しない。応答本文は`stream=True`+`max_response_bytes`と
+  読取時間(`timeout`)の両方で打ち切り`resp.fz_truncated`を付与（P1.2の証拠用）。
+  認証状態(`WebFuzzer.auth_state`)は`authenticated/anonymous/expired/unknown`。
+  Cookie/ヘッダー設定のみでは"authenticated"と断定せず、`confirm_url`+`expect_text`
+  （`gui/dialogs/auth_dialog.py`④に追加）で判定するのが最も信頼できる経路。
+  `confirm_url`未設定時はログインフォームの`login_outcome`(ok/failed/unconfirmed)を使い、
+  "expired"は'failed'（パスワードフォーム残存等の実証拠）のときだけ断定し、
+  P0.1のPOSTリダイレクト未追跡による'unconfirmed'は"unknown"に留める
+  （でないと成功ログインまで"失敗"と誤認する）。`agents/fuzz_agent.idor_skip_reason()`
+  はA/Bどちらのセッションが"expired"でもIDORチェックをskipする（対称）。
+  TLS検証は`core/config.py`の`tls_verify`/`tls_ca_bundle`（既定False=既存動作維持、
+  無効時は`WebFuzzer.log()`で警告）。`gui/dialogs/settings_dialog.py`に設定UIを追加
+  （`gui/panels/fuzz_panel.py`は変更していない — TLSは案件横断のグローバル設定として
+  scope/allowed_targetsと同じ置き場所にした設計判断）。`session.request()`が
+  `requests.RequestException`を継承しない素の`OSError`を送出するケース（不正な
+  `tls_ca_bundle`パス等）を捕捉し`tls_config_error`として扱う（未対応だとクラッシュする）。
+  自己署名証明書での実ハンドシェイク成否はセルフテスト16hで検証（`openssl`要、
+  無ければSKIP）。**未対応**: 「新しい案件プロファイルは検証ONを既定とする」はP3.1
+  （案件プロファイル自体が未実装）に依存するため据え置き。認証状態は`authenticate()`
+  呼び出し時点の一度きりの判定であり、スキャン中の再検証はしない。
+  セルフテスト16e〜16hで仮想時計によるレート/429試験・待機中STOP・認証状態全パターン・
+  TLS検証成否（実ハンドシェイク）・応答サイズ上限を検証済み。
+  （`tools/run_selftest.py` 99 PASS / 0 FAIL、実LLM系5件は既定どおりSKIP・2026-09-05）
 - [ ] P1.1 構造化所見・実行状態・RESULT/DONEイベント配線
 - [ ] P1.2 証拠保存・保存/表示/LLM送信前マスキング・共通レポート
 - [ ] P2.1 CLI非依存の最小ベンチマーク（正常例と未検査を含む）
