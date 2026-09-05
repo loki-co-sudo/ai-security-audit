@@ -583,9 +583,8 @@ ATTACK MODE に、認可された偵察レスポンスからCTF形式のフラ�
 **実践運用対応（[docs/PRACTICAL_ROADMAP.md](docs/PRACTICAL_ROADMAP.md)・2026-09-05改訂）**
 
 実装順序・対象ファイル・データ契約・受け入れ条件は同ドキュメントを正とする。
-旧CLI先行案は置換済み。次の実装単位は **P1.1の続き: DEFENSE（monitor_agent）の
-Finding/CoverageItem配線**（データ契約・RESULT/DONEライフサイクルの基盤、
-WEB FUZZ・AUDIT(標準/LangGraph)・ATTACK分の配線は実装済み・下記参照）。
+旧CLI先行案は置換済み。次の実装単位は **P1.2: 証拠保存と出力の移行**
+（P1.1のデータ契約・全4モード+LangGraphのFinding/CoverageItem配線は実装済み・下記参照）。
 P1.2以降はすべて未実装。文書整備を機能実装完了として扱わない。
 
 - [x] P0.1 送信境界・共通予算（新規 `core/http_transport.py`。WEB FUZZの全送信経路
@@ -623,7 +622,7 @@ P1.2以降はすべて未実装。文書整備を機能実装完了として扱�
   セルフテスト16e〜16hで仮想時計によるレート/429試験・待機中STOP・認証状態全パターン・
   TLS検証成否（実ハンドシェイク）・応答サイズ上限を検証済み。
   （`tools/run_selftest.py` 99 PASS / 0 FAIL、実LLM系5件は既定どおりSKIP・2026-09-05）
-- [ ] P1.1 構造化所見・実行状態・RESULT/DONEイベント配線（**基盤部分のみ実装済み・継続中**）。
+- [x] P1.1 構造化所見・実行状態・RESULT/DONEイベント配線。
   新規`core/findings.py`（`ScanResult`/`Finding`/`CoverageItem`/`ScanState`/
   `VerificationState`/`CoverageStatus`をdataclass/Enumで定義）。`core/event_bus.py`に
   `RESULT`イベント追加。`agents/base_agent.py`の`_finalize()`が最終`ScanResult`を確定し
@@ -670,20 +669,30 @@ P1.2以降はすべて未実装。文書整備を機能実装完了として扱�
     RECOMMENDED_ACTION形式）を`---VULN_START/END---`で検索していたため、ATTACK MODEの
     HTML/PDF/Markdownエクスポートが所見抽出0件になる既存バグを発見・修正した
     （P1.1でFinding変換の再利用元を調査中に発覚。VULN/THREAT側の抽出結果は無変更）。
-  **未実装（次の継続作業）**: DEFENSE（monitor_agent）はまだ基盤（空のfindings/coverage
-  で確定するフォールバック）のまま。対象HTML/コード/ログを信頼しない入力として区切る
-  処理、全4モード+LangGraphでの受け入れ条件（LLM空応答/例外/不正マーカー/STOP/scope拒否/
-  注入点なし/予算切れの結果とイベント順）の網羅的な検証も未着手（WEB FUZZ・AUDIT(両方)・
-  ATTACK分のみセルフテストで検証済み）。
+  - `agents/monitor_agent.py`（DEFENSE）: `_build_coverage()`はログソース単位の記録
+    （`ATTACK_PATTERNS`は常に全行へ適用され個別無効化する設定が無いため、パターン別
+    tested/skippedは意味を持たないと判断し採用しなかった）。`_determine_state()`は
+    STOP最優先→`watcher.watch()`の例外（従来はログに記録するだけで握りつぶしていた）や
+    AI脅威分析の全空応答は`partial`→アラート0件（脅威なし）は`completed`と判定する。
+  以上でWEB FUZZ・AUDIT（標準/LangGraph）・ATTACK・DEFENSEの全4系統が同じ
+  ScanResult/RESULT/DONE契約で確定するようになった。
+  **既知の限界（次のP1.x以降で対応）**: 「不正マーカー」（欠落・破損したブロック）は
+  `report_generator._parse()`側の既存の緩い抽出（欠落フィールドは空文字）に委ねており、
+  エージェントごとの専用テストは追加していない。「対象HTML・コード・ログを信頼しない
+  入力として区切る」制約は、現行アーキテクチャがLLM出力をレポート文字列としてのみ
+  扱い、scope/予算/ツール実行を動的に変更する経路がそもそも存在しないことで構造的に
+  満たされているが、プロンプトインジェクション耐性としての専用テストは書いていない
+  （既存の安全境界の副産物であり、新規の防御機構ではない点に注意）。
   セルフテスト2g（ライフサイクル: 正常/STOP/例外/二重呼び出しの4パターン）・
   2h（データ契約のdict化/JSON化）・2e拡張（scope block時のRESULT/DONE確定）・
   7c（report_generatorのATTACK MODE/FINDINGマーカー抽出バグの回帰テスト）・
   9b（AuditAgentの_build_coverage/_determine_state単体テスト＋ファイル読込失敗の非LLM
-  E2E）・11b（ReconAgentの_build_coverage/_determine_state単体テスト）・
+  E2E）・10c（MonitorAgentの_build_coverage/_determine_state単体テスト＋攻撃パターン
+  無しログの非LLM E2E）・11b（ReconAgentの_build_coverage/_determine_state単体テスト）・
   13b（LangGraphAuditAgentの_determine_state単体テスト＋同E2E。langgraph未導入
   環境ではSKIP）・16i（FuzzAgentの_build_coverage/_determine_stateの単体テスト）・
   16j（注入点0件の実run()でのRESULT/DONE確定、非LLM E2E）を追加。
-  （`tools/run_selftest.py` 121 PASS / 0 FAIL、実LLM系5件は既定どおりSKIP・2026-09-05）
+  （`tools/run_selftest.py` 124 PASS / 0 FAIL、実LLM系5件は既定どおりSKIP・2026-09-05）
 - [ ] P1.2 証拠保存・保存/表示/LLM送信前マスキング・共通レポート
 - [ ] P2.1 CLI非依存の最小ベンチマーク（正常例と未検査を含む）
 - [ ] P2.2 IDOR/SSTI/XSSの既存検出品質改善（P2.1の基準値取得後）

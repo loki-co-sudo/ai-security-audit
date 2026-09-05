@@ -12,6 +12,8 @@ from datetime import datetime
 from collections import deque
 from agents.base_agent import BaseAgent
 from tools.log_watcher import LogWatcher
+from tools.report_generator import _findings_and_counts
+from core.findings import CoverageItem, ScanState, CoverageStatus
 from core.settings import (
     ATTACK_PATTERNS, LOG_BATCH_SIZE, LOG_MAX_CONTEXT,
     LOG_WATCH_INTERVAL,
@@ -143,24 +145,29 @@ class MonitorAgent(BaseAgent):
                     last_ai_call = now
 
         except Exception as e:
+            watch_error = str(e)
             self._log(f"Monitor error: {e}")
+        else:
+            watch_error = None
 
         # 残バッファを最終分析
         if batch_buffer and not self.is_stopped():
             analyses.append(self._analyze_batch(batch_buffer, list(context_buffer)))
 
         # 調査レポートを保存
+        combined_analyses = "\n\n---\n\n".join(a for a in analyses if a)
         body = (
             f"## Log Source\n{log_path}\n\n"
             f"## Alert Summary\n"
             f"- CRITICAL: {total_alerts['CRITICAL']}  /  HIGH: {total_alerts['HIGH']}  /  "
             f"MEDIUM: {total_alerts['MEDIUM']}  /  LOW: {total_alerts['LOW']}\n\n"
             f"## AI Threat Analyses\n"
-            + ("\n\n---\n\n".join(a for a in analyses if a) or "(AI分析は実施されませんでした)")
+            + (combined_analyses or "(AI分析は実施されませんでした)")
         )
         self._save_investigation("DEFENSE MODE", log_path, body)
 
         total = sum(total_alerts.values())
+        parsed_findings, counts = _findings_and_counts("DEFENSE MODE", combined_analyses)
         self._record_telemetry("DEFENSE MODE", log_path, total_alerts, time.time() - t0)
         self._out("\n" + "═" * 56 + "\n", "sep")
         self._out(f"  MONITORING ENDED  |  {total} alerts generated\n",
@@ -168,7 +175,46 @@ class MonitorAgent(BaseAgent):
         self._out("═" * 56 + "\n", "sep")
         self._log(f"Monitor stopped. Total alerts: {total}")
         self._status(f"監視終了 — {total} alerts.")
-        self._done()
+
+        findings = self._findings_from_markers(parsed_findings, corroborated=False)
+        coverage = self._build_coverage(log_path, len(analyses))
+        state, errors = self._determine_state(watch_error=watch_error, analyses=analyses)
+        self._finalize(state=state, errors=errors, findings=findings, coverage=coverage,
+                       mode="DEFENSE", target=log_path)
+
+    # ── 構造化所見・実行状態(P1.1) ─────────────────────────
+    @staticmethod
+    def _build_coverage(log_path: str, batch_count: int) -> list[CoverageItem]:
+        """監視対象ログのCoverageItemを返す（P1.1）。
+
+        ATTACK_PATTERNSは常に全行へ適用される（設定で個別無効化する仕組みが無い）ため、
+        パターン別のtested/skippedは意味を持たない。ログソース単位の記録に留める。
+        """
+        return [CoverageItem(
+            target_ref=log_path, rule_id="LOG_MONITOR",
+            status=CoverageStatus.TESTED.value,
+            reason=f"{batch_count} batch(es) analyzed",
+        )]
+
+    def _determine_state(self, *, watch_error: str | None,
+                         analyses: list[str]) -> tuple[str, list[str]]:
+        """実行状態(completed/partial/failed/cancelled)を判定する（P1.1）。
+
+        completedは「監視対象について処理を完了した」意味であり、アラート0件は
+        脅威が無い保証ではない。ログ監視中の例外やAI分析の全空応答は、検査の実績に
+        応じてpartialとする（検出0件の成功とは区別する）。
+        """
+        errors: list[str] = []
+        if self.is_stopped():
+            return ScanState.CANCELLED.value, errors
+        if watch_error:
+            errors.append(f"ログ監視中にエラーが発生しました: {watch_error}")
+            return ScanState.PARTIAL.value, errors
+        non_empty = [a for a in analyses if a and a.strip()]
+        if analyses and not non_empty:
+            errors.append("AI脅威分析がすべて空応答でした（LLM呼び出し失敗の可能性）")
+            return ScanState.PARTIAL.value, errors
+        return ScanState.COMPLETED.value, errors
 
     def _pattern_match(self, line: str) -> list[str]:
         """ログ行に攻撃パターンが含まれるか検査。一致したパターン名を返す。"""

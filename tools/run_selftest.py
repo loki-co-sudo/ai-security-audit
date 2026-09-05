@@ -1028,6 +1028,64 @@ def test_audit_agent():
         _ng("AuditAgent", repr(e) + "\n" + traceback.format_exc())
 
 
+def test_monitor_agent_p11_wiring():
+    _section("10c. AGENT — MonitorAgent P1.1 Coverage/State変換ロジック・非LLM E2E")
+    import tempfile
+    from agents.monitor_agent import MonitorAgent
+    from core.findings import ScanState, CoverageStatus
+    try:
+        # 1) _build_coverage(): ログソース単位の記録
+        cov = MonitorAgent._build_coverage("/var/log/sample.log", batch_count=3)
+        assert len(cov) == 1
+        assert cov[0].status == CoverageStatus.TESTED.value
+        assert cov[0].rule_id == "LOG_MONITOR"
+        assert "3 batch" in cov[0].reason
+        _ok("_build_coverage(): ログソース単位の記録", "")
+
+        # 2) _determine_state(): STOP最優先・監視エラー/全空応答はpartial・通常completed
+        agent = MonitorAgent(EventBus(), None)
+        state, errors = agent._determine_state(watch_error=None, analyses=["---THREAT_START---...---THREAT_END---"])
+        assert state == ScanState.COMPLETED.value and errors == []
+        state, errors = agent._determine_state(watch_error=None, analyses=[])
+        assert state == ScanState.COMPLETED.value, "分析0件(アラート無し)もcompletedとすべき"
+        state, errors = agent._determine_state(watch_error="disk read error", analyses=[])
+        assert state == ScanState.PARTIAL.value and errors, "監視中の例外はpartialとすべき"
+        state, errors = agent._determine_state(watch_error=None, analyses=["", "   "])
+        assert state == ScanState.PARTIAL.value and errors, "AI分析が全て空応答ならpartialとすべき"
+        agent.stop()
+        state, errors = agent._determine_state(watch_error="disk read error", analyses=[])
+        assert state == ScanState.CANCELLED.value, "STOPは他の判定より優先されるべき"
+        _ok("_determine_state(): STOP最優先・監視エラー/全空応答はpartial・通常completed", "")
+
+        # 3) 非LLM E2E: 攻撃パターンに一致しないログ(single_pass)はLLM呼び出し無しで
+        #    RESULT(completed)→DONE(error=False)を確定する
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False) as tf:
+            tf.write("2026-09-05 12:00:00 INFO normal request GET /health 200\n")
+            tf.write("2026-09-05 12:00:01 INFO normal request GET /index.html 200\n")
+            tmp_log_path = tf.name
+        try:
+            bus = EventBus()
+            agent2 = MonitorAgent(bus, None)
+            agent2.start(log_path=tmp_log_path, watch_mode=False)
+            agent2._thread.join(timeout=10)
+            assert not agent2._thread.is_alive(), "スレッドが終了していない"
+            events = bus.drain(200)
+            kinds = [e.kind for e in events]
+            assert kinds.count(ev.RESULT) == 1 and kinds.count(ev.DONE) == 1, kinds
+            result = next(e.payload for e in events if e.kind == ev.RESULT)
+            assert result["state"] == ScanState.COMPLETED.value, result["state"]
+            assert result["findings"] == []
+            assert result["coverage"] and result["coverage"][0]["rule_id"] == "LOG_MONITOR"
+            assert result["target"] == tmp_log_path
+            done = next(e.payload for e in events if e.kind == ev.DONE)
+            assert done["error"] is False
+            _ok("MonitorAgent: 攻撃パターン無しログでRESULT(completed)→DONE(error=False)を確定", "")
+        finally:
+            os.remove(tmp_log_path)
+    except Exception as e:
+        _ng("monitor_agent_p11_wiring", repr(e) + "\n" + traceback.format_exc())
+
+
 def test_monitor_agent(log_path):
     _section("11. AGENT E2E — MonitorAgent (single-pass, 実LLM)")
     from agents.monitor_agent import MonitorAgent
@@ -2642,6 +2700,7 @@ def main():
     _skip_llm("9", "CORE — LLMClient (OpenRouter)", test_llm)
     test_audit_agent_p11_wiring()
     _skip_llm("10", "AGENT E2E — AuditAgent (実LLM)", test_audit_agent)
+    test_monitor_agent_p11_wiring()
     _skip_llm("11", "AGENT E2E — MonitorAgent (single-pass, 実LLM)", test_monitor_agent, log_path)
     test_recon_agent_p11_wiring()
     _skip_llm("12", "AGENT E2E — ReconAgent (scanme.nmap.org / 実LLM)", test_recon_agent)
