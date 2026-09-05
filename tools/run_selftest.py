@@ -1305,6 +1305,216 @@ def test_web_fuzzer_idor():
             srv.shutdown()
 
 
+def test_http_transport():
+    _section("16c. CORE — HttpTransport（同一origin検査・共有予算, P0.1）")
+    from core.http_transport import HttpTransport, normalize_origin, Origin, OriginRejected
+    try:
+        assert normalize_origin("http://example.com/x") == Origin("http", "example.com", 80)
+        assert normalize_origin("https://example.com/x") == Origin("https", "example.com", 443)
+        assert normalize_origin("http://example.com/x") != normalize_origin("https://example.com/x"), \
+            "http/httpsは別originであるべき"
+        assert normalize_origin("http://example.com:8080/x") == Origin("http", "example.com", 8080)
+        assert normalize_origin("http://[::1]:9000/x") == Origin("http", "::1", 9000)
+        assert normalize_origin("ftp://example.com/x") is None, "http/https以外は拒否すべき"
+        assert normalize_origin("http://user:pass@example.com/x") is None, "userinfo付きは拒否すべき"
+        assert normalize_origin("http://example.com:99999/x") is None, "範囲外portは拒否すべき"
+        _ok("normalize_origin()", "scheme別origin・IPv6・既定port・userinfo/不正port拒否")
+
+        t = HttpTransport(max_requests=3)
+        t.bind_origin("http://example.com/")
+        assert t.reserve() and t.reserve() and t.reserve()
+        assert not t.reserve(), "予算超過後もreserveが成功してしまう"
+        _ok("HttpTransport.reserve() 予算上限", f"req_count={t.req_count}")
+
+        t2 = HttpTransport(max_requests=5)
+        try:
+            t2._check_origin("http://example.com/")
+            _ng("HttpTransport origin未確定検査", "例外が出るべき")
+        except OriginRejected:
+            _ok("HttpTransport origin未確定検査", "base origin未確定のまま送信しようとして拒否")
+        t2.bind_origin("http://example.com/")
+        try:
+            t2._check_origin("http://evil.example.com/")
+            _ng("HttpTransport origin範囲外検査", "例外が出るべき")
+        except OriginRejected:
+            _ok("HttpTransport origin範囲外検査", "別ホストへの送信を拒否")
+    except Exception as e:
+        _ng("http_transport", repr(e) + "\n" + traceback.format_exc())
+
+
+def _start_receiver_server():
+    """別origin送信ゼロを検証するための受信記録サーバ。受け取ったpathをhitsに記録する。"""
+    import http.server
+    import socketserver
+    import threading
+
+    hits: list[str] = []
+
+    class _H(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def _rec(self):
+            hits.append(self.path)
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"received")
+
+        def do_GET(self):
+            self._rec()
+
+        def do_POST(self):
+            length = int(self.headers.get("Content-Length", 0) or 0)
+            if length:
+                self.rfile.read(length)
+            self._rec()
+
+    srv = socketserver.TCPServer(("127.0.0.1", 0), _H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, f"http://127.0.0.1:{srv.server_address[1]}", hits
+
+
+def _start_cross_origin_target(receiver_base: str):
+    """外部action/リンク/転送先を含むターゲットサーバ（P0.1受け入れ条件の検証用）。"""
+    import http.server
+    import socketserver
+    import threading
+    from urllib.parse import urlparse
+
+    class _H(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_GET(self):
+            u = urlparse(self.path)
+            if u.path == "/redir-ext":
+                self.send_response(302)
+                self.send_header("Location", receiver_base + "/redir-hit")
+                self.end_headers()
+                return
+            if u.path == "/page2":
+                body = "page2 ok"
+            elif u.path == "/login":
+                body = ('<form method="POST" action="/login">'
+                        '<input type="password" name="pw"></form>')
+            else:
+                body = (
+                    f'<a href="{receiver_base}/ext-link">external</a> '
+                    '<a href="/page2?id=1">same</a>'
+                    f'<form action="{receiver_base}/ext-form" method="POST">'
+                    '<input name="x" value="1"></form>'
+                    '<form action="/same-form" method="POST">'
+                    '<input name="y" value="1"></form>'
+                )
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(body.encode())
+
+        def do_POST(self):
+            length = int(self.headers.get("Content-Length", 0) or 0)
+            if length:
+                self.rfile.read(length)
+            if self.path == "/login":
+                self.send_response(302)
+                self.send_header("Set-Cookie", "session=abc")
+                self.send_header("Location", "/page2")
+                self.end_headers()
+                return
+            if self.path == "/login-ext":
+                self.send_response(302)
+                self.send_header("Set-Cookie", "session=abc")
+                self.send_header("Location", receiver_base + "/login-redirect-hit")
+                self.end_headers()
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(b"posted")
+
+    srv = socketserver.TCPServer(("127.0.0.1", 0), _H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, f"http://127.0.0.1:{srv.server_address[1]}/"
+
+
+def test_web_fuzzer_cross_origin():
+    _section("16d. TOOLS — WebFuzzer 別origin送信ゼロ・予算共有（P0.1受け入れ条件）")
+    from tools.web_fuzzer import WebFuzzer
+    srv_r = srv_t = None
+    try:
+        srv_r, recv_base, hits = _start_receiver_server()
+        srv_t, base = _start_cross_origin_target(recv_base)
+
+        # 1) Cookie/認証ヘッダー付きでも、クロール＋フォーム抽出＋ファジングで外部originが0件
+        fz = WebFuzzer(profile="aggressive", max_requests=100, log=lambda m: None,
+                       auth={"cookie": "sessionid=x", "header_name": "Authorization",
+                             "header_value": "Bearer secret"})
+        fz.authenticate()
+        crawl = fz.crawl(base)
+        points = crawl["injection_points"]
+        assert all(recv_base not in p["url"] for p in points), \
+            f"外部originのフォーム/リンクが注入点に混入: {points}"
+        fz.fuzz(points)
+        assert not hits, f"別originの受信サーバへ送信されてしまった: {hits}"
+        _ok("crawl+fuzz 別origin送信ゼロ", f"points={len(points)} hits={hits}")
+
+        # 2) 別originへの直接送信は送信口レベルで拒否される
+        rejected = fz.transport.request(fz.session, "GET", recv_base + "/direct")
+        assert rejected is None, "別originへの直接送信が通ってしまった"
+        assert not hits, f"直接送信テストで受信サーバへ到達してしまった: {hits}"
+        _ok("HttpTransport.request() 別origin直接拒否", "Noneを返し送信していない")
+
+        # 3) 別originへの転送(302)は追跡しない（scheme/port変更でも同様の仕組みで防止）
+        r = fz.transport.request(fz.session, "GET", base + "redir-ext", allow_redirects=True)
+        assert r is not None and r.status_code == 302, "別originへの転送応答が変化した"
+        assert not hits, f"転送先(別origin)へ到達してしまった: {hits}"
+        _ok("別origin転送(302)を追跡しない", f"status={r.status_code}")
+
+        # 4) ログインPOSTが別originへリダイレクトする場合は認証未確認として扱う（Cookie送信なし）
+        fz2 = WebFuzzer(profile="aggressive", max_requests=100, log=lambda m: None,
+                        target=base,
+                        auth={"login_url": base + "login", "post_url": base + "login-ext",
+                              "user_field": "u", "pass_field": "pw",
+                              "user_val": "a", "pass_val": "b"})
+        ok, msg = fz2.authenticate()
+        assert not ok, "別originへ転送するログインが成功扱いになった"
+        assert "origin" in msg, f"未対応の認証転送理由が出力されていない: {msg}"
+        assert not hits, f"ログイン転送で受信サーバへ到達してしまった: {hits}"
+        _ok("ログインPOSTの別origin転送を認証未確認として処理", msg[:50])
+
+        # 5) 予算共有: A/Bセッション＋ログイン＋大量試行が混在しても予算Nを超えない
+        fz3 = WebFuzzer(profile="aggressive", max_requests=5, log=lambda m: None,
+                        target=base,
+                        auth={"login_url": base + "login", "user_field": "u", "pass_field": "pw",
+                              "user_val": "a", "pass_val": "b"},
+                        auth_b={"cookie": "session=bob"})
+        fz3.authenticate()
+        fz3.authenticate_b()
+        for _ in range(10):
+            fz3._send_as(fz3.session, base + "page2")
+            fz3._send_as(fz3.session_b, base + "page2")
+        assert fz3.transport.req_count <= 5, f"予算超過: {fz3.transport.req_count}"
+        _ok("予算共有(A/B+ログイン)が上限を超えない", f"req_count={fz3.transport.req_count}")
+
+        # 6) 予算0では認証(ログインPOST)も送らない
+        fz4 = WebFuzzer(profile="aggressive", max_requests=0, log=lambda m: None,
+                        target=base,
+                        auth={"login_url": base + "login", "user_field": "u", "pass_field": "pw",
+                              "user_val": "a", "pass_val": "b"})
+        ok4, msg4 = fz4.authenticate()
+        assert not ok4, "予算0でもログインが成功扱いになった"
+        assert fz4.transport.req_count == 0, "予算0で送信が発生した"
+        _ok("予算0で認証も送信しない", msg4[:50])
+    except Exception as e:
+        _ng("web_fuzzer_cross_origin", repr(e) + "\n" + traceback.format_exc())
+    finally:
+        if srv_r:
+            srv_r.shutdown()
+        if srv_t:
+            srv_t.shutdown()
+
+
 def test_fuzz_agent():
     _section("17. AGENT E2E — FuzzAgent（ローカルモック / 実LLM）")
     from agents.fuzz_agent import FuzzAgent
@@ -1481,6 +1691,8 @@ def main():
     test_pdf_report()
     test_web_fuzzer()
     test_web_fuzzer_idor()
+    test_http_transport()
+    test_web_fuzzer_cross_origin()
     _skip_llm("17", "AGENT E2E — FuzzAgent（ローカルモック / 実LLM）", test_fuzz_agent)
     test_desktop_shortcut()
     test_model_picker()

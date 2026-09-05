@@ -425,7 +425,7 @@ BASE URL を OpenRouter（`https://openrouter.ai/api/v1`）にすると、Anthro
 
 [実践運用ロードマップ](docs/PRACTICAL_ROADMAP.md) に、未実装の計画を集約しています。
 順序は送信境界・予算 → 構造化結果・証拠 → ベンチマーク・検出品質 → CLI・所見台帳 → API/複数ファイル/実ログです。
-次の実装はP0.1（WEB FUZZのフォーム・認証を含む全送信経路の同一origin検査と共通予算）。
+次の実装はP0.2（レート・停止・認証状態・TLS設定）。P0.1（同一origin検査と共通予算）は実装済み。
 CLI等はまだ利用できません。自動スキャンCI・外部通知などの保留事項も同文書と [AGENTS.md](AGENTS.md) §4を参照してください。
 
 ---

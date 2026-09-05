@@ -19,7 +19,7 @@ import random
 import html as _html
 import concurrent.futures
 from typing import Callable
-from urllib.parse import urljoin, urlparse, urlencode, parse_qsl, urlsplit
+from urllib.parse import urljoin, urlencode, parse_qsl, urlsplit
 
 import requests
 from requests.packages.urllib3.exceptions import InsecureRequestWarning  # type: ignore
@@ -28,6 +28,7 @@ requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 from core.settings import (
     SCAN_PROFILES, DEFAULT_SCAN_PROFILE, STEALTH_USER_AGENTS,
 )
+from core.http_transport import HttpTransport, OriginRejected
 
 # ── 検出シグネチャ ─────────────────────────────────────────
 # SQLインジェクションを示唆するDBエラーメッセージ断片
@@ -78,6 +79,7 @@ class WebFuzzer:
         log: Callable[[str], None] | None = None,
         auth: dict | None = None,
         auth_b: dict | None = None,
+        target: str | None = None,
     ):
         prof = SCAN_PROFILES.get(profile, SCAN_PROFILES[DEFAULT_SCAN_PROFILE])
         self.threads      = prof["path_threads"]
@@ -88,8 +90,12 @@ class WebFuzzer:
         self.log          = log or (lambda m: None)
         self.auth         = auth or {}          # 認証設定（cookie/header/login）
         self.auth_b       = auth_b or {}        # 第2アカウント設定（IDOR比較用・任意）
-        self._req_count   = 0
         self._user_agents = list(STEALTH_USER_AGENTS)
+        # 全送信経路の唯一の送信口（同一origin検査・共有予算・手動リダイレクト制御）。
+        # A/Bセッションはこのインスタンスを共有する（P0.1: PRACTICAL_ROADMAP.md §4）。
+        self.transport = HttpTransport(max_requests=max_requests, timeout=timeout)
+        if target:
+            self.bind_target(target)
         self.session = requests.Session()
         self.session.verify = False
         # 第2セッション（IDOR比較用）。auth_b 未設定なら None のまま
@@ -98,6 +104,30 @@ class WebFuzzer:
         if self.auth_b:
             self.session_b = requests.Session()
             self.session_b.verify = False
+
+    @property
+    def _req_count(self) -> int:
+        """既存呼び出し元（GUI/セルフテスト）互換のための読み取り専用プロパティ。"""
+        return self.transport.req_count
+
+    def _transport_error_reason(self) -> str:
+        """直近の送信失敗理由を日本語メッセージへ変換する（origin範囲外/予算切れ/通信エラーを区別）。"""
+        reason = self.transport.last_error
+        return {
+            "origin_rejected": "送信不可: 基準origin範囲外",
+            "budget_exhausted": "送信不可: リクエスト予算切れ",
+            "network_error": "通信エラー",
+        }.get(reason, "送信不可: 原因不明")
+
+    def bind_target(self, base_url: str) -> None:
+        """基準originを確定する。認証（authenticate）より前に呼ぶこと。
+
+        crawl() 側でも同じ base_url で bind_origin を呼ぶため、こちらを呼ばずに
+        crawl() から先に呼ばれた場合はそちらで確定する（idempotent）。ここで先に
+        確定しておくのは、ログインフォーム送信を認証前にorigin確定させるため。
+        """
+        url = base_url if base_url.startswith("http") else "http://" + base_url
+        self.transport.bind_origin(url)
 
     # ── 認証 ───────────────────────────────────────────────
     def authenticate(self) -> tuple[bool, str]:
@@ -146,10 +176,17 @@ class WebFuzzer:
         return True, "認証適用: " + ", ".join(applied)
 
     def _form_login(self, session, a: dict, login_url: str) -> tuple[bool, str]:
-        try:
-            r = session.get(login_url, timeout=self.timeout, verify=False)
-        except requests.RequestException as e:
-            return False, f"ログインページ取得失敗: {e}"
+        # 基準originが未確定ならここで確定する（bind_target未使用の直接呼び出し互換）。
+        if self.transport.base_origin is None:
+            try:
+                self.transport.bind_origin(
+                    login_url if login_url.startswith("http") else "http://" + login_url
+                )
+            except OriginRejected as e:
+                return False, f"ログインURLのorigin確定に失敗: {e}"
+        r = self.transport.request(session, "GET", login_url, allow_redirects=True)
+        if r is None:
+            return False, f"ログインページ取得失敗（{self._transport_error_reason()}）"
 
         # ログインフォーム（password入力を含むform）の hidden 入力を収集（CSRF等）
         fields = self._login_form_fields(r.text)
@@ -161,12 +198,16 @@ class WebFuzzer:
             fields[pf] = a.get("pass_val", "")
 
         action = (a.get("post_url") or "").strip() or login_url
-        try:
-            rp = session.post(action, data=fields, timeout=self.timeout,
-                              allow_redirects=True, verify=False)
-        except requests.RequestException as e:
-            return False, f"ログインPOST失敗: {e}"
+        rp = self.transport.request(session, "POST", action, data=fields, allow_redirects=True)
+        if rp is None:
+            return False, f"ログインPOST失敗（{self._transport_error_reason()}）"
 
+        if rp.status_code in (301, 302, 303, 307, 308):
+            return False, (
+                f"ログインPOSTがリダイレクト(HTTP {rp.status_code})のまま完了しました。"
+                "別originへの転送、またはPOSTの301/302/307/308は初期版では自動追跡しない"
+                "ため（認証転送は同一origin限定）、認証未確認として継続します。"
+            )
         if self._login_ok(session, rp):
             return True, "ログイン成功"
         return False, ("ログイン失敗の可能性（認証フォームが残存／"
@@ -199,31 +240,25 @@ class WebFuzzer:
 
     # ── 内部ヘルパー ───────────────────────────────────────
     def _budget_left(self) -> bool:
-        return self._req_count < self.max_requests
+        return self.transport.budget_left()
 
     def _get(self, url, params=None, data=None, method="GET"):
-        """予算・ジッターを考慮してHTTPリクエストを送る。失敗時 None。"""
-        if not self._budget_left():
+        """origin検査・予算・ジッターを考慮してHTTPリクエストを送る。失敗時 None。"""
+        if not self.transport.budget_left():
             return None
         lo, hi = self.jitter
         if hi > 0:
             time.sleep(random.uniform(lo, hi))
-        self._req_count += 1
         headers = {"User-Agent": random.choice(self._user_agents)}
-        try:
-            if method == "POST":
-                return self.session.post(url, data=data, headers=headers,
-                                         timeout=self.timeout, allow_redirects=False)
-            return self.session.get(url, params=params, headers=headers,
-                                    timeout=self.timeout, allow_redirects=False)
-        except requests.RequestException:
-            return None
+        return self.transport.request(self.session, method, url,
+                                      params=params, data=data, headers=headers,
+                                      allow_redirects=False)
 
     # ── 1. クロール ────────────────────────────────────────
     def crawl(self, base_url: str) -> dict:
         """同一オリジンを浅くクロールし、注入点（クエリ／フォーム）を抽出する。"""
         base = base_url if base_url.startswith("http") else "http://" + base_url
-        host = urlparse(base).netloc
+        self.transport.bind_origin(base)  # 未確定なら基準originをここで確定（idempotent）
         seen: set[str] = set()
         queue = [base]
         injection_points: list[dict] = []
@@ -262,10 +297,12 @@ class WebFuzzer:
             # フォームを抽出（HTML必須のためtext/html限定のまま）
             injection_points += self._extract_forms(norm, body)
 
-            # 同一オリジンのリンクを辿る
+            # 同一オリジン（scheme+host+port一致）のリンクのみ辿る。
+            # ここでの除外は補助（クロール範囲を絞る最適化）であり、送信口
+            # （HttpTransport.request）の検査を省略する根拠にはしない。
             for href in re.findall(r'href=["\']([^"\']+)["\']', body, re.I):
                 nxt = urljoin(norm, href).split("#")[0]
-                if urlparse(nxt).netloc == host and nxt not in seen and nxt.startswith("http"):
+                if nxt not in seen and self.transport.is_same_origin(nxt):
                     if not re.search(r"\.(png|jpe?g|gif|svg|css|js|ico|woff2?|pdf|zip)$", nxt, re.I):
                         queue.append(nxt)
 
@@ -283,6 +320,10 @@ class WebFuzzer:
             action = _attr(attrs, "action") or page_url
             method = (_attr(attrs, "method") or "GET").upper()
             action_url = urljoin(page_url, action).split("#")[0]
+            # 別originへ送信するフォームは候補から除外する（補助的な最適化。
+            # 実際の安全境界は送信口 HttpTransport.request() 側の検査）。
+            if not self.transport.is_same_origin(action_url):
+                continue
             fields = {}
             for im in re.finditer(r"<(?:input|textarea|select)\b([^>]*)>", inner, re.I):
                 iattr = im.group(1)
@@ -404,19 +445,15 @@ class WebFuzzer:
         return findings
 
     def _send_as(self, session, url: str):
-        """指定セッションで予算・ジッターを考慮してGETリクエストを送る。失敗時 None。"""
-        if not self._budget_left():
+        """指定セッションでorigin検査・予算・ジッターを考慮してGETリクエストを送る。失敗時 None。"""
+        if not self.transport.budget_left():
             return None
         lo, hi = self.jitter
         if hi > 0:
             time.sleep(random.uniform(lo, hi))
-        self._req_count += 1
         headers = {"User-Agent": random.choice(self._user_agents)}
-        try:
-            return session.get(url, headers=headers, timeout=self.timeout,
-                               allow_redirects=False, verify=False)
-        except requests.RequestException:
-            return None
+        return self.transport.request(session, "GET", url, headers=headers,
+                                      allow_redirects=False)
 
     @staticmethod
     def _bodies_similar(a: str, b: str, threshold: float = 0.6) -> bool:

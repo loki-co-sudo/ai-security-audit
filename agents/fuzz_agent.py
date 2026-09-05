@@ -112,6 +112,7 @@ class FuzzAgent(BaseAgent):
         fuzzer = WebFuzzer(
             profile=profile, max_pages=max_pages,
             max_requests=max_requests, log=self._log, auth=auth, auth_b=auth_b,
+            target=base_url,  # 基準originを認証より前に確定する (P0.1)
         )
 
         # 認証を適用（Cookie / ヘッダー / ログインフォーム）

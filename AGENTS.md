@@ -55,6 +55,7 @@ AI-Security-tool/
 │   ├── llm_client.py            # LLMClient。update()でホットリロード可能。OpenRouterヘッダー自動付与。fetch_models()で価格・コンテキスト長・知能指数（Artificial Analysis）付きモデル一覧を取得。cost_tier()/sort_models()も提供
 │   ├── model_router.py          # ロール別モデルルーティング（STRONG/FAST）＆推論エフォート（lokicode移植）。summarize_telemetry()/suggest_efficient_model()でテレメトリ実績を助言表示（自動切り替えはしない）
 │   ├── scope_guard.py           # バグバウンティ対応: 対象範囲(Scope)の機械的判定 in_scope()（許可リスト一致のみ・v1はdeny-list非対応）
+│   ├── http_transport.py        # P0.1: WEB FUZZ全送信経路の唯一の送信口。normalize_origin()・HttpTransport（同一origin検査・共有予算・手動リダイレクト制御）
 │   └── orchestrator.py          # LangGraph StateGraph。深層解析ループ回数はエフォート連動（smart_truncate採用）
 ├── agents/
 │   ├── base_agent.py            # 抽象基底クラス。threading.Eventで停止管理、EventBusヘルパー群、_check_scope()（スコープガード）
@@ -66,7 +67,7 @@ AI-Security-tool/
 ├── tools/
 │   ├── network_scanner.py       # socket-basedポートスキャナ、SSL証明書取得
 │   ├── web_prober.py            # HTTP探査、技術スタック指紋、センシティブパス列挙
-│   ├── web_fuzzer.py            # Webスマートファザー（クロール・注入点検出・異常観測／検出のみ）。第2セッション(session_b)によるIDOR比較はGET限定
+│   ├── web_fuzzer.py            # Webスマートファザー（クロール・注入点検出・異常観測／検出のみ）。第2セッション(session_b)によるIDOR比較はGET限定。全送信はcore/http_transport.HttpTransport経由（P0.1）
 │   ├── subdomain_enum.py        # バグバウンティ対応: crt.shへの受動的サブドメイン列挙（単発GETのみ・サイレント失敗）
 │   ├── log_watcher.py           # tailf式ログ追跡ジェネレータ、サンプルログ生成
 │   ├── cve_client.py            # NVD API v2クライアント。永続キャッシュ＋並列照合・サイレント失敗
@@ -582,10 +583,16 @@ ATTACK MODE に、認可された偵察レスポンスからCTF形式のフラ�
 **実践運用対応（[docs/PRACTICAL_ROADMAP.md](docs/PRACTICAL_ROADMAP.md)・2026-09-05改訂）**
 
 実装順序・対象ファイル・データ契約・受け入れ条件は同ドキュメントを正とする。
-旧CLI先行案は置換済み。次の実装単位は **P0.1: WEB FUZZの全送信経路の同一origin検査と共通予算**。
-下記はすべて未実装。文書整備を機能実装完了として扱わない。
+旧CLI先行案は置換済み。次の実装単位は **P0.2: レート・停止・認証状態・TLS設定**。
+P0.1以降はすべて未実装。文書整備を機能実装完了として扱わない。
 
-- [ ] P0.1 送信境界・共通予算（ログイン/A/Bセッション/転送を含む。まずWEB FUZZのみ）
+- [x] P0.1 送信境界・共通予算（新規 `core/http_transport.py`。WEB FUZZの全送信経路
+  `_get()`/`_send_as()`/ログインGET・POSTを`HttpTransport.request()`に一元化。
+  送信直前の同一origin検査＋原子的な予算予約、301/302/303/307/308の手動リダイレクト
+  追跡（GETは追跡・POSTは303→GETのみ追跡、それ以外のPOSTリダイレクトは追跡せず
+  認証未確認として理由を返す）、別originへの転送・外部SSO/IdPは追跡しない。
+  セルフテスト16c/16dで別origin送信ゼロ・予算共有・0予算時の未送信を検証済み
+  （`tools/run_selftest.py` 72 PASS / 0 FAIL、実LLM系5件は既定どおりSKIP・2026-09-05）
 - [ ] P0.2 レート・STOP・認証状態・TLS設定
 - [ ] P1.1 構造化所見・実行状態・RESULT/DONEイベント配線
 - [ ] P1.2 証拠保存・保存/表示/LLM送信前マスキング・共通レポート
