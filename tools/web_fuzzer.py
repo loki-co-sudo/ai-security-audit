@@ -14,8 +14,8 @@ tools/web_fuzzer.py — Webスマートファジング（クロール＋注入�
 
 from __future__ import annotations
 import re
-import time
 import random
+import threading
 import html as _html
 import concurrent.futures
 from typing import Callable
@@ -80,6 +80,7 @@ class WebFuzzer:
         auth: dict | None = None,
         auth_b: dict | None = None,
         target: str | None = None,
+        stop_event: threading.Event | None = None,
     ):
         prof = SCAN_PROFILES.get(profile, SCAN_PROFILES[DEFAULT_SCAN_PROFILE])
         self.threads      = prof["path_threads"]
@@ -91,9 +92,11 @@ class WebFuzzer:
         self.auth         = auth or {}          # 認証設定（cookie/header/login）
         self.auth_b       = auth_b or {}        # 第2アカウント設定（IDOR比較用・任意）
         self._user_agents = list(STEALTH_USER_AGENTS)
-        # 全送信経路の唯一の送信口（同一origin検査・共有予算・手動リダイレクト制御）。
-        # A/Bセッションはこのインスタンスを共有する（P0.1: PRACTICAL_ROADMAP.md §4）。
-        self.transport = HttpTransport(max_requests=max_requests, timeout=timeout)
+        # 全送信経路の唯一の送信口（同一origin検査・共有予算・レート/429/STOP制御・
+        # 手動リダイレクト制御）。A/Bセッションはこのインスタンスを共有する
+        # （P0.1/P0.2: PRACTICAL_ROADMAP.md §4）。
+        self.transport = HttpTransport(max_requests=max_requests, timeout=timeout,
+                                       stop_event=stop_event)
         if target:
             self.bind_target(target)
         self.session = requests.Session()
@@ -116,7 +119,10 @@ class WebFuzzer:
         return {
             "origin_rejected": "送信不可: 基準origin範囲外",
             "budget_exhausted": "送信不可: リクエスト予算切れ",
+            "stopped": "送信不可: STOPにより中断",
             "network_error": "通信エラー",
+            "retry_after_exceeded": "429のRetry-Afterが待機上限を超えたため再送せず終了",
+            "rate_limited": "429が連続し再送上限に達した",
         }.get(reason, "送信不可: 原因不明")
 
     def bind_target(self, base_url: str) -> None:
@@ -242,13 +248,18 @@ class WebFuzzer:
     def _budget_left(self) -> bool:
         return self.transport.budget_left()
 
+    def _stopped(self) -> bool:
+        return self.transport.is_stopped()
+
     def _get(self, url, params=None, data=None, method="GET"):
         """origin検査・予算・ジッターを考慮してHTTPリクエストを送る。失敗時 None。"""
-        if not self.transport.budget_left():
+        if self.transport.is_stopped() or not self.transport.budget_left():
             return None
         lo, hi = self.jitter
         if hi > 0:
-            time.sleep(random.uniform(lo, hi))
+            # ジッター待機もSTOPで中断可能にする（transport.request()内の待機と同様）。
+            if not self.transport.interruptible_sleep(random.uniform(lo, hi)):
+                return None
         headers = {"User-Agent": random.choice(self._user_agents)}
         return self.transport.request(self.session, method, url,
                                       params=params, data=data, headers=headers,
@@ -264,7 +275,7 @@ class WebFuzzer:
         injection_points: list[dict] = []
         pages_fetched = 0
 
-        while queue and pages_fetched < self.max_pages and self._budget_left():
+        while queue and pages_fetched < self.max_pages and self._budget_left() and not self._stopped():
             url = queue.pop(0)
             norm = url.split("#")[0]
             if norm in seen:
@@ -356,7 +367,7 @@ class WebFuzzer:
         return findings
 
     def _fuzz_point(self, point: dict, probes: dict[str, list[str]]) -> list[dict]:
-        if not self._budget_left():
+        if not self._budget_left() or self._stopped():
             return []
         url, method, param = point["url"], point["method"], point["param"]
         base_fields = dict(point.get("fields", {}))
@@ -369,7 +380,7 @@ class WebFuzzer:
         out = []
         for category, payload_list in probes.items():
             for payload in payload_list:
-                if not self._budget_left():
+                if not self._budget_left() or self._stopped():
                     return out
                 # XSSマーカー埋め込み
                 send_payload = payload.replace("__FZ__", f"alert('{_XSS_MARKER}')")
@@ -446,11 +457,12 @@ class WebFuzzer:
 
     def _send_as(self, session, url: str):
         """指定セッションでorigin検査・予算・ジッターを考慮してGETリクエストを送る。失敗時 None。"""
-        if not self.transport.budget_left():
+        if self.transport.is_stopped() or not self.transport.budget_left():
             return None
         lo, hi = self.jitter
         if hi > 0:
-            time.sleep(random.uniform(lo, hi))
+            if not self.transport.interruptible_sleep(random.uniform(lo, hi)):
+                return None
         headers = {"User-Agent": random.choice(self._user_agents)}
         return self.transport.request(session, "GET", url, headers=headers,
                                       allow_redirects=False)

@@ -113,6 +113,7 @@ class FuzzAgent(BaseAgent):
             profile=profile, max_pages=max_pages,
             max_requests=max_requests, log=self._log, auth=auth, auth_b=auth_b,
             target=base_url,  # 基準originを認証より前に確定する (P0.1)
+            stop_event=self._stop_event,  # STOP後は新しい送信を開始しない (P0.2)
         )
 
         # 認証を適用（Cookie / ヘッダー / ログインフォーム）

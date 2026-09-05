@@ -55,7 +55,7 @@ AI-Security-tool/
 │   ├── llm_client.py            # LLMClient。update()でホットリロード可能。OpenRouterヘッダー自動付与。fetch_models()で価格・コンテキスト長・知能指数（Artificial Analysis）付きモデル一覧を取得。cost_tier()/sort_models()も提供
 │   ├── model_router.py          # ロール別モデルルーティング（STRONG/FAST）＆推論エフォート（lokicode移植）。summarize_telemetry()/suggest_efficient_model()でテレメトリ実績を助言表示（自動切り替えはしない）
 │   ├── scope_guard.py           # バグバウンティ対応: 対象範囲(Scope)の機械的判定 in_scope()（許可リスト一致のみ・v1はdeny-list非対応）
-│   ├── http_transport.py        # P0.1: WEB FUZZ全送信経路の唯一の送信口。normalize_origin()・HttpTransport（同一origin検査・共有予算・手動リダイレクト制御）
+│   ├── http_transport.py        # P0.1: WEB FUZZ全送信経路の唯一の送信口。normalize_origin()・HttpTransport（同一origin検査・共有予算・手動リダイレクト制御）。P0.2一部実装: RequestPolicy（レート/429リトライ/STOP中断/応答サイズ上限）。TLS・認証状態判定は未実装
 │   └── orchestrator.py          # LangGraph StateGraph。深層解析ループ回数はエフォート連動（smart_truncate採用）
 ├── agents/
 │   ├── base_agent.py            # 抽象基底クラス。threading.Eventで停止管理、EventBusヘルパー群、_check_scope()（スコープガード）

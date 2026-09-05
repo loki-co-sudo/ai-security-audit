@@ -1515,6 +1515,223 @@ def test_web_fuzzer_cross_origin():
             srv_t.shutdown()
 
 
+def _start_ratelimit_mock_server():
+    """429/Retry-After・応答サイズ上限を検証するためのモックサーバ（P0.2）。"""
+    import http.server
+    import socketserver
+    import threading
+    from datetime import datetime, timedelta, timezone
+    from email.utils import format_datetime
+
+    state = {"flaky_digit": 0, "flaky_date": 0, "flaky_bad": 0,
+             "always429_get": 0, "always429_post": 0, "long_retry": 0}
+
+    class _H(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def _send(self, code, body=b"", headers=None):
+            self.send_response(code)
+            for k, v in (headers or {}).items():
+                self.send_header(k, v)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            if body:
+                self.wfile.write(body)
+
+        def do_GET(self):
+            if self.path == "/flaky-digit":
+                state["flaky_digit"] += 1
+                if state["flaky_digit"] <= 2:
+                    self._send(429, b"", {"Retry-After": "1"})
+                else:
+                    self._send(200, b"ok")
+                return
+            if self.path == "/flaky-date":
+                state["flaky_date"] += 1
+                if state["flaky_date"] <= 1:
+                    when = format_datetime(datetime.now(timezone.utc) + timedelta(seconds=1))
+                    self._send(429, b"", {"Retry-After": when})
+                else:
+                    self._send(200, b"ok")
+                return
+            if self.path == "/flaky-bad":
+                state["flaky_bad"] += 1
+                if state["flaky_bad"] <= 1:
+                    self._send(429, b"", {"Retry-After": "not-a-number"})
+                else:
+                    self._send(200, b"ok")
+                return
+            if self.path == "/always429":
+                state["always429_get"] += 1
+                self._send(429, b"", {"Retry-After": "1"})
+                return
+            if self.path == "/long-retry":
+                state["long_retry"] += 1
+                self._send(429, b"", {"Retry-After": "3600"})
+                return
+            if self.path == "/big":
+                self._send(200, b"X" * 500)
+                return
+            self._send(200, b"ok")
+
+        def do_POST(self):
+            length = int(self.headers.get("Content-Length", 0) or 0)
+            if length:
+                self.rfile.read(length)
+            if self.path == "/always429":
+                state["always429_post"] += 1
+                self._send(429, b"", {"Retry-After": "1"})
+                return
+            self._send(200, b"ok")
+
+    srv = socketserver.TCPServer(("127.0.0.1", 0), _H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, f"http://127.0.0.1:{srv.server_address[1]}/", state
+
+
+def test_http_transport_rate_limits():
+    _section("16e. CORE — HttpTransport レート制御・429リトライ・STOP・応答サイズ上限(P0.2)")
+    import threading
+    import requests as _requests
+    from core.http_transport import HttpTransport, RequestPolicy
+    srv = None
+    try:
+        class _Clock:
+            def __init__(self):
+                self.t = 0.0
+
+            def now(self):
+                return self.t
+
+            def sleep(self, s):
+                self.t += s
+
+        # 1) レート制御（仮想時計・実待機なし）
+        c = _Clock()
+        t = HttpTransport(policy=RequestPolicy(max_requests=100, rate_per_sec=2),
+                          clock=c.now, sleeper=c.sleep)
+        t.bind_origin("http://example.com/")
+        times = []
+        for _ in range(4):
+            t._throttle()
+            times.append(c.t)
+        gaps = [times[i + 1] - times[i] for i in range(len(times) - 1)]
+        assert all(g >= 0.5 - 1e-9 for g in gaps), f"レート上限(2req/s)を守っていない: {gaps}"
+        _ok("HttpTransport._throttle() レート上限(仮想時計)", f"gaps={[round(g, 2) for g in gaps]}")
+
+        srv, base, state = _start_ratelimit_mock_server()
+        session = _requests.Session()
+
+        def _new_transport(max_requests=50, **policy_kwargs):
+            c2 = _Clock()
+            tr = HttpTransport(policy=RequestPolicy(max_requests=max_requests, **policy_kwargs),
+                               clock=c2.now, sleeper=c2.sleep)
+            tr.bind_origin(base)
+            return tr
+
+        # 2) 429 Retry-After(秒表記)でGETが自動リトライの上で成功する
+        tr = _new_transport()
+        r = tr.request(session, "GET", base + "flaky-digit")
+        assert r is not None and r.status_code == 200, f"秒表記Retry-Afterの再送に失敗: {r}"
+        assert state["flaky_digit"] == 3, f"リトライ回数が想定と異なる: {state['flaky_digit']}"
+        _ok("429 Retry-After(秒)でGET自動リトライ", f"attempts={state['flaky_digit']}")
+
+        # 3) Retry-After(HTTP-date表記)でも同様にリトライできる
+        r2 = _new_transport().request(session, "GET", base + "flaky-date")
+        assert r2 is not None and r2.status_code == 200, f"HTTP-date表記Retry-Afterの再送に失敗: {r2}"
+        _ok("429 Retry-After(HTTP-date)でGET自動リトライ", f"attempts={state['flaky_date']}")
+
+        # 4) Retry-Afterが不正値でも上限付きバックオフでリトライを継続する
+        r3 = _new_transport().request(session, "GET", base + "flaky-bad")
+        assert r3 is not None and r3.status_code == 200, f"不正値Retry-Afterでの再送に失敗: {r3}"
+        _ok("Retry-After不正値でも上限付きバックオフで継続", f"attempts={state['flaky_bad']}")
+
+        # 5) 429が続く場合は max_consecutive_429 で打ち切り、429応答をそのまま返す
+        tr4 = _new_transport(max_consecutive_429=2)
+        before = state["always429_get"]
+        r4 = tr4.request(session, "GET", base + "always429")
+        assert r4 is not None and r4.status_code == 429, "429連続時に打ち切られていない"
+        assert state["always429_get"] - before == 3, (
+            f"連続429の試行回数が想定と異なる(初回+リトライ2回=3回のはず): "
+            f"{state['always429_get'] - before}"
+        )
+        assert tr4.last_error == "rate_limited", f"打ち切り理由が記録されていない: {tr4.last_error}"
+        _ok("429連続時にmax_consecutive_429で打ち切り", f"attempts={state['always429_get'] - before}")
+
+        # 5b) Retry-Afterが待機上限(max_backoff_seconds)を超える場合は再送せず終了する
+        #     (仮想時計でも実時間でも、cap超過分は絶対に待たない・再送しないことを保証する)
+        tr4b = _new_transport(max_backoff_seconds=30)
+        before_lr = state["long_retry"]
+        r4b = tr4b.request(session, "GET", base + "long-retry")
+        assert r4b is not None and r4b.status_code == 429, "長大Retry-After応答が変化した"
+        assert state["long_retry"] - before_lr == 1, \
+            f"Retry-After超過にもかかわらず再送してしまった: {state['long_retry'] - before_lr}"
+        assert tr4b.last_error == "retry_after_exceeded", \
+            f"待機上限超過の理由が記録されていない: {tr4b.last_error}"
+        _ok("Retry-After(3600s)が上限超過で再送せず終了", "last_error=retry_after_exceeded")
+
+        # 6) POSTの429は自動リトライしない
+        tr5 = _new_transport()
+        before_p = state["always429_post"]
+        r5 = tr5.request(session, "POST", base + "always429", data={"x": "1"})
+        assert r5 is not None and r5.status_code == 429
+        assert state["always429_post"] - before_p == 1, "POSTの429を再送してしまった"
+        _ok("POSTの429は自動リトライしない", "1回のみ送信")
+
+        # 7) 429待機中でもSTOPで中断できる（待機を模した仮想sleeperがSTOPを立てる）
+        stop_ev = threading.Event()
+        c3 = _Clock()
+
+        def _sleeper_triggers_stop(s):
+            c3.t += s
+            stop_ev.set()
+
+        tr6 = HttpTransport(policy=RequestPolicy(max_requests=50), stop_event=stop_ev,
+                            clock=c3.now, sleeper=_sleeper_triggers_stop)
+        tr6.bind_origin(base)
+        before_s = state["always429_get"]
+        r6 = tr6.request(session, "GET", base + "always429")
+        assert r6 is not None and r6.status_code == 429, "STOP後の応答が想定と異なる"
+        assert tr6.last_error == "stopped", f"STOPによる中断が記録されていない: {tr6.last_error}"
+        assert state["always429_get"] - before_s == 1, \
+            f"STOP後に再送してしまった: {state['always429_get'] - before_s}"
+        _ok("429待機中のSTOPで再送を中断", "last_error=stopped")
+
+        # 8) STOP後は新しい送信を一切開始しない
+        assert tr6.request(session, "GET", base + "ok") is None, \
+            "STOP後にもかかわらず新規送信できてしまった"
+        _ok("STOP後は新しい送信を開始しない", "")
+
+        # 9) 応答サイズ上限（500byteの応答を100byteで打ち切り）
+        tr7 = _new_transport(max_response_bytes=100)
+        r7 = tr7.request(session, "GET", base + "big")
+        assert r7 is not None and len(r7.content) == 100, \
+            f"応答サイズ上限が効いていない: {len(r7.content) if r7 else None}"
+        assert r7.fz_truncated is True, "打ち切りマーカー(fz_truncated)が付与されていない"
+        _ok("応答サイズ上限で読取を打ち切り", f"len={len(r7.content)}")
+
+        # 10) WebFuzzer側: STOPが事前にセットされていればジッター待機・送信を一切行わない
+        #     （time.sleep()を直接呼ぶ停止不能な待機になっていないことを実時間で確認）
+        from tools.web_fuzzer import WebFuzzer
+        pre_stop = threading.Event()
+        pre_stop.set()
+        fzw = WebFuzzer(profile="stealth", max_requests=50, log=lambda m: None,
+                        stop_event=pre_stop)
+        t0 = time.time()
+        crawl = fzw.crawl(base)
+        elapsed = time.time() - t0
+        assert fzw.transport.req_count == 0, f"STOP済みなのに送信してしまった: {fzw.transport.req_count}"
+        assert crawl["pages"] == 0
+        assert elapsed < 0.5, f"STOP済みのcrawl()が即座に終了していない: {elapsed:.2f}s"
+        _ok("WebFuzzer: 事前STOPでジッター待機・送信を行わない", f"elapsed={elapsed:.3f}s")
+    except Exception as e:
+        _ng("http_transport_rate_limits", repr(e) + "\n" + traceback.format_exc())
+    finally:
+        if srv:
+            srv.shutdown()
+
+
 def test_fuzz_agent():
     _section("17. AGENT E2E — FuzzAgent（ローカルモック / 実LLM）")
     from agents.fuzz_agent import FuzzAgent
@@ -1693,6 +1910,7 @@ def main():
     test_web_fuzzer_idor()
     test_http_transport()
     test_web_fuzzer_cross_origin()
+    test_http_transport_rate_limits()
     _skip_llm("17", "AGENT E2E — FuzzAgent（ローカルモック / 実LLM）", test_fuzz_agent)
     test_desktop_shortcut()
     test_model_picker()
