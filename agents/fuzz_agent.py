@@ -97,6 +97,7 @@ class FuzzAgent(BaseAgent):
         tls_verify: bool | None = None,
         tls_ca_bundle: str | None = None,
     ) -> None:
+        self._current_mode, self._current_target = "WEB FUZZ", target
         self.bus.clear()
         if not self._check_scope(target):
             return

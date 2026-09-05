@@ -57,6 +57,7 @@ def _extract_ip(line: str) -> str:
 class MonitorAgent(BaseAgent):
 
     def run(self, log_path: str, watch_mode: bool = True) -> None:
+        self._current_mode, self._current_target = "DEFENSE", log_path
         self.bus.clear()
         t0 = time.time()
         self._status(f"監視開始: {log_path}")

@@ -475,6 +475,132 @@ def test_telemetry_ledger():
         _ng("telemetry ledger advisory", repr(e))
 
 
+def test_base_agent_lifecycle():
+    _section("2g. CORE — BaseAgent RESULT/DONE最終化ライフサイクル(P1.1)")
+    from agents.base_agent import BaseAgent
+    from core.findings import ScanState
+
+    class _NormalAgent(BaseAgent):
+        def run(self, **kwargs):
+            self._current_mode, self._current_target = "TEST", "t1"
+            self._done()
+
+    class _StopEarlyAgent(BaseAgent):
+        def run(self, **kwargs):
+            self._current_mode, self._current_target = "TEST", "t2"
+            for _ in range(50):  # 最大5秒、STOPを待つ
+                if self.is_stopped():
+                    return  # 旧バグ再現: _done()を呼ばずに早期return
+                time.sleep(0.1)
+            self._done()  # フォールバック（通常この行には来ない想定）
+
+    class _ExplodingAgent(BaseAgent):
+        def run(self, **kwargs):
+            raise RuntimeError("boom-test")
+
+    class _DoubleDoneAgent(BaseAgent):
+        def run(self, **kwargs):
+            self._done()
+            self._done(error=True)  # 2回目は無視されるべき
+
+    try:
+        # 1) 正常完了: RESULT→DONE(error=False)が1回ずつ、この順序で送出される
+        bus = EventBus()
+        agent = _NormalAgent(bus, None)
+        agent.start()
+        agent._thread.join(timeout=5)
+        events = bus.drain(100)
+        kinds = [e.kind for e in events]
+        assert kinds.count(ev.RESULT) == 1 and kinds.count(ev.DONE) == 1, kinds
+        assert kinds.index(ev.RESULT) < kinds.index(ev.DONE), "RESULTはDONEより先に送出されるべき"
+        result_payload = next(e.payload for e in events if e.kind == ev.RESULT)
+        assert result_payload["state"] == ScanState.COMPLETED.value
+        assert result_payload["mode"] == "TEST" and result_payload["target"] == "t1"
+        done_payload = next(e.payload for e in events if e.kind == ev.DONE)
+        assert done_payload["error"] is False
+        _ok("正常完了: RESULT→DONE(completed)を1回ずつ・順序も正しい", "")
+
+        # 2) STOPによる早期return(_done()未呼び出し)でもcancelledとして最終化される
+        #    （旧バグ: 以前はDONEが一切送出されずGUIのボタンが再有効化されないままだった）
+        bus2 = EventBus()
+        agent2 = _StopEarlyAgent(bus2, None)
+        agent2.start()
+        agent2.stop()
+        agent2._thread.join(timeout=5)
+        assert not agent2._thread.is_alive(), "STOP後もスレッドが終了していない"
+        events2 = bus2.drain(100)
+        kinds2 = [e.kind for e in events2]
+        assert kinds2.count(ev.DONE) == 1, f"STOP後もDONEが1回送出されるべき: {kinds2}"
+        result2 = next(e.payload for e in events2 if e.kind == ev.RESULT)
+        assert result2["state"] == ScanState.CANCELLED.value, result2["state"]
+        done2 = next(e.payload for e in events2 if e.kind == ev.DONE)
+        assert done2["error"] is True, "cancelledは成功扱いにしない"
+        _ok("STOP早期return(_done()未呼出)でもcancelledとして最終化", "旧バグ回帰防止")
+
+        # 3) 例外発生時もfailedとして最終化される（1回だけ・エラー内容を記録）
+        bus3 = EventBus()
+        agent3 = _ExplodingAgent(bus3, None)
+        agent3.start()
+        agent3._thread.join(timeout=5)
+        events3 = bus3.drain(100)
+        kinds3 = [e.kind for e in events3]
+        assert kinds3.count(ev.RESULT) == 1 and kinds3.count(ev.DONE) == 1
+        result3 = next(e.payload for e in events3 if e.kind == ev.RESULT)
+        assert result3["state"] == ScanState.FAILED.value
+        assert "boom-test" in result3["errors"][0]
+        _ok("例外発生時はfailedとして最終化・エラー内容を記録", "")
+
+        # 4) 二重に_done()を呼んでもRESULT/DONEは1回だけ（最初の状態が確定）
+        bus4 = EventBus()
+        agent4 = _DoubleDoneAgent(bus4, None)
+        agent4.start()
+        agent4._thread.join(timeout=5)
+        events4 = bus4.drain(100)
+        kinds4 = [e.kind for e in events4]
+        assert kinds4.count(ev.RESULT) == 1 and kinds4.count(ev.DONE) == 1, kinds4
+        result4 = next(e.payload for e in events4 if e.kind == ev.RESULT)
+        assert result4["state"] == ScanState.COMPLETED.value, "最初の_done()の状態(completed)が確定するべき"
+        _ok("二重に_done()を呼んでもRESULT/DONEは1回だけ(最初の状態が確定)", "")
+    except Exception as e:
+        _ng("base_agent_lifecycle", repr(e) + "\n" + traceback.format_exc())
+
+
+def test_findings_contract():
+    _section("2h. CORE — findings データ契約 ScanResult/Finding/CoverageItem(P1.1)")
+    from core.findings import (
+        ScanState, VerificationState, CoverageStatus, Finding, CoverageItem,
+        new_scan_result, new_id,
+    )
+    try:
+        sr = new_scan_result(mode="WEB FUZZ", target="http://example.com/")
+        assert sr.scan_id.startswith("scan_") and sr.schema_version == "1"
+        assert sr.state == ScanState.FAILED.value, "既定stateはfailed(未確定)であるべき"
+
+        f = Finding(
+            finding_id=new_id("finding"), rule_id="XSS", location="http://x/?q=1",
+            severity="HIGH", verification_state=VerificationState.OBSERVED.value,
+        )
+        c = CoverageItem(target_ref="http://x/?q=1", status=CoverageStatus.TESTED.value,
+                         rule_id="XSS", parameter="q")
+        sr.findings.append(f)
+        sr.coverage.append(c)
+        d = sr.to_dict()
+        assert d["findings"][0]["rule_id"] == "XSS"
+        assert d["coverage"][0]["status"] == "tested"
+        assert isinstance(d["findings"][0]["evidence_ids"], list)
+        # JSON化できること（EventBus.result()経由でGUI/将来のCLIに渡る前提）
+        json.dumps(d, ensure_ascii=False)
+        _ok("ScanResult/Finding/CoverageItemのdict化・JSON化", f"scan_id={sr.scan_id}")
+
+        # verification_stateはseverityと独立した軸（同じseverityで別のverification_stateを許容）
+        f2 = Finding(finding_id=new_id("finding"), rule_id="XSS", location="l",
+                     severity="HIGH", verification_state=VerificationState.MANUALLY_CONFIRMED.value)
+        assert f2.verification_state != f.verification_state
+        _ok("verification_stateはseverityと独立に設定可能", "")
+    except Exception as e:
+        _ng("findings_contract", repr(e) + "\n" + traceback.format_exc())
+
+
 def test_subdomain_enum():
     _section("3b. TOOLS — SubdomainEnum（受動的資産発見・Phase B）")
     from tools import subdomain_enum
@@ -2164,6 +2290,8 @@ def main():
     test_telemetry()
     test_scope_guard()
     test_telemetry_ledger()
+    test_base_agent_lifecycle()
+    test_findings_contract()
     test_subdomain_enum()
     test_network_scanner()
     test_web_prober()

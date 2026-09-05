@@ -340,6 +340,7 @@ class ReconAgent(BaseAgent):
             scan_udp: bool = False, ctf_mode: bool = False,
             ctf_active: bool = False, ctf_active_targets: list[str] | None = None,
             ctf_active_max_tier: int = 2) -> None:
+        self._current_mode, self._current_target = "ATTACK", target
         self.bus.clear()
         if not self._check_scope(target):
             return

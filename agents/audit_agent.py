@@ -221,6 +221,7 @@ Think deeply. Find the semantic gap between *intent* and *implementation*."""
 class AuditAgent(BaseAgent):
 
     def run(self, path: str) -> None:
+        self._current_mode, self._current_target = "AUDIT", path
         self.bus.clear()
         t0 = time.time()
 

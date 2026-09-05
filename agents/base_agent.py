@@ -15,6 +15,7 @@ import core.config as config
 from core.llm_client import LLMClient
 from core.model_router import build_fast_client, fast_signature, current_effort
 from core.scope_guard import in_scope
+from core.findings import ScanState, Finding, CoverageItem, ScanResult, new_scan_result
 
 _SEVERITIES = ("CRITICAL", "HIGH", "MEDIUM", "LOW")
 
@@ -139,11 +140,17 @@ class BaseAgent(ABC):
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
         self._effort_override: str | None = None
+        self._result_finalized = False
+        self._last_scan_result = None
+        self._current_mode = ""
+        self._current_target = ""
 
     # ── ライフサイクル ─────────────────────────────────────
     def start(self, **kwargs) -> None:
         """バックグラウンドスレッドで run() を起動する。"""
         self._stop_event.clear()
+        self._result_finalized = False
+        self._last_scan_result = None
         self._thread = threading.Thread(
             target=self._safe_run,
             kwargs=kwargs,
@@ -163,11 +170,53 @@ class BaseAgent(ABC):
             self.run(**kwargs)
         except Exception as e:
             self._log(f"[AGENT ERROR] {e}")
-            self.bus.done(error=True)
+            self._finalize(state=ScanState.FAILED.value, errors=[str(e)])
+            return
+        if not self._result_finalized:
+            # run()が_finalize()（_done()経由含む）を呼ばずに終了した経路。
+            # 主にSTOPによる早期return（既存コードの多数の`if self.is_stopped(): return`が
+            # bus.done()を呼んでいなかったため、GUIのボタンが再有効化されないまま
+            # 残るバグがあった。ここで一度だけ確実に最終化する（P1.1）。
+            state = ScanState.CANCELLED.value if self.is_stopped() else ScanState.COMPLETED.value
+            self._finalize(state=state)
 
     @abstractmethod
     def run(self, **kwargs) -> None:
         """サブクラスが実装するメイン処理。バックグラウンドスレッドで実行される。"""
+
+    def _finalize(self, *, state: str, errors: list[str] | None = None,
+                  findings: list[Finding] | None = None,
+                  coverage: list[CoverageItem] | None = None,
+                  mode: str = "", target: str = "",
+                  engagement_id: str = "default") -> ScanResult:
+        """最終ScanResultを確定しRESULT→DONEの順で一度だけ送出する（P1.1）。
+
+        例外・STOP・早期return・正常終了のすべての経路が最終的にここへ集約される
+        （_safe_run参照）。2回目以降の呼び出しは無視し、最初の確定結果を返す
+        （DONEを一度だけ送る契約を、個々のエージェントが意識せず満たせるようにする）。
+        findings/coverageを渡さない（未移行の）エージェントは空リストのまま確定する
+        ——これは「検出0件」ではなくデータ未提供を意味する。呼び出し側
+        （report_generator等）は移行済みかどうかをschema_versionやfindings空リスト
+        単独で判定しないこと。
+        """
+        if self._result_finalized:
+            return self._last_scan_result
+        self._result_finalized = True
+        sr = new_scan_result(
+            mode=mode or self._current_mode,
+            target=target or self._current_target,
+            engagement_id=engagement_id,
+        )
+        sr.state = state
+        sr.errors = list(errors or [])
+        sr.findings = list(findings or [])
+        sr.coverage = list(coverage or [])
+        sr.model = getattr(self.llm, "model", "") or ""
+        self._last_scan_result = sr
+        self.bus.result(sr.to_dict())
+        # completed以外（partial/failed/cancelled）は成功扱いにしない。
+        self.bus.done(error=(state != ScanState.COMPLETED.value))
+        return sr
 
     # ── Event Bus ヘルパー ─────────────────────────────────
     def _log(self, msg: str) -> None:
@@ -191,12 +240,17 @@ class BaseAgent(ABC):
         self.bus.stats(counts)
 
     def _done(self, error: bool = False) -> None:
-        self.bus.done(error)
+        """従来の完了通知ヘルパー。内部で_finalize()によるRESULT確定を伴う（P1.1）。
+
+        findings/coverageを渡さない移行前のエージェントでも、DONEを一度だけ・
+        RESULT確定後に送る契約は自動的に満たされる（2回目以降の呼び出しは無視される）。
+        """
+        self._finalize(state=ScanState.FAILED.value if error else ScanState.COMPLETED.value)
 
     # ── スコープガード（バグバウンティ対応・BOUNTY_ROADMAP.md Phase A） ──
     def _check_scope(self, target: str) -> bool:
         """範囲外なら scope_mode に応じて警告 or ブロックする。呼び出し元は
-        False が返ったら即 return すること（block時は _done(error=True) 済み）。
+        False が返ったら即 return すること（block時は_finalize()によるRESULT/DONE確定済み）。
 
         allowed_targets が空（既定）なら常に True（後方互換・全対象許可）。
         """
@@ -209,7 +263,7 @@ class BaseAgent(ABC):
             self._out(f"\n[ SCOPE BLOCK ] {msg}（scope_mode=block のため実行を中止しました）\n",
                       "critical")
             self._log(f"Scope block: {msg}")
-            self._done(error=True)
+            self._finalize(state=ScanState.FAILED.value, errors=[msg], target=target)
             return False
         self._out(f"\n[ SCOPE WARNING ] {msg}（scope_mode=warn のため続行します）\n", "high")
         self._log(f"Scope warning: {msg}")

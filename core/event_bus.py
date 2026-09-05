@@ -16,7 +16,8 @@ STEP   = "step"     # ステップ進捗更新 {idx, state}
 ALERT  = "alert"    # 防御アラート {severity, message, time}
 STATS  = "stats"    # 検出統計更新 {CRITICAL:n, HIGH:n, ...}
 STATUS = "status"   # ステータスバーテキスト更新
-DONE   = "done"     # 処理完了 {error: bool}
+RESULT = "result"   # 最終ScanResult確定（core.findings.ScanResult.to_dict()。P1.1）
+DONE   = "done"     # 処理完了 {error: bool}（RESULT確定後、一度だけ送出）
 CLEAR  = "clear"    # 出力エリアをクリア
 
 
@@ -53,6 +54,9 @@ class EventBus:
 
     def status(self, msg: str) -> None:
         self.emit(STATUS, msg)
+
+    def result(self, scan_result: dict) -> None:
+        self.emit(RESULT, scan_result)
 
     def done(self, error: bool = False) -> None:
         self.emit(DONE, {"error": error})

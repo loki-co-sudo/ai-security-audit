@@ -20,6 +20,7 @@ class LangGraphAuditAgent(BaseAgent):
     """LangGraph StateGraph を使った自律型コード監査エージェント。"""
 
     def run(self, path: str) -> None:
+        self._current_mode, self._current_target = "AUDIT", path
         self.bus.clear()
         self._status(f"[LangGraph] {os.path.basename(path)} を解析中 ...")
 

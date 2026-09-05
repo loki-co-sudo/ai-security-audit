@@ -583,8 +583,9 @@ ATTACK MODE に、認可された偵察レスポンスからCTF形式のフラ�
 **実践運用対応（[docs/PRACTICAL_ROADMAP.md](docs/PRACTICAL_ROADMAP.md)・2026-09-05改訂）**
 
 実装順序・対象ファイル・データ契約・受け入れ条件は同ドキュメントを正とする。
-旧CLI先行案は置換済み。次の実装単位は **P1.1: 構造化所見・実行状態・EventBus配線**。
-P1.1以降はすべて未実装。文書整備を機能実装完了として扱わない。
+旧CLI先行案は置換済み。次の実装単位は **P1.1の続き: 各エージェントのFinding/CoverageItem
+配線**（データ契約・RESULT/DONEライフサイクルの基盤部分は実装済み・下記参照）。
+P1.2以降はすべて未実装。文書整備を機能実装完了として扱わない。
 
 - [x] P0.1 送信境界・共通予算（新規 `core/http_transport.py`。WEB FUZZの全送信経路
   `_get()`/`_send_as()`/ログインGET・POSTを`HttpTransport.request()`に一元化。
@@ -621,7 +622,29 @@ P1.1以降はすべて未実装。文書整備を機能実装完了として扱�
   セルフテスト16e〜16hで仮想時計によるレート/429試験・待機中STOP・認証状態全パターン・
   TLS検証成否（実ハンドシェイク）・応答サイズ上限を検証済み。
   （`tools/run_selftest.py` 99 PASS / 0 FAIL、実LLM系5件は既定どおりSKIP・2026-09-05）
-- [ ] P1.1 構造化所見・実行状態・RESULT/DONEイベント配線
+- [ ] P1.1 構造化所見・実行状態・RESULT/DONEイベント配線（**基盤部分のみ実装済み・継続中**）。
+  新規`core/findings.py`（`ScanResult`/`Finding`/`CoverageItem`/`ScanState`/
+  `VerificationState`/`CoverageStatus`をdataclass/Enumで定義）。`core/event_bus.py`に
+  `RESULT`イベント追加。`agents/base_agent.py`の`_finalize()`が最終`ScanResult`を確定し
+  `RESULT`→`DONE`の順で**一度だけ**送出する（2回目以降の呼び出しは無視）。
+  `_done()`/`_safe_run()`/`_check_scope()`をこれ経由にしたことで、**既存の実バグを
+  副次的に修正**した: 従来は多数の`if self.is_stopped(): return`がbus.done()を呼ばずに
+  抜けており、STOP後にGUIのボタンが再有効化されないまま残っていた
+  （`_safe_run()`が`run()`の全終了経路——正常完了・例外・STOP早期return——を
+  `cancelled`/`failed`/`completed`として確実に最終化するよう変更）。
+  全5エージェント（audit/recon/monitor/fuzz/langgraph-audit）の`run()`冒頭で
+  `self._current_mode`/`self._current_target`を設定し、フォールバック確定時の
+  `ScanResult`にも正しいmode/targetが載るようにした。
+  **未実装（次の継続作業）**: 各エージェントが実際に検出した所見・検査対象を
+  `Finding`/`CoverageItem`へ変換して`_finalize()`に渡す配線（現状はどのエージェントも
+  空リストのまま確定しており、これは「検出0件」ではなくデータ未提供の意味——
+  `_finalize()`のdocstring参照）。`verification_state`の実際の割り当て、
+  対象HTML/コード/ログを信頼しない入力として区切る処理、全4モード+LangGraphでの
+  受け入れ条件（LLM空応答/例外/不正マーカー/STOP/scope拒否/注入点なし/予算切れの
+  結果とイベント順）の網羅的な検証は未着手。
+  セルフテスト2g（ライフサイクル: 正常/STOP/例外/二重呼び出しの4パターン）・
+  2h（データ契約のdict化/JSON化）を追加。
+  （`tools/run_selftest.py` 105 PASS / 0 FAIL、実LLM系5件は既定どおりSKIP・2026-09-05）
 - [ ] P1.2 証拠保存・保存/表示/LLM送信前マスキング・共通レポート
 - [ ] P2.1 CLI非依存の最小ベンチマーク（正常例と未検査を含む）
 - [ ] P2.2 IDOR/SSTI/XSSの既存検出品質改善（P2.1の基準値取得後）
