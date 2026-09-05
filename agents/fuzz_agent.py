@@ -17,7 +17,11 @@ import re
 import time
 from agents.base_agent import BaseAgent
 from tools.web_fuzzer import WebFuzzer, DEFAULT_PROBES
+from tools.report_generator import _findings_and_counts
 from core.settings import SCAN_PROFILES, DEFAULT_SCAN_PROFILE
+from core.findings import (
+    Finding, CoverageItem, ScanState, VerificationState, CoverageStatus, new_id,
+)
 
 def idor_skip_reason(fuzzer: WebFuzzer) -> str | None:
     """認証必須のIDORチェックをskipすべき理由を返す（skip不要ならNone、P0.2）。
@@ -210,6 +214,8 @@ class FuzzAgent(BaseAgent):
         # ── Step 4: 認可チェック（第2アカウント設定時のみ・GET限定） ──
         self._step(4, "running")
         idor_findings: list[dict] = []
+        idor_ran = False
+        idor_skip_reason_val: str | None = None
         if auth_b:
             self._out("\n" + "─" * 56 + "\n", "sep")
             self._out("  PHASE — ACCESS CONTROL CHECK (2nd session, GET-only)\n", "section")
@@ -218,9 +224,11 @@ class FuzzAgent(BaseAgent):
             if skip_reason:
                 # 認証必須検査は失敗を検知した場合skipし理由を残す(P0.2)。未認証セッション
                 # 同士の比較は「アクセス制御が機能している」との誤判定を招くため実行しない。
+                idor_skip_reason_val = skip_reason
                 self._out(f"\n  (スキップ: {skip_reason})\n", "high")
                 self._log(f"idor: skip ({skip_reason})")
             else:
+                idor_ran = True
                 self._status("認可チェック中（別セッション比較）...")
                 idor_findings = fuzzer._detect_idor(points)
                 if idor_findings:
@@ -259,9 +267,91 @@ class FuzzAgent(BaseAgent):
         self._save_investigation("WEB FUZZ", base_url, body)
 
         # ── Step 6: 完了 ───────────────────────────────────
-        counts = {s: len(re.findall(rf"SEVERITY:\s*{s}\b", full, re.I))
-                  for s in ("CRITICAL", "HIGH", "MEDIUM", "LOW")}
-        self._finish(sum(counts.values()), counts, target=base_url, t0=t0)
+        parsed, counts = _findings_and_counts("WEB FUZZ", full)
+        findings = self._to_findings(parsed, corroborated=bool(effort.get("verify_pass")))
+        coverage = self._build_coverage(points, auth, auth_b, idor_ran, idor_skip_reason_val)
+        state, errors = self._determine_state(
+            fuzzer, triage_ran=True, triage_text=full,
+            had_signals=bool(anomalies or idor_findings),
+        )
+        self._finish(sum(counts.values()), counts, target=base_url, t0=t0,
+                    findings=findings, coverage=coverage, state=state, errors=errors)
+
+    # ── 構造化所見・実行状態(P1.1) ─────────────────────────
+    @staticmethod
+    def _to_findings(parsed: list[dict], corroborated: bool) -> list[Finding]:
+        """AIトリアージのマーカー出力(report_generator._findings_and_counts)から
+        Findingを構築する。verification_stateは、品質エフォートの検証パスを通過した
+        所見のみ"corroborated"とし、アンサンブル少数意見(ENSEMBLE_MINORITY)や
+        検証パス無しの場合は"observed"のままとする（LLMの同意だけで昇格させない）。
+        """
+        out = []
+        for f in parsed:
+            is_minority = f.get("confidence") == "ENSEMBLE_MINORITY"
+            vstate = (VerificationState.CORROBORATED.value if (corroborated and not is_minority)
+                      else VerificationState.OBSERVED.value)
+            out.append(Finding(
+                finding_id=new_id("finding"),
+                rule_id=f.get("ref") or "UNSPECIFIED",
+                location=f.get("lines") or "",
+                severity=(f.get("severity") or "LOW").upper(),
+                verification_state=vstate,
+                description=f.get("name") or "",
+                remediation=f.get("fix") or "",
+                verifier_support={"ensemble_minority": True} if is_minority else {},
+            ))
+        return out
+
+    @staticmethod
+    def _build_coverage(points: list[dict], auth: dict | None, auth_b: dict | None,
+                        idor_ran: bool, idor_skip_reason_val: str | None) -> list[CoverageItem]:
+        """検査対象(endpoint/parameter)・IDORチェックの実施状況をCoverageItemへ変換する。
+
+        現状の粒度: 注入点ごとに「検査した」ことは記録するが、カテゴリ(SQLI/XSS等)別・
+        個々のプローブ別のtested/skipped/failedまでは追跡していない（今後の課題。
+        予算切れで一部プローブしか送れなかった場合も、その注入点は"tested"のまま
+        記録される — 全プローブ完遂の保証ではない点はScanResult.errorsで別途示す）。
+        """
+        auth_ctx = "authenticated" if auth else "anonymous"
+        coverage = [
+            CoverageItem(target_ref=p["url"], parameter=p["param"], rule_id="WEB_FUZZ_PROBE",
+                        status=CoverageStatus.TESTED.value, auth_context=auth_ctx)
+            for p in points
+        ]
+        if auth_b:
+            if idor_ran:
+                coverage.append(CoverageItem(
+                    target_ref="(access-control-check)", rule_id="IDOR",
+                    status=CoverageStatus.TESTED.value, auth_context="session_b",
+                ))
+            else:
+                coverage.append(CoverageItem(
+                    target_ref="(access-control-check)", rule_id="IDOR",
+                    status=CoverageStatus.SKIPPED.value, auth_context="session_b",
+                    reason=idor_skip_reason_val or "",
+                ))
+        return coverage
+
+    def _determine_state(self, fuzzer: WebFuzzer, *, triage_ran: bool, triage_text: str,
+                         had_signals: bool) -> tuple[str, list[str]]:
+        """実行状態(completed/partial/failed/cancelled)を判定する（P1.1）。
+
+        completedは「指定した検査範囲について完了した」意味であり、対象に脆弱性が
+        無い保証ではない。予算切れやAIトリアージの空応答は、検査の実績に応じて
+        partialとする（検出0件の成功とは区別する）。
+        """
+        errors: list[str] = []
+        if self.is_stopped():
+            return ScanState.CANCELLED.value, errors
+        budget_exhausted = fuzzer.transport.req_count >= fuzzer.max_requests
+        if budget_exhausted:
+            errors.append("リクエスト予算切れのため一部の検査が未実施の可能性があります")
+        if triage_ran and had_signals and not triage_text.strip():
+            errors.append("AIトリアージが空応答でした（LLM呼び出し失敗の可能性）")
+            return ScanState.PARTIAL.value, errors
+        if budget_exhausted:
+            return ScanState.PARTIAL.value, errors
+        return ScanState.COMPLETED.value, errors
 
     # ── AI プローブ生成 ────────────────────────────────────
     def _gen_probes(self, points: list[dict]) -> dict[str, list[str]]:
@@ -323,7 +413,11 @@ class FuzzAgent(BaseAgent):
 
     # ── 完了処理 ───────────────────────────────────────────
     def _finish(self, total: int, counts: dict | None = None,
-                target: str = "", t0: float | None = None) -> None:
+                target: str = "", t0: float | None = None,
+                findings: list[Finding] | None = None,
+                coverage: list[CoverageItem] | None = None,
+                state: str = ScanState.COMPLETED.value,
+                errors: list[str] | None = None) -> None:
         self._step(6, "running")
         if counts:
             self._stats(counts)
@@ -334,4 +428,5 @@ class FuzzAgent(BaseAgent):
         self._out("═" * 56 + "\n", "sep")
         self._step(6, "done")
         self._status(f"ファジング完了 — {total} findings")
-        self._done()
+        self._finalize(state=state, errors=errors, findings=findings, coverage=coverage,
+                       mode="WEB FUZZ", target=target)

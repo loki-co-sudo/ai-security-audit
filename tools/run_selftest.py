@@ -404,11 +404,21 @@ def test_scope_guard():
         config._cfg["scope_mode"] = "block"
         assert agent._check_scope("evil.example.com") is False, \
             "block モードで範囲外なら False を返すべき"
+        # P1.1: block時もRESULT(failed)→DONE(error=True)が一度ずつ確定されること
+        from core.findings import ScanState
+        blocked_events = agent.bus.drain(50)
+        blocked_kinds = [e.kind for e in blocked_events]
+        assert blocked_kinds.count(ev.RESULT) == 1 and blocked_kinds.count(ev.DONE) == 1, blocked_kinds
+        blocked_result = next(e.payload for e in blocked_events if e.kind == ev.RESULT)
+        assert blocked_result["state"] == ScanState.FAILED.value
+        assert blocked_result["target"] == "evil.example.com"
+        blocked_done = next(e.payload for e in blocked_events if e.kind == ev.DONE)
+        assert blocked_done["error"] is True
         assert agent._check_scope("good.example.com") is True
         config._cfg["scope_mode"] = "warn"
         assert agent._check_scope("evil.example.com") is True, \
             "warn モードでは範囲外でも続行（True）を返すべき"
-        _ok("BaseAgent._check_scope", "後方互換（未設定=常に許可）/ block / warn")
+        _ok("BaseAgent._check_scope", "後方互換（未設定=常に許可）/ block(RESULT/DONE確定込み) / warn")
     except Exception as e:
         _ng("BaseAgent._check_scope", repr(e))
     finally:
@@ -2133,6 +2143,134 @@ def test_http_transport_tls_handshake():
         _shutil.rmtree(tmpdir, ignore_errors=True)
 
 
+def test_fuzz_agent_p11_wiring():
+    _section("16i. AGENT — FuzzAgent P1.1 Finding/Coverage/State変換ロジック")
+    from agents.fuzz_agent import FuzzAgent
+    from core.findings import ScanState, VerificationState, CoverageStatus
+    try:
+        # 1) _to_findings(): corroborated/observed/ENSEMBLE_MINORITYの判定
+        parsed = [
+            {"name": "XSS in q", "severity": "high", "ref": "CWE-79", "lines": "http://x/?q=1",
+             "fix": "escape output", "confidence": ""},
+            {"name": "SQLi in id", "severity": "CRITICAL", "ref": "CWE-89", "lines": "http://x/?id=1",
+             "fix": "use parameterized queries", "confidence": "ENSEMBLE_MINORITY"},
+        ]
+        findings = FuzzAgent._to_findings(parsed, corroborated=True)
+        assert len(findings) == 2
+        assert findings[0].severity == "HIGH" and findings[0].rule_id == "CWE-79"
+        assert findings[0].verification_state == VerificationState.CORROBORATED.value, \
+            "corroborated=True・非minorityはcorroboratedになるべき"
+        assert findings[1].verification_state == VerificationState.OBSERVED.value, \
+            "ENSEMBLE_MINORITYはcorroboratedへ昇格させないべき"
+        assert findings[1].verifier_support.get("ensemble_minority") is True
+        findings_no_verify = FuzzAgent._to_findings(parsed, corroborated=False)
+        assert all(f.verification_state == VerificationState.OBSERVED.value for f in findings_no_verify), \
+            "検証パス無し(corroborated=False)は全てobservedのべき"
+        _ok("_to_findings(): corroborated/observed/minorityの判定", "")
+
+        # 2) _build_coverage(): 注入点+IDOR実施/skipの記録
+        points = [{"url": "http://x/a", "param": "q", "method": "GET", "where": "query", "fields": {}}]
+        cov_no_b = FuzzAgent._build_coverage(points, auth=None, auth_b=None,
+                                             idor_ran=False, idor_skip_reason_val=None)
+        assert len(cov_no_b) == 1 and cov_no_b[0].status == CoverageStatus.TESTED.value
+        assert cov_no_b[0].auth_context == "anonymous"
+        cov_ran = FuzzAgent._build_coverage(points, auth={"cookie": "x"}, auth_b={"cookie": "y"},
+                                            idor_ran=True, idor_skip_reason_val=None)
+        assert len(cov_ran) == 2
+        idor_item = next(c for c in cov_ran if c.rule_id == "IDOR")
+        assert idor_item.status == CoverageStatus.TESTED.value
+        assert cov_ran[0].auth_context == "authenticated"
+        cov_skipped = FuzzAgent._build_coverage(points, auth=None, auth_b={"cookie": "y"},
+                                                idor_ran=False, idor_skip_reason_val="第1セッションexpired")
+        idor_skip_item = next(c for c in cov_skipped if c.rule_id == "IDOR")
+        assert idor_skip_item.status == CoverageStatus.SKIPPED.value
+        assert idor_skip_item.reason == "第1セッションexpired"
+        _ok("_build_coverage(): 注入点+IDOR実施/skip状態の記録", "")
+
+        # 3) _determine_state(): STOP最優先・予算切れ/空トリアージ→partial・通常はcompleted
+        class _FakeTransport:
+            def __init__(self, req_count, max_requests):
+                self.req_count = req_count
+                self.max_requests = max_requests
+
+        class _FakeFuzzer:
+            def __init__(self, req_count, max_requests):
+                self.transport = _FakeTransport(req_count, max_requests)
+                self.max_requests = max_requests
+
+        agent = FuzzAgent(EventBus(), None)
+        state, errors = agent._determine_state(_FakeFuzzer(10, 100), triage_ran=True,
+                                                triage_text="---VULN_START---...---VULN_END---",
+                                                had_signals=True)
+        assert state == ScanState.COMPLETED.value and errors == []
+        _ok("_determine_state(): 通常完了はcompleted・errors空", "")
+
+        state, errors = agent._determine_state(_FakeFuzzer(100, 100), triage_ran=True,
+                                                triage_text="---VULN_START---...---VULN_END---",
+                                                had_signals=True)
+        assert state == ScanState.PARTIAL.value and errors, "予算切れはpartialとし理由を残すべき"
+        _ok("_determine_state(): 予算切れはpartial", errors[0][:30])
+
+        state, errors = agent._determine_state(_FakeFuzzer(10, 100), triage_ran=True,
+                                                triage_text="   ", had_signals=True)
+        assert state == ScanState.PARTIAL.value and errors, \
+            "兆候ありなのにAIトリアージが空応答ならpartialとすべき"
+        _ok("_determine_state(): AIトリアージ空応答(兆候あり)はpartial", errors[0][:30])
+
+        agent.stop()
+        state, errors = agent._determine_state(_FakeFuzzer(10, 100), triage_ran=True,
+                                                triage_text="", had_signals=False)
+        assert state == ScanState.CANCELLED.value, "STOPは他の判定より優先されるべき"
+        _ok("_determine_state(): STOPが最優先でcancelled", "")
+    except Exception as e:
+        _ng("fuzz_agent_p11_wiring", repr(e) + "\n" + traceback.format_exc())
+
+
+def test_fuzz_agent_no_points_lifecycle():
+    _section("16j. AGENT E2E(非LLM) — FuzzAgent 注入点0件のRESULT/DONE確定(P1.1)")
+    from agents.fuzz_agent import FuzzAgent
+    from core.findings import ScanState
+    import http.server
+    import socketserver
+    import threading as _threading
+
+    class _H(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(b"<html><body>no params, no forms here</body></html>")
+
+    srv = socketserver.TCPServer(("127.0.0.1", 0), _H)
+    _threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{srv.server_address[1]}/"
+    try:
+        bus = EventBus()
+        # 注入点0件のため、Step2以降のLLM呼び出しに到達する前にrun()が完了する経路
+        # （llm=Noneでも安全に検証できる）。
+        agent = FuzzAgent(bus, None)
+        agent.start(target=base, profile="aggressive", max_requests=20)
+        agent._thread.join(timeout=15)
+        assert not agent._thread.is_alive(), "スレッドが終了していない"
+        events = bus.drain(200)
+        kinds = [e.kind for e in events]
+        assert kinds.count(ev.RESULT) == 1 and kinds.count(ev.DONE) == 1, kinds
+        result = next(e.payload for e in events if e.kind == ev.RESULT)
+        assert result["state"] == ScanState.COMPLETED.value, result["state"]
+        assert result["findings"] == [] and result["coverage"] == []
+        assert result["mode"] == "WEB FUZZ" and result["target"] == base
+        done = next(e.payload for e in events if e.kind == ev.DONE)
+        assert done["error"] is False
+        _ok("FuzzAgent: 注入点0件でもRESULT(completed)→DONE(error=False)を確定", "")
+    except Exception as e:
+        _ng("fuzz_agent_no_points_lifecycle", repr(e) + "\n" + traceback.format_exc())
+    finally:
+        srv.shutdown()
+
+
 def test_fuzz_agent():
     _section("17. AGENT E2E — FuzzAgent（ローカルモック / 実LLM）")
     from agents.fuzz_agent import FuzzAgent
@@ -2317,6 +2455,8 @@ def main():
     test_web_fuzzer_auth_state()
     test_web_fuzzer_tls()
     test_http_transport_tls_handshake()
+    test_fuzz_agent_p11_wiring()
+    test_fuzz_agent_no_points_lifecycle()
     _skip_llm("17", "AGENT E2E — FuzzAgent（ローカルモック / 実LLM）", test_fuzz_agent)
     test_desktop_shortcut()
     test_model_picker()
