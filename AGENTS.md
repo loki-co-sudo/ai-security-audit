@@ -12,6 +12,22 @@
 - `WEB FUZZ` — Webアプリのクロール→注入点抽出→AI検出プローブ→検出のみファジング→AIトリアージ（兆候観測のみ・非エクスプロイト）
 - `DEFENSE MODE` — アクセスログのリアルタイム監視・MITRE ATT&CK分類・即時アラート生成
 
+### 最初に読むもの
+
+| 目的 | ドキュメント |
+|---|---|
+| マルチモデル（STRONG/FAST）ルーティング＆推論エフォートの設計・**継続実装ガイド** | [docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md) |
+| システム設計書 | [docs/DESIGN.md](docs/DESIGN.md) |
+| 学習ガイド（脆弱性・攻防・技術スタック） | [docs/ENGINEER_GUIDE.md](docs/ENGINEER_GUIDE.md) |
+| バグバウンティ対応の設計・実装計画 | [docs/BOUNTY_ROADMAP.md](docs/BOUNTY_ROADMAP.md) |
+| WEB FUZZ をバグバウンティで使う際の具体的な運用フロー | [docs/BOUNTY_WEBFUZZ_WORKFLOW.md](docs/BOUNTY_WEBFUZZ_WORKFLOW.md) |
+| 次の実装順序・対象ファイル・データ契約・受け入れ条件の正本（P0〜P4） | [docs/PRACTICAL_ROADMAP.md](docs/PRACTICAL_ROADMAP.md) |
+
+実践運用対応の実装依頼では、`docs/PRACTICAL_ROADMAP.md` §3の未完了IDを選んで該当節を読む。
+現在の引き継ぎ状況・次にやるべき具体的な手順は本書 §4「未実装（ロードマップ）」を必ず読むこと。
+新規機能と既存境界の不備修正を区別し、未検査を修正済みと判定しないこと。
+文書のみの整理ではリンク・差分・未実装表記を検証し、下記コーディング用セルフテストは不要。
+
 ---
 
 ## 2. 技術スタックとアーキテクチャ
@@ -78,6 +94,7 @@ AI-Security-tool/
 │   ├── pdf_writer.py            # 日本語対応PDFレンダラー（Pillowのみ・依存追加なし）
 │   ├── create_shortcut.py       # デスクトップショートカット生成（Windows・OneDrive対応／Linux・.desktop対応）
 │   ├── known_vulns.yaml         # 既知サービスバナー脆弱性DB（ローカル照合用・LLMコストゼロ）
+│   ├── test_structured_reports.py # 確定所見・証拠リンク・GUI出力配線の固定回帰テスト
 │   ├── run_selftest.py          # 全機能セルフテスト（GUI以外をEventBus経由でE2E検証）
 │   └── capture_screenshots.py   # README用スクリーンショット自動撮影
 ├── gui/
@@ -261,6 +278,59 @@ fix: fix ALERT event not firing in DEFENSE MODE
   [docs/CTF_ACTIVE_FLAG_RETRIEVAL.md](docs/CTF_ACTIVE_FLAG_RETRIEVAL.md) §6）。
   「変数に保存した」で満足せず、それを人間が実際に読む出力（レポート・ログ・UI）まで
   たどり着くか、実装の最後に配線元から配線先まで指でなぞって確認すること。
+
+### 記事化について（意図的に対象外）
+
+他の個人プロジェクトと違い、**このリポジトリは完成トリガーでの記事化提案の対象外**にして
+いる（2026-08-12確定）。理由: 自律型AIペンテストは競合（XBOW・PentestGPT等）が強い分野な
+上、攻撃系ツールを実名アカウントで積極的に宣伝すること自体が信用・雇用面のリスクになる
+と判断したため。ユーザーが明示的に「この件を記事にして」と言わない限り、AIエージェント
+側から記事化を提案しない。
+
+### 開発ループ（すべてのコーディングタスクに適用）
+
+コーディングは1回きりの「直線」ではなく、チェックが通るまで回す「ループ」で行う:
+
+1. 【変更】コードを修正・追加する。
+2. 【検証】`PYTHONUTF8=1 py tools/run_selftest.py` を実行する
+   （Linux/macOS では `.venv/bin/python3 tools/run_selftest.py`。UTF-8がデフォルトのため
+   `PYTHONUTF8=1` は不要。依存は本リポジトリ専用の `.venv` にのみ入っており、Kaliの
+   externally-managed-environment制約もあって素の `python3`/グローバルpipでは動かない）。
+   - **`SELFTEST_NON_LLM_ONLY=1`** を付けると、実LLM/実ネットワーク（9・10・11・12・17。
+     `LLMClient`/`AuditAgent`/`MonitorAgent`/`ReconAgent`/`FuzzAgent`）をSKIPし、
+     残り（1〜8・2b〜2d・13〜16）だけを実行する（CI＝`.github/workflows/selftest.yml`
+     もこれを使う）。ただし3（`example.com` へのDNS解決）・4（HTTPプローブ）・
+     8（NVD APIへのCVE照合）は非LLMだが外部ネットワークに到達するため、オフライン環境
+     ではこの3件は失敗しうる（その場合も完了報告に明記する。黙って省略しない）。
+   - `SELFTEST_NON_LLM_ONLY` を付けない通常実行では9以降も走るが、
+     `config.json` で疎通可能なLLMエンドポイント（ローカルOllama起動中 or クラウドAPIキー
+     設定済み）が要る。**未設定時の失敗モードは一様ではない**: LLMClientの疎通テストは
+     明確に`FAIL`するが、MonitorAgent/ReconAgent/FuzzAgent はローカルの正規表現パターン
+     検出や「完走したか」のみを検証するため、LLM呼び出しが失敗・空応答でも**PASSしうる**
+     （`_complete_llm`/`_stream_llm` が例外を握りつぶしログに記録する設計のため）。
+     したがって9以降のPASS数は「LLMが正しく機能した証拠」にはならない。
+     疎通確認は `.venv/bin/python3 -c "import core.config as c; c.load(); print(c.get('llm_base_url'))"`
+     の値に実際に何か listen しているかで判断する。未疎通の場合は
+     `SELFTEST_NON_LLM_ONLY=1` での全通過を最低ラインとし、完了報告に
+     「9以降はLLMエンドポイント未疎通のため未検証（PASSしたものも含め信頼しない）」
+     と明記する。
+   - 依存パッケージは本リポジトリ専用の `.venv` に閉じてインストールする
+     （`python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`）。
+     このPCでは他のセキュリティツールを並行開発中のため、グローバル環境・他プロジェクトの
+     ファイル/ポート/プロセスに影響を与えない。
+3. 【修正】失敗したらエラーログを読み、原因を特定して直し、手順2へ戻る。
+
+停止条件:
+- 【成功】上記の最低ラインを満たしたときだけ「完了」と報告する。**通過した出力（末尾）を証拠として添える**。
+- 【上限】ループは最大 **5 回**。使い切ったら止めて、何が残っているかを報告する。
+- 【手詰まり】**同じエラーが2回連続**したら思考の固着と判断して止め、別コンテキスト
+  （新しいセッション/会話）での修復を提案する。
+
+絶対禁止:
+- チェック出力（通過の証拠）なしで「完了」と報告すること。
+- テストを通すためにアサーションを削除・弱体化・スキップすること。直すのはコードであり、評価基準ではない。
+- 上記のセキュリティ境界（検出のみ・PoC送信なし・非DoS・同一オリジン限定・ローカル保存）を、
+  チェックを通すために緩めること。
 
 ---
 
@@ -454,7 +524,7 @@ fix: fix ALERT event not firing in DEFENSE MODE
   DesktopShortcut」でファイルI/Oなしにテストする
 - [x] `起動.sh` — system python3/python決め打ちだったのを `.venv/bin/python3` 優先に修正
   （見つからなければ従来通り system python3/python にフォールバック）。理由: 本プロジェクトの
-  GUI依存（customtkinter等）は `.venv` にのみインストールされる方針（CLAUDE.md）のため、
+  GUI依存（customtkinter等）は `.venv` にのみインストールされる方針（本書§3「開発ループ」）のため、
   system python3 では `ModuleNotFoundError` になり起動できないバグがあった
 
 ### 実装済み（モデルピッカー — 検索・コスト階級・プロバイダ・知能指数）
@@ -588,24 +658,12 @@ ATTACK MODE に、認可された偵察レスポンスからCTF形式のフラ�
 実装順序・対象ファイル・データ契約・受け入れ条件は同ドキュメントを正とする。
 旧CLI先行案は置換済み。次の実装単位は **P1.2の続き**（P1.1のデータ契約・
 全4モード+LangGraphのFinding/CoverageItem配線、P1.2の証拠マスキング・保存基盤・
-WEB FUZZへの証拠配線は実装済み・下記参照）。P1.2の残りタスクは2つ、優先順で:
+WEB FUZZへの証拠配線は実装済み・下記参照）。P1.2は継続中。
 
-1. **AUDIT/ATTACK/DEFENSEへの証拠保存配線**（`agents/fuzz_agent.py`の
-   `_known_secrets()`/`EvidenceStore`呼び出し/`_TRIAGE_SYS`のEVIDENCE_IDS指示/
-   `_findings_from_markers(..., known_evidence_ids=...)`の呼び方をそのまま踏襲できる。
-   低リスク・パターン確立済み）。AUDITは相対path+行範囲+コード抜粋、DEFENSEは
-   時刻+入力元+マスク済みログ抜粋が証拠の中身になる（`core/evidence_store.py`に
-   `HttpEvidence`と並ぶ新しいdataclassを追加する設計判断が必要）。ATTACKは
-   受け入れ条件で明示されていないため保留可（§9相当の判断でスキップしてよい）。
-2. **HTML/MD/PDFレポートへの証拠リンク表示**（設計判断を要する・上より重い）。
-   現状のGUIエクスポート（`gui/export_util.py`→`tools/report_generator.py`）は
-   ストリーミング表示テキスト（`out_box.get_text()`）を毎回再パースする経路のままで、
-   RESULTイベントで確定した`ScanResult`/`Finding.evidence_ids`を一切参照していない。
-   繋ぐには (a) `report_generator.generate()`系が`Finding`のリストを直接受け取れる
-   ようにする、(b) GUIパネルがRESULTイベントのpayloadを保持し、それをレポート生成へ
-   渡す、のどちらか（または両方）の設計が必要。着手前に一度読み直すこと:
-   下記の`- [ ] P1.2 ...`項目（詳細）と、GUI各panelの`dispatch()`
-   （`ev.RESULT`が現状どこにもハンドルされていないことを確認できる）。
+2026-09-06: 全4パネルがRESULTを保持し、HTML/MD/PDFへ確定ScanResultを渡す経路を追加。
+次の実装はAUDIT/DEFENSEの証拠保存と入力マスキング。ATTACKは別途対象範囲を確認する。
+WEB FUZZにも表示・LLM入力全体のマスキング、IDOR証拠、保存省略理由、未知IDの
+validation error記録が残る。JSON出力も未実装。P1.2全体を完了扱いにしない。
 
 - [x] P0.1 送信境界・共通予算（新規 `core/http_transport.py`。WEB FUZZの全送信経路
   `_get()`/`_send_as()`/ログインGET・POSTを`HttpTransport.request()`に一元化。
@@ -714,7 +772,7 @@ WEB FUZZへの証拠配線は実装済み・下記参照）。P1.2の残りタ�
   16j（注入点0件の実run()でのRESULT/DONE確定、非LLM E2E）を追加。
   （`tools/run_selftest.py` 124 PASS / 0 FAIL、実LLM系5件は既定どおりSKIP・2026-09-05）
 - [ ] P1.2 証拠保存・保存/表示/LLM送信前マスキング・共通レポート（**証拠の保存・
-  マスキング・検証は実装済み。レポート表示への配線は未実装・継続中**）。
+  マスキング基盤・WEB FUZZ保存・レポート表示への配線は実装済み・継続中**）。
   新規`core/redaction.py`: ディスク保存・GUI/ログ表示・LLM送信より前に機密値を
   マスクする。Cookie/Set-Cookie/Authorization等の既定センシティブヘッダー＋呼び出し側
   が把握している既知の機密値（設定済みcookie/token/password等）の完全一致マスクを主とし、
@@ -739,17 +797,21 @@ WEB FUZZへの証拠配線は実装済み・下記参照）。P1.2の残りタ�
   `save_evidence`有効時のみ各異常(anomaly)のHTTP証拠を保存し、evidence_idを
   `_build_summary()`のプロンプトへ埋め込み、`_TRIAGE_SYS`にEVIDENCE_IDS引用の指示を
   追加した（未提供時は指示自体が発火しないよう条件付きの文言にした）。
-  **未実装（次の継続作業）**: AUDIT/ATTACK/DEFENSEへの証拠保存配線（コード抜粋・ログ
-  抜粋の証拠種別は未着手）。HTML/MD/PDFレポートへの証拠リンク表示——現状のGUI
-  エクスポート（`gui/export_util.py`）はストリーミング表示テキストを再パースする
-  経路のままで、RESULT イベントで確定した`ScanResult`/`Finding.evidence_ids`を
-  一切参照していない（P1.1で残した「GUIはRESULTイベントを消費しない」というギャップが
-  ここにも波及している）。これを繋ぐには`report_generator.generate()`系が
-  `Finding`のリストを受け取れるようにするか、GUIパネルがRESULTイベントを保持して
-  それを渡すか、どちらかの設計判断が必要（未着手）。IDOR所見（`_detect_idor`の結果）
-  は応答本文を保持していないため証拠保存の対象外のまま。AUDIT/ATTACK/DEFENSEの
-  `_findings_from_markers()`呼び出しは`known_evidence_ids`を渡していないため、
-  それらのモードでは`EVIDENCE_IDS`行があっても常に無視される（意図した後方互換）。
+  **2026-09-06の追加実装**: GUI全4パネルがRESULT payloadを保持し、次の開始時に
+  リセット。共通export_utilからgenerate/generate_markdown/generate_pdfのscan_resultへ
+  渡す。確定所見・対象・モデルを優先し、ストリーミング下書きは再集計しない。
+  Findingにsnippet/analysisを追加し、旧マーカー変換で抜粋・分析本文を保持する。
+  HTML/MDはreports/からの相対証拠リンク、PDFは証拠IDと相対保存場所を表示。
+  IDは生成形式で検証し任意pathを拒否。確認状態・実行状態・errors/coverageと
+  抑制未実装（0件）を表示する。参照がない場合は未保存/利用不可と記載する。
+  旧マーカー入力の互換経路は残し、証拠/coverage不明を明示する。
+  **残課題**: AUDIT/ATTACK/DEFENSEの証拠保存、IDOR証拠、全出力/LLM入力前の
+  マスキング、保存省略の理由、未知IDのvalidation error、JSON出力。
+  今回のリンクは保存時に採用されたIDを参照し、後からの証拠削除・移動は検査しない。
+  検証: `SELFTEST_NON_LLM_ONLY=1 .venv/bin/python3 tools/run_selftest.py`で
+  143 PASS / 0 FAIL / 5 SKIP（実LLM系未実施）。GUI目視確認は未実施。
+  `tools/test_structured_reports.py`をselftestに統合（確定結果優先・不正ID・HTML/MDの
+  エスケープ・実PDF生成・全パネルのRESULT→export配線）。
   セルフテスト2i（redactionの固定ダミー秘密値非漏えい検証）・2j（EvidenceStoreの
   保存物非漏えい・容量上限・pathトラバーサル対策）・2g2（evidence_ids検証: 既知ID採用・
   未知ID除外）・16k（FuzzAgentでの実際の証拠保存〜evidence_id引用〜検証の一連の流れ）
