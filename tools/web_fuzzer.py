@@ -549,6 +549,10 @@ class WebFuzzer:
                 findings.append({
                     "url": full_url, "param": p["param"], "method": p["method"],
                     "status_a": resp_a.status_code, "status_b": resp_b.status_code,
+                    # 証拠保存用（P1.2）。B=アクセス権が無いはずのセッションの応答、A=比較用の通常応答。
+                    # 呼び出し側（FuzzAgent）がマスク・サイズ制限して保存する。本辞書自体は保存・表示しない。
+                    "response_headers": dict(resp_b.headers),
+                    "response_body": resp_b.text, "baseline_body": resp_a.text,
                     "evidence": (
                         "第2セッションが同一URLへのGETで200・類似コンテンツを取得"
                         "（本来アクセス権が無いはずの可能性 — 要人手確認）"

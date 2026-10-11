@@ -468,3 +468,8 @@ ATTACK MODE に、認可された偵察レスポンスからCTF形式のフラ�
   （Active/Passive経路、証拠保存ON、URL/パラメータのマスク、HTML/MD/PDF）。
   `tools/run_selftest.py` 146 PASS / 0 FAIL / 5 SKIP。
 
+- **P1.2続き（FUZZのIDOR証拠、2026-10-11）**: `_detect_idor`の兆候に両セッションの応答を持たせ、
+  `FuzzAgent._save_evidence()`へ保存処理を切り出して異常＋IDORを共通保存。IDOR兆候の
+  evidence_idをプロンプトへ埋め込み。テスト: selftest 16o（モックIDORサーバで実検出→保存→
+  Cookie値マスク→ID採用）。`tools/run_selftest.py` 149 PASS / 0 FAIL / 5 SKIP。
+

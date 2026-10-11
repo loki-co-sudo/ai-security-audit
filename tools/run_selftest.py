@@ -2763,6 +2763,62 @@ def test_fuzz_agent_evidence_wiring():
         shutil.rmtree(tmp_root, ignore_errors=True)
 
 
+def test_fuzz_idor_evidence():
+    _section("16o. AGENT — FuzzAgent IDOR証拠保存(P1.2・第2セッション応答＋比較用の通常応答)")
+    import shutil
+    import tempfile
+    from agents.fuzz_agent import FuzzAgent
+    from core.evidence_store import EvidenceStore
+    from tools import report_generator
+    from tools.web_fuzzer import WebFuzzer
+    tmp_root = tempfile.mkdtemp(prefix="selftest_idor_evidence_")
+    srv = None
+    try:
+        srv, base = _start_idor_mock_server()
+        auth, auth_b = {"cookie": "session=alice_SECRETA"}, {"cookie": "session=bob_SECRETB"}
+        fz = WebFuzzer(profile="aggressive", max_requests=500, log=lambda m: None,
+                       auth=auth, auth_b=auth_b)
+        fz.authenticate()
+        fz.authenticate_b()
+        points = fz.crawl(base)["injection_points"]
+        idor = fz._detect_idor(points)
+        assert idor, "IDOR兆候が検出されない（前提）"
+        for k in ("response_headers", "response_body", "baseline_body"):
+            assert k in idor[0], f"IDOR兆候に証拠用の{k}が無い"
+
+        store = EvidenceStore("scan_selftest_idor", root=tmp_root)
+        known_secrets = FuzzAgent._known_secrets(auth, auth_b)
+        ids, errs = FuzzAgent._save_evidence(store, [], idor, known_secrets)
+        assert len(ids) == len(idor) and not errs, (ids, errs)
+        eid = idor[0]["evidence_id"]
+        saved = store.load(eid)
+        assert saved["status"] == idor[0]["status_b"]
+        assert saved["body_excerpt"] and saved["baseline_excerpt"], "BとA両方の応答が保存されるべき"
+        raw = open(os.path.join(store.dir, f"{eid}.json"), encoding="utf-8").read()
+        for leak in ("SECRETA", "SECRETB"):
+            assert leak not in raw, f"保存物に{leak}が残っている"
+        _ok("IDOR証拠: B応答(主)とA応答(比較用)を保存し、双方のセッションCookie値はマスクされる", "")
+
+        summary = FuzzAgent._build_summary(base, points, [], idor)
+        assert f"evidence_id={eid}" in summary
+        _ok("IDOR証拠: evidence_idがACCESS CONTROL CHECK節に埋め込まれLLMへ渡る", "")
+
+        canned = ("---VULN_START---\nNAME: IDOR on /resource\nSEVERITY: HIGH\nCWE: CWE-639\n"
+                  f"LINES: {idor[0]['url']}\nEVIDENCE_IDS: {eid}, evidence_bogus_1\n"
+                  "SNIPPET:\n```\nGET /resource?id=1\n```\nATTACK:\nx\nFIX:\n```\ny\n```\n---VULN_END---\n")
+        parsed, _ = report_generator._findings_and_counts("WEB FUZZ", canned)
+        findings = FuzzAgent._findings_from_markers(parsed, corroborated=False,
+                                                     known_evidence_ids=set(ids))
+        assert findings[0].evidence_ids == [eid]
+        _ok("IDOR証拠: 実在IDのみ所見に採用（幻覚IDは除外）", "")
+    except Exception as e:
+        _ng("fuzz_idor_evidence", repr(e) + "\n" + traceback.format_exc())
+    finally:
+        if srv:
+            srv.shutdown()
+        shutil.rmtree(tmp_root, ignore_errors=True)
+
+
 def test_fuzz_agent():
     _section("17. AGENT E2E — FuzzAgent（ローカルモック / 実LLM）")
     from agents.fuzz_agent import FuzzAgent
@@ -3018,6 +3074,7 @@ def main():
     test_fuzz_agent_p11_wiring()
     test_fuzz_agent_no_points_lifecycle()
     test_fuzz_agent_evidence_wiring()
+    test_fuzz_idor_evidence()
     _skip_llm("17", "AGENT E2E — FuzzAgent（ローカルモック / 実LLM）", test_fuzz_agent)
     test_desktop_shortcut()
     test_model_picker()

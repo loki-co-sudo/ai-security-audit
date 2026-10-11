@@ -438,7 +438,15 @@ P0.1・P0.2・P1.1は完了済み。実装詳細・セルフテスト結果は
   `_ctf_tier1`/`_ctf_llm_guided_tier`の戻り値（フラグ文字列のリスト）も不変。
   既知の限界: ATTACKのLLM所見（ポート/サービス等）の証拠保存は未対応。HTML/MDの見出し
   ラベルは脆弱性用（「脆弱コード」「Impact」等）のままで、フラグ所見では抜粋/経路の意味。
-  **残課題**: ATTACKのLLM所見の証拠保存、IDOR証拠、FUZZの全出力/LLM入力前マスキング、
+  **2026-10-11の追加実装（FUZZのIDOR証拠）**: `WebFuzzer._detect_idor()`の各兆候に
+  `response_headers/response_body/baseline_body`を持たせ（第2セッションBの応答を主、第1
+  セッションAの通常応答を比較用）、`FuzzAgent._save_evidence()`（異常＋IDORの保存を
+  共通化）が`save_evidence`有効時にHTTP証拠として保存、`ACCESS CONTROL CHECK`節へ
+  `evidence_id`を埋め込んでLLMに引用させる。両セッションの認証値は`known_secrets`で
+  マスクされる。**注意**: IDOR証拠の本文は「アクセス権が無いはずの相手の応答」であり、
+  他ユーザーの個人情報を含みうる。キー名ベースのマスクでは防げないため、`save_evidence`を
+  有効にする場合は保存先（`reports/evidence/`）の取り扱いに注意する（1件20KB・200件・5MB上限）。
+  **残課題**: ATTACKのLLM所見の証拠保存、FUZZの全出力/LLM入力前マスキング、
   FUZZ側の保存省略理由・未知ID記録、LangGraph版の証拠保存、JSON出力。
   今回のリンクは保存時に採用されたIDを参照し、後からの証拠削除・移動は検査しない。
   検証: `SELFTEST_NON_LLM_ONLY=1 .venv/bin/python3 tools/run_selftest.py`で

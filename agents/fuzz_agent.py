@@ -257,20 +257,11 @@ class FuzzAgent(BaseAgent):
         known_evidence_ids: set[str] = set()
         evidence_errors: list[str] = []
         if config.get("save_evidence", False):
-            store = EvidenceStore(scan_id)
-            known_secrets = self._known_secrets(auth, auth_b)
-            for a in anomalies:
-                eid = store.save_http_evidence(
-                    method=a["method"], url=a["url"], status=a.get("status"),
-                    headers=a.get("response_headers") or {}, body=a.get("response_body", ""),
-                    baseline_body=a.get("baseline_body", ""), known_secrets=known_secrets,
-                )
-                if eid:
-                    a["evidence_id"] = eid
-                    known_evidence_ids.add(eid)
-            if store.save_errors:
-                evidence_errors = [f"証拠保存エラー: {e}" for e in store.save_errors]
-                self._log(f"evidence: {len(store.save_errors)}件の保存に失敗")
+            known_evidence_ids, evidence_errors = self._save_evidence(
+                EvidenceStore(scan_id), anomalies, idor_findings,
+                self._known_secrets(auth, auth_b))
+            if evidence_errors:
+                self._log(f"evidence: {len(evidence_errors)}件の保存エラー")
 
         # ── Step 5: AIトリアージ ───────────────────────────
         self._step(5, "running")
@@ -414,6 +405,36 @@ class FuzzAgent(BaseAgent):
         return out
 
     @staticmethod
+    def _save_evidence(store: EvidenceStore, anomalies: list[dict], idor_findings: list[dict],
+                       known_secrets: set[str]) -> tuple[set[str], list[str]]:
+        """異常・IDOR兆候のHTTP証拠を保存し、(LLMへ渡すID集合, errors用メッセージ)を返す。
+
+        各辞書へ`evidence_id`を書き戻す（_build_summaryがプロンプトへ埋め込む）。
+        IDOR兆候は第2セッション(B)の応答を主、第1セッション(A)の通常応答を比較用として保存する。
+        保存失敗は所見を破棄せずエラーとして返す。
+        """
+        known: set[str] = set()
+        for a in anomalies:
+            eid = store.save_http_evidence(
+                method=a["method"], url=a["url"], status=a.get("status"),
+                headers=a.get("response_headers") or {}, body=a.get("response_body", ""),
+                baseline_body=a.get("baseline_body", ""), known_secrets=known_secrets,
+            )
+            if eid:
+                a["evidence_id"] = eid
+                known.add(eid)
+        for f in idor_findings:
+            eid = store.save_http_evidence(
+                method=f["method"], url=f["url"], status=f.get("status_b"),
+                headers=f.get("response_headers") or {}, body=f.get("response_body", ""),
+                baseline_body=f.get("baseline_body", ""), known_secrets=known_secrets,
+            )
+            if eid:
+                f["evidence_id"] = eid
+                known.add(eid)
+        return known, [f"証拠保存エラー: {e}" for e in store.save_errors]
+
+    @staticmethod
     def _build_summary(base_url, points, anomalies, idor_findings: list[dict] | None = None) -> str:
         lines = [f"TARGET: {base_url}",
                  f"INJECTION POINTS TESTED: {len(points)}"]
@@ -433,7 +454,8 @@ class FuzzAgent(BaseAgent):
         if idor_findings:
             lines.append(f"\nACCESS CONTROL CHECK (2nd session, GET-only) — {len(idor_findings)} signal(s):")
             for f in idor_findings:
-                lines.append(f"  - param={f['param']} url={f['url']} evidence={f['evidence']}")
+                eid_part = f" evidence_id={f['evidence_id']}" if f.get("evidence_id") else ""
+                lines.append(f"  - param={f['param']} url={f['url']} evidence={f['evidence']}{eid_part}")
         return "\n".join(lines)
 
     # ── 完了処理 ───────────────────────────────────────────
