@@ -132,6 +132,11 @@ class AuditPanel(ctk.CTkFrame):
                       border_color=CYAN, border_width=1,
                       text_color=CYAN, font=ctk.CTkFont("Segoe UI", 10),
                       command=self._export_markdown).pack(side="right", padx=(0, 6))
+        ctk.CTkButton(hdr, text="{ } JSON", width=72, height=26,
+                      fg_color="#0A1E2A", hover_color="#0E2840",
+                      border_color=CYAN, border_width=1,
+                      text_color=CYAN, font=ctk.CTkFont("Segoe UI", 10),
+                      command=self._export_json).pack(side="right", padx=(0, 6))
 
         self._out_box = OutputBox(right)
         self._out_box.pack(fill="both", expand=True, padx=10, pady=(0, 10))
@@ -212,6 +217,13 @@ class AuditPanel(ctk.CTkFrame):
     def _export_markdown(self) -> None:
         from gui import export_util
         export_util.export_markdown(
+            "CODE AUDIT", self._path.get(), self._out_box.get_text(),
+            self._llm.model, "code_audit", self._steps_widget.log, scan_result=getattr(self, "_scan_result", None),
+        )
+
+    def _export_json(self) -> None:
+        from gui import export_util
+        export_util.export_json(
             "CODE AUDIT", self._path.get(), self._out_box.get_text(),
             self._llm.model, "code_audit", self._steps_widget.log, scan_result=getattr(self, "_scan_result", None),
         )

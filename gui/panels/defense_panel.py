@@ -136,6 +136,11 @@ class DefensePanel(ctk.CTkFrame):
                       border_color=GREEN, border_width=1,
                       text_color=GREEN, font=ctk.CTkFont("Segoe UI", 10),
                       command=self._export_markdown).pack(side="right", padx=(0, 6))
+        ctk.CTkButton(hdr, text="{ } JSON", width=72, height=26,
+                      fg_color="#0A200A", hover_color="#0F2A0F",
+                      border_color=GREEN, border_width=1,
+                      text_color=GREEN, font=ctk.CTkFont("Segoe UI", 10),
+                      command=self._export_json).pack(side="right", padx=(0, 6))
 
         self._out_box = OutputBox(right)
         self._out_box.pack(fill="both", expand=True, padx=10, pady=(0, 10))
@@ -255,6 +260,13 @@ class DefensePanel(ctk.CTkFrame):
     def _export_markdown(self) -> None:
         from gui import export_util
         export_util.export_markdown(
+            "DEFENSE MODE", self._log_path.get(), self._out_box.get_text(),
+            "", "defense_mode", self._sys_log, scan_result=getattr(self, "_scan_result", None),
+        )
+
+    def _export_json(self) -> None:
+        from gui import export_util
+        export_util.export_json(
             "DEFENSE MODE", self._log_path.get(), self._out_box.get_text(),
             "", "defense_mode", self._sys_log, scan_result=getattr(self, "_scan_result", None),
         )

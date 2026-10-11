@@ -124,7 +124,7 @@ P4内は用途に応じて一項目ずつ選択できる。保留事項を自動
 進捗（2026-10-11）: AUDIT標準エンジン（ASTプリスキャンの決定的観測）とDEFENSE（シグネチャ
 一致行）の証拠保存、LLM送信前のソース/ログマスキング、未知ID/上限省略/保存失敗のerrors記録を
 実装。ATTACKはCTFフラグの中身・取得経路のレポート化まで実装（LLM所見の証拠保存は未対応）。
-FUZZのIDOR証拠も保存対応済み。FUZZの入力マスキングも実装済み。残りはLangGraph版の証拠保存、JSON出力。
+FUZZのIDOR証拠も保存対応済み。FUZZの入力マスキングも実装済み。JSON出力も実装済み。残りはATTACKのLLM所見とLangGraph版の証拠保存。
 本項目は未完了。証拠ファイルを後から移動・削除した場合のリンク切れは検査しない。
 
 対象: 新規 `core/evidence_store.py`、`core/redaction.py`、`tools/report_generator.py`、`gui/export_util.py`、各agent/送信層。

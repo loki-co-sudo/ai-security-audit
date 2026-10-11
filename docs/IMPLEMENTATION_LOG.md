@@ -483,3 +483,7 @@ ATTACK MODE に、認可された偵察レスポンスからCTF形式のフラ�
   表示/LLM/保存物にURLトークン・Cookie値が残らないことを確認。実走で、fuzzerのcrawlログに
   URLトークンが出るリークを発見し修正）。
 
+- **P1.2続き（JSON出力、2026-10-11）**: `generate_json`/`save_json`/`export_json`と全4パネルの
+  JSONボタンを追加。証拠参照はHTML/MDと同じ検証を再利用。テスト: `test_structured_reports`に
+  JSON（確定結果・旧マーカー）とパネル転送を追加。GUI目視確認は未実施。
+

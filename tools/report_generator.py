@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import re
 import html
+import json
 from datetime import datetime
 
 import core.config as config
@@ -472,6 +473,83 @@ def generate_markdown(
     lines.append("---")
     lines.append(lbl["footer"])
     return "\n".join(lines)
+
+
+def generate_json(
+    mode: str,
+    target: str,
+    raw_text: str,
+    model: str = "Unknown",
+    timestamp: str | None = None,
+    lang: str | None = None,
+    scan_result=None,
+) -> str:
+    """スキャン結果を機械可読のJSONレポートとして生成する（HTML/MD/PDFと同じ共通所見から）。
+
+    `scan_result`がある場合は確定結果（所見・実行状態・errors・coverage・証拠参照）を出力する。
+    無い場合（旧マーカー入力）は所見のみを旧アダプターで抽出し、`legacy=true`とし、
+    証拠・coverageは不明（`evidence_coverage="unknown"`）として明示する。
+    証拠参照のpathはHTML/MDと同じ検証（scan_id・evidence_idの形式）を通ったものだけを出す。
+    """
+    if timestamp is None:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    doc: dict = {
+        "schema": "ai-security-audit-report", "schema_version": "1",
+        "tool_version": APP_VERSION, "generated_at": timestamp,
+    }
+    if scan_result is None:
+        findings, counts = _findings_and_counts(mode, raw_text)
+        doc.update({
+            "legacy": True, "evidence_coverage": "unknown", "mode": mode, "target": target,
+            "model": model, "state": "unknown", "errors": [], "coverage": [],
+            "suppressed": 0, "counts": counts,
+            "findings": [{
+                "rule_id": f.get("ref", ""), "severity": (f.get("severity") or "LOW").upper(),
+                "location": f.get("lines", ""), "description": f.get("name", ""),
+                "snippet": f.get("snippet", ""), "analysis": f.get("attack", ""),
+                "remediation": f.get("fix", ""), "evidence": [],
+            } for f in findings],
+        })
+    else:
+        result = scan_result.to_dict() if hasattr(scan_result, "to_dict") else dict(scan_result)
+        _, _, _, _, shaped, counts = _report_data(mode, target, raw_text, model, result)
+        out_findings = []
+        for raw, shaped_f in zip(result.get("findings", []), shaped):
+            out_findings.append({
+                "finding_id": raw.get("finding_id", ""), "rule_id": raw.get("rule_id", ""),
+                "severity": (raw.get("severity") or "LOW").upper(),
+                "location": raw.get("location", ""), "description": raw.get("description", ""),
+                "verification_state": raw.get("verification_state", "observed"),
+                "snippet": raw.get("snippet", ""), "analysis": raw.get("analysis", ""),
+                "remediation": raw.get("remediation", ""),
+                "verifier_support": raw.get("verifier_support", {}),
+                "evidence": [{"evidence_id": eid, "path": path}
+                             for eid, path in shaped_f["evidence_refs"]],
+            })
+        doc.update({
+            "legacy": False, "scan_id": result.get("scan_id", ""),
+            "engagement_id": result.get("engagement_id", ""),
+            "mode": result.get("mode", mode), "target": result.get("target", target),
+            "model": result.get("model", model), "state": result.get("state", "unknown"),
+            "started_at": result.get("started_at", ""), "errors": list(result.get("errors", [])),
+            "coverage": list(result.get("coverage", [])), "suppressed": 0,
+            "counts": counts, "findings": out_findings,
+            "notes": ["suppression is not implemented",
+                      "evidence excerpts may be masked or omitted; an empty evidence list means "
+                      "not saved or unavailable"],
+        })
+    return json.dumps(doc, ensure_ascii=False, indent=2)
+
+
+def save_json(json_content: str, mode: str, reports_dir: str = "reports") -> str:
+    """JSONレポートをファイルに保存してパスを返す。"""
+    os.makedirs(reports_dir, exist_ok=True)
+    ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
+    slug = re.sub(r"[^a-z0-9]", "_", mode.lower())[:20]
+    path = os.path.join(reports_dir, f"report_{slug}_{ts}.json")
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(json_content)
+    return path
 
 
 def save_markdown(md_content: str, mode: str, reports_dir: str = "reports") -> str:

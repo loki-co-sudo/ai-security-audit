@@ -53,3 +53,15 @@ def export_markdown(
         mode=mode, target=target, raw_text=raw, model=model, scan_result=scan_result,
     )
     _open(report_generator.save_markdown(md_content, slug), log)
+
+
+def export_json(
+    mode: str, target: str, raw: str, model: str,
+    slug: str, log: Callable[[str], None], scan_result=None,
+) -> None:
+    """機械可読のJSONレポートを出力する（P1.2）。"""
+    content = report_generator.generate_json(
+        mode=mode, target=target, raw_text=raw, model=model, scan_result=scan_result,
+    )
+    _open(report_generator.save_json(content, slug), log)
+

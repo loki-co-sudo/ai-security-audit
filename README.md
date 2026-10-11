@@ -433,7 +433,7 @@ HTML/MDの証拠リンクは`reports/`基準の相対パスです。レポート
 `evidence/<scan_id>/`も同じ相対位置へコピーしてください。PDFには証拠IDと保存場所を表示します。
 証拠参照がない所見は未保存/利用不可と表示されます。
 証拠保存（`save_evidence`、既定OFF）は WEB FUZZ・CODE AUDIT（標準エンジン）・DEFENSE に対応しました
-（LangGraph版、JSON出力は未対応）。ATTACKはCTFモードで取得したフラグの中身と取得経路
+（LangGraph版は未対応。HTML/MD/PDFに加えJSON出力にも対応）。ATTACKはCTFモードで取得したフラグの中身と取得経路
 （Active Retrievalのリクエスト、またはFlag Huntの検出フィールド）がレポートに「INFO」所見として出力されます。
 **LLM送信前のマスキングは `save_evidence` の設定に関係なく常に有効**です（CODE AUDIT/LangGraph: 機密名
 `password`/`token`/`api_key` 等への文字列リテラル代入・比較の値、DEFENSE: ログ中の Authorization/Cookie・

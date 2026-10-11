@@ -62,7 +62,8 @@ class StructuredReportsTest(unittest.TestCase):
             self.assertIs(obj._scan_result, payload)
             for method, exporter in (('_export_report', 'export_html'),
                                      ('_export_pdf', 'export_pdf'),
-                                     ('_export_markdown', 'export_markdown')):
+                                     ('_export_markdown', 'export_markdown'),
+                                     ('_export_json', 'export_json')):
                 with patch('gui.export_util.' + exporter) as output:
                     getattr(panel, method)(obj)
                     self.assertIs(output.call_args.kwargs['scan_result'], payload)
@@ -76,6 +77,42 @@ class StructuredReportsTest(unittest.TestCase):
         legacy = '---VULN_START---\nNAME: legacy\nSEVERITY: LOW\n---VULN_END---'
         self.assertIn('legacy', reports.generate('AUDIT', 'target', legacy))
         self.assertIn('unknown (legacy report)', reports.generate('AUDIT', 'target', legacy))
+
+    def test_json_report(self):
+        import json
+        result = new_scan_result('WEB FUZZ', 'http://t.local')
+        result.state = 'partial'
+        result.errors = ['budget exhausted']
+        with tempfile.TemporaryDirectory() as tmp:
+            store = EvidenceStore(result.scan_id, root=str(Path(tmp) / 'evidence'))
+            eid = store.save_http_evidence(method='GET', url='http://t.local/', status=200)
+            result.findings = [Finding('f1', 'CWE-79', '/q', 'HIGH', evidence_ids=[eid, '../../bad'],
+                                       description='<script>x</script>', snippet='snip',
+                                       analysis='ana', remediation='fix it')]
+            doc = json.loads(reports.generate_json('changed', 'changed', 'DRAFT_SENTINEL', scan_result=result))
+            self.assertEqual((doc['schema'], doc['schema_version'], doc['legacy']), ('ai-security-audit-report', '1', False))
+            self.assertEqual((doc['mode'], doc['target'], doc['state']), ('WEB FUZZ', 'http://t.local', 'partial'))
+            self.assertEqual(doc['errors'], ['budget exhausted'])
+            self.assertEqual(doc['counts']['HIGH'], 1)
+            self.assertEqual(doc['suppressed'], 0)
+            f = doc['findings'][0]
+            self.assertEqual((f['rule_id'], f['snippet'], f['analysis'], f['remediation']),
+                             ('CWE-79', 'snip', 'ana', 'fix it'))
+            # 検証を通った証拠参照だけが出る（不正IDは出さない）。下書きは再集計しない
+            self.assertEqual(f['evidence'], [{'evidence_id': eid, 'path': f'evidence/{result.scan_id}/{eid}.json'}])
+            self.assertNotIn('DRAFT_SENTINEL', json.dumps(doc))
+            self.assertNotIn('../../bad', json.dumps(doc))
+            path = reports.save_json(json.dumps(doc), 'WEB FUZZ', reports_dir=str(Path(tmp) / 'reports'))
+            self.assertTrue(path.endswith('.json') and Path(path).is_file())
+
+    def test_json_report_legacy(self):
+        import json
+        legacy = '---VULN_START---\nNAME: legacy\nSEVERITY: LOW\n---VULN_END---'
+        doc = json.loads(reports.generate_json('AUDIT', 'target', legacy))
+        self.assertTrue(doc['legacy'])
+        self.assertEqual(doc['evidence_coverage'], 'unknown')
+        self.assertEqual(doc['findings'][0]['description'], 'legacy')
+        self.assertEqual(doc['findings'][0]['evidence'], [])
 
 
 if __name__ == '__main__':

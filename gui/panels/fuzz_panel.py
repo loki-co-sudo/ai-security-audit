@@ -157,6 +157,11 @@ class FuzzPanel(ctk.CTkFrame):
                       border_color=AMBER, border_width=1,
                       text_color=AMBER, font=ctk.CTkFont("Segoe UI", 10),
                       command=self._export_markdown).pack(side="right", padx=(0, 6))
+        ctk.CTkButton(hdr, text="{ } JSON", width=72, height=26,
+                      fg_color="#1A1000", hover_color="#2A1A00",
+                      border_color=AMBER, border_width=1,
+                      text_color=AMBER, font=ctk.CTkFont("Segoe UI", 10),
+                      command=self._export_json).pack(side="right", padx=(0, 6))
 
         self._out_box = OutputBox(right)
         self._out_box.pack(fill="both", expand=True, padx=10, pady=(0, 10))
@@ -258,6 +263,14 @@ class FuzzPanel(ctk.CTkFrame):
     def _export_markdown(self) -> None:
         from gui import export_util
         export_util.export_markdown(
+            "WEB FUZZ", self._target_entry.get().strip(),
+            self._out_box.get_text(), self._llm.model,
+            "web_fuzz", self._steps_widget.log, scan_result=getattr(self, "_scan_result", None),
+        )
+
+    def _export_json(self) -> None:
+        from gui import export_util
+        export_util.export_json(
             "WEB FUZZ", self._target_entry.get().strip(),
             self._out_box.get_text(), self._llm.model,
             "web_fuzz", self._steps_widget.log, scan_result=getattr(self, "_scan_result", None),
