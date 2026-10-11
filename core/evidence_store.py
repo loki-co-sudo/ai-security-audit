@@ -76,6 +76,20 @@ class LogEvidence:
         return asdict(self)
 
 
+@dataclass
+class ObservationEvidence:
+    evidence_id: str
+    category: str            # "port" / "web_path" / "web_headers" / "subdomain" 等（決定的観測の種類）
+    target_ref: str          # 観測対象（host:port/tcp、URL等）
+    detail: str              # マスク済み・切り詰め済みの観測内容（バナー、ヘッダー一覧等）
+    timestamp: str
+    omitted_reason: str = ""
+    kind: str = "observation"
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
 def relativize_path(path: str, base: str | None = None) -> str:
     """証拠に残すパスを相対形へ変換する。baseがcwd配下でない場合はファイル名のみ。
 
@@ -193,6 +207,21 @@ class EvidenceStore:
             timestamp=time.strftime("%Y-%m-%dT%H:%M:%S"),
         )
         return self._persist(ev, shrink_fields=("line",))
+
+    def save_observation_evidence(self, *, category: str, target_ref: str, detail: str,
+                                  known_secrets: set[str] | None = None) -> str | None:
+        """偵察で得た決定的観測（ポート/バナー、検出パス、応答ヘッダー等）を保存し evidence_id を返す。"""
+        if self._count >= self.max_items:
+            self._omit(f"件数上限({self.max_items}件)に達したため証拠を保存しなかった")
+            return None
+        eid = new_id("evidence")
+        ev = ObservationEvidence(
+            evidence_id=eid, category=category,
+            target_ref=redaction.mask_log_line(target_ref, known_secrets, max_len=1000),
+            detail=redaction.mask_log_line(detail, known_secrets, max_len=self.max_item_bytes),
+            timestamp=time.strftime("%Y-%m-%dT%H:%M:%S"),
+        )
+        return self._persist(ev, shrink_fields=("detail",))
 
     def _persist(self, ev, *, shrink_fields: tuple[str, ...]) -> str | None:
         """サイズ検査→総容量検査→書き込みの共通処理。成功時evidence_id、省略/失敗時None。"""

@@ -3042,6 +3042,18 @@ def test_fuzz_masking():
         _ng("Fuzz masking", str(result.errors + result.failures))
 
 
+def test_attack_evidence():
+    _section("16q. AGENT — ReconAgent 偵察観測の証拠保存・ID引用(P1.2)")
+    import unittest
+    from tools.test_attack_evidence import AttackEvidenceTest
+    result = unittest.TestResult()
+    unittest.defaultTestLoader.loadTestsFromTestCase(AttackEvidenceTest).run(result)
+    if result.wasSuccessful():
+        _ok("Attack evidence", f"{result.testsRun} tests: 観測保存・サマリーID・Set-Cookieマスク・未知ID・上限・レポートリンク")
+    else:
+        _ng("Attack evidence", str(result.errors + result.failures))
+
+
 def main():
     print("\n" + "#"*64)
     print("#  AI Security Audit System — 全機能セルフテスト")
@@ -3074,6 +3086,7 @@ def main():
     test_audit_evidence()
     test_defense_evidence()
     test_flag_routes()
+    test_attack_evidence()
     test_report_generator()
     test_report_generator_attack_mode()
     test_report_generator_markdown()

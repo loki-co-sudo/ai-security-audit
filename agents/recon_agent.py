@@ -254,6 +254,14 @@ RECOMMENDED_ACTION:
 Be thorough. Think like an attacker who has just done initial recon and is planning the next move."""
 
 
+_EVIDENCE_INSTRUCTION = """
+
+If (and only if) a line of the reconnaissance data carries an "evidence_id" and you rely on it \
+for a finding, add this line to that finding's block after CATEGORY:
+EVIDENCE_IDS: [comma-separated evidence_id value(s) that support this finding]. \
+Only cite evidence_id values that were literally given to you — never invent one. \
+An evidence_id only shows that the scanner observed that item; it does not prove the finding."""
+
 # ── CTF FLAG HUNT: 認可された偵察レスポンスからのローカルフラグ検出（送信なし） ──
 # 攻撃の動き（ペイロード送信・注入・認証回避・ブルートフォース等）は一切行わず、
 # 既に実施した偵察で取得済みのバナー・Webボディ・ヘッダー内からフラグ形式を
@@ -367,6 +375,7 @@ class ReconAgent(BaseAgent):
         self._current_mode, self._current_target = "ATTACK", target
         scan_id = self._begin_scan()  # フラグ取得時のHTTP証拠保存がfinalize前からscan_idを使うため
         self._flag_routes = {}        # フラグ(小文字) → 取得経路(レポート用)
+        self._ev_store = None         # save_evidence有効時、偵察証拠とフラグ証拠で共有する
         self.bus.clear()
         if not self._check_scope(target):
             return
@@ -608,9 +617,21 @@ class ReconAgent(BaseAgent):
         self._status("AI が攻撃仮説を構築中 ...")
         self._log("Sending recon data to LLM ...")
 
-        recon_summary = self._build_recon_summary(recon_data, known_hits)
+        # 証拠保存（P1.2・save_evidence設定時のみ。既定OFF）。観測=scannerが得た事実のみ。
+        known_evidence_ids: set[str] = set()
+        evidence_errors: list[str] = []
+        recon_evidence: dict = {}
+        if config.get("save_evidence", False):
+            ev_store = self._ev_store = EvidenceStore(scan_id)  # フラグ証拠と共有(上限を二重に使わない)
+            recon_evidence = self._save_recon_evidence(ev_store, recon_data)
+            known_evidence_ids = set(recon_evidence.values())
+            evidence_errors = [f"証拠保存エラー: {e}" for e in ev_store.save_errors]
+            evidence_errors += [f"証拠保存を省略: {o}" for o in ev_store.omissions]
+        # LLMへ渡す偵察サマリーは、ヘッダー(Set-Cookie等)・バナー内の機密値をマスクしてから送る
+        recon_summary = redaction.mask_log_line(
+            self._build_recon_summary(recon_data, known_hits, recon_evidence))
         full = self._stream_llm([
-            self.llm.system(SYSTEM_PROMPT),
+            self.llm.system(SYSTEM_PROMPT + (_EVIDENCE_INSTRUCTION if known_evidence_ids else "")),
             self.llm.user(f"Analyze this reconnaissance data and build attack hypotheses:\n\n{recon_summary}"),
         ], live_stats=True)
 
@@ -685,14 +706,18 @@ class ReconAgent(BaseAgent):
         self._log(f"Recon complete. {total_ports} open ports.")
         self._status(f"Recon complete — {total_ports} open ports.")
 
-        findings = self._findings_from_markers(parsed_findings, corroborated=bool(effort.get("verify_pass")))
+        rejected: list[str] = []
+        findings = self._findings_from_markers(
+            parsed_findings, corroborated=bool(effort.get("verify_pass")),
+            known_evidence_ids=known_evidence_ids or None, rejected_evidence_ids=rejected)
         flag_findings, flag_errors = self._flag_findings(recon_data, scan_id)
         findings = findings + flag_findings
         coverage = self._build_coverage(
             target, host, scan_ports, port_scope, scan_web, web_ran, scan_udp, domain,
         )
         state, errors = self._determine_state(triage_text=full, host_resolved=bool(resolved_ip))
-        errors = errors + flag_errors
+        # 共有storeのエラー/省略はflag_errorsとevidence_errorsで重複しうるため、順序を保って畳む
+        errors = list(dict.fromkeys(errors + evidence_errors + flag_errors + rejected))
         self._finalize(state=state, errors=errors, findings=findings, coverage=coverage,
                        mode="ATTACK", target=target)
 
@@ -759,8 +784,54 @@ class ReconAgent(BaseAgent):
         return ScanState.COMPLETED.value, errors
 
     # ── 偵察サマリー生成 ──────────────────────────────────
+    def _save_recon_evidence(self, store: EvidenceStore, recon: dict) -> dict:
+        """偵察の決定的観測（ポート/バナー・検出パス・応答ヘッダー・サブドメイン）を保存し、
+        サマリーへ埋め込むための {観測キー: evidence_id} を返す（P1.2）。
+
+        保存するのは scanner が実際に観測したもののみ。LLMの解釈は保存しない。
+        保存できなかった項目（上限・失敗）はIDなしのまま残る（呼び出し側がstoreの
+        omissions/save_errorsをerrorsへ反映する）。
+        """
+        ids: dict = {}
+        host = recon.get("host") or recon.get("target", "")
+        for proto, key in (("tcp", "ports"), ("udp", "udp_ports")):
+            for p in recon.get(key, []) or []:
+                eid = store.save_observation_evidence(
+                    category="port", target_ref=f"{host}:{p['port']}/{proto}",
+                    detail=f"service={p.get('service', '')} banner={p.get('banner', '')}")
+                if eid:
+                    ids[(proto, p["port"])] = eid
+        web = recon.get("web", {}) or {}
+        url = web.get("url") or recon.get("target", "")
+        if web.get("headers"):
+            eid = store.save_observation_evidence(
+                category="web_headers", target_ref=url,
+                detail="\n".join(f"{k}: {v}" for k, v in web["headers"].items())
+                + ("\nmissing_security_headers: " + ", ".join(web["missing_headers"])
+                   if web.get("missing_headers") else ""))
+            if eid:
+                ids["headers"] = eid
+        for fp in web.get("found_paths", []) or []:
+            eid = store.save_observation_evidence(
+                category="web_path", target_ref=f"{url.rstrip('/')}{fp['path']}",
+                detail=f"status={fp['status']}")
+            if eid:
+                ids[("path", fp["path"])] = eid
+        for sub in recon.get("subdomains", []) or []:
+            eid = store.save_observation_evidence(
+                category="subdomain", target_ref=str(sub), detail="source=crt.sh (passive)")
+            if eid:
+                ids[("sub", sub)] = eid
+        return ids
+
     def _build_recon_summary(self, recon: dict,
-                             known_hits: list[dict] | None = None) -> str:
+                             known_hits: list[dict] | None = None,
+                             evidence_ids: dict | None = None) -> str:
+        eids = evidence_ids or {}
+
+        def _tag(key) -> str:
+            return f"  [evidence_id={eids[key]}]" if key in eids else ""
+
         lines = [f"TARGET: {recon.get('target', 'N/A')}"]
         if recon.get("host"):
             lines.append(f"HOST: {recon['host']}")
@@ -774,7 +845,7 @@ class ReconAgent(BaseAgent):
         if subs:
             lines.append(f"\n## Passive Subdomain Enumeration (crt.sh, in-scope only) — {len(subs)} found")
             for s in subs:
-                lines.append(f"- {s}")
+                lines.append(f"- {s}{_tag(('sub', s))}")
 
         # ポート
         ports = recon.get("ports", [])
@@ -783,6 +854,7 @@ class ReconAgent(BaseAgent):
             for p in ports:
                 lines.append(
                     f"- {p['port']}/tcp  {p['service']}  {p.get('banner', '')[:100]}"
+                    f"{_tag(('tcp', p['port']))}"
                 )
         udp_ports = recon.get("udp_ports", [])
         if udp_ports:
@@ -790,6 +862,7 @@ class ReconAgent(BaseAgent):
             for p in udp_ports:
                 lines.append(
                     f"- {p['port']}/udp  {p['service']}  {p.get('banner', '')}"
+                    f"{_tag(('udp', p['port']))}"
                 )
 
         # 既知CVE照合結果をサマリーに追加
@@ -807,7 +880,7 @@ class ReconAgent(BaseAgent):
         # Web
         web = recon.get("web", {})
         if web.get("headers"):
-            lines.append("\n## HTTP Headers")
+            lines.append("\n## HTTP Headers" + _tag("headers"))
             for k, v in web["headers"].items():
                 lines.append(f"  {k}: {v}")
         if web.get("technologies"):
@@ -817,7 +890,7 @@ class ReconAgent(BaseAgent):
         if web.get("found_paths"):
             lines.append("\n## Sensitive Paths Found")
             for p in web["found_paths"]:
-                lines.append(f"  [{p['status']}] {p['path']}")
+                lines.append(f"  [{p['status']}] {p['path']}{_tag(('path', p['path']))}")
         if web.get("missing_headers"):
             lines.append("\n## Missing Security Headers")
             for h in web["missing_headers"]:
@@ -967,7 +1040,8 @@ class ReconAgent(BaseAgent):
         flags = recon.get("flags") or []
         if not flags:
             return [], []
-        store = EvidenceStore(scan_id) if config.get("save_evidence", False) else None
+        store = (getattr(self, "_ev_store", None)
+                 or (EvidenceStore(scan_id) if config.get("save_evidence", False) else None))
         out: list[Finding] = []
         for f in flags:
             route = self._routes().get(f.lower(), {})

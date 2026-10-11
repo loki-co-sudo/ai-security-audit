@@ -458,8 +458,18 @@ P0.1・P0.2・P1.1は完了済み。実装詳細・セルフテスト結果は
   全4パネルに「{ } JSON」ボタンを追加。HTML/MD/PDFと同じ確定結果から生成し、schema
   `ai-security-audit-report` v1（state/errors/coverage/counts/suppressed/所見＋検証済み証拠参照）。
   旧マーカー入力は`legacy=true`・`evidence_coverage="unknown"`。GUIの目視確認は未実施。
-  **残課題**: ATTACKのLLM所見（ポート/サービス等）の証拠保存、LangGraph版の証拠保存。
-  これらを実装すればP1.2を完了扱いにできる（受け入れ条件の網羅確認が必要）。
+  **ATTACKのLLM所見の証拠保存**: `EvidenceStore.save_observation_evidence()`
+  （`ObservationEvidence`: category=port/web_path/web_headers/subdomain、target_ref、マスク済みdetail）
+  を追加。`ReconAgent._save_recon_evidence()`が`save_evidence`有効時のみ、scannerが実際に観測した
+  ポート/バナー（TCP/UDP）・検出パス・応答ヘッダー（欠落セキュリティヘッダー含む）・
+  受動サブドメインを保存し、`_build_recon_summary()`が各行へ`[evidence_id=...]`を埋め込む。
+  LLMには`EVIDENCE_IDS:`行（CATEGORYの後）で引用させ、実在IDのみ採用・未知IDと上限省略は
+  `errors`へ。フラグ証拠とstoreを共有（上限を二重に使わない）。LLMへ渡す偵察サマリーは
+  `mask_log_line()`でマスク（Set-Cookie等。ON/OFFに関係なく有効・調査レポートにも同じ文字列が残る）。
+  ATTACKは認証情報を持たないため、マスク対象は主に対象が返した値（Set-Cookie等）。画面表示の
+  偵察ログ自体は未マスク（利用者自身のコマンド出力に近く、秘密は対象由来のため）。
+  **残課題**: LangGraph版の証拠保存。これを実装すればP1.2を完了扱いにできる
+  （受け入れ条件の網羅確認が必要）。
   今回のリンクは保存時に採用されたIDを参照し、後からの証拠削除・移動は検査しない。
   検証: `SELFTEST_NON_LLM_ONLY=1 .venv/bin/python3 tools/run_selftest.py`で
   143 PASS / 0 FAIL / 5 SKIP（実LLM系未実施）。GUI目視確認は未実施。

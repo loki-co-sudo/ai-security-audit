@@ -487,3 +487,9 @@ ATTACK MODE に、認可された偵察レスポンスからCTF形式のフラ�
   JSONボタンを追加。証拠参照はHTML/MDと同じ検証を再利用。テスト: `test_structured_reports`に
   JSON（確定結果・旧マーカー）とパネル転送を追加。GUI目視確認は未実施。
 
+- **P1.2続き（ATTACK偵察観測の証拠保存、2026-10-11）**: `ObservationEvidence`/
+  `save_observation_evidence`、`ReconAgent._save_recon_evidence`、サマリーへのID埋め込み、
+  LLM送信前のサマリーマスク、未知ID/上限のerrors記録。フラグ証拠とstore共有、errorsは
+  重複を畳む。テスト: `tools/test_attack_evidence.py`（部品単位。`run()`全体は
+  ポートスキャンを伴うため未実走＝未検証）。
+
