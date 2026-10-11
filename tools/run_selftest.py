@@ -2915,6 +2915,22 @@ def test_structured_reports():
         _ng("Structured reports", str(result.errors + result.failures))
 
 
+def test_audit_evidence():
+    _section("16l. AGENT — AuditAgent 証拠保存・入力マスキング(P1.2)")
+    import unittest
+    from tools.test_audit_evidence import AuditEvidenceTest, MaskSourceTest
+    result = unittest.TestResult()
+    suite = unittest.TestSuite([
+        unittest.defaultTestLoader.loadTestsFromTestCase(AuditEvidenceTest),
+        unittest.defaultTestLoader.loadTestsFromTestCase(MaskSourceTest),
+    ])
+    suite.run(result)
+    if result.wasSuccessful():
+        _ok("Audit evidence", f"{result.testsRun} tests: ON/OFF・マスク・未知ID・上限省略・保存失敗")
+    else:
+        _ng("Audit evidence", str(result.errors + result.failures))
+
+
 def main():
     print("\n" + "#"*64)
     print("#  AI Security Audit System — 全機能セルフテスト")
@@ -2944,6 +2960,7 @@ def main():
     log_path = test_log_watcher()
     test_pattern_match()
     test_structured_reports()
+    test_audit_evidence()
     test_report_generator()
     test_report_generator_attack_mode()
     test_report_generator_markdown()

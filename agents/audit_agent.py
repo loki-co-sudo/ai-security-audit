@@ -14,6 +14,9 @@ from agents.base_agent import BaseAgent
 from tools import cve_client
 from tools.report_generator import _findings_and_counts
 from core.findings import CoverageItem, ScanState, CoverageStatus
+import core.config as config
+from core import redaction
+from core.evidence_store import EvidenceStore
 
 # ---------- AST 静的解析プリプロセッサ ----------
 
@@ -220,10 +223,20 @@ FIX:
 Think deeply. Find the semantic gap between *intent* and *implementation*."""
 
 
+_EVIDENCE_INSTRUCTION = """
+
+If (and only if) the AST pre-scan reference lists entries with an "evidence_id" and you rely on \
+one of them for a finding, add this line to that finding's block after LINES:
+EVIDENCE_IDS: [comma-separated evidence_id value(s) that support this finding]. \
+Only cite evidence_id values that were literally given to you — never invent one. \
+An evidence_id only shows that the AST pre-scan flagged that line; it does not prove the finding."""
+
+
 class AuditAgent(BaseAgent):
 
     def run(self, path: str) -> None:
         self._current_mode, self._current_target = "AUDIT", path
+        scan_id = self._begin_scan()  # 証拠保存(EvidenceStore)がfinalize前から使うため(P1.2)
         self.bus.clear()
         t0 = time.time()
 
@@ -241,6 +254,9 @@ class AuditAgent(BaseAgent):
                            mode="AUDIT", target=path)
             return
         lines = source.count("\n") + 1
+        # LLM送信・証拠保存の前に、機密名へのリテラル代入の値をマスクする(P1.2)。
+        # 改行を跨がないため行番号は元ソースと一致する。ast_scanは構文解析のため元ソースを使う。
+        source = redaction.mask_source(source)
         self._log(f"Loaded {lines} lines ({len(source)} bytes)")
         self._step(0, "done")
 
@@ -263,6 +279,39 @@ class AuditAgent(BaseAgent):
         if ast_count > 0:
             self._out(ast_result["summary"], "code")
         time.sleep(0.3)
+
+        # ── 証拠保存（P1.2・save_evidence設定時のみ。既定OFF） ──
+        # 保存対象はASTプリスキャンの決定的観測のみ。LLMが後から報告する行番号で抜粋を
+        # 作ると「モデルの主張の言い換え」になり裏付けにならないため作らない。
+        # LLMへ渡すIDの集合をここで固定し、_findings_from_markersで実在IDのみ採用する。
+        known_evidence_ids: set[str] = set()
+        evidence_errors: list[str] = []
+        evidence_listing = ""
+        if config.get("save_evidence", False) and ast_result["findings"]:
+            store = EvidenceStore(scan_id)
+            src_lines = source.splitlines()
+            entries = []
+            seen = set()
+            for hit in ast_result["findings"]:
+                key = (hit["line"], hit["call"])
+                if key in seen:
+                    continue
+                seen.add(key)
+                ln = hit["line"]
+                eid = store.save_code_evidence(
+                    path=path, line_start=ln, line_end=ln,
+                    excerpt=src_lines[ln - 1] if 0 < ln <= len(src_lines) else "",
+                    source="ast_prescan",
+                )
+                if eid:
+                    known_evidence_ids.add(eid)
+                    entries.append(f"- evidence_id={eid} L{ln} {hit['call']}")
+            if entries:
+                evidence_listing = "\n## AST evidence IDs\n" + "\n".join(entries) + "\n"
+            evidence_errors = [f"証拠保存エラー: {e}" for e in store.save_errors]
+            evidence_errors += [f"証拠保存を省略: {o}" for o in store.omissions]
+            if evidence_errors:
+                self._log(f"evidence: {len(evidence_errors)}件の保存エラー/省略")
         self._step(1, "done")
 
         # Step 2-3: LLM 推論（ストリーミング）— smart_truncate で末尾優先トランケーション
@@ -285,10 +334,11 @@ class AuditAgent(BaseAgent):
         if ast_result["findings"]:
             user_prompt += (
                 f"\n\n## AST Pre-scan Reference (use cautiously — verify manually)\n"
-                f"{ast_result['summary']}\n"
+                f"{ast_result['summary']}\n{evidence_listing}"
             )
+        system_prompt = SYSTEM_PROMPT + (_EVIDENCE_INSTRUCTION if known_evidence_ids else "")
         full = self._stream_llm([
-            self.llm.system(SYSTEM_PROMPT),
+            self.llm.system(system_prompt),
             self.llm.user(user_prompt),
         ], live_stats=True)
         self._step(3, "done")
@@ -360,9 +410,13 @@ class AuditAgent(BaseAgent):
         self._log(f"Audit complete. {total} issues found.")
         self._status(f"Audit complete — {total} vulnerabilities detected.")
 
-        findings = self._findings_from_markers(parsed_findings, corroborated=bool(effort.get("verify_pass")))
+        rejected: list[str] = []
+        findings = self._findings_from_markers(
+            parsed_findings, corroborated=bool(effort.get("verify_pass")),
+            known_evidence_ids=known_evidence_ids or None, rejected_evidence_ids=rejected)
         coverage = self._build_coverage(path, was_truncated)
         state, errors = self._determine_state(triage_text=full)
+        errors = errors + evidence_errors + rejected
         self._finalize(state=state, errors=errors, findings=findings, coverage=coverage,
                        mode="AUDIT", target=path)
 

@@ -435,3 +435,18 @@ ATTACK MODE に、認可された偵察レスポンスからCTF形式のフラ�
   環境ではSKIP）・16i（FuzzAgentの_build_coverage/_determine_stateの単体テスト）・
   16j（注入点0件の実run()でのRESULT/DONE確定、非LLM E2E）を追加。
   （`tools/run_selftest.py` 124 PASS / 0 FAIL、実LLM系5件は既定どおりSKIP・2026-09-05）
+
+- **P1.2続き（AUDIT証拠保存・入力マスキング、2026-10-11）**:
+  `core/evidence_store.py`に`CodeEvidence`・`save_code_evidence()`・`relativize_path()`・
+  `omissions`を追加し、保存処理を`_persist()`へ共通化。`core/redaction.mask_source()`を追加。
+  `agents/audit_agent.py`: 読込直後にソースをマスク→AST観測を`save_evidence`時のみ保存→
+  IDをプロンプトへ渡し引用させる→実在IDのみ採用、除外IDは`errors`へ。
+  `core/orchestrator.load_code`も同じマスクを適用。`_findings_from_markers`に
+  `rejected_evidence_ids`引数を追加。
+  **設計判断**: 後付けの抜粋（LLM報告のLINES由来）は作らない／マスクは既存動作の変更
+  （検出品質とのトレードオフ）だが、ロードマップの「LLM送信前マスク」要件を優先して
+  ON/OFFに関係なく有効にした。値依存の判断（既定パスワード等）が弱まる点はAGENTS.mdに記載。
+  テスト: `tools/test_audit_evidence.py`（モックLLMで`AuditAgent.run()`を実走。
+  ダミー秘密値が保存物・LLM受信内容・investigationに残らない、ON/OFF、未知ID拒否、
+  上限省略、保存失敗、相対path）。`tools/run_selftest.py` 144 PASS / 0 FAIL / 5 SKIP。
+

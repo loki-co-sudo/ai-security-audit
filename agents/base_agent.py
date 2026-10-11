@@ -419,7 +419,8 @@ class BaseAgent(ABC):
     # ── 構造化所見への変換（P1.1/P1.2） ────────────────────
     @staticmethod
     def _findings_from_markers(parsed: list[dict], corroborated: bool,
-                               known_evidence_ids: set[str] | None = None) -> list[Finding]:
+                               known_evidence_ids: set[str] | None = None,
+                               rejected_evidence_ids: list[str] | None = None) -> list[Finding]:
         """`tools.report_generator._findings_and_counts()`が返す辞書列をFindingへ変換する
         共通ヘルパー。NAME/SEVERITY/CWE/LINES/FIXマーカー形式（---VULN_START---等）を
         前提とするため、DEFENSE MODEのTHREAT形式など異なるスキーマは個別に変換すること。
@@ -433,6 +434,8 @@ class BaseAgent(ABC):
         採用する。存在しないID（LLMの誤記・幻覚）は黙って除外する（採用しない）。
         これは証拠の紐付けが正しいという意味論的な保証ではない —
         LLMが実際に対応する証拠を正しく引用したかどうかまでは検証できない。
+        `rejected_evidence_ids`（任意のlist）が渡された場合、除外したIDの説明をそこへ追加する
+        （呼び出し側がScanResult.errorsへ反映する）。
         `known_evidence_ids`がNoneの場合（save_evidence未対応/無効の呼び出し元）は
         EVIDENCE_IDS行自体を無視する（空リストのまま）。
         """
@@ -446,6 +449,11 @@ class BaseAgent(ABC):
                 raw = f.get("evidence_ids_raw") or ""
                 candidates = [c.strip() for c in re.split(r"[,\s]+", raw) if c.strip()]
                 evidence_ids = [c for c in candidates if c in known_evidence_ids]
+                if rejected_evidence_ids is not None:
+                    # 存在しないID(LLMの誤記・幻覚)を黙って捨てず、validation errorとして残す
+                    rejected_evidence_ids.extend(
+                        f"未知の証拠IDを除外: {c}（所見: {f.get('name') or 'unnamed'}）"
+                        for c in candidates if c not in known_evidence_ids)
             out.append(Finding(
                 finding_id=new_id("finding"),
                 rule_id=f.get("ref") or "UNSPECIFIED",

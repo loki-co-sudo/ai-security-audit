@@ -393,8 +393,29 @@ P0.1・P0.2・P1.1は完了済み。実装詳細・セルフテスト結果は
   IDは生成形式で検証し任意pathを拒否。確認状態・実行状態・errors/coverageと
   抑制未実装（0件）を表示する。参照がない場合は未保存/利用不可と記載する。
   旧マーカー入力の互換経路は残し、証拠/coverage不明を明示する。
-  **残課題**: AUDIT/ATTACK/DEFENSEの証拠保存、IDOR証拠、全出力/LLM入力前の
-  マスキング、保存省略の理由、未知IDのvalidation error、JSON出力。
+  **2026-10-11の追加実装（AUDIT標準エンジン）**: `EvidenceStore.save_code_evidence()`
+  （相対path・行範囲・マスク済み抜粋・由来`source`）を追加。保存対象は**ASTプリスキャンの
+  決定的観測のみ**（LLMが後から報告するLINESから抜粋を作ると主張の言い換えで裏付けに
+  ならないため作らない）。保存したevidence_idは「AST evidence IDs」節としてLLMへ渡し、
+  `_EVIDENCE_INSTRUCTION`（IDがある時だけ付与）で引用させ、`known_evidence_ids`に実在する
+  IDのみ採用する。AST該当が無い所見は証拠なし（レポートは「not saved / unavailable」）。
+  `_findings_from_markers(rejected_evidence_ids=)`で除外した未知IDを`ScanResult.errors`へ
+  「未知の証拠IDを除外」として残す（FUZZ/DEFENSE未配線）。上限到達による省略は
+  `EvidenceStore.omissions`として`errors`へ「証拠保存を省略」と残す（保存失敗は従来どおり
+  `save_errors`→「証拠保存エラー」。どちらも所見は破棄しない）。
+  `core/evidence_store.py`は保存処理を`_persist()`へ共通化済み。
+  **入力マスキング**: `core.redaction.mask_source()`を追加。機密名（password/secret/token/
+  api_key/auth/credential等）への**同一行内の引用符付きリテラル代入**の値だけを
+  `***REDACTED***(sha256:...)`へ置換する（行数不変・冪等）。AuditAgentは読み込み直後に、
+  LangGraph版は`core/orchestrator.load_code`でマスクし、以降のLLM送信（検証パス含む）・
+  AST・抜粋・表示はすべてマスク済みソースを使う。**save_evidenceのON/OFFに関係なく有効**。
+  **トレードオフ**: 名前は残るため「ハードコード資格情報がある」こと自体は検出できるが、
+  値の中身に基づく判断（弱い/既定パスワード等）はできなくなる。複数行リテラル・
+  機密名を含まない変数名・コメント内の値はマスクされない（ヒューリスティックの限界）。
+  LangGraph版はAST観測が無いため証拠保存は未対応（常に証拠なし）。
+  **残課題**: ATTACK/DEFENSEの証拠保存（ATTACKは対象範囲を別途確認）、IDOR証拠、
+  FUZZ/DEFENSEの全出力/LLM入力前マスキング、FUZZ側の保存省略理由・未知ID記録、
+  JSON出力。
   今回のリンクは保存時に採用されたIDを参照し、後からの証拠削除・移動は検査しない。
   検証: `SELFTEST_NON_LLM_ONLY=1 .venv/bin/python3 tools/run_selftest.py`で
   143 PASS / 0 FAIL / 5 SKIP（実LLM系未実施）。GUI目視確認は未実施。

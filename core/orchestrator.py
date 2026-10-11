@@ -25,6 +25,7 @@ LANGGRAPH_AVAILABLE: bool = importlib.util.find_spec("langgraph") is not None
 
 from core.llm_client import LLMClient
 from core.event_bus import EventBus
+from core import redaction
 import core.event_bus as ev
 
 _SURFACE_PROMPT = """\
@@ -130,6 +131,8 @@ def build_audit_graph(
         try:
             with open(state["source_path"], "r", encoding="utf-8", errors="replace") as f:
                 code = f.read()
+            # 以降の全ノード(LLM送信)が使う前に機密名へのリテラル代入をマスクする(P1.2)。
+            code = redaction.mask_source(code)
             lines = code.count("\n") + 1
             _emit(f"  {lines} 行を読み込みました。\n\n", "dim")
         except OSError as e:

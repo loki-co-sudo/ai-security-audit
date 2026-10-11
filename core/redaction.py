@@ -127,3 +127,35 @@ def mask_body(body: str, known_secrets: set[str] | None = None, max_len: int = 2
     text = _FORM_KV_RE.sub(_form_sub, text)
     text = _JSON_KV_RE.sub(_json_sub, text)
     return text
+
+
+# ソースコード中の「機密名への文字列リテラル代入」（例: DB_PASSWORD = "hunter2"、"api_key": "xxx"）。
+# 名前に機密語を含む識別子/キーに、同一行内の引用符付きリテラルが代入/対応付けされている場合のみ対象。
+# 改行を跨がない（行数を変えないため、LLMが報告する行番号と元ソースの対応が崩れない）。
+_SECRET_NAME_PARTS = r"(?:password|passwd|pwd|secret|token|api_?key|apikey|auth|credential)"
+_CODE_SECRET_RE = re.compile(
+    r"(?P<name>[A-Za-z0-9_\-]*" + _SECRET_NAME_PARTS + r"[A-Za-z0-9_\-]*[\"']?\s*[:=]\s*)"
+    r"(?P<q>[\"'])(?P<val>[^\"'\n]+)(?P=q)",
+    re.IGNORECASE,
+)
+
+
+def mask_source(text: str, known_secrets: set[str] | None = None, max_len: int | None = None) -> str:
+    """ソースコード/ログ片をマスクする（保存・LLM送信・表示の前処理用）。
+
+    既知の機密値の完全一致に加え、機密名への引用符付きリテラル代入を値だけ置換する。
+    名前は保持するため、LLMは「ハードコードされた資格情報がある」こと自体は認識できるが、
+    値そのもの（弱いパスワード等）に基づく判断はできなくなる。これは検出品質とのトレードオフ。
+    """
+    known = {s for s in (known_secrets or ()) if s}
+    out = text if max_len is None else (text or "")[:max_len]
+    if known:
+        out = _mask_known_secrets(out, known)
+
+    def _sub(m: re.Match) -> str:
+        val = m.group("val")
+        if val.startswith(_MASK_TAG):  # 二重マスクを避ける（冪等）
+            return m.group(0)
+        return f"{m.group('name')}{m.group('q')}{mask_value(val)}{m.group('q')}"
+
+    return _CODE_SECRET_RE.sub(_sub, out)
