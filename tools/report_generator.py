@@ -206,6 +206,10 @@ def _render_finding(f: dict, lbl: dict) -> str:
         if v
     ]
     parts = []
+    if "verification" in f:
+        parts.append(f'<p>Verification: {html.escape(f["verification"])}</p>')
+        refs = " ".join(f'<a href="{path}">{eid}</a>' for eid, path in f["evidence_refs"])
+        parts.append(f'<p>Evidence: {refs or "not saved / unavailable"}</p>')
     if f.get("snippet"):
         parts.append(f'<div class="slabel">{lbl["vuln_code"]}</div><pre>{html.escape(f["snippet"])}</pre>')
     if f.get("attack"):
@@ -214,7 +218,7 @@ def _render_finding(f: dict, lbl: dict) -> str:
         parts.append(f'<div class="slabel">{lbl["fix"]}</div><pre>{html.escape(f["fix"])}</pre>')
     return (
         f'<div class="finding">'
-        f'<div class="fhdr"><span class="badge {bc}">{sev}</span>'
+        f'<div class="fhdr"><span class="badge {bc}">{html.escape(sev)}</span>'
         f'<span class="fname">{name_html}</span></div>'
         f'<div class="fbody">'
         f'<div class="fmeta">{" &nbsp;|&nbsp; ".join(meta_parts)}</div>'
@@ -243,6 +247,48 @@ def _findings_and_counts(mode: str, raw_text: str) -> tuple[list[dict], dict[str
     return findings, counts
 
 
+def _report_data(mode, target, raw_text, model, scan_result):
+    """確定結果を優先し、旧マーカー入力は互換アダプターで読む。"""
+    if scan_result is None:
+        findings, counts = _findings_and_counts(mode, raw_text)
+        return mode, target, "Evidence / coverage: unknown (legacy report)\n" + raw_text, model, findings, counts
+    result = scan_result.to_dict() if hasattr(scan_result, "to_dict") else scan_result
+    findings = []
+    scan_id = result.get("scan_id", "")
+    for item in result.get("findings", []):
+        refs = []
+        for eid in item.get("evidence_ids", []):
+            if (re.fullmatch(r"scan_[a-f0-9]{12}", scan_id)
+                    and re.fullmatch(r"evidence_[a-f0-9]{12}", eid)):
+                refs.append((eid, f"evidence/{scan_id}/{eid}.json"))
+        findings.append({
+            "name": item.get("description", ""),
+            "severity": item.get("severity", "LOW"),
+            "ref": item.get("rule_id", ""), "lines": item.get("location", ""),
+            "fix": item.get("remediation", ""),
+            "snippet": item.get("snippet", ""), "attack": item.get("analysis", ""),
+            "verification": item.get("verification_state", "observed"),
+            "evidence_refs": refs,
+            "confidence": ("ENSEMBLE_MINORITY" if
+                           item.get("verifier_support", {}).get("ensemble_minority") else ""),
+        })
+    counts = {sev: sum(f["severity"].upper() == sev for f in findings)
+              for sev in ("CRITICAL", "HIGH", "MEDIUM", "LOW")}
+    summary = [f"State: {result.get('state', 'unknown')}",
+               "Suppressed: 0 (suppression is not implemented)",
+               "Evidence: excerpts may be masked or omitted; no references means not saved or unavailable."]
+    summary.extend(f"Error: {e}" for e in result.get("errors", []))
+    summary.extend(f"Coverage: {c.get('status')} | {c.get('target_ref')} | {c.get('reason', '')}"
+                   for c in result.get("coverage", []))
+    return (result.get("mode", mode), result.get("target", target), "\n".join(summary),
+            result.get("model", model), findings, counts)
+
+
+def _markdown_text(value):
+    """入力由来のMarkdown構文とHTMLを無効にする。"""
+    return re.sub(r"([\\`*_{}\[\]()#+.!|>~-])", r"\\\1", html.escape(str(value)))
+
+
 def generate(
     mode: str,
     target: str,
@@ -250,13 +296,15 @@ def generate(
     model: str = "Unknown",
     timestamp: str | None = None,
     lang: str | None = None,
+    scan_result=None,
 ) -> str:
     """スキャン結果をHTMLレポートとして生成して文字列で返す。"""
     if timestamp is None:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     lbl = _labels(lang)
-    findings, counts = _findings_and_counts(mode, raw_text)
+    mode, target, raw_text, model, findings, counts = _report_data(
+        mode, target, raw_text, model, scan_result)
 
     findings_section = ""
     if findings:
@@ -321,6 +369,7 @@ def generate_pdf(
     model: str = "Unknown",
     timestamp: str | None = None,
     lang: str | None = None,
+    scan_result=None,
 ) -> bytes | None:
     """スキャン結果を日本語対応PDFとして生成しバイト列で返す。
 
@@ -330,7 +379,8 @@ def generate_pdf(
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     lbl = _labels(lang)
-    findings, counts = _findings_and_counts(mode, raw_text)
+    mode, target, raw_text, model, findings, counts = _report_data(
+        mode, target, raw_text, model, scan_result)
     from tools import pdf_writer
     return pdf_writer.render(
         meta={
@@ -352,6 +402,7 @@ def generate_markdown(
     model: str = "Unknown",
     timestamp: str | None = None,
     lang: str | None = None,
+    scan_result=None,
 ) -> str:
     """バグバウンティ提出用（HackerOne/Bugcrowd等）のMarkdownレポートを生成する。
 
@@ -362,7 +413,12 @@ def generate_markdown(
     if timestamp is None:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     lbl = _labels(lang)
-    findings, counts = _findings_and_counts(mode, raw_text)
+    mode, target, raw_text, model, findings, counts = _report_data(
+        mode, target, raw_text, model, scan_result)
+    if scan_result is not None:
+        mode, target, model = map(_markdown_text, (mode, target, model))
+        findings = [{k: (_markdown_text(v) if isinstance(v, str) and k not in ("snippet", "fix") else v)
+                     for k, v in f.items()} for f in findings]
 
     lines = [
         f"# {lbl['doc_title']} — {mode}",
@@ -378,7 +434,15 @@ def generate_markdown(
         f"MEDIUM: {counts['MEDIUM']}  |  LOW: {counts['LOW']}",
         "",
     ]
+    if scan_result is not None:
+        lines.extend([_markdown_text(raw_text), ""])
+    else:
+        lines.extend(["Evidence / coverage: unknown (legacy report)", ""])
     for f in findings:
+        if "verification" in f:
+            lines.extend([f"Verification: {f['verification']}", "Evidence: " + (
+                " ".join(f"[{eid}]({path})" for eid, path in f["evidence_refs"])
+                or "not saved / unavailable"), ""])
         sev = (f.get("severity") or "LOW").upper()
         name = f.get("name") or "Unknown"
         lines.append(f"## [{sev}] {name}")
@@ -390,17 +454,17 @@ def generate_markdown(
             lines.append(f"**Location**: {f['lines']}")
             lines.append("")
         lines.append("### Steps to Reproduce")
-        lines.append("```")
-        lines.append(f.get("snippet") or "(詳細はレポート全文参照)")
-        lines.append("```")
+        snippet = f.get("snippet") or "(詳細はレポート全文参照)"
+        fence = "`" * max(3, max((len(m) + 1 for m in re.findall(r"`+", snippet)), default=3))
+        lines.extend([fence, snippet, fence])
         lines.append("")
         lines.append("### Impact")
         lines.append(f.get("attack") or "(記載なし)")
         lines.append("")
         lines.append("### Suggested Fix")
-        lines.append("```")
-        lines.append(f.get("fix") or "(記載なし)")
-        lines.append("```")
+        fix = f.get("fix") or "(記載なし)"
+        fence = "`" * max(3, max((len(m) + 1 for m in re.findall(r"`+", fix)), default=3))
+        lines.extend([fence, fix, fence])
         lines.append("")
     if not findings:
         lines.append("_（検出項目なし）_")

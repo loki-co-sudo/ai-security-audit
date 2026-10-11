@@ -23,20 +23,20 @@ def _open(path: str, log: Callable[[str], None]) -> None:
 
 def export_html(
     mode: str, target: str, raw: str, model: str,
-    slug: str, log: Callable[[str], None],
+    slug: str, log: Callable[[str], None], scan_result=None,
 ) -> None:
     html_content = report_generator.generate(
-        mode=mode, target=target, raw_text=raw, model=model,
+        mode=mode, target=target, raw_text=raw, model=model, scan_result=scan_result,
     )
     _open(report_generator.save(html_content, slug), log)
 
 
 def export_pdf(
     mode: str, target: str, raw: str, model: str,
-    slug: str, log: Callable[[str], None],
+    slug: str, log: Callable[[str], None], scan_result=None,
 ) -> None:
     pdf_bytes = report_generator.generate_pdf(
-        mode=mode, target=target, raw_text=raw, model=model,
+        mode=mode, target=target, raw_text=raw, model=model, scan_result=scan_result,
     )
     if pdf_bytes is None:
         log("PDF出力には Pillow が必要です: pip install Pillow")
@@ -46,10 +46,10 @@ def export_pdf(
 
 def export_markdown(
     mode: str, target: str, raw: str, model: str,
-    slug: str, log: Callable[[str], None],
+    slug: str, log: Callable[[str], None], scan_result=None,
 ) -> None:
     """バグバウンティ提出用Markdownレポートを出力する（BOUNTY_ROADMAP.md Phase D）。"""
     md_content = report_generator.generate_markdown(
-        mode=mode, target=target, raw_text=raw, model=model,
+        mode=mode, target=target, raw_text=raw, model=model, scan_result=scan_result,
     )
     _open(report_generator.save_markdown(md_content, slug), log)

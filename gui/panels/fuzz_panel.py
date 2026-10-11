@@ -169,6 +169,7 @@ class FuzzPanel(ctk.CTkFrame):
             return
         self._steps_widget.reset()
         self._scan_btn.configure(state="disabled", text="  FUZZING  ●", fg_color="#6A4400")
+        self._scan_result = None
         self._bus.flush()
         if self._auto_var.get():
             threading.Thread(target=self._auto_classify, args=(target,), daemon=True).start()
@@ -243,7 +244,7 @@ class FuzzPanel(ctk.CTkFrame):
         export_util.export_html(
             "WEB FUZZ", self._target_entry.get().strip(),
             self._out_box.get_text(), self._llm.model,
-            "web_fuzz", self._steps_widget.log,
+            "web_fuzz", self._steps_widget.log, scan_result=getattr(self, "_scan_result", None),
         )
 
     def _export_pdf(self) -> None:
@@ -251,7 +252,7 @@ class FuzzPanel(ctk.CTkFrame):
         export_util.export_pdf(
             "WEB FUZZ", self._target_entry.get().strip(),
             self._out_box.get_text(), self._llm.model,
-            "web_fuzz", self._steps_widget.log,
+            "web_fuzz", self._steps_widget.log, scan_result=getattr(self, "_scan_result", None),
         )
 
     def _export_markdown(self) -> None:
@@ -259,13 +260,15 @@ class FuzzPanel(ctk.CTkFrame):
         export_util.export_markdown(
             "WEB FUZZ", self._target_entry.get().strip(),
             self._out_box.get_text(), self._llm.model,
-            "web_fuzz", self._steps_widget.log,
+            "web_fuzz", self._steps_widget.log, scan_result=getattr(self, "_scan_result", None),
         )
 
     # ── EventBus dispatch ─────────────────────────────────
     def dispatch(self, event: ev.Event) -> None:
         k, p = event.kind, event.payload
-        if k == ev.OUTPUT:
+        if k == ev.RESULT:
+            self._scan_result = p
+        elif k == ev.OUTPUT:
             self._out_box.append(p["text"], p.get("tag", ""))
         elif k == ev.STEP:
             self._steps_widget.set_step(p["idx"], p["state"])

@@ -2904,6 +2904,17 @@ def test_monitor_geometry():
         _ng("_pick_monitor", repr(e) + "\n" + traceback.format_exc())
 
 
+def test_structured_reports():
+    import unittest
+    from tools.test_structured_reports import StructuredReportsTest
+    result = unittest.TestResult()
+    unittest.defaultTestLoader.loadTestsFromTestCase(StructuredReportsTest).run(result)
+    if result.wasSuccessful():
+        _ok("Structured reports", f"{result.testsRun} tests: final findings, evidence references, GUI forwarding")
+    else:
+        _ng("Structured reports", str(result.errors + result.failures))
+
+
 def main():
     print("\n" + "#"*64)
     print("#  AI Security Audit System — 全機能セルフテスト")
@@ -2932,6 +2943,7 @@ def main():
     test_ctf_active_retrieval()
     log_path = test_log_watcher()
     test_pattern_match()
+    test_structured_reports()
     test_report_generator()
     test_report_generator_attack_mode()
     test_report_generator_markdown()

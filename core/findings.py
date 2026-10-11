@@ -79,6 +79,9 @@ class Finding:
     verifier_support: dict = field(default_factory=dict)  # 例: {"votes": 2, "total": 3}
     raw_block: str = ""              # 旧マーカー形式の原文（互換保持。証拠管理はP1.2で分離）
 
+    snippet: str = ""
+    analysis: str = ""
+
     def to_dict(self) -> dict:
         return asdict(self)
 

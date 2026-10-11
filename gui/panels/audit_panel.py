@@ -153,6 +153,7 @@ class AuditPanel(ctk.CTkFrame):
             return
         self._steps_widget.reset()
         self._start_btn.configure(state="disabled", text="  監査中 ...  ●", fg_color="#153040")
+        self._scan_result = None
         self._bus.flush()
         if self._engine_var.get() == "LangGraph" and _LG_AVAILABLE:
             from agents.langgraph_audit_agent import LangGraphAuditAgent
@@ -198,27 +199,29 @@ class AuditPanel(ctk.CTkFrame):
         from gui import export_util
         export_util.export_html(
             "CODE AUDIT", self._path.get(), self._out_box.get_text(),
-            self._llm.model, "code_audit", self._steps_widget.log,
+            self._llm.model, "code_audit", self._steps_widget.log, scan_result=getattr(self, "_scan_result", None),
         )
 
     def _export_pdf(self) -> None:
         from gui import export_util
         export_util.export_pdf(
             "CODE AUDIT", self._path.get(), self._out_box.get_text(),
-            self._llm.model, "code_audit", self._steps_widget.log,
+            self._llm.model, "code_audit", self._steps_widget.log, scan_result=getattr(self, "_scan_result", None),
         )
 
     def _export_markdown(self) -> None:
         from gui import export_util
         export_util.export_markdown(
             "CODE AUDIT", self._path.get(), self._out_box.get_text(),
-            self._llm.model, "code_audit", self._steps_widget.log,
+            self._llm.model, "code_audit", self._steps_widget.log, scan_result=getattr(self, "_scan_result", None),
         )
 
     # ── EventBus dispatch（app.py から呼ばれる） ──────────
     def dispatch(self, event: ev.Event) -> None:
         k, p = event.kind, event.payload
-        if k == ev.OUTPUT:
+        if k == ev.RESULT:
+            self._scan_result = p
+        elif k == ev.OUTPUT:
             self._out_box.append(p["text"], p.get("tag", ""))
         elif k == ev.STEP:
             self._steps_widget.set_step(p["idx"], p["state"])

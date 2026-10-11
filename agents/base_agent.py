@@ -454,6 +454,8 @@ class BaseAgent(ABC):
                 verification_state=vstate,
                 description=f.get("name") or "",
                 remediation=f.get("fix") or "",
+                snippet=f.get("snippet") or "",
+                analysis=f.get("attack") or "",
                 verifier_support={"ensemble_minority": True} if is_minority else {},
                 evidence_ids=evidence_ids,
             ))

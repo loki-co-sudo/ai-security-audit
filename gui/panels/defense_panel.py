@@ -228,6 +228,7 @@ class DefensePanel(ctk.CTkFrame):
 
         self._start_btn.configure(state="disabled", text="  監視中 ...  ●", fg_color="#0F3A0F")
         self._stop_btn.configure(state="normal", text_color=GREEN)
+        self._scan_result = None
         self._bus.flush()
         self._agent.start(log_path=path, watch_mode=self._watch_mode.get())
 
@@ -241,21 +242,21 @@ class DefensePanel(ctk.CTkFrame):
         from gui import export_util
         export_util.export_html(
             "DEFENSE MODE", self._log_path.get(), self._out_box.get_text(),
-            "", "defense_mode", self._sys_log,
+            "", "defense_mode", self._sys_log, scan_result=getattr(self, "_scan_result", None),
         )
 
     def _export_pdf(self) -> None:
         from gui import export_util
         export_util.export_pdf(
             "DEFENSE MODE", self._log_path.get(), self._out_box.get_text(),
-            "", "defense_mode", self._sys_log,
+            "", "defense_mode", self._sys_log, scan_result=getattr(self, "_scan_result", None),
         )
 
     def _export_markdown(self) -> None:
         from gui import export_util
         export_util.export_markdown(
             "DEFENSE MODE", self._log_path.get(), self._out_box.get_text(),
-            "", "defense_mode", self._sys_log,
+            "", "defense_mode", self._sys_log, scan_result=getattr(self, "_scan_result", None),
         )
 
     def _sys_log(self, msg: str) -> None:
@@ -268,7 +269,9 @@ class DefensePanel(ctk.CTkFrame):
     # ── EventBus dispatch ─────────────────────────────────
     def dispatch(self, event: ev.Event) -> None:
         k, p = event.kind, event.payload
-        if k == ev.OUTPUT:
+        if k == ev.RESULT:
+            self._scan_result = p
+        elif k == ev.OUTPUT:
             self._out_box.append(p["text"], p.get("tag", ""))
         elif k == ev.LOG:
             self._sys_log(p)

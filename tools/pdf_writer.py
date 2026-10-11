@@ -221,6 +221,13 @@ class _Renderer:
 
         # メタ（REF / LOCATION）のラベルもローカライズ済み（下記 meta で使用）
 
+        if "verification" in f:
+            text = "Verification: " + f["verification"] + "\nEvidence: " + (
+                "\n".join(f"{eid}: {path}" for eid, path in f["evidence_refs"])
+                or "not saved / unavailable")
+            self._line_block(self._wrap(text, self.f_small, inner_w), self.f_small,
+                             C_MID, x0, 24)
+
         # セクション（脆弱コード / 攻撃・分析 / 修正）
         for label, key, mono in [
             (self.lbl["vuln_code"], "snippet", True),
