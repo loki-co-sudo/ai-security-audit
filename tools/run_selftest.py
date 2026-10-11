@@ -2948,6 +2948,18 @@ def test_defense_evidence():
         _ng("Defense evidence", str(result.errors + result.failures))
 
 
+def test_flag_routes():
+    _section("16n. AGENT — ReconAgent CTFフラグの中身・取得経路のレポート化(P1.2)")
+    import unittest
+    from tools.test_flag_routes import FlagRoutesTest
+    result = unittest.TestResult()
+    unittest.defaultTestLoader.loadTestsFromTestCase(FlagRoutesTest).run(result)
+    if result.wasSuccessful():
+        _ok("Flag routes", f"{result.testsRun} tests: Active/Passive経路・証拠保存ON・URLマスク・HTML/MD/PDF")
+    else:
+        _ng("Flag routes", str(result.errors + result.failures))
+
+
 def main():
     print("\n" + "#"*64)
     print("#  AI Security Audit System — 全機能セルフテスト")
@@ -2979,6 +2991,7 @@ def main():
     test_structured_reports()
     test_audit_evidence()
     test_defense_evidence()
+    test_flag_routes()
     test_report_generator()
     test_report_generator_attack_mode()
     test_report_generator_markdown()

@@ -22,7 +22,9 @@ from tools.report_generator import _findings_and_counts
 import core.config as config
 from core import scope_guard
 from core.ctf_safety import CtfSafetyGuard, is_destructive, require_explicit_scope
-from core.findings import CoverageItem, ScanState, CoverageStatus
+from core.findings import CoverageItem, Finding, ScanState, CoverageStatus, new_id
+from core import redaction
+from core.evidence_store import EvidenceStore
 from core.settings import (
     SCAN_PROFILES, DEFAULT_SCAN_PROFILE,
     COMMON_PORTS, EXTENDED_PORTS, COMMON_UDP_PORTS,
@@ -288,6 +290,26 @@ def _detect_flags(*texts: str) -> list[str]:
     return out
 
 
+def _walk_leaves(obj, path: str = ""):
+    """recon_dataを再帰的にたどり (フィールドパス, 文字列値) を返す。取得経路の記録用。"""
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            yield from _walk_leaves(v, f"{path}.{k}" if path else str(k))
+    elif isinstance(obj, (list, tuple, set)):
+        for i, v in enumerate(obj):
+            yield from _walk_leaves(v, f"{path}[{i}]")
+    elif obj is not None:
+        yield path, str(obj)
+
+
+def _flag_excerpt(text: str, flag: str, width: int = 80) -> str:
+    """応答本文からフラグ周辺の抜粋を取り、マスクして返す（フラグ自体はマスクしない）。"""
+    i = text.lower().find(flag.lower())
+    if i < 0:
+        return ""
+    return redaction.mask_body(text[max(0, i - width): i + len(flag) + width], max_len=2 * width + len(flag))
+
+
 # ── CTF ACTIVE RETRIEVAL: 送信を伴うフラグ探索（docs/CTF_ACTIVE_FLAG_RETRIEVAL.md） ──
 # EXPLOIT_TRANSMISSION_ENABLED / _assert_no_transmission() の経路とは完全に独立。
 # 既定オフ・スコープ明示必須・破壊的操作は core.ctf_safety.is_destructive() で機械的に拒否。
@@ -343,6 +365,8 @@ class ReconAgent(BaseAgent):
             ctf_active: bool = False, ctf_active_targets: list[str] | None = None,
             ctf_active_max_tier: int = 2) -> None:
         self._current_mode, self._current_target = "ATTACK", target
+        scan_id = self._begin_scan()  # フラグ取得時のHTTP証拠保存がfinalize前からscan_idを使うため
+        self._flag_routes = {}        # フラグ(小文字) → 取得経路(レポート用)
         self.bus.clear()
         if not self._check_scope(target):
             return
@@ -662,10 +686,13 @@ class ReconAgent(BaseAgent):
         self._status(f"Recon complete — {total_ports} open ports.")
 
         findings = self._findings_from_markers(parsed_findings, corroborated=bool(effort.get("verify_pass")))
+        flag_findings, flag_errors = self._flag_findings(recon_data, scan_id)
+        findings = findings + flag_findings
         coverage = self._build_coverage(
             target, host, scan_ports, port_scope, scan_web, web_ran, scan_udp, domain,
         )
         state, errors = self._determine_state(triage_text=full, host_resolved=bool(resolved_ip))
+        errors = errors + flag_errors
         self._finalize(state=state, errors=errors, findings=findings, coverage=coverage,
                        mode="ATTACK", target=target)
 
@@ -806,8 +833,17 @@ class ReconAgent(BaseAgent):
         ヘッダー・パス名・TLS情報等）の取りこぼしがなく、また web 偵察が
         空/失敗でもバナー等のみで確実に走る。JSON化できない値は str へ落とす。
         """
-        flat = json.dumps(recon, ensure_ascii=False, default=str)
-        flags = _detect_flags(flat)
+        flags: list[str] = []
+        seen: set[str] = set()
+        for field, value in _walk_leaves(recon):
+            for f in _detect_flags(value):
+                route = self._routes().setdefault(
+                    f.lower(), {"kind": "recon_field", "fields": []})
+                if field not in route["fields"]:
+                    route["fields"].append(field)
+                if f.lower() not in seen:
+                    seen.add(f.lower())
+                    flags.append(f)
         recon["flags"] = flags
 
         self._out("\n" + "─" * 56 + "\n", "sep")
@@ -898,6 +934,78 @@ class ReconAgent(BaseAgent):
         if stop:
             self._out(f"\n  [{stop_reason}]\n", "mid")
 
+    def _routes(self) -> dict:
+        """フラグ取得経路の保持先（run()を経ずに個別メソッドが呼ばれても動くよう遅延生成）。"""
+        return self.__dict__.setdefault("_flag_routes", {})
+
+    def _record_active_route(self, hits: list[str], resp, guard: CtfSafetyGuard, *, tier: int,
+                             method: str, url: str, rationale: str, params=None, data=None) -> None:
+        """Active Retrievalでフラグが見つかったリクエストを取得経路として記録する（レポート用）。
+
+        記録のみで送信ロジック・安全ガードには触れない。URL/パラメータは機密名ベースでマスク、
+        応答抜粋はフラグ周辺のみ（フラグ自体はマスクしない）。
+        """
+        for f in hits:
+            self._routes()[f.lower()] = {
+                "kind": "active", "tier": tier, "method": method,
+                "url": redaction.mask_url(url),
+                "params": redaction.mask_body(json.dumps(params, ensure_ascii=False, default=str)) if params else "",
+                "data": redaction.mask_body(json.dumps(data, ensure_ascii=False, default=str)) if data else "",
+                "status": resp.status_code, "rationale": rationale,
+                "request_no": len(guard.log),
+                "excerpt": _flag_excerpt(resp.text, f),
+                "_headers": dict(resp.headers), "_body": resp.text,  # 証拠保存用（レポートへは出さない）
+            }
+
+    def _flag_findings(self, recon: dict, scan_id: str) -> tuple[list[Finding], list[str]]:
+        """取得したフラグを「中身・取得経路」付きのFindingへ変換する。
+
+        フラグは成果物であり秘密として隠さない。severityはINFO（脆弱性の深刻度ではない）。
+        `save_evidence`有効時は、Active Retrievalの応答を証拠として保存しevidence_idsを付ける。
+        戻り値の2要素目は証拠保存のエラー/省略（ScanResult.errors用）。
+        """
+        flags = recon.get("flags") or []
+        if not flags:
+            return [], []
+        store = EvidenceStore(scan_id) if config.get("save_evidence", False) else None
+        out: list[Finding] = []
+        for f in flags:
+            route = self._routes().get(f.lower(), {})
+            eids: list[str] = []
+            if route.get("kind") == "active":
+                loc = f"{route['method']} {route['url']}"
+                how = [f"取得方法: CTF Active Retrieval（Tier{route['tier']}・送信を伴う読み取り専用リクエスト）",
+                       f"リクエスト: {loc}" + (f" params={route['params']}" if route["params"] else "")
+                       + (f" data={route['data']}" if route["data"] else ""),
+                       f"応答ステータス: {route['status']}",
+                       f"試行の目的: {route['rationale'] or '(記載なし)'}",
+                       f"送信履歴上の位置: {route['request_no']}件目"]
+                snippet = route["excerpt"]
+                if store is not None:
+                    eid = store.save_http_evidence(
+                        method=route["method"], url=route["url"], status=route["status"],
+                        headers=route["_headers"], body=route["_body"])
+                    if eid:
+                        eids.append(eid)
+            elif route.get("kind") == "recon_field":
+                loc = ", ".join(route["fields"][:3])
+                how = ["取得方法: CTF Flag Hunt（取得済みの偵察結果の中から検出。追加送信なし）",
+                       "検出されたフィールド: " + ", ".join(route["fields"])]
+                snippet = ""
+            else:
+                loc, how, snippet = "", ["取得経路: 記録なし"], ""
+            out.append(Finding(
+                finding_id=new_id("finding"), rule_id="CTF_FLAG", location=loc,
+                severity="INFO", verification_state="observed",
+                description=f"CTF flag captured: {f}", remediation="",
+                snippet=snippet, analysis="\n".join(how), evidence_ids=eids,
+            ))
+        errs: list[str] = []
+        if store is not None:
+            errs += [f"証拠保存エラー: {e}" for e in store.save_errors]
+            errs += [f"証拠保存を省略: {o}" for o in store.omissions]
+        return out, errs
+
     def _ctf_tier1(
         self, base_url: str, session: requests.Session, guard: CtfSafetyGuard,
     ) -> list[str]:
@@ -917,6 +1025,8 @@ class ReconAgent(BaseAgent):
             if resp is not None and resp.status_code == 200:
                 hits = _detect_flags(resp.text)
                 if hits:
+                    self._record_active_route(hits, resp, guard, tier=1, method="GET", url=url,
+                                              rationale=f"wordlist:{word}")
                     return hits
         return []
 
@@ -969,6 +1079,9 @@ class ReconAgent(BaseAgent):
             if resp is not None and resp.status_code < 500:
                 hits = _detect_flags(resp.text)
                 if hits:
+                    self._record_active_route(hits, resp, guard, tier=tier, method=method, url=url,
+                                              rationale=rationale, params=kwargs.get("params"),
+                                              data=kwargs.get("data"))
                     return hits
         return []
 

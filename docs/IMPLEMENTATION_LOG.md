@@ -459,3 +459,12 @@ ATTACK MODE に、認可された偵察レスポンスからCTF形式のフラ�
   トレードオフをAGENTS.mdに記載。テスト: `tools/test_defense_evidence.py`（モックLLMで
   `MonitorAgent.run()`を実走）。`tools/run_selftest.py` 145 PASS / 0 FAIL / 5 SKIP。
 
+- **P1.2続き（ATTACK: CTFフラグの中身・取得経路のレポート化、2026-10-11）**:
+  Hiro指示により、ATTACKの証拠保存は「取得フラグの中身と経路をレポートに残す」範囲で実装。
+  `agents/recon_agent.py`に`_walk_leaves`/`_flag_excerpt`/`_record_active_route`/
+  `_flag_findings`を追加し、フラグを`CTF_FLAG`/`INFO`のFindingとしてScanResultへ載せた。
+  Flag Huntの検出はrecon_data全体のJSON化から再帰走査に変更（検出フィールドを記録するため）。
+  送信ロジック・安全ガードは無変更。テスト: `tools/test_flag_routes.py`
+  （Active/Passive経路、証拠保存ON、URL/パラメータのマスク、HTML/MD/PDF）。
+  `tools/run_selftest.py` 146 PASS / 0 FAIL / 5 SKIP。
+

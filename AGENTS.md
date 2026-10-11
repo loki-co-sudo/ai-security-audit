@@ -423,8 +423,23 @@ P0.1・P0.2・P1.1は完了済み。実装詳細・セルフテスト結果は
   LLM送信・保存にはマスク済みの行のみ使う（save_evidenceのON/OFFに関係なく有効）。
   **トレードオフ**: 機密名パラメータの値に入った攻撃ペイロード（例: `password=' OR 1=1--`）は
   シグネチャ検知とアラートは出るが、LLM分析にはペイロードが渡らない。
-  **残課題**: ATTACKの証拠保存（対象範囲を別途確認）、IDOR証拠、FUZZの全出力/LLM入力前
-  マスキング、FUZZ側の保存省略理由・未知ID記録、LangGraph版の証拠保存、JSON出力。
+  **2026-10-11の追加実装（ATTACKのCTFフラグ報告）**: ATTACKの証拠保存範囲はHiro指示
+  （2026-10-11）により「取得したフラグの中身と取得経路をレポートに残す」ことに限定。
+  従来フラグは`recon_data["flags"]`（文字列のみ）で、ScanResult→HTML/MD/PDFには載らなかった。
+  `ReconAgent._flag_findings()`が各フラグを`rule_id="CTF_FLAG"`・`severity="INFO"`
+  （脆弱性の深刻度ではない。集計4区分には数えない）のFindingにする。description=フラグ本文
+  （成果物なのでマスクしない）、location/analysis=取得経路、snippet=応答中のフラグ周辺抜粋。
+  経路はActive Retrievalでは`_record_active_route()`が記録（Tier・メソッド・URL・params/data・
+  ステータス・rationale・送信履歴上の位置。URLとパラメータは機密名ベースでマスク）、
+  Flag Huntでは`_walk_leaves()`でrecon_dataを再帰し検出フィールドのパスを記録（従来の
+  全体JSON化をやめた）。`save_evidence`有効時のみ、Active Retrievalの応答をHTTP証拠として
+  保存しevidence_idsを付ける（OFFでも経路はレポートに出る）。**送信ロジック・安全ガード
+  （スコープ必須・破壊的操作ブロック・予算）は変更していない**（記録のみ追加）。
+  `_ctf_tier1`/`_ctf_llm_guided_tier`の戻り値（フラグ文字列のリスト）も不変。
+  既知の限界: ATTACKのLLM所見（ポート/サービス等）の証拠保存は未対応。HTML/MDの見出し
+  ラベルは脆弱性用（「脆弱コード」「Impact」等）のままで、フラグ所見では抜粋/経路の意味。
+  **残課題**: ATTACKのLLM所見の証拠保存、IDOR証拠、FUZZの全出力/LLM入力前マスキング、
+  FUZZ側の保存省略理由・未知ID記録、LangGraph版の証拠保存、JSON出力。
   今回のリンクは保存時に採用されたIDを参照し、後からの証拠削除・移動は検査しない。
   検証: `SELFTEST_NON_LLM_ONLY=1 .venv/bin/python3 tools/run_selftest.py`で
   143 PASS / 0 FAIL / 5 SKIP（実LLM系未実施）。GUI目視確認は未実施。
