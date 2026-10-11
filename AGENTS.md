@@ -448,8 +448,13 @@ P0.1・P0.2・P1.1は完了済み。実装詳細・セルフテスト結果は
   有効にする場合は保存先（`reports/evidence/`）の取り扱いに注意する（1件20KB・200件・5MB上限）。
   **FUZZにも同じ記録方式を適用**: 上限到達の省略は「証拠保存を省略」、LLMが引用した未知IDは
   「未知の証拠IDを除外」として`ScanResult.errors`に残す。
-  **残課題**: ATTACKのLLM所見の証拠保存、FUZZの全出力/LLM入力前マスキング、
-  LangGraph版の証拠保存、JSON出力。
+  **FUZZの入力マスキング**: `run()`冒頭で既知の機密値（設定Cookie/ヘッダー値/パスワード）を
+  作り、画面表示（対象・異常・IDOR）、fuzzerのログ、LLMへ渡すサマリー（→調査レポートにも
+  同じ文字列が保存される）を`mask_log_line()`でマスクする（`save_evidence`のON/OFFに関係なく有効）。
+  `_known_secrets()`は複数Cookieを`name=value`単位と8文字以上の値でも登録する。
+  トレードオフ: `token=`等の機密名パラメータの値はLLMトリアージに渡らない（検出自体は生の
+  応答で行う）。ページ本文中の機密値は、既知の値かキー名ヒューリスティックに該当する場合のみ隠せる。
+  **残課題**: ATTACKのLLM所見の証拠保存、LangGraph版の証拠保存、JSON出力。
   今回のリンクは保存時に採用されたIDを参照し、後からの証拠削除・移動は検査しない。
   検証: `SELFTEST_NON_LLM_ONLY=1 .venv/bin/python3 tools/run_selftest.py`で
   143 PASS / 0 FAIL / 5 SKIP（実LLM系未実施）。GUI目視確認は未実施。

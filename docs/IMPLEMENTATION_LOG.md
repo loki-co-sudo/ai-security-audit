@@ -477,3 +477,9 @@ ATTACK MODE に、認可された偵察レスポンスからCTF形式のフラ�
   `store.omissions`を、`run()`が`rejected_evidence_ids`を`errors`へ反映。AUDIT/DEFENSEと同方式。
   テスト: selftest 16oに2件追加。
 
+- **P1.2続き（FUZZ入力マスキング、2026-10-11）**: 表示・fuzzerログ・LLMサマリーを
+  `mask_log_line()`でマスク。`_known_secrets`を複数Cookie対応に拡張。テスト:
+  `tools/test_fuzz_masking.py`（ローカルサーバ＋モックLLMで`FuzzAgent.run()`を実走し、
+  表示/LLM/保存物にURLトークン・Cookie値が残らないことを確認。実走で、fuzzerのcrawlログに
+  URLトークンが出るリークを発見し修正）。
+

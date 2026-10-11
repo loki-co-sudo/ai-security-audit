@@ -3030,6 +3030,18 @@ def test_flag_routes():
         _ng("Flag routes", str(result.errors + result.failures))
 
 
+def test_fuzz_masking():
+    _section("16p. AGENT — FuzzAgent 表示・LLM送信・保存前マスキング(P1.2)")
+    import unittest
+    from tools.test_fuzz_masking import FuzzMaskingTest
+    result = unittest.TestResult()
+    unittest.defaultTestLoader.loadTestsFromTestCase(FuzzMaskingTest).run(result)
+    if result.wasSuccessful():
+        _ok("Fuzz masking", f"{result.testsRun} tests: URLトークン・Cookie値が表示/LLM/保存物に残らない")
+    else:
+        _ng("Fuzz masking", str(result.errors + result.failures))
+
+
 def main():
     print("\n" + "#"*64)
     print("#  AI Security Audit System — 全機能セルフテスト")
@@ -3089,6 +3101,7 @@ def main():
     test_fuzz_agent_no_points_lifecycle()
     test_fuzz_agent_evidence_wiring()
     test_fuzz_idor_evidence()
+    test_fuzz_masking()
     _skip_llm("17", "AGENT E2E — FuzzAgent（ローカルモック / 実LLM）", test_fuzz_agent)
     test_desktop_shortcut()
     test_model_picker()

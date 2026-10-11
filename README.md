@@ -437,7 +437,7 @@ HTML/MDの証拠リンクは`reports/`基準の相対パスです。レポート
 （Active Retrievalのリクエスト、またはFlag Huntの検出フィールド）がレポートに「INFO」所見として出力されます。
 **LLM送信前のマスキングは `save_evidence` の設定に関係なく常に有効**です（CODE AUDIT/LangGraph: 機密名
 `password`/`token`/`api_key` 等への文字列リテラル代入・比較の値、DEFENSE: ログ中の Authorization/Cookie・
-`token=` 等のクエリ値）。AI出力やDEFENSEのアラート表示に `***REDACTED***(sha256:…)` が現れるのはこのためです。
+`token=` 等のクエリ値、WEB FUZZ: URL中の機密パラメータ・設定済みCookie等の値）。AI出力やDEFENSEのアラート表示に `***REDACTED***(sha256:…)` が現れるのはこのためです。
 トレードオフとして、コード中の弱い/既定パスワードの値そのものや、`password=` 等のパラメータ値に入った攻撃
 ペイロードはAI分析に渡りません（DEFENSEのシグネチャ検知とアラートは生のログ行で行うため影響しません）。
 CLI等はまだ利用できません。自動スキャンCI・外部通知などの保留事項、実装の詳細な進捗は

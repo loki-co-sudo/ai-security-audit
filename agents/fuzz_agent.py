@@ -22,6 +22,7 @@ import core.config as config
 from core.settings import SCAN_PROFILES, DEFAULT_SCAN_PROFILE
 from core.findings import Finding, CoverageItem, ScanState, CoverageStatus
 from core.evidence_store import EvidenceStore
+from core import redaction
 
 def idor_skip_reason(fuzzer: WebFuzzer) -> str | None:
     """認証必須のIDORチェックをskipすべき理由を返す（skip不要ならNone、P0.2）。
@@ -118,6 +119,9 @@ class FuzzAgent(BaseAgent):
         if profile not in SCAN_PROFILES:
             profile = DEFAULT_SCAN_PROFILE
         base_url = target if target.startswith("http") else "http://" + target
+        # 表示・LLM送信・保存の前にマスクするための既知の機密値（P1.2）
+        known_secrets = self._known_secrets(auth, auth_b)
+        mask = lambda t: redaction.mask_log_line(str(t), known_secrets)  # noqa: E731
 
         # ── Step 0: ヘッダ ─────────────────────────────────
         self._step(0, "running")
@@ -127,7 +131,7 @@ class FuzzAgent(BaseAgent):
             "╚══════════════════════════════════════════════════════╝\n\n",
             "header",
         )
-        self._out(f"  TARGET       : {base_url}\n", "dim")
+        self._out(f"  TARGET       : {mask(base_url)}\n", "dim")
         self._out(f"  PROFILE      : {profile.upper()}\n", "dim")
         self._out(f"  REQ BUDGET   : {max_requests} (DoS防止上限)\n", "dim")
         self._out("  MODE         : 検出のみ（兆候観測・非エクスプロイト）\n", "green")
@@ -140,7 +144,7 @@ class FuzzAgent(BaseAgent):
 
         fuzzer = WebFuzzer(
             profile=profile, max_pages=max_pages,
-            max_requests=max_requests, log=self._log, auth=auth, auth_b=auth_b,
+            max_requests=max_requests, log=lambda m: self._log(mask(m)), auth=auth, auth_b=auth_b,
             target=base_url,  # 基準originを認証より前に確定する (P0.1)
             stop_event=self._stop_event,  # STOP後は新しい送信を開始しない (P0.2)
             tls_verify=tls_verify, tls_ca_bundle=tls_ca_bundle,
@@ -211,9 +215,9 @@ class FuzzAgent(BaseAgent):
                   f"{len(anomalies)} 件の異常兆候を観測:\n\n", "green")
         for a in anomalies:
             sev_tag = a["severity"].lower() if a["severity"] != "CRITICAL" else "critical"
-            self._out(f"    [{a['category']}] {a['param']}@{a['url']}\n", sev_tag)
-            self._out(f"        payload : {a['payload'][:60]}\n", "dim")
-            self._out(f"        evidence: {a['evidence']}\n", "dim")
+            self._out(mask(f"    [{a['category']}] {a['param']}@{a['url']}\n"), sev_tag)
+            self._out(mask(f"        payload : {a['payload'][:60]}\n"), "dim")
+            self._out(mask(f"        evidence: {a['evidence']}\n"), "dim")
         self._step(3, "done")
         if self.is_stopped():
             return
@@ -241,8 +245,8 @@ class FuzzAgent(BaseAgent):
                 if idor_findings:
                     self._out(f"\n  {len(idor_findings)} 件のアクセス制御不備の兆候を観測:\n\n", "high")
                     for f in idor_findings:
-                        self._out(f"    [IDOR?] {f['param']}@{f['url']}\n", "high")
-                        self._out(f"        evidence: {f['evidence']}\n", "dim")
+                        self._out(mask(f"    [IDOR?] {f['param']}@{f['url']}\n"), "high")
+                        self._out(mask(f"        evidence: {f['evidence']}\n"), "dim")
                 else:
                     self._out("\n  (兆候なし)\n", "dim")
         else:
@@ -258,8 +262,7 @@ class FuzzAgent(BaseAgent):
         evidence_errors: list[str] = []
         if config.get("save_evidence", False):
             known_evidence_ids, evidence_errors = self._save_evidence(
-                EvidenceStore(scan_id), anomalies, idor_findings,
-                self._known_secrets(auth, auth_b))
+                EvidenceStore(scan_id), anomalies, idor_findings, known_secrets)
             if evidence_errors:
                 self._log(f"evidence: {len(evidence_errors)}件の保存エラー")
 
@@ -269,7 +272,7 @@ class FuzzAgent(BaseAgent):
         self._out("  PHASE 4 — AI TRIAGE & REPORT  (streaming)\n", "section")
         self._out("─" * 56 + "\n\n", "sep")
         self._status("AIが結果をトリアージ中 ...")
-        summary = self._build_summary(base_url, points, anomalies, idor_findings)
+        summary = mask(self._build_summary(base_url, points, anomalies, idor_findings))
         full = self._stream_llm([
             self.llm.system(_TRIAGE_SYS),
             self.llm.user(f"Triage these authorized fuzzing results:\n\n{summary}"),
@@ -316,6 +319,15 @@ class FuzzAgent(BaseAgent):
                 v = (a.get(key) or "").strip()
                 if v:
                     secrets.add(v)
+            # 複数Cookie("a=1; b=2")は、応答に個別に反映されても隠せるよう name=value 単位でも登録し、
+            # 十分長い値（8文字以上。短い値は誤マスクが多いため除外）は値単独でも登録する。
+            for pair in (a.get("cookie") or "").split(";"):
+                pair = pair.strip()
+                if "=" in pair:
+                    secrets.add(pair)
+                    val = pair.split("=", 1)[1].strip()
+                    if len(val) >= 8:
+                        secrets.add(val)
         return secrets
 
     @staticmethod
