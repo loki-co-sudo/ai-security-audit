@@ -121,9 +121,20 @@ class DefenseEvidenceTest(unittest.TestCase):
     def test_alerts_use_masked_line_but_detection_uses_raw(self):
         with tempfile.TemporaryDirectory() as tmp:
             result, agent = _run(tmp, _FakeLLM(), save_evidence=False)
-            events = json.dumps([e.payload for e in agent.bus.drain()], ensure_ascii=False, default=str) \
-                if hasattr(agent.bus, "drain") else ""
-            self.assertNotIn(SECRET, events)
+            events = []
+            while True:  # drain()は1回50件までのため、空になるまで取り出す
+                batch = agent.bus.drain()
+                if not batch:
+                    break
+                events.extend(batch)
+            alerts = [e.payload for e in events if e.kind == "alert"]
+            self.assertTrue(alerts, "検知(生の行)でALERTが出ていない")
+            # SECRETを含むSQLi行は生の行で検知され、そのALERT/OUTPUT表示はマスク済み
+            self.assertTrue(any("SQL_INJECTION" in a["message"] for a in alerts))
+            blob = json.dumps([e.payload for e in events], ensure_ascii=False, default=str)
+            self.assertNotIn(SECRET, blob)
+            # 表示はマスク後に80文字へ切り詰めるため、タグが途中で切れることがある（値は残らない）
+            self.assertIn("token=***RED", blob)
             self.assertNotIn(SECRET, _all_text(tmp))
 
     def test_unknown_id_rejected_as_error(self):

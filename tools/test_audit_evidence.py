@@ -166,6 +166,27 @@ class AuditEvidenceTest(unittest.TestCase):
             self.assertTrue(any("証拠保存エラー" in e for e in result.errors))
 
 
+class LangGraphMaskTest(unittest.TestCase):
+    """LangGraph版: orchestrator.load_codeがマスクし、以降のLLM送信に値が渡らない。"""
+
+    @unittest.skipUnless(__import__("core.orchestrator", fromlist=["x"]).LANGGRAPH_AVAILABLE,
+                         "langgraph未導入")
+    def test_graph_sends_masked_source(self):
+        from core.orchestrator import build_audit_graph
+        llm = _FakeLLM()
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "target.py"
+            src.write_text(SOURCE, encoding="utf-8")
+            graph = build_audit_graph(llm, EventBus(), lambda: False)
+            graph.invoke({"source_path": str(src), "source_code": "", "outputs": [],
+                          "severity_counts": {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0},
+                          "iteration": 0, "phase": "init"})
+        self.assertTrue(llm.received, "LLMが呼ばれていない（検証が空振り）")
+        sent = json.dumps(llm.received, ensure_ascii=False)
+        self.assertNotIn(SECRET, sent)
+        self.assertIn("REDACTED", sent)
+
+
 class MaskSourceTest(unittest.TestCase):
     def test_masks_values_keeps_names_lines_and_is_idempotent(self):
         t = 'DB_PASSWORD = "hunter2"\ncfg = {"api_key": "abc123", "name": "x"}\ntoken=\'zzz\'\nok = 1\n'
@@ -176,6 +197,12 @@ class MaskSourceTest(unittest.TestCase):
         self.assertIn('"name": "x"', o)
         self.assertEqual(o.count("\n"), t.count("\n"))
         self.assertEqual(redaction.mask_source(o), o)
+
+    def test_comparison_literals_masked(self):
+        o = redaction.mask_source('if password == "admin":\n    pass\nif token != "t0k":\n    pass\n')
+        self.assertNotIn("admin", o)
+        self.assertNotIn("t0k", o)
+        self.assertIn("password ==", o)
 
     def test_known_secrets_masked_anywhere(self):
         self.assertNotIn("Zq9", redaction.mask_source("x = connect('host', 'Zq9')", {"Zq9"}))

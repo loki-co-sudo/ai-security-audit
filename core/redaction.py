@@ -134,7 +134,7 @@ def mask_body(body: str, known_secrets: set[str] | None = None, max_len: int = 2
 # 改行を跨がない（行数を変えないため、LLMが報告する行番号と元ソースの対応が崩れない）。
 _SECRET_NAME_PARTS = r"(?:password|passwd|pwd|secret|token|api_?key|apikey|auth|credential)"
 _CODE_SECRET_RE = re.compile(
-    r"(?P<name>[A-Za-z0-9_\-]*" + _SECRET_NAME_PARTS + r"[A-Za-z0-9_\-]*[\"']?\s*[:=]\s*)"
+    r"(?P<name>[A-Za-z0-9_\-]*" + _SECRET_NAME_PARTS + r"[A-Za-z0-9_\-]*[\"']?\s*(?:==|!=|[:=])\s*)"
     r"(?P<q>[\"'])(?P<val>[^\"'\n]+)(?P=q)",
     re.IGNORECASE,
 )
