@@ -61,6 +61,21 @@ class CodeEvidence:
         return asdict(self)
 
 
+@dataclass
+class LogEvidence:
+    evidence_id: str
+    source: str              # ログファイル（相対化済み）
+    line: str                # マスク済み・切り詰め済みのログ1行
+    patterns: list           # 一致した攻撃パターン名（決定的観測）
+    observed_at: str         # エージェントがこの行を観測した時刻
+    timestamp: str
+    omitted_reason: str = ""
+    kind: str = "log"
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
 def relativize_path(path: str, base: str | None = None) -> str:
     """証拠に残すパスを相対形へ変換する。baseがcwd配下でない場合はファイル名のみ。
 
@@ -163,6 +178,21 @@ class EvidenceStore:
             source=source, timestamp=time.strftime("%Y-%m-%dT%H:%M:%S"),
         )
         return self._persist(ev, shrink_fields=("excerpt",))
+
+    def save_log_evidence(self, *, source: str, line: str, patterns: list[str],
+                          known_secrets: set[str] | None = None) -> str | None:
+        """ログ証拠（入力元・マスク済み行・一致パターン・観測時刻）を保存し evidence_id を返す。"""
+        if self._count >= self.max_items:
+            self._omit(f"件数上限({self.max_items}件)に達したため証拠を保存しなかった")
+            return None
+        eid = new_id("evidence")
+        ev = LogEvidence(
+            evidence_id=eid, source=relativize_path(source),
+            line=redaction.mask_log_line(line, known_secrets, max_len=self.max_item_bytes),
+            patterns=list(patterns), observed_at=time.strftime("%Y-%m-%dT%H:%M:%S"),
+            timestamp=time.strftime("%Y-%m-%dT%H:%M:%S"),
+        )
+        return self._persist(ev, shrink_fields=("line",))
 
     def _persist(self, ev, *, shrink_fields: tuple[str, ...]) -> str | None:
         """サイズ検査→総容量検査→書き込みの共通処理。成功時evidence_id、省略/失敗時None。"""

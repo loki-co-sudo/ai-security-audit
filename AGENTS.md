@@ -413,9 +413,18 @@ P0.1・P0.2・P1.1は完了済み。実装詳細・セルフテスト結果は
   値の中身に基づく判断（弱い/既定パスワード等）はできなくなる。複数行リテラル・
   機密名を含まない変数名・コメント内の値はマスクされない（ヒューリスティックの限界）。
   LangGraph版はAST観測が無いため証拠保存は未対応（常に証拠なし）。
-  **残課題**: ATTACK/DEFENSEの証拠保存（ATTACKは対象範囲を別途確認）、IDOR証拠、
-  FUZZ/DEFENSEの全出力/LLM入力前マスキング、FUZZ側の保存省略理由・未知ID記録、
-  JSON出力。
+  **2026-10-11の追加実装（DEFENSE）**: `EvidenceStore.save_log_evidence()`
+  （入力元の相対path・マスク済みログ1行・一致パターン名・観測時刻）を追加。保存対象は
+  **シグネチャ一致（集約フィルタ通過後）の行のみ**。ID付きで`[evidence_id=...]`を
+  LLMへ渡し、IDがある時だけ`_EVIDENCE_INSTRUCTION`を付与、実在IDのみ採用・未知IDと
+  上限省略/保存失敗は`errors`へ（AUDITと同じ記録方式）。`core.redaction.mask_log_line()`
+  を追加（Authorization/Cookie等のヘッダー風トークン、`token=`等のクエリ/フォーム、
+  JSONの機密キー。冪等）。**攻撃パターン検出は生の行で行い**、バッファ・アラート表示・
+  LLM送信・保存にはマスク済みの行のみ使う（save_evidenceのON/OFFに関係なく有効）。
+  **トレードオフ**: 機密名パラメータの値に入った攻撃ペイロード（例: `password=' OR 1=1--`）は
+  シグネチャ検知とアラートは出るが、LLM分析にはペイロードが渡らない。
+  **残課題**: ATTACKの証拠保存（対象範囲を別途確認）、IDOR証拠、FUZZの全出力/LLM入力前
+  マスキング、FUZZ側の保存省略理由・未知ID記録、LangGraph版の証拠保存、JSON出力。
   今回のリンクは保存時に採用されたIDを参照し、後からの証拠削除・移動は検査しない。
   検証: `SELFTEST_NON_LLM_ONLY=1 .venv/bin/python3 tools/run_selftest.py`で
   143 PASS / 0 FAIL / 5 SKIP（実LLM系未実施）。GUI目視確認は未実施。

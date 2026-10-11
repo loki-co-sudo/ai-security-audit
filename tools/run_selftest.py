@@ -2931,6 +2931,22 @@ def test_audit_evidence():
         _ng("Audit evidence", str(result.errors + result.failures))
 
 
+def test_defense_evidence():
+    _section("16m. AGENT — MonitorAgent 証拠保存・ログ入力マスキング(P1.2)")
+    import unittest
+    from tools.test_defense_evidence import DefenseEvidenceTest, MaskLogLineTest
+    result = unittest.TestResult()
+    suite = unittest.TestSuite([
+        unittest.defaultTestLoader.loadTestsFromTestCase(DefenseEvidenceTest),
+        unittest.defaultTestLoader.loadTestsFromTestCase(MaskLogLineTest),
+    ])
+    suite.run(result)
+    if result.wasSuccessful():
+        _ok("Defense evidence", f"{result.testsRun} tests: ON/OFF・マスク・未知ID・上限省略・保存失敗")
+    else:
+        _ng("Defense evidence", str(result.errors + result.failures))
+
+
 def main():
     print("\n" + "#"*64)
     print("#  AI Security Audit System — 全機能セルフテスト")
@@ -2961,6 +2977,7 @@ def main():
     test_pattern_match()
     test_structured_reports()
     test_audit_evidence()
+    test_defense_evidence()
     test_report_generator()
     test_report_generator_attack_mode()
     test_report_generator_markdown()

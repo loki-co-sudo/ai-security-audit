@@ -121,9 +121,9 @@ P4内は用途に応じて一項目ずつ選択できる。保留事項を自動
 確定所見の抜粋・分析本文、実行/確認状態、errors/coverageを保持し、下書きは再集計しない。
 旧マーカー入力は互換維持。残りはAUDIT/DEFENSE等の証拠保存、全表示/LLM入力前の
 マスキング、IDOR証拠、保存省略理由、未知IDのvalidation error、JSON出力。
-進捗（2026-10-11）: AUDIT標準エンジンの証拠保存（ASTプリスキャンの決定的観測のみ）・
-LLM送信前のソースマスキング（LangGraph版にも適用）・未知ID/上限省略/保存失敗のerrors記録を
-実装。残りはATTACK/DEFENSEの証拠保存、IDOR証拠、FUZZ/DEFENSEの入力マスキング、JSON出力。
+進捗（2026-10-11）: AUDIT標準エンジン（ASTプリスキャンの決定的観測）とDEFENSE（シグネチャ
+一致行）の証拠保存、LLM送信前のソース/ログマスキング、未知ID/上限省略/保存失敗のerrors記録を
+実装。残りはATTACKの証拠保存、IDOR証拠、FUZZの入力マスキング、LangGraph版の証拠保存、JSON出力。
 本項目は未完了。証拠ファイルを後から移動・削除した場合のリンク切れは検査しない。
 
 対象: 新規 `core/evidence_store.py`、`core/redaction.py`、`tools/report_generator.py`、`gui/export_util.py`、各agent/送信層。

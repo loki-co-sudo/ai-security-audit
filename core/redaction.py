@@ -159,3 +159,52 @@ def mask_source(text: str, known_secrets: set[str] | None = None, max_len: int |
         return f"{m.group('name')}{m.group('q')}{mask_value(val)}{m.group('q')}"
 
     return _CODE_SECRET_RE.sub(_sub, out)
+
+
+# ログ行中の認証ヘッダー風トークン（"Authorization: Bearer xxx" / Cookie=... 等）。
+# 値は引用符または行末まで。クエリ/フォーム形式(?token=xxx&...)・JSON形式は既存の
+# 機密パラメータ名集合で値のみ置換する。
+_LOG_HEADER_RE = re.compile(
+    r"(?P<name>\b(?:authorization|proxy-authorization|cookie|set-cookie|x-api-key|x-auth-token)\b"
+    r"[\"']?\s*[:=]\s*)(?P<val>[^\"'\r\n]+)",
+    re.IGNORECASE,
+)
+_LOG_PARAM_RE = re.compile(
+    r"(?P<pre>[?&;\s,])(?P<key>" + "|".join(sorted(SENSITIVE_PARAM_NAMES)) + r")=(?P<val>[^&\s\"']+)",
+    re.IGNORECASE,
+)
+
+
+def mask_log_line(line: str, known_secrets: set[str] | None = None, max_len: int | None = None) -> str:
+    """ログ1行をマスクする（保存・LLM送信・表示の前処理用）。
+
+    攻撃パターン検出は**マスク前の生の行**に対して行うこと（攻撃ペイロードが機密名の
+    パラメータ値に入っていても検知できるように）。マスク後の行はLLM分析には
+    そのペイロード内容が渡らない、というトレードオフがある。冪等。
+    """
+    known = {s for s in (known_secrets or ()) if s}
+    out = line if max_len is None else (line or "")[:max_len]
+    if known:
+        out = _mask_known_secrets(out, known)
+
+    def _hdr(m: re.Match) -> str:
+        val = m.group("val")
+        if val.startswith(_MASK_TAG):
+            return m.group(0)
+        return f"{m.group('name')}{mask_value(val.rstrip())}"
+
+    def _param(m: re.Match) -> str:
+        val = m.group("val")
+        if val.startswith(_MASK_TAG):
+            return m.group(0)
+        return f"{m.group('pre')}{m.group('key')}={mask_value(val)}"
+
+    def _json(m: re.Match) -> str:
+        key, val = m.group(1), m.group(2)
+        if key.lower() in SENSITIVE_PARAM_NAMES and not val.startswith(_MASK_TAG):
+            return f'"{key}": "{mask_value(val)}"'
+        return m.group(0)
+
+    out = _LOG_HEADER_RE.sub(_hdr, out)
+    out = _LOG_PARAM_RE.sub(_param, out)
+    return _JSON_KV_RE.sub(_json, out)

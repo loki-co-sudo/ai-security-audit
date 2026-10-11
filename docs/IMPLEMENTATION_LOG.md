@@ -450,3 +450,12 @@ ATTACK MODE に、認可された偵察レスポンスからCTF形式のフラ�
   ダミー秘密値が保存物・LLM受信内容・investigationに残らない、ON/OFF、未知ID拒否、
   上限省略、保存失敗、相対path）。`tools/run_selftest.py` 144 PASS / 0 FAIL / 5 SKIP。
 
+- **P1.2続き（DEFENSE証拠保存・ログ入力マスキング、2026-10-11）**:
+  `core/evidence_store.py`に`LogEvidence`・`save_log_evidence()`、`core/redaction.py`に
+  `mask_log_line()`を追加。`agents/monitor_agent.py`: パターン検出は生の行→マスク済みの行を
+  バッファ/表示/LLM/保存へ。`save_evidence`時のみシグネチャ一致行を保存しIDをLLMへ渡す。
+  `_findings_from_markers`はTHREAT形式でもそのまま利用できた（`_parse`が共通キーへ正規化）。
+  **設計判断**: 検出は生、以降はマスク済み。機密名パラメータ内のペイロードはLLMに渡らない
+  トレードオフをAGENTS.mdに記載。テスト: `tools/test_defense_evidence.py`（モックLLMで
+  `MonitorAgent.run()`を実走）。`tools/run_selftest.py` 145 PASS / 0 FAIL / 5 SKIP。
+

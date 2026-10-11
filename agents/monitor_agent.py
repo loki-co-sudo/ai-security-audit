@@ -13,6 +13,9 @@ from collections import deque
 from agents.base_agent import BaseAgent
 from tools.log_watcher import LogWatcher
 from tools.report_generator import _findings_and_counts
+import core.config as config
+from core import redaction
+from core.evidence_store import EvidenceStore
 from core.findings import CoverageItem, ScanState, CoverageStatus
 from core.settings import (
     ATTACK_PATTERNS, LOG_BATCH_SIZE, LOG_MAX_CONTEXT,
@@ -45,6 +48,14 @@ IMMEDIATE_ACTIONS:
 
 Be concise but thorough. Flag false positives explicitly."""
 
+_EVIDENCE_INSTRUCTION = """
+
+If (and only if) a suspicious entry carries an "evidence_id" and you rely on it for a threat, \
+add this line to that threat's block after ATTACKER_IP:
+EVIDENCE_IDS: [comma-separated evidence_id value(s) that support this threat]. \
+Only cite evidence_id values that were literally given to you — never invent one. \
+An evidence_id only shows that a signature matched that log line; it does not prove the threat."""
+
 # パターン集約フィルタ設定
 _AGGREGATION_WINDOW  = 300   # 5分間の集約ウィンドウ（秒）
 _IP_PATTERN          = re.compile(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}')
@@ -60,6 +71,7 @@ class MonitorAgent(BaseAgent):
 
     def run(self, log_path: str, watch_mode: bool = True) -> None:
         self._current_mode, self._current_target = "DEFENSE", log_path
+        scan_id = self._begin_scan()  # 証拠保存(EvidenceStore)がfinalize前から使うため(P1.2)
         self.bus.clear()
         t0 = time.time()
         self._status(f"監視開始: {log_path}")
@@ -76,7 +88,11 @@ class MonitorAgent(BaseAgent):
 
         watcher = LogWatcher(log_path)
         context_buffer: deque[str] = deque(maxlen=LOG_MAX_CONTEXT)
-        batch_buffer:   list[str]  = []
+        batch_buffer:   list[str]  = []   # マスク済みの行のみ保持（LLM送信・表示用）
+        batch_evidence: list[str | None] = []  # batch_bufferと同順の証拠ID（保存OFF/省略時None）
+        # 証拠保存（P1.2・save_evidence設定時のみ。既定OFF）。観測=シグネチャ一致の決定的事実。
+        store = EvidenceStore(scan_id) if config.get("save_evidence", False) else None
+        known_evidence_ids: set[str] = set()
         analyses:       list[str]  = []   # 調査レポート保存用にAI分析を蓄積
         total_alerts   = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
         last_ai_call   = 0.0
@@ -103,7 +119,9 @@ class MonitorAgent(BaseAgent):
                 if not line:
                     continue
 
-                context_buffer.append(line)
+                # 攻撃パターン検出は生の行で行い、以降の保存・LLM送信・表示にはマスク済みの行のみ使う
+                masked_line = redaction.mask_log_line(line)
+                context_buffer.append(masked_line)
                 matched = self._pattern_match(line)
 
                 if matched:
@@ -121,16 +139,23 @@ class MonitorAgent(BaseAgent):
                     if not deduped_matches:
                         continue  # すべて集約済み → スキップ
 
-                    batch_buffer.append(line)
+                    batch_buffer.append(masked_line)
+                    eid = None
+                    if store is not None:
+                        eid = store.save_log_evidence(
+                            source=log_path, line=masked_line, patterns=deduped_matches)
+                        if eid:
+                            known_evidence_ids.add(eid)
+                    batch_evidence.append(eid)
                     for pattern_name in deduped_matches:
                         sev = self._quick_severity(pattern_name)
-                        msg = f"{pattern_name}: {line[:80]}"
+                        msg = f"{pattern_name}: {masked_line[:80]}"
                         # ALERT TIMELINEに送出（DefensePanelのタイムラインに表示）
                         self._alert(sev, msg)
                         # AI出力エリアにも即時表示
                         self._out(
                             f"  [{datetime.now().strftime('%H:%M:%S')}] "
-                            f"[{sev:8}] {pattern_name:20} — {line[:80]}\n",
+                            f"[{sev:8}] {pattern_name:20} — {masked_line[:80]}\n",
                             sev.lower(),
                         )
                         total_alerts[sev] = total_alerts.get(sev, 0) + 1
@@ -140,8 +165,10 @@ class MonitorAgent(BaseAgent):
                 now = time.time()
                 if (len(batch_buffer) >= LOG_BATCH_SIZE or
                         (batch_buffer and now - last_ai_call > AI_COOLDOWN)):
-                    analyses.append(self._analyze_batch(batch_buffer, list(context_buffer)))
+                    analyses.append(self._analyze_batch(
+                        batch_buffer, list(context_buffer), batch_evidence))
                     batch_buffer.clear()
+                    batch_evidence.clear()
                     last_ai_call = now
 
         except Exception as e:
@@ -152,7 +179,7 @@ class MonitorAgent(BaseAgent):
 
         # 残バッファを最終分析
         if batch_buffer and not self.is_stopped():
-            analyses.append(self._analyze_batch(batch_buffer, list(context_buffer)))
+            analyses.append(self._analyze_batch(batch_buffer, list(context_buffer), batch_evidence))
 
         # 調査レポートを保存
         combined_analyses = "\n\n---\n\n".join(a for a in analyses if a)
@@ -176,9 +203,16 @@ class MonitorAgent(BaseAgent):
         self._log(f"Monitor stopped. Total alerts: {total}")
         self._status(f"監視終了 — {total} alerts.")
 
-        findings = self._findings_from_markers(parsed_findings, corroborated=False)
+        rejected: list[str] = []
+        findings = self._findings_from_markers(
+            parsed_findings, corroborated=False,
+            known_evidence_ids=known_evidence_ids or None, rejected_evidence_ids=rejected)
         coverage = self._build_coverage(log_path, len(analyses))
         state, errors = self._determine_state(watch_error=watch_error, analyses=analyses)
+        if store is not None:
+            errors = errors + [f"証拠保存エラー: {e}" for e in store.save_errors]
+            errors = errors + [f"証拠保存を省略: {o}" for o in store.omissions]
+        errors = errors + rejected
         self._finalize(state=state, errors=errors, findings=findings, coverage=coverage,
                        mode="DEFENSE", target=log_path)
 
@@ -235,7 +269,8 @@ class MonitorAgent(BaseAgent):
         if pattern_name in medium:   return "MEDIUM"
         return "LOW"
 
-    def _analyze_batch(self, lines: list[str], context: list[str]) -> str:
+    def _analyze_batch(self, lines: list[str], context: list[str],
+                       evidence_ids: list[str | None] | None = None) -> str:
         """バッチログをLLMに送り、深層分析を実施する。分析テキストを返す。"""
         self._out("\n" + "─" * 56 + "\n", "sep")
         self._out(f"  AI THREAT ANALYSIS  ({len(lines)} suspicious entries)\n", "section")
@@ -243,10 +278,17 @@ class MonitorAgent(BaseAgent):
         self._log(f"Sending {len(lines)} entries to AI ...")
 
         recent_ctx = "\n".join(context[-30:]) if len(context) > 30 else "\n".join(context)
-        suspect    = "\n".join(lines)
+        ids = list(evidence_ids or [])
+        if any(ids):
+            # LLMへ渡すIDの集合をここで固定する。引用された実在IDのみ_findings_from_markersが採用する
+            suspect = "\n".join(
+                (f"[evidence_id={ids[i]}] " if i < len(ids) and ids[i] else "") + ln
+                for i, ln in enumerate(lines))
+        else:
+            suspect = "\n".join(lines)
 
         result = self._stream_llm([
-            self.llm.system(SYSTEM_PROMPT),
+            self.llm.system(SYSTEM_PROMPT + (_EVIDENCE_INSTRUCTION if any(ids) else "")),
             self.llm.user(
                 f"RECENT LOG CONTEXT (last 30 lines):\n```\n{recent_ctx}\n```\n\n"
                 f"SUSPICIOUS ENTRIES REQUIRING ANALYSIS:\n```\n{suspect}\n```\n\n"
