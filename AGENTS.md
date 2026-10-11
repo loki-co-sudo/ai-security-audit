@@ -446,8 +446,10 @@ P0.1・P0.2・P1.1は完了済み。実装詳細・セルフテスト結果は
   マスクされる。**注意**: IDOR証拠の本文は「アクセス権が無いはずの相手の応答」であり、
   他ユーザーの個人情報を含みうる。キー名ベースのマスクでは防げないため、`save_evidence`を
   有効にする場合は保存先（`reports/evidence/`）の取り扱いに注意する（1件20KB・200件・5MB上限）。
+  **FUZZにも同じ記録方式を適用**: 上限到達の省略は「証拠保存を省略」、LLMが引用した未知IDは
+  「未知の証拠IDを除外」として`ScanResult.errors`に残す。
   **残課題**: ATTACKのLLM所見の証拠保存、FUZZの全出力/LLM入力前マスキング、
-  FUZZ側の保存省略理由・未知ID記録、LangGraph版の証拠保存、JSON出力。
+  LangGraph版の証拠保存、JSON出力。
   今回のリンクは保存時に採用されたIDを参照し、後からの証拠削除・移動は検査しない。
   検証: `SELFTEST_NON_LLM_ONLY=1 .venv/bin/python3 tools/run_selftest.py`で
   143 PASS / 0 FAIL / 5 SKIP（実LLM系未実施）。GUI目視確認は未実施。

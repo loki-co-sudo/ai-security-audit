@@ -473,3 +473,7 @@ ATTACK MODE に、認可された偵察レスポンスからCTF形式のフラ�
   evidence_idをプロンプトへ埋め込み。テスト: selftest 16o（モックIDORサーバで実検出→保存→
   Cookie値マスク→ID採用）。`tools/run_selftest.py` 149 PASS / 0 FAIL / 5 SKIP。
 
+- **P1.2続き（FUZZの保存省略理由・未知ID記録、2026-10-11）**: `_save_evidence`が
+  `store.omissions`を、`run()`が`rejected_evidence_ids`を`errors`へ反映。AUDIT/DEFENSEと同方式。
+  テスト: selftest 16oに2件追加。
+

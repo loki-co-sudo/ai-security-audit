@@ -2811,6 +2811,20 @@ def test_fuzz_idor_evidence():
                                                      known_evidence_ids=set(ids))
         assert findings[0].evidence_ids == [eid]
         _ok("IDOR証拠: 実在IDのみ所見に採用（幻覚IDは除外）", "")
+
+        # 未知IDはvalidation errorとして記録される（黙って捨てない）
+        rej: list[str] = []
+        FuzzAgent._findings_from_markers(parsed, corroborated=False,
+                                         known_evidence_ids=set(ids), rejected_evidence_ids=rej)
+        assert any("evidence_bogus_1" in r for r in rej), rej
+        _ok("FUZZ: 未知の証拠IDがvalidation errorとして記録される", "")
+
+        # 件数上限到達は「省略」としてerrorsに残る（FUZZでも黙って捨てない）
+        capped = EvidenceStore("scan_selftest_idor_cap", root=tmp_root, max_items=1)
+        two = [dict(idor[0]), dict(idor[0])]
+        ids2, errs2 = FuzzAgent._save_evidence(capped, [], two, known_secrets)
+        assert len(ids2) == 1 and any("証拠保存を省略" in e and "件数上限" in e for e in errs2), errs2
+        _ok("FUZZ: 件数上限による保存省略がerrorsに理由付きで残る", "")
     except Exception as e:
         _ng("fuzz_idor_evidence", repr(e) + "\n" + traceback.format_exc())
     finally:

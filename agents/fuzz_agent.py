@@ -287,16 +287,17 @@ class FuzzAgent(BaseAgent):
 
         # ── Step 6: 完了 ───────────────────────────────────
         parsed, counts = _findings_and_counts("WEB FUZZ", full)
+        rejected: list[str] = []
         findings = self._findings_from_markers(
             parsed, corroborated=bool(effort.get("verify_pass")),
-            known_evidence_ids=known_evidence_ids or None,
+            known_evidence_ids=known_evidence_ids or None, rejected_evidence_ids=rejected,
         )
         coverage = self._build_coverage(points, auth, auth_b, idor_ran, idor_skip_reason_val)
         state, errors = self._determine_state(
             fuzzer, triage_ran=True, triage_text=full,
             had_signals=bool(anomalies or idor_findings),
         )
-        errors = errors + evidence_errors
+        errors = errors + evidence_errors + rejected
         self._finish(sum(counts.values()), counts, target=base_url, t0=t0,
                     findings=findings, coverage=coverage, state=state, errors=errors)
 
@@ -432,7 +433,9 @@ class FuzzAgent(BaseAgent):
             if eid:
                 f["evidence_id"] = eid
                 known.add(eid)
-        return known, [f"証拠保存エラー: {e}" for e in store.save_errors]
+        errors = [f"証拠保存エラー: {e}" for e in store.save_errors]
+        errors += [f"証拠保存を省略: {o}" for o in store.omissions]  # 上限到達を黙って捨てない
+        return known, errors
 
     @staticmethod
     def _build_summary(base_url, points, anomalies, idor_findings: list[dict] | None = None) -> str:
