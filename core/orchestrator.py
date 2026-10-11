@@ -84,14 +84,22 @@ class AuditState(TypedDict):
     severity_counts: dict
     iteration: int
     phase: str
+    evidence_listing: str      # 証拠ID一覧(ユーザープロンプトに足す)。証拠保存OFFなら空
+    evidence_instruction: str  # EVIDENCE_IDS引用指示(システムプロンプトに足す)。同上
 
 
 def build_audit_graph(
     llm: LLMClient,
     bus: EventBus,
     is_stopped: Callable[[], bool],
+    evidence_hook: Callable[[str], tuple[str, str]] | None = None,
 ):
-    """CODE AUDIT 用 LangGraph StateGraph を構築してコンパイル済みグラフを返す。"""
+    """CODE AUDIT 用 LangGraph StateGraph を構築してコンパイル済みグラフを返す。
+
+    `evidence_hook`（任意・P1.2）: マスク済みソースを受け取り、証拠保存して
+    (ユーザープロンプトに足す証拠ID一覧, システムプロンプトに足す引用指示) を返す。
+    未指定なら従来どおり証拠なしで動作する。
+    """
     if not LANGGRAPH_AVAILABLE:
         raise ImportError(
             "langgraph がインストールされていません。\n"
@@ -138,7 +146,11 @@ def build_audit_graph(
         except OSError as e:
             _emit(f"  [ERROR] {e}\n", "critical")
             code = ""
-        return {"source_code": code, "phase": "loaded"}
+        listing, instruction = ("", "")
+        if evidence_hook and code:
+            listing, instruction = evidence_hook(code)
+        return {"source_code": code, "phase": "loaded",
+                "evidence_listing": listing, "evidence_instruction": instruction}
 
     def surface_scan(state: AuditState) -> dict:
         if is_stopped() or not state.get("source_code"):
@@ -147,10 +159,10 @@ def build_audit_graph(
         _emit("─" * 56 + "\n\n", "sep")
         truncated = _smart_truncate(state["source_code"], _MAX_SURFACE_CHARS)
         output = _stream([
-            llm.system(_SURFACE_PROMPT),
+            llm.system(_SURFACE_PROMPT + state.get("evidence_instruction", "")),
             llm.user(
                 "Analyze this code for ALL security vulnerabilities:\n\n"
-                f"```python\n{truncated}\n```"
+                f"```python\n{truncated}\n```" + state.get("evidence_listing", "")
             ),
         ])
         return {"outputs": [output], "phase": "surface_scanned"}
@@ -181,11 +193,11 @@ def build_audit_graph(
         prior  = (state.get("outputs") or [""])[-1]
         code   = _smart_truncate(state.get("source_code", ""), _MAX_DEEP_CHARS)
         output = _stream([
-            llm.system(_DEEP_PROMPT),
+            llm.system(_DEEP_PROMPT + state.get("evidence_instruction", "")),
             llm.user(
                 f"Prior surface scan found CRITICAL vulnerabilities. Perform deep exploitation analysis.\n\n"
                 f"Surface scan output:\n{prior[:3000]}\n\n"
-                f"Source code:\n```python\n{code}\n```"
+                f"Source code:\n```python\n{code}\n```" + state.get("evidence_listing", "")
             ),
         ])
         return {"outputs": [output], "iteration": it, "phase": "deep_analyzed"}

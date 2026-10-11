@@ -2988,12 +2988,14 @@ def test_structured_reports():
 def test_audit_evidence():
     _section("16l. AGENT — AuditAgent 証拠保存・入力マスキング(P1.2)")
     import unittest
-    from tools.test_audit_evidence import AuditEvidenceTest, MaskSourceTest, LangGraphMaskTest
+    from tools.test_audit_evidence import (
+        AuditEvidenceTest, MaskSourceTest, LangGraphMaskTest, LangGraphEvidenceTest)
     result = unittest.TestResult()
     suite = unittest.TestSuite([
         unittest.defaultTestLoader.loadTestsFromTestCase(AuditEvidenceTest),
         unittest.defaultTestLoader.loadTestsFromTestCase(MaskSourceTest),
         unittest.defaultTestLoader.loadTestsFromTestCase(LangGraphMaskTest),
+        unittest.defaultTestLoader.loadTestsFromTestCase(LangGraphEvidenceTest),
     ])
     suite.run(result)
     if result.wasSuccessful():

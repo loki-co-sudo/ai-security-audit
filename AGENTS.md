@@ -468,8 +468,13 @@ P0.1・P0.2・P1.1は完了済み。実装詳細・セルフテスト結果は
   `mask_log_line()`でマスク（Set-Cookie等。ON/OFFに関係なく有効・調査レポートにも同じ文字列が残る）。
   ATTACKは認証情報を持たないため、マスク対象は主に対象が返した値（Set-Cookie等）。画面表示の
   偵察ログ自体は未マスク（利用者自身のコマンド出力に近く、秘密は対象由来のため）。
-  **残課題**: LangGraph版の証拠保存。これを実装すればP1.2を完了扱いにできる
-  （受け入れ条件の網羅確認が必要）。
+  **LangGraph版の証拠保存**: 標準エンジンと同じ`save_ast_evidence()`（共通化）を、
+  `build_audit_graph(evidence_hook=)`経由で`load_code`（マスク後）に呼ぶ。証拠ID一覧は
+  `surface_scan`/`deep_analysis`のユーザープロンプト、引用指示はシステムプロンプトに追加。
+  `save_evidence`OFFや引数未指定では従来どおり。AST観測のみ（LLMの主張からの抜粋は作らない）。
+  **P1.2の実装範囲は一通り完了**。完了扱い(チェックボックス)にする前に確認する未了事項:
+  GUI目視（新JSONボタン含む）、実LLMでの証拠ID引用の挙動、ATTACKの画面表示ログは未マスク、
+  証拠ファイル移動・削除後のリンク切れは検査しない（既知の限界）。
   今回のリンクは保存時に採用されたIDを参照し、後からの証拠削除・移動は検査しない。
   検証: `SELFTEST_NON_LLM_ONLY=1 .venv/bin/python3 tools/run_selftest.py`で
   143 PASS / 0 FAIL / 5 SKIP（実LLM系未実施）。GUI目視確認は未実施。

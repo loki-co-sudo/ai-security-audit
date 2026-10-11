@@ -232,6 +232,38 @@ Only cite evidence_id values that were literally given to you — never invent o
 An evidence_id only shows that the AST pre-scan flagged that line; it does not prove the finding."""
 
 
+def save_ast_evidence(store: EvidenceStore, path: str, source: str,
+                      ast_result: dict) -> tuple[set[str], str, list[str]]:
+    """ASTプリスキャンの決定的観測をコード証拠として保存する（標準/LangGraph共通・P1.2）。
+
+    `source`はマスク済みのソースを渡すこと。戻り値は (LLMへ渡すID集合,
+    プロンプトに足す「AST evidence IDs」節, errors用メッセージ)。保存できなかった
+    該当行はIDなしのまま（上限は`store.omissions`として返す）。
+    """
+    known: set[str] = set()
+    src_lines = source.splitlines()
+    entries: list[str] = []
+    seen: set[tuple] = set()
+    for hit in ast_result["findings"]:
+        key = (hit["line"], hit["call"])
+        if key in seen:
+            continue
+        seen.add(key)
+        ln = hit["line"]
+        eid = store.save_code_evidence(
+            path=path, line_start=ln, line_end=ln,
+            excerpt=src_lines[ln - 1] if 0 < ln <= len(src_lines) else "",
+            source="ast_prescan",
+        )
+        if eid:
+            known.add(eid)
+            entries.append(f"- evidence_id={eid} L{ln} {hit['call']}")
+    listing = ("\n## AST evidence IDs\n" + "\n".join(entries) + "\n") if entries else ""
+    errors = [f"証拠保存エラー: {e}" for e in store.save_errors]
+    errors += [f"証拠保存を省略: {o}" for o in store.omissions]
+    return known, listing, errors
+
+
 class AuditAgent(BaseAgent):
 
     def run(self, path: str) -> None:
@@ -288,28 +320,8 @@ class AuditAgent(BaseAgent):
         evidence_errors: list[str] = []
         evidence_listing = ""
         if config.get("save_evidence", False) and ast_result["findings"]:
-            store = EvidenceStore(scan_id)
-            src_lines = source.splitlines()
-            entries = []
-            seen = set()
-            for hit in ast_result["findings"]:
-                key = (hit["line"], hit["call"])
-                if key in seen:
-                    continue
-                seen.add(key)
-                ln = hit["line"]
-                eid = store.save_code_evidence(
-                    path=path, line_start=ln, line_end=ln,
-                    excerpt=src_lines[ln - 1] if 0 < ln <= len(src_lines) else "",
-                    source="ast_prescan",
-                )
-                if eid:
-                    known_evidence_ids.add(eid)
-                    entries.append(f"- evidence_id={eid} L{ln} {hit['call']}")
-            if entries:
-                evidence_listing = "\n## AST evidence IDs\n" + "\n".join(entries) + "\n"
-            evidence_errors = [f"証拠保存エラー: {e}" for e in store.save_errors]
-            evidence_errors += [f"証拠保存を省略: {o}" for o in store.omissions]
+            known_evidence_ids, evidence_listing, evidence_errors = save_ast_evidence(
+                EvidenceStore(scan_id), path, source, ast_result)
             if evidence_errors:
                 self._log(f"evidence: {len(evidence_errors)}件の保存エラー/省略")
         self._step(1, "done")

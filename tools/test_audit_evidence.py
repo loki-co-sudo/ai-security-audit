@@ -187,6 +187,71 @@ class LangGraphMaskTest(unittest.TestCase):
         self.assertIn("REDACTED", sent)
 
 
+def _run_langgraph(tmp, llm, *, save_evidence):
+    from agents.langgraph_audit_agent import LangGraphAuditAgent
+    src = Path(tmp) / "target.py"
+    src.write_text(SOURCE, encoding="utf-8")
+    real_get = __import__("core.config", fromlist=["get"]).get
+
+    def fake_get(key, default=None):
+        return save_evidence if key == "save_evidence" else real_get(key, default)
+
+    cwd = os.getcwd()
+    os.chdir(tmp)
+    try:
+        agent = LangGraphAuditAgent(EventBus(), llm)
+        with patch("agents.langgraph_audit_agent.config.get", side_effect=fake_get):
+            agent.run(str(src))
+        return agent._last_scan_result
+    finally:
+        os.chdir(cwd)
+
+
+class _PickingLLM(_FakeLLM):
+    """プロンプト中の実在evidence_idを1つ引用し、存在しないIDも併記して返す。"""
+    def stream(self, messages, on_chunk=None, on_error=None):
+        self.received.append(messages)
+        import re
+        m = re.search(r"evidence_id=(evidence_[a-f0-9]+)", json.dumps(messages))
+        cited = ([m.group(1)] if m else []) + ["evidence_000000000000"]
+        text = ("---VULN_START---\nNAME: Unsafe deserialization\nSEVERITY: HIGH\n"
+                "CWE: Novel — No CVE/CWE Match\nLINES: 4\n"
+                + ("EVIDENCE_IDS: " + ", ".join(cited) + "\n" if m else "")
+                + "SNIPPET:\n```\npickle.loads(data)\n```\nATTACK:\nx\nFIX:\n```\ny\n```\n"
+                "---VULN_END---\n")
+        if on_chunk:
+            on_chunk(text)
+        return text
+
+
+@unittest.skipUnless(__import__("core.orchestrator", fromlist=["x"]).LANGGRAPH_AVAILABLE,
+                     "langgraph未導入")
+class LangGraphEvidenceTest(unittest.TestCase):
+    def test_on_saves_cites_and_masks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            llm = _PickingLLM()
+            result = _run_langgraph(tmp, llm, save_evidence=True)
+            ev_dir = Path(tmp) / "reports" / "evidence" / result.scan_id
+            self.assertGreaterEqual(len(list(ev_dir.glob("*.json"))), 2)
+            sent = json.dumps(llm.received, ensure_ascii=False)
+            self.assertIn("EVIDENCE_IDS", sent)
+            self.assertNotIn(SECRET, sent)
+            self.assertNotIn(SECRET, _all_text(tmp))
+            ids = result.findings[0].evidence_ids
+            self.assertEqual(len(ids), 1)  # 実在IDのみ採用
+            self.assertTrue((ev_dir / f"{ids[0]}.json").is_file())
+            self.assertTrue(any("未知の証拠IDを除外" in e for e in result.errors))
+
+    def test_off_saves_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            llm = _PickingLLM()
+            result = _run_langgraph(tmp, llm, save_evidence=False)
+            self.assertFalse((Path(tmp) / "reports" / "evidence").exists())
+            self.assertNotIn("EVIDENCE_IDS", json.dumps(llm.received))
+            self.assertNotIn(SECRET, json.dumps(llm.received, ensure_ascii=False))
+            self.assertEqual(result.findings[0].evidence_ids, [])
+
+
 class MaskSourceTest(unittest.TestCase):
     def test_masks_values_keeps_names_lines_and_is_idempotent(self):
         t = 'DB_PASSWORD = "hunter2"\ncfg = {"api_key": "abc123", "name": "x"}\ntoken=\'zzz\'\nok = 1\n'
