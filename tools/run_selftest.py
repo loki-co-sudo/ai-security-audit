@@ -3148,6 +3148,20 @@ def test_findings_ledger():
         _ng("FindingsLedger", str(result.errors + result.failures))
 
 
+def test_openapi_loader():
+    _section("16y. OPENAPI — ローカルOpenAPI入力・明示選択・通信ゼロ(P4.1)")
+    import unittest
+    from tools import test_openapi_loader as t
+    result = unittest.TestResult()
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
+                               for c in (t.NoNetworkTest, t.OperationTest, t.SelectionTest, t.FuzzerSeedTest))
+    suite.run(result)
+    if result.wasSuccessful():
+        _ok("OpenApiLoader", f"{result.testsRun} tests: 外部servers/$ref通信ゼロ/選択不可の明示エラー/循環・上限/seed合流")
+    else:
+        _ng("OpenApiLoader", str(result.errors + result.failures))
+
+
 def test_audit_evidence():
     _section("16l. AGENT — AuditAgent 証拠保存・入力マスキング(P1.2)")
     import unittest
@@ -3259,6 +3273,7 @@ def main():
     test_fuzz_resume()
     test_benchmark()
     test_findings_ledger()
+    test_openapi_loader()
     test_cli()
     test_audit_evidence()
     test_defense_evidence()

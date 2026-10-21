@@ -106,6 +106,7 @@ AI-Security-tool/
 ├── tools/
 │   ├── network_scanner.py       # socket-basedポートスキャナ、SSL証明書取得
 │   ├── web_prober.py            # HTTP探査、技術スタック指紋、センシティブパス列挙
+│   ├── openapi_loader.py        # P4.1: ローカルOpenAPI 3.x JSON→選択可能operation一覧・明示選択したGET+queryの注入点。通信しない・serversを使わない
 │   ├── web_fuzzer.py            # Webスマートファザー（クロール・注入点検出・異常観測／検出のみ）。第2セッション(session_b)によるIDOR比較はGET限定。全送信はcore/http_transport.HttpTransport経由（P0.1）
 │   ├── subdomain_enum.py        # バグバウンティ対応: crt.shへの受動的サブドメイン列挙（単発GETのみ・サイレント失敗）
 │   ├── log_watcher.py           # tailf式ログ追跡ジェネレータ、サンプルログ生成

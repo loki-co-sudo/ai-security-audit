@@ -28,6 +28,7 @@ from core.autonomy.journal import JOURNAL_ROOT, replay, validate_run_id
 from core.autonomy.run_store import STATE_FILE
 from core.llm_client import LLMClient
 from core.scope_guard import extract_host, in_scope
+from tools.openapi_loader import OpenApiError, list_operations, load_openapi, select_points
 from core.settings import DEFAULT_SCAN_PROFILE, SCAN_PROFILES
 
 APPROVAL_TTL_SECONDS = 300
@@ -79,6 +80,8 @@ def parser():
         sub.add_argument("--ledger-root", default=LEDGER_ROOT, help=argparse.SUPPRESS)
     resume = commands.add_parser("resume")
     status = commands.add_parser("status")
+    openapi = commands.add_parser("openapi", help="OpenAPI JSONのoperation一覧を表示する(通信しない)")
+    openapi.add_argument("file")
     diff = commands.add_parser("diff", help="台帳内の2つのscanを比較する")
     diff.add_argument("--before", required=True)
     diff.add_argument("--after", required=True)
@@ -111,6 +114,10 @@ def parser():
     group = fuzz.add_mutually_exclusive_group(required=True)
     group.add_argument("--target")
     group.add_argument("--targets-file", help="1行1URL(#でコメント)。逐次実行。--auth-fileとは併用不可")
+    fuzz.add_argument("--openapi", help="ローカルのOpenAPI 3.x JSON。--openapi-opで明示したGET+queryだけを検査対象に加える")
+    fuzz.add_argument("--openapi-op", action="append", default=[], metavar="OPERATION_ID",
+                      help="検査するoperation(複数指定可。全自動選択はしない)")
+    fuzz.add_argument("--openapi-exclude", action="append", default=[], metavar="OPERATION_ID")
     fuzz.add_argument("--exclude", action="append", default=[], help="除外host/IP/CIDR。許可より優先")
     fuzz.add_argument("--engagement", help="案件設定JSON(秘密値は含めない): engagement_id / idor_expectations")
     fuzz.add_argument("--profile", choices=list(SCAN_PROFILES), default=DEFAULT_SCAN_PROFILE)
@@ -312,6 +319,14 @@ class ConsoleBus(ev.EventBus):
             print(masked(str(payload), self.secrets), file=sys.stderr, flush=True)
 
 
+def openapi_list(path):
+    try:
+        ops = list_operations(load_openapi(path))
+    except OpenApiError as e:
+        raise CLIError(f"OpenAPIを読めません: {e}")
+    return {"state": "completed", "errors": [], "findings": [], "operations": [o.to_dict() for o in ops]}
+
+
 def ledger_command(args):
     """台帳の参照・更新コマンド。結果はJSON、問題はCLIError(failed/exit 2)。"""
     try:
@@ -418,7 +433,7 @@ def main(argv=None):
     result = {"state": "failed", "errors": [], "findings": []}
     try:
         args = parser().parse_args(argv)
-        is_ledger = args.command in ("diff", "mark", "suppress", "findings")
+        is_ledger = args.command in ("diff", "mark", "suppress", "findings", "openapi")
         is_audit = args.command == "scan" and args.mode in ("audit", "defense", "attack")
         if not is_ledger and (not is_audit or args.mode == "attack"):
             args.allow = check_rules(args.allow, "--allow")
@@ -429,7 +444,9 @@ def main(argv=None):
             if getattr(args, "auth_file", None) and out == Path(args.auth_file).resolve():
                 raise CLIError("--outと認証ファイルは別にしてください")
         out_validated = True
-        if is_ledger:
+        if args.command == "openapi":
+            result = openapi_list(args.file)
+        elif is_ledger:
             result = ledger_command(args)
         elif is_audit and args.mode == "attack":
             result = run_attack(args, lambda a: set_agent(a), lambda: interrupted)
@@ -466,6 +483,15 @@ def main(argv=None):
                     raise CLIError("--engagement-idと案件設定のengagement_idが一致しません")
                 kw["idor_expectations"] = engagement.get("idor_expectations", [])
                 kw["excluded_targets"] = sorted(set(check_rules(args.exclude, "--exclude")) | set(engagement.get("exclude", [])))
+                kw["seed_points"] = []
+                if args.openapi_op or args.openapi_exclude or args.openapi:
+                    if not args.openapi or not args.openapi_op or args.targets_file:
+                        raise CLIError("--openapiには--openapi-opと単一の--targetが必要です(全operationの自動選択・バッチ併用はしません)")
+                    try:
+                        kw["seed_points"] = select_points(list_operations(load_openapi(args.openapi)), args.openapi_op,
+                                                          args.target, args.openapi_exclude)
+                    except OpenApiError as e:
+                        raise CLIError(f"OpenAPIの指定が不正です: {e}")
                 if args.targets_file:
                     if auth:
                         raise CLIError("--targets-fileと--auth-fileは併用できません（認証値を他の対象へ送らないため）")
@@ -502,11 +528,10 @@ def main(argv=None):
                     agent._safe_run(**one)
                     r = bus.result_payload or {"state": "failed", "errors": ["最終結果が通知されませんでした"], "findings": []}
                     r["run_id"] = agent.last_run_id
-                    r["target"] = target
+                    r.setdefault("target", target)
                     results.append(r)
                 if len(results) == 1 and len(targets) == 1 and not getattr(args, "targets_file", None):
                     result = results[0]
-                    result.pop("target", None)
                 else:
                     result = aggregate(results, skipped)
     except SystemExit:

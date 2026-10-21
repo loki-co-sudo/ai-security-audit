@@ -126,6 +126,8 @@ class WebFuzzer:
         self.session.verify = verify_value
         # 第2セッション（IDOR比較用）。auth_b 未設定なら None のまま
         # （_detect_idor は None なら即座に空リストを返す＝既存挙動への影響なし）。
+        self.seed_points: list[dict] = []           # 利用者が明示選択した追加の注入点(OpenAPI等)。クロールの結果へ合流する
+        self.seed_rejected: list[str] = []          # 同一origin外などで取り込まなかった理由
         self.idor_expectations: list[dict] = []     # 期待権限表(core.engagement.parse_idor_expectations の戻り値)
         self._rng = random.Random()     # SSTI追加確認の式選択。試験・ベンチマークではseedを固定できる
         self.session_b = None
@@ -451,6 +453,12 @@ class WebFuzzer:
                 if nxt not in seen and self.transport.is_same_origin(nxt):
                     if not re.search(r"\.(png|jpe?g|gif|svg|css|js|ico|woff2?|pdf|zip)$", nxt, re.I):
                         queue.append(nxt)
+
+        for sp in self.seed_points:
+            if not self.transport.is_same_origin(sp["url"]):
+                self.seed_rejected.append(f"同一origin外のため取り込まない: {sp['url']}")
+                continue
+            injection_points.append(sp)
 
         # 重複注入点を除去（url+param+method）
         uniq = {}

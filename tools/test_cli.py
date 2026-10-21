@@ -335,6 +335,9 @@ class CLITest(unittest.TestCase):
             p, first = self.call(self.scan(srv, "--engagement-id", "lab", "--ledger-root", str(self.base / "ledger")))
             self.assertEqual((p.returncode, first["engagement_id"]), (0, "lab"), first)
             self.assertNotIn("ledger_error", first)
+            self.assertTrue(first["target"].startswith("http://127.0.0.1"))        # ScanResult本来のtargetを消さない
+            events = [json.loads(x) for x in (self.base / "ledger" / "lab" / "events.jsonl").read_text().splitlines()]
+            self.assertEqual({e["target"] for e in events if e["type"] == "scan_recorded"}, {first["target"]})
             p, second = self.call(self.scan(srv, "--engagement-id", "lab", "--ledger-root", str(self.base / "ledger")))
             a, b = first["scan_id"], second["scan_id"]
             p, d = self.call(["diff", "--before", a, "--after", b, "--engagement-id", "lab",
@@ -364,6 +367,65 @@ class CLITest(unittest.TestCase):
             p, bad = self.call(self.scan(srv, "--engagement-id", "a", "--engagement",
                                          self.engagement_file({"engagement_id": "b"}, "mismatch.json")))
             self.assertEqual(p.returncode, 2)
+
+    def test_openapi_adds_unlinked_get_endpoints_to_coverage_without_trusting_servers(self):
+        import http.server
+        import threading
+
+        class Srv:
+            def __init__(self):
+                self.paths = []
+                outer = self
+
+                class H(http.server.BaseHTTPRequestHandler):
+                    def log_message(self, *a):
+                        pass
+
+                    def do_GET(self):
+                        outer.paths.append(self.path)
+                        body = b"<html><body>no links</body></html>"
+                        self.send_response(200)
+                        self.send_header("Content-Type", "text/html")
+                        self.send_header("Content-Length", str(len(body)))
+                        self.end_headers()
+                        self.wfile.write(body)
+                self.srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+                threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+                self.url = f"http://127.0.0.1:{self.srv.server_address[1]}/"
+
+            def close(self):
+                self.srv.shutdown()
+                self.srv.server_close()
+
+        main, other = Srv(), Srv()
+        self.addCleanup(main.close)
+        self.addCleanup(other.close)
+        spec = self.base / "api.json"
+        spec.write_text(json.dumps({"openapi": "3.0.3", "paths": {
+            "/hidden": {"get": {"operationId": "hidden", "parameters": [{"name": "q", "in": "query", "schema": {"type": "string"}}]}},
+            "/other": {"get": {"operationId": "other", "parameters": [{"name": "z", "in": "query"}]}},
+            "/danger": {"post": {"operationId": "danger", "parameters": [{"name": "w", "in": "query"}]}}},
+            "servers": [{"url": other.url}]}))
+        args = self.scan(type("S", (), {"base_url": main.url}))
+        p, base = self.call(args)                                    # --openapiなし: 隠しAPIは検査されない
+        self.assertFalse([x for x in main.paths if x.startswith("/hidden")])
+        p, data = self.call([*args, "--openapi", str(spec), "--openapi-op", "hidden"])
+        self.assertTrue([x for x in main.paths if x.startswith("/hidden?q=")])
+        self.assertFalse([x for x in main.paths if x.startswith("/other")])      # 選択していないoperation
+        self.assertEqual(other.paths, [])                                         # serversのURLへは送らない
+        hidden = {c["rule_id"]: c["status"] for c in data["coverage"]
+                  if c["target_ref"].endswith("/hidden") and c["parameter"] == "q"}
+        self.assertEqual(hidden, {f"WEB_FUZZ_{c}": "tested" for c in ("SQLI", "XSS", "TRAVERSAL", "SSTI")})
+        for bad in (["--openapi", str(spec)], ["--openapi", str(spec), "--openapi-op", "danger"],
+                    ["--openapi", str(spec), "--openapi-op", "nope"], ["--openapi-op", "hidden"],
+                    ["--openapi", str(self.base / "missing.json"), "--openapi-op", "hidden"]):
+            n = len(main.paths)
+            p, bad_r = self.call([*args, *bad])
+            self.assertEqual((p.returncode, bad_r["state"]), (2, "failed"), bad)
+            self.assertEqual(len(main.paths), n)
+        p, listing = self.call(["openapi", str(spec)])
+        self.assertEqual(sorted(o["operation_id"] for o in listing["operations"]), ["danger", "hidden", "other"])
+        self.assertEqual([o["selectable"] for o in listing["operations"] if o["operation_id"] == "danger"], [False])
 
     def test_unknown_retry_and_extra_budget(self):
         with FixtureServer(post_form=False) as srv:

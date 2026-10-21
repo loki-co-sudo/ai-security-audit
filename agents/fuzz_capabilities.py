@@ -158,7 +158,7 @@ class AutonomousFuzzAgent(FuzzAgent):
             approvals: list | None = None, permit_t2: bool = False,
             resume_run_id: str | None = None, retry_unknown: list[str] | None = None,
             additional_requests: int = 0, idor_expectations: list | None = None,
-            excluded_targets: list[str] | None = None) -> None:
+            excluded_targets: list[str] | None = None, seed_points: list[dict] | None = None) -> None:
         """新規実行、または `resume_run_id` を指定した中断からの再開(docs/AUTONOMOUS_PHASE_B_DESIGN.md)。
 
         再開では、開始時と同じプロファイルを要求し(許可対象・予算・計画が違えば拒否)、完了済みタスクは再実行せず
@@ -182,6 +182,7 @@ class AutonomousFuzzAgent(FuzzAgent):
         except EngagementError as e:
             self._finalize(state=ScanState.FAILED.value, target=base_url, errors=[f"案件設定が不正です: {e}"])
             return
+        seed_points = [dict(p) for p in (seed_points or [])]
         known_secrets = self._known_secrets(auth, auth_b)
         mask = lambda t: redaction.mask_log_line(str(t), known_secrets)  # noqa: E731
         save_evidence = bool(config.get("save_evidence", False))
@@ -197,7 +198,8 @@ class AutonomousFuzzAgent(FuzzAgent):
             "plan": [[t.task_id, t.capability, t.args, list(t.depends_on), t.auth_context] for t in plan],
             # 表が無い場合はキー自体を入れない(表導入前のRunのハッシュと再開互換を保つ)
             **({"idor_expectations": idor_expectations} if idor_expectations else {}),
-            **({"excluded_targets": sorted(excluded_targets)} if excluded_targets else {})})
+            **({"excluded_targets": sorted(excluded_targets)} if excluded_targets else {}),
+            **({"seed_points": seed_points} if seed_points else {})})
 
         journal = store = None
         resuming = resume_run_id is not None
@@ -215,7 +217,7 @@ class AutonomousFuzzAgent(FuzzAgent):
                     "has_auth": bool(auth), "has_auth_b": bool(auth_b),
                     "tls_verify": tls_verify, "tls_ca_bundle": tls_ca_bundle,
                     "idor_expectations": idor_expectations,
-                    "excluded_targets": sorted(excluded_targets or [])}, sort_keys=True))
+                    "excluded_targets": sorted(excluded_targets or []), "seed_points": seed_points}, sort_keys=True))
             if resuming:
                 if store.get_meta("profile_hash") != phash:
                     raise ResumeError("プロファイル(対象・許可・予算・計画など)が開始時と異なるため再開しません")
@@ -242,6 +244,7 @@ class AutonomousFuzzAgent(FuzzAgent):
             stop_event=self._stop_event, tls_verify=tls_verify, tls_ca_bundle=tls_ca_bundle,
         )
         fuzzer.idor_expectations = idor_expectations
+        fuzzer.seed_points = seed_points
         ledger = BudgetLedger(max_requests=total_cap, request_counter=lambda: prior + fuzzer._req_count,
                               max_llm_calls=max_llm_calls)
         self._llm_gate = LLMGate(ledger)
@@ -271,6 +274,10 @@ class AutonomousFuzzAgent(FuzzAgent):
             findings, counts, rejected = self._assemble_findings(ctx, effort)
             coverage = self._autonomy_coverage(ctx, fuzzer, outcome)
             state, errors = self._autonomy_state(ctx, fuzzer, outcome, rejected)
+            if fuzzer.seed_rejected:                  # 取り込めなかった明示選択の注入点は未検査として残す
+                errors = [*errors, *fuzzer.seed_rejected]
+                if state == ScanState.COMPLETED.value:
+                    state = ScanState.PARTIAL.value
             errors = [mask(e) for e in errors]        # 例外メッセージ等に混入した機密値を最終結果へ出さない
             audit_end_errors = runner.close_run(state=state, errors=errors)   # 通常Actionから独立した終了処理
             errors += audit_end_errors
