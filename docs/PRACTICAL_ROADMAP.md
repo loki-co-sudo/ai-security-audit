@@ -304,6 +304,16 @@ CLI: `openapi FILE`(operation一覧。通信しない)、`scan fuzz --openapi FI
 JSONLを構造化し、不正行は件数/理由を表示して継続する。`monitor_agent.py`の分類入力へ接続し、未知のMITRE IDを確定タグとして出力しない。既存テキスト入力とサンプル生成を残す。journald/syslogはこの基盤の後にadapterとして追加する。
 テスト: rename-create、copytruncate、部分行、ファイル一時不在、STOP、正常JSON/不正JSONを一時ディレクトリで検証する。
 
+2026-10-22 実装済み(P4.3の中核): `tools/log_watcher.py`(inode+サイズ追跡・部分行保持・rename-create/copytruncate/一時不在・`stats`)、
+JSONL平坦化`normalize_log_line()`、`core/mitre.py`、`agents/monitor_agent.py`への接続、`tools/test_log_watcher.py`(16試験・selftest 16z)。
+- rename-createは新ファイルを開けてから旧ファイルの残りを読み切り、旧ファイルの不完全な最終行は1行として確定して処理する。
+- copytruncate/縮小は先頭から読み直す。**縮小前に読めなかった行は取りこぼし得る**ため、`stats`の縮小・不完全行破棄が1回でもあればDEFENSEの状態をpartialにし、
+  errorsに注記する(exactly-onceは保証しない。ポーリング間隔内の複数回回転、縮小後に元サイズまで書き戻された場合は検知できない)。
+- JSONLは全スカラー値を`key=value`へ平坦化して既存シグネチャ検知へ渡す。不正行は件数をerrorsに出しつつ**生テキストのまま検知へ回す**(不正行に紛れた攻撃を見逃さない)。
+- MITRE: LLMのIDは`core/mitre.KNOWN_TECHNIQUES`(部分集合・権威ある一覧ではない)に無ければ「未確認:Txxxx」と表示し、確定タグにしない(削除はしない)。プロンプトにも推測禁止を追記。
+**未実装**: journald/syslog adapter、gzipローテーション、巨大ログのバックプレッシャー、Windowsでのinode相当の検証、実LLMでのMITRE出力確認、
+`--duration`、実運用ログでの長時間検証。
+
 ## 9. 保留する作業と判断理由
 
 - SSRF/OAST、CORS、open redirect、secret検出、takeover候補、GraphQL: P2の品質評価後に別途選定。introspection有効だけで脆弱性としない。CORSのヘッダー組合せだけでブラウザからの読取可能性を断定しない。

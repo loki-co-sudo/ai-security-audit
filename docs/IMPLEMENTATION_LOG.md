@@ -601,3 +601,8 @@ CLI: `--engagement-id`で自動記録、`diff`/`mark`/`suppress`/`findings`。�
 `tools/openapi_loader.py`、`WebFuzzer.seed_points`/`seed_rejected`、`AutonomousFuzzAgent.run(seed_points=)`(profile_hashとprofile_jsonへ保存)、
 CLI `openapi FILE` / `scan fuzz --openapi ... --openapi-op ...`。副次修正: CLIの単一結果から`target`を消していた`result.pop("target")`を除去(台帳へ対象が記録されなかった)。
 制約と未実装は docs/PRACTICAL_ROADMAP.md §P4.1。
+
+## 2026-10-22 P4.3(中核): 実ログ対応
+`LogWatcher`の作り直し(バイナリ読み・inode+サイズ追跡・部分行保持・rename-create/copytruncate/一時不在、`stats`)、`normalize_log_line()`(JSONL平坦化、
+不正行は生テキストで検知)、`core/mitre.py`(未収録IDは「未確認」)、`MonitorAgent`への接続(縮小時はpartial+注記)。
+試験: `tools/test_log_watcher.py`(selftest 16z)。journald/syslog・gzip回転・長時間実運用検証は未実施。

@@ -3162,6 +3162,20 @@ def test_openapi_loader():
         _ng("OpenApiLoader", str(result.errors + result.failures))
 
 
+def test_log_watcher_realworld():
+    _section("16z. LOG — 実ログ対応(ローテーション/縮小/部分行/JSONL/MITRE確認 P4.3)")
+    import unittest
+    from tools import test_log_watcher as t
+    result = unittest.TestResult()
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
+                               for c in (t.WatcherTest, t.NormalizeTest, t.MitreTest, t.MonitorIntegrationTest))
+    suite.run(result)
+    if result.wasSuccessful():
+        _ok("LogWatcher", f"{result.testsRun} tests: rename-create/copytruncate/部分行/一時不在/STOP/JSONL/不明MITRE IDを確定タグにしない")
+    else:
+        _ng("LogWatcher", str(result.errors + result.failures))
+
+
 def test_audit_evidence():
     _section("16l. AGENT — AuditAgent 証拠保存・入力マスキング(P1.2)")
     import unittest
@@ -3274,6 +3288,7 @@ def main():
     test_benchmark()
     test_findings_ledger()
     test_openapi_loader()
+    test_log_watcher_realworld()
     test_cli()
     test_audit_evidence()
     test_defense_evidence()

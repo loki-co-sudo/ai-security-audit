@@ -78,6 +78,7 @@ AI-Security-tool/
 │   ├── event_bus.py             # スレッドセーフUIイベントバス（queue.Queue基盤）
 │   ├── llm_client.py            # LLMClient。update()でホットリロード可能。OpenRouterヘッダー自動付与。fetch_models()で価格・コンテキスト長・知能指数（Artificial Analysis）付きモデル一覧を取得。cost_tier()/sort_models()も提供
 │   ├── model_router.py          # ロール別モデルルーティング（STRONG/FAST）＆推論エフォート（lokicode移植）。summarize_telemetry()/suggest_efficient_model()でテレメトリ実績を助言表示（自動切り替えはしない）
+│   ├── mitre.py                 # P4.3: ATT&CK IDの確認。KNOWN_TECHNIQUES（部分集合）に無いIDは「未確認」表示で確定タグにしない
 │   ├── scope_guard.py           # バグバウンティ対応: 対象範囲(Scope)の機械的判定 in_scope()（許可リスト一致のみ・v1はdeny-list非対応）
 │   ├── http_transport.py        # P0.1/P0.2: WEB FUZZ全送信経路の唯一の送信口。normalize_origin()・HttpTransport（同一origin検査・共有予算・手動リダイレクト制御・RequestPolicyでレート/429リトライ/STOP中断/応答サイズ上限）。TLS設定・認証状態判定はtools/web_fuzzer.py側
 │   ├── engagement.py            # P3.1の一部: 案件設定の検証。現状はIDOR期待権限表 parse_idor_expectations()のみ（秘密値を含めない）
@@ -109,7 +110,7 @@ AI-Security-tool/
 │   ├── openapi_loader.py        # P4.1: ローカルOpenAPI 3.x JSON→選択可能operation一覧・明示選択したGET+queryの注入点。通信しない・serversを使わない
 │   ├── web_fuzzer.py            # Webスマートファザー（クロール・注入点検出・異常観測／検出のみ）。第2セッション(session_b)によるIDOR比較はGET限定。全送信はcore/http_transport.HttpTransport経由（P0.1）
 │   ├── subdomain_enum.py        # バグバウンティ対応: crt.shへの受動的サブドメイン列挙（単発GETのみ・サイレント失敗）
-│   ├── log_watcher.py           # tailf式ログ追跡ジェネレータ、サンプルログ生成
+│   ├── log_watcher.py           # tailf式ログ追跡（P4.3: inode/サイズ追跡・部分行保持・ローテーション/copytruncate補正・stats）、JSONL平坦化normalize_log_line()、サンプルログ生成
 │   ├── cve_client.py            # NVD API v2クライアント。永続キャッシュ＋並列照合・サイレント失敗
 │   ├── report_generator.py      # HTML/PDF/Markdownレポート生成。---VULN_START---マーカーをパースして構造化出力
 │   ├── pdf_writer.py            # 日本語対応PDFレンダラー（Pillowのみ・依存追加なし）

@@ -11,7 +11,7 @@ import time
 from datetime import datetime
 from collections import deque
 from agents.base_agent import BaseAgent
-from tools.log_watcher import LogWatcher
+from tools.log_watcher import LogWatcher, normalize_log_line
 from tools.report_generator import _findings_and_counts
 import core.config as config
 from core import redaction
@@ -37,7 +37,7 @@ Output format:
 ---THREAT_START---
 SEVERITY: [CRITICAL|HIGH|MEDIUM|LOW]
 THREAT_TYPE: [classification]
-MITRE_TTP: [T-code if applicable]
+MITRE_TTP: [ATT&CK technique ID (e.g. T1190) only if you are certain it exists; otherwise N/A — never guess an ID]
 ATTACKER_IP: [if identifiable]
 TIMELINE: [Is this isolated or part of a sequence?]
 ANALYSIS:
@@ -87,6 +87,7 @@ class MonitorAgent(BaseAgent):
         self._out(f"  STARTED    : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n", "dim")
 
         watcher = LogWatcher(log_path)
+        parse_problems: dict[str, int] = {}
         context_buffer: deque[str] = deque(maxlen=LOG_MAX_CONTEXT)
         batch_buffer:   list[str]  = []   # マスク済みの行のみ保持（LLM送信・表示用）
         batch_evidence: list[str | None] = []  # batch_bufferと同順の証拠ID（保存OFF/省略時None）
@@ -118,6 +119,9 @@ class MonitorAgent(BaseAgent):
                 line = line.rstrip()
                 if not line:
                     continue
+                line, problem = normalize_log_line(line)      # JSONLは平坦化。不正行も捨てず検知へ回す(P4.3)
+                if problem:
+                    parse_problems[problem] = parse_problems.get(problem, 0) + 1
 
                 # 攻撃パターン検出は生の行で行い、以降の保存・LLM送信・表示にはマスク済みの行のみ使う
                 masked_line = redaction.mask_log_line(line)
@@ -209,12 +213,34 @@ class MonitorAgent(BaseAgent):
             known_evidence_ids=known_evidence_ids or None, rejected_evidence_ids=rejected)
         coverage = self._build_coverage(log_path, len(analyses))
         state, errors = self._determine_state(watch_error=watch_error, analyses=analyses)
+        errors += self._log_source_notes(watcher.stats, parse_problems)
+        if (watcher.stats["truncations"] or watcher.stats["partial_discarded"]) and state == ScanState.COMPLETED.value:
+            state = ScanState.PARTIAL.value        # 縮小(copytruncate等)では行を取りこぼし得るためcompletedにしない
         if store is not None:
             errors = errors + [f"証拠保存エラー: {e}" for e in store.save_errors]
             errors = errors + [f"証拠保存を省略: {o}" for o in store.omissions]
         errors = errors + rejected
         self._finalize(state=state, errors=errors, findings=findings, coverage=coverage,
                        mode="DEFENSE", target=log_path)
+
+    @staticmethod
+    def _log_source_notes(stats: dict, problems: dict) -> list[str]:
+        """入力ログの扱いに関する注記(取りこぼし得る条件・不正行)。exactly-onceは保証しない。"""
+        notes = []
+        if stats["rotations"]:
+            notes.append(f"ログのローテーションを{stats['rotations']}回検知(旧ファイルの残りを読んでから新ファイルへ切替。"
+                         "ポーリング間隔内に複数回回転した場合は中間ファイルを読めない可能性)")
+        if stats["truncations"]:
+            notes.append(f"ログの縮小(copytruncate等)を{stats['truncations']}回検知。縮小前に読めなかった行は取りこぼした可能性があります")
+        if stats["partial_discarded"]:
+            notes.append(f"縮小により不完全な末尾行を{stats['partial_discarded']}件破棄しました")
+        if stats["partial_flushed"]:
+            notes.append(f"回転した旧ファイルの未完の最終行を{stats['partial_flushed']}件、そのまま1行として処理しました")
+        if stats["missing_polls"]:
+            notes.append(f"ログファイルが一時的に存在しない状態を{stats['missing_polls']}回検知しました")
+        if problems.get("invalid_json"):
+            notes.append(f"JSONLとして不正な行が{problems['invalid_json']}件ありました(生テキストとして検知は実施)")
+        return notes
 
     # ── 構造化所見・実行状態(P1.1) ─────────────────────────
     @staticmethod

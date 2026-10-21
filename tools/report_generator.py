@@ -13,6 +13,7 @@ import json
 from datetime import datetime
 
 import core.config as config
+from core import mitre
 from core.settings import APP_VERSION
 
 # ── レポート言語ラベル（日本語 / 英語） ─────────────────────────
@@ -177,7 +178,7 @@ def _parse(text: str, start_marker: str, end_marker: str) -> list[dict]:
         findings.append({
             "name":    _field("NAME") or _field("THREAT_TYPE") or _field("TITLE"),
             "severity": _field("SEVERITY"),
-            "ref":     _field("CWE") or _field("MITRE_TTP") or _field("CATEGORY"),
+            "ref":     _field("CWE") or mitre.format_ref(_field("MITRE_TTP")) or _field("CATEGORY"),
             "lines":   _field("LINES") or _field("ATTACKER_IP") or _field("EVIDENCE"),
             "snippet": snippet.group(1).strip() if snippet else _field("TIMELINE"),
             "attack":  (attack.group(1).strip() if attack

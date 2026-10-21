@@ -6,9 +6,49 @@ tools/log_watcher.py — ログファイル監視・行ストリーム
 """
 
 from __future__ import annotations
+import json
 import os
+import re
 import time
 from typing import Callable, Generator
+
+_IP_KEYS = ("remote_addr", "remote_ip", "client_ip", "clientip", "src_ip", "ip", "host")
+_MAX_TEXT = 4000
+_MAX_DEPTH = 3
+
+
+def _flatten(obj, prefix: str, out: list[str], depth: int = 0) -> None:
+    items = obj.items() if isinstance(obj, dict) else enumerate(obj[:20])
+    for k, v in items:
+        if len(out) > 200:
+            return
+        if isinstance(v, (dict, list)) and depth < _MAX_DEPTH:
+            _flatten(v, f"{prefix}{k}.", out, depth + 1)
+        else:
+            out.append(f"{prefix}{k}={v}")
+
+
+def normalize_log_line(line: str) -> tuple[str, str]:
+    """(分類に使うテキスト, 問題の種別)。問題が無ければ種別は空文字。
+
+    '{'で始まる行はJSONLとして解釈し、全スカラー値を 'key=value' に平坦化する(攻撃ペイロードがどのフィールドにあっても
+    既存のシグネチャ検知に掛かる)。IPらしいキーがあれば先頭へ置く。JSONとして不正、またはオブジェクトでない行は
+    **捨てずに生テキストのまま**検知へ回し、種別 'invalid_json' を返す(不正な行に紛れた攻撃を見逃さないため)。
+    """
+    s = line.strip()
+    if not s.startswith("{"):
+        return s, ""
+    try:
+        obj = json.loads(s)
+    except ValueError:
+        return s, "invalid_json"
+    if not isinstance(obj, dict):
+        return s, "invalid_json"
+    parts: list[str] = []
+    _flatten(obj, "", parts)
+    ip = next((str(obj[k]) for k in _IP_KEYS if isinstance(obj.get(k), (str, int))), "")
+    text = " ".join(([ip] if ip else []) + parts)
+    return text[:_MAX_TEXT], ""
 
 
 class LogWatcher:
@@ -17,10 +57,23 @@ class LogWatcher:
 
     - watch_mode=True : ファイル末尾を追跡し続ける（tailf相当）
     - single_pass=True: ファイルを1回通して全行を返す
+
+    実ログ対応(P4.3): ファイル識別子(dev, inode)とサイズを追跡する。
+    - 完結していない最終行(改行なし)は次回まで保持し、書き込み途中の行を分割して返さない。
+    - rename-create(ローテーション): 旧ファイルを開いたまま残りを読み切ってから、新ファイルを先頭から読む。
+    - copytruncate / 縮小: サイズが読み取り位置を下回ったら先頭から読み直す。
+    - ファイルが一時的に無い間は待機して継続する。
+
+    取りこぼし得る条件(exactly-onceは保証しない): 旧ファイルを最後に読んでからrename/truncateまでに書かれ、かつ
+    copytruncateでコピー前に消えた行、ポーリング間隔内に複数回ローテーションされた中間ファイル、
+    縮小後に元と同じサイズまで書き戻された場合(縮小を検知できない)。
+    `stats` に件数を残す(ローテーション/縮小/一時不在/不完全行の破棄・フラッシュ)。
     """
 
     def __init__(self, path: str):
         self.path = path
+        self.stats = {"lines": 0, "rotations": 0, "truncations": 0, "missing_polls": 0,
+                      "partial_flushed": 0, "partial_discarded": 0}
 
     def watch(
         self,
@@ -39,31 +92,80 @@ class LogWatcher:
             yield from self._read_all()
             return
 
-        # シーク位置をファイル末尾に初期化（既存行はスキップ）
-        with open(self.path, "r", encoding="utf-8", errors="replace") as f:
-            f.seek(0, 2)  # EOF
-            position = f.tell()
+        fh = open(self.path, "rb")
+        try:
+            fh.seek(0, os.SEEK_END)         # 既存行はスキップ
+            ident = self._ident(os.fstat(fh.fileno()))
+            carry = b""
+            while True:
+                if stop_fn and stop_fn():
+                    return
+                try:
+                    st = os.stat(self.path)
+                except OSError:
+                    st = None
+                    self.stats["missing_polls"] += 1
+                if st is not None and self._ident(st) != ident:
+                    # rename-create: 新ファイルを開けてから、旧ファイルの残りを読み切る。
+                    # 不完全な最終行は旧ファイルがもう伸びないので確定して返す
+                    try:
+                        new_fh = open(self.path, "rb")
+                    except OSError:
+                        self.stats["missing_polls"] += 1
+                        time.sleep(interval)
+                        continue
+                    data, carry = self._drain(fh, carry)
+                    for line in data:
+                        yield from self._emit(line, stop_fn)
+                    if carry:
+                        self.stats["partial_flushed"] += 1
+                        yield from self._emit(carry + b"\n", stop_fn)
+                    carry = b""
+                    fh.close()
+                    fh = new_fh
+                    ident = self._ident(os.fstat(fh.fileno()))
+                    self.stats["rotations"] += 1
+                elif st is not None and st.st_size < fh.tell():
+                    # copytruncate / 縮小: 先頭から読み直す。保持していた不完全行は元データが消えたため破棄
+                    if carry:
+                        self.stats["partial_discarded"] += 1
+                    carry = b""
+                    fh.seek(0)
+                    self.stats["truncations"] += 1
+                data, carry = self._drain(fh, carry)       # 一時不在の間も、開いたままの旧ファイルの残りは読める
+                for line in data:
+                    yield from self._emit(line, stop_fn)
+                if stop_fn and stop_fn():
+                    return
+                time.sleep(interval)
+        finally:
+            fh.close()
 
-        while True:
-            if stop_fn and stop_fn():
-                return
-            try:
-                with open(self.path, "r", encoding="utf-8", errors="replace") as f:
-                    f.seek(position)
-                    new_lines = f.readlines()
-                    position  = f.tell()
-                for line in new_lines:
-                    if stop_fn and stop_fn():
-                        return
-                    yield line
-            except (FileNotFoundError, OSError):
-                pass  # ローテーション対応: ファイルが一時的に消えても継続
-            time.sleep(interval)
+    @staticmethod
+    def _ident(st) -> tuple[int, int]:
+        return (st.st_dev, st.st_ino)
+
+    @staticmethod
+    def _drain(fh, carry: bytes) -> tuple[list[bytes], bytes]:
+        """現在位置から読めるだけ読み、完結した行(改行付き)と、未完の末尾を返す。"""
+        chunk = fh.read()
+        if not chunk:
+            return [], carry
+        buf = carry + chunk
+        parts = buf.split(b"\n")
+        return [p + b"\n" for p in parts[:-1]], parts[-1]
+
+    def _emit(self, raw: bytes, stop_fn):
+        if stop_fn and stop_fn():
+            return
+        self.stats["lines"] += 1
+        yield raw.decode("utf-8", errors="replace")
 
     def _read_all(self) -> Generator[str, None, None]:
         """ファイル全体を1行ずつyieldする（single_pass用）。"""
         with open(self.path, "r", encoding="utf-8", errors="replace") as f:
             for line in f:
+                self.stats["lines"] += 1
                 yield line
 
     @staticmethod
