@@ -570,3 +570,8 @@ XSS: HTML以外のcontent-typeの反射は兆候にしない。文言は「反�
 profile_jsonに保存して`resume`で復元。実BenchmarkServerへのCLI実行で、表なしはobserved3件、表あり(/publicをb=deny宣言)で
 `basis=expectation`の所見が追加されることを確認。`tools/test_cli.py`に検証・復元の2試験を追加。
 未実装: 旧FuzzAgent(GUI)経路・GUI入力、所見のbasisのレポート表示、`--targets-file`、exclude優先。
+
+## 2026-10-22 P3.1(3): 除外優先・`--targets-file`
+`--exclude`/案件ファイル`exclude`(host/IP/CIDR)を許可より優先(`AutonomousFuzzAgent.run(excluded_targets=)`→Policy Gate、
+表がある時のみprofile_hashに含め、profile_jsonへ保存して再開で復元)。`--targets-file`(逐次・最大50件・重複除去・1件でも不正なら全体を実行しない)、
+`--auth-file`併用は拒否。`tools/test_cli.py`に除外優先・バッチ・併用拒否の3試験を追加。

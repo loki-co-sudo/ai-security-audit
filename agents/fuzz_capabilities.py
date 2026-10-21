@@ -157,7 +157,8 @@ class AutonomousFuzzAgent(FuzzAgent):
             tls_verify: bool | None = None, tls_ca_bundle: str | None = None,
             approvals: list | None = None, permit_t2: bool = False,
             resume_run_id: str | None = None, retry_unknown: list[str] | None = None,
-            additional_requests: int = 0, idor_expectations: list | None = None) -> None:
+            additional_requests: int = 0, idor_expectations: list | None = None,
+            excluded_targets: list[str] | None = None) -> None:
         """新規実行、または `resume_run_id` を指定した中断からの再開(docs/AUTONOMOUS_PHASE_B_DESIGN.md)。
 
         再開では、開始時と同じプロファイルを要求し(許可対象・予算・計画が違えば拒否)、完了済みタスクは再実行せず
@@ -195,7 +196,8 @@ class AutonomousFuzzAgent(FuzzAgent):
             "auth_b": bool(auth_b), "engine": ENGINE_VERSION,
             "plan": [[t.task_id, t.capability, t.args, list(t.depends_on), t.auth_context] for t in plan],
             # 表が無い場合はキー自体を入れない(表導入前のRunのハッシュと再開互換を保つ)
-            **({"idor_expectations": idor_expectations} if idor_expectations else {})})
+            **({"idor_expectations": idor_expectations} if idor_expectations else {}),
+            **({"excluded_targets": sorted(excluded_targets)} if excluded_targets else {})})
 
         journal = store = None
         resuming = resume_run_id is not None
@@ -212,7 +214,8 @@ class AutonomousFuzzAgent(FuzzAgent):
                     "permit_t2": bool(permit_t2), "max_llm_calls": max_llm_calls,
                     "has_auth": bool(auth), "has_auth_b": bool(auth_b),
                     "tls_verify": tls_verify, "tls_ca_bundle": tls_ca_bundle,
-                    "idor_expectations": idor_expectations}, sort_keys=True))
+                    "idor_expectations": idor_expectations,
+                    "excluded_targets": sorted(excluded_targets or [])}, sort_keys=True))
             if resuming:
                 if store.get_meta("profile_hash") != phash:
                     raise ResumeError("プロファイル(対象・許可・予算・計画など)が開始時と異なるため再開しません")
@@ -244,6 +247,7 @@ class AutonomousFuzzAgent(FuzzAgent):
         self._llm_gate = LLMGate(ledger)
         effects = {T0, T1} | ({T2} if permit_t2 else set())
         policy = EngagementPolicy(base_origin=base_url, allowed_targets=list(allowed_targets or []),
+                                  excluded_targets=list(excluded_targets or []),
                                   allowed_side_effects=frozenset(effects))
         gate = PolicyGate(registry, policy, ledger, journal, grants=list(approvals or []), store=store)
         ctx = _Ctx(base_url)

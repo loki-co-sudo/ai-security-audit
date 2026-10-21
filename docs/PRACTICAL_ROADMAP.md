@@ -222,8 +222,11 @@ python cli.py status FINDING_ID accepted-risk --reason "対応判断を記録" -
 キー: `engagement_id`、`targets`、`allow`/`exclude`(host/IP/CIDR・excludeが優先)、`scan_profile`、`effort`、予算、
 `idor_expectations`(`core/engagement.py`で検証済み)。優先順位は明示CLI引数 > 案件ファイル > 既存設定。
 実装順: (1) 検出器が期待権限表を受け取る【済】→ (2) `--engagement`でfuzz CLIへ`idor_expectations`を渡す【済・2026-10-22】
-(再開用のprofile_jsonとprofile_hashに含め、再開時はprofile_jsonから復元。表が空のRunはhashにキーを入れず従来Runと再開互換) → (3) exclude優先・targets-file →
-(4) `core/scan_runner.py`で他モードへ展開。(3)以降は未実装。`--engagement`のキーは現状 `engagement_id`・`idor_expectations` のみ(未知キーは拒否)。
+(再開用のprofile_jsonとprofile_hashに含め、再開時はprofile_jsonから復元。表が空のRunはhashにキーを入れず従来Runと再開互換) → (3) exclude優先・targets-file【済・2026-10-22】 →
+(4) `core/scan_runner.py`で他モードへ展開。(3)以降は未実装。`--engagement`のキーは現状 `engagement_id`・`idor_expectations`・`exclude` のみ(未知キーは拒否)。
+`--exclude`/案件ファイルのexcludeは許可より優先(CLIで送信前に拒否し、Policy Gateにも渡す)。`--targets-file`は1〜50件を逐次実行し、
+対象ごとに設定コピー・別Run・別承認で、結果は`batch:true`の集約JSON(全対象completedのときだけcompleted、中断時は残りを未実行として記録)。
+**`--targets-file`と`--auth-file`は併用不可**(認証値を他対象へ送らないため)。
 GUI(設定ダイアログ/fuzz panel)・旧FuzzAgent経路への表の配線は未実装。
 
 受け入れ条件: GUIをimportせず全モードのモック実行、終了コード、stdoutのJSON単独解析、設定優先順位と非永続性、除外優先、バッチ設定分離、SIGINT後の最終結果保存を検証する。

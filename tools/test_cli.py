@@ -236,6 +236,49 @@ class CLITest(unittest.TestCase):
             p, data = self.call(self.scan(srv, "--engagement", eng))
             self.assertEqual(data["engagement_id"], "lab-1")
 
+    def test_exclude_wins_over_allow_and_sends_nothing(self):
+        with FixtureServer(post_form=False) as srv:
+            p, data = self.call(self.scan(srv, "--exclude", "127.0.0.1"))
+            self.assertEqual((p.returncode, data["state"]), (2, "failed"))
+            self.assertIn("除外", data["errors"][0])
+            eng = self.engagement_file({"exclude": ["127.0.0.0/8"]}, "ex.json")
+            p, data = self.call(self.scan(srv, "--engagement", eng))
+            self.assertEqual((p.returncode, data["state"]), (2, "failed"))
+            self.assertEqual(srv.count(), 0)
+            p, data = self.call(self.scan(srv, "--exclude", "http://x/y"))      # URL/pathは不可
+            self.assertEqual(p.returncode, 2)
+
+    def test_targets_file_runs_sequentially_with_isolated_results(self):
+        with FixtureServer(post_form=False) as a, FixtureServer(post_form=False) as b:
+            tf = self.base / "targets.txt"
+            tf.write_text(f"# lab\n{a.base_url}\n{b.base_url}\n{a.base_url}\n")        # 重複は1回だけ
+            args = ["scan", "fuzz", "--targets-file", str(tf), "--profile", "aggressive", *self.common()]
+            p, data = self.call(args)
+            self.assertEqual((p.returncode, data["state"], data["batch"]), (0, "completed", True), data)
+            self.assertEqual([r["target"] for r in data["results"]], [a.base_url, b.base_url])
+            self.assertEqual(len({r["run_id"] for r in data["results"]}), 2)         # Runは対象ごとに別
+            self.assertTrue(a.count() and b.count())
+            self.assertTrue(all(f["target"] in (a.base_url, b.base_url) for f in data["findings"]))
+            p, data = self.call(args + ["--exclude", "127.0.0.1"])
+            self.assertEqual((p.returncode, data["state"]), (2, "failed"))
+            tf.write_text(f"{a.base_url}\nhttp://u:p@127.0.0.1/\n")                  # 1件でも不正なら全体を実行しない
+            before = a.count()
+            p, data = self.call(["scan", "fuzz", "--targets-file", str(tf), *self.common()])
+            self.assertEqual(p.returncode, 2)
+            self.assertEqual(a.count(), before)
+
+    def test_targets_file_rejects_auth_and_target_conflict(self):
+        with FixtureServer(auth=True) as srv:
+            tf = self.base / "t.txt"
+            tf.write_text(srv.base_url + "\n")
+            p, data = self.call(["scan", "fuzz", "--targets-file", str(tf), "--auth-file", self.auth_file(srv),
+                                 "--approve-auth", "a,b", *self.common()])
+            self.assertEqual(p.returncode, 2)
+            self.assertIn("併用", data["errors"][0])
+            self.assertEqual(srv.count(), 0)
+            p, data = self.call(["scan", "fuzz", "--target", srv.base_url, "--targets-file", str(tf), *self.common()])
+            self.assertEqual(p.returncode, 2)
+
     def test_unknown_retry_and_extra_budget(self):
         with FixtureServer(post_form=False) as srv:
             p = subprocess.run(self.command(self.scan(srv)), cwd=self.base,

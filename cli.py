@@ -23,6 +23,7 @@ from core.autonomy.actions import new_grant
 from core.autonomy.journal import JOURNAL_ROOT, replay, validate_run_id
 from core.autonomy.run_store import STATE_FILE
 from core.llm_client import LLMClient
+from core.scope_guard import extract_host, in_scope
 from core.settings import DEFAULT_SCAN_PROFILE, SCAN_PROFILES
 
 APPROVAL_TTL_SECONDS = 300
@@ -64,7 +65,10 @@ def parser():
         sub.add_argument("--auth-file", help='0600のJSON: {"a": {...}, "b": {...}}')
         sub.add_argument("--approve-auth", default="", help="今回だけ認証を承認する役割: a または a,b（5分有効）")
         sub.add_argument("--effort", choices=("speed", "balanced", "quality"))
-    fuzz.add_argument("--target", required=True)
+    group = fuzz.add_mutually_exclusive_group(required=True)
+    group.add_argument("--target")
+    group.add_argument("--targets-file", help="1行1URL(#でコメント)。逐次実行。--auth-fileとは併用不可")
+    fuzz.add_argument("--exclude", action="append", default=[], help="除外host/IP/CIDR。許可より優先")
     fuzz.add_argument("--engagement", help="案件設定JSON(秘密値は含めない): engagement_id / idor_expectations")
     fuzz.add_argument("--profile", choices=list(SCAN_PROFILES), default=DEFAULT_SCAN_PROFILE)
     fuzz.add_argument("--max-requests", type=nonnegative, default=200)
@@ -105,6 +109,65 @@ def read_auth(path):
     return data
 
 
+def check_rules(rules, flag):
+    out = []
+    for rule in rules:
+        rule = rule.strip() if isinstance(rule, str) else ""
+        if not rule:
+            raise CLIError(f"{flag}は空にできません")
+        try:
+            ipaddress.ip_network(rule, strict=False)
+        except ValueError:
+            if not re.fullmatch(r"(?:\*\.)?[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?", rule):
+                raise CLIError(f"{flag}はhost/IP/CIDRを指定してください（URL/pathは不可）")
+        out.append(rule)
+    return out
+
+
+def check_target(target):
+    url = urlsplit(target if "://" in target else "http://" + target)
+    if url.scheme not in ("http", "https") or not url.hostname or url.username or url.password or url.query or url.fragment:
+        raise CLIError("対象URLにはHTTP(S)のhost/pathだけを指定してください（認証値・queryは不可）")
+    return url
+
+
+def read_targets(path):
+    p = Path(path)
+    if not p.is_file() or p.stat().st_size > 262144:
+        raise CLIError("対象ファイルが見つからないか大きすぎます")
+    targets = []
+    for line in p.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and line not in targets:
+            targets.append(line)
+    if not targets or len(targets) > 50:
+        raise CLIError("対象ファイルには1〜50件のURLを指定してください")
+    for t in targets:
+        check_target(t)
+    return targets
+
+
+def target_excluded(target, excluded):
+    return bool(excluded) and in_scope(extract_host(target if "://" in target else "http://" + target), excluded)[0]
+
+
+def aggregate(results, skipped):
+    """逐次実行した各対象の結果を1つにまとめる。全対象completedのときだけcompleted。"""
+    states = [r.get("state") for r in results]
+    if skipped or any(st == "cancelled" for st in states):
+        state = "cancelled"
+    elif all(st == "completed" for st in states):
+        state = "completed"
+    elif all(st == "failed" for st in states):
+        state = "failed"
+    else:
+        state = "partial"
+    findings = [{**f, "target": r.get("target")} for r in results for f in r.get("findings", [])]
+    errors = [f"{r.get('target')}: {e}" for r in results for e in r.get("errors", [])]
+    errors += [f"{t}: 中断のため未実行" for t in skipped]
+    return {"state": state, "batch": True, "errors": errors, "findings": findings, "results": results}
+
+
 def read_engagement(path):
     """案件設定(非機密)を読む。未知のキーは拒否する(認証値などを誤って入れた場合に黙って無視しない)。"""
     if not path:
@@ -118,8 +181,11 @@ def read_engagement(path):
         data = json.loads(p.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         raise CLIError("案件設定ファイルをJSONとして読めません")
-    if not isinstance(data, dict) or set(data) - {"engagement_id", "idor_expectations"}:
-        raise CLIError("案件設定のキーはengagement_id/idor_expectationsのみです（認証値はこのファイルに入れません）")
+    if not isinstance(data, dict) or set(data) - {"engagement_id", "idor_expectations", "exclude"}:
+        raise CLIError("案件設定のキーはengagement_id/idor_expectations/excludeのみです（認証値はこのファイルに入れません）")
+    if not isinstance(data.get("exclude", []), list):
+        raise CLIError("excludeは配列で指定してください")
+    data["exclude"] = check_rules(data.get("exclude", []), "exclude")
     eid = data.get("engagement_id")
     if eid is not None and not (isinstance(eid, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}", eid)):
         raise CLIError("engagement_idは英数字・._-の64文字以内で指定してください")
@@ -222,15 +288,7 @@ def main(argv=None):
     result = {"state": "failed", "errors": [], "findings": []}
     try:
         args = parser().parse_args(argv)
-        if any(not a.strip() for a in args.allow):
-            raise CLIError("--allowは空にできません")
-        args.allow = [a.strip() for a in args.allow]
-        for rule in args.allow:
-            try:
-                ipaddress.ip_network(rule, strict=False)
-            except ValueError:
-                if not re.fullmatch(r"(?:\*\.)?[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?", rule):
-                    raise CLIError("--allowはhost/IP/CIDRを指定してください（URL/pathは不可）")
+        args.allow = check_rules(args.allow, "--allow")
         if args.out:
             out = Path(args.out).resolve()
             if out.is_relative_to(Path(args.journal_root).resolve()):
@@ -262,29 +320,54 @@ def main(argv=None):
                           additional_requests=args.additional_requests)
             else:
                 kw = {k: getattr(args, k) for k in (
-                    "target", "profile", "max_requests", "max_pages", "max_llm_calls", "permit_t2",
+                    "profile", "max_requests", "max_pages", "max_llm_calls", "permit_t2",
                     "tls_verify", "tls_ca_bundle")}
                 engagement = read_engagement(args.engagement)
                 kw["idor_expectations"] = engagement.get("idor_expectations", [])
-            target = urlsplit(kw["target"] if "://" in kw["target"] else "http://" + kw["target"])
-            if target.scheme not in ("http", "https") or not target.hostname or target.username or target.password or target.query or target.fragment:
-                raise CLIError("対象URLにはHTTP(S)のhost/pathだけを指定してください（認証値・queryは不可）")
-            kw.update(allowed_targets=args.allow, journal_root=args.journal_root,
-                      auth=auth.get("a"), auth_b=auth.get("b"), approvals=[
-                          new_grant("web.authenticate", auth_action_args(kw["target"], r),
-                                    expires_at=time.time() + APPROVAL_TTL_SECONDS) for r in roles])
+                kw["excluded_targets"] = sorted(set(check_rules(args.exclude, "--exclude")) | set(engagement.get("exclude", [])))
+                if args.targets_file:
+                    if auth:
+                        raise CLIError("--targets-fileと--auth-fileは併用できません（認証値を他の対象へ送らないため）")
+                    targets = read_targets(args.targets_file)
+                else:
+                    check_target(args.target)
+                    targets = [args.target]
+            if args.command == "resume":
+                check_target(kw["target"])
+                targets = [kw["target"]]
             with redirect_stdout(sys.stderr):
                 config.load()
                 llm = LLMClient(base_url=config.get("llm_base_url"), api_key=config.get("llm_api_key"),
                                 model=config.get("llm_model"), timeout=config.get("llm_timeout"))
-                bus = ConsoleBus(secrets)
-                agent = AutonomousFuzzAgent(bus, llm)
-                agent.set_effort_override(args.effort)
-                if interrupted:
-                    agent.stop()
-                agent._safe_run(**kw)
-                result = bus.result_payload or {"state": "failed", "errors": ["最終結果が通知されませんでした"], "findings": []}
-                result["run_id"] = agent.last_run_id
+                results, skipped = [], []
+                for i, target in enumerate(targets):
+                    if interrupted:
+                        skipped = targets[i:]
+                        break
+                    one = {**kw, "target": target}      # 対象ごとに設定をコピーし、次の対象へ状態を持ち越さない
+                    if args.command != "resume" and target_excluded(target, one["excluded_targets"]):
+                        results.append({"target": target, "state": "failed", "findings": [],
+                                        "errors": ["除外対象のため実行しませんでした（除外は許可より優先）"]})
+                        continue
+                    one.update(allowed_targets=args.allow, journal_root=args.journal_root,
+                               auth=auth.get("a"), auth_b=auth.get("b"), approvals=[
+                                   new_grant("web.authenticate", auth_action_args(target, r),
+                                             expires_at=time.time() + APPROVAL_TTL_SECONDS) for r in roles])
+                    bus = ConsoleBus(secrets)
+                    agent = AutonomousFuzzAgent(bus, llm)
+                    agent.set_effort_override(args.effort)
+                    if interrupted:
+                        agent.stop()
+                    agent._safe_run(**one)
+                    r = bus.result_payload or {"state": "failed", "errors": ["最終結果が通知されませんでした"], "findings": []}
+                    r["run_id"] = agent.last_run_id
+                    r["target"] = target
+                    results.append(r)
+                if len(results) == 1 and len(targets) == 1 and not getattr(args, "targets_file", None):
+                    result = results[0]
+                    result.pop("target", None)
+                else:
+                    result = aggregate(results, skipped)
                 if engagement.get("engagement_id"):
                     result["engagement_id"] = engagement["engagement_id"]
     except SystemExit:
