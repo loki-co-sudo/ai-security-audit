@@ -3021,6 +3021,21 @@ def test_evidence_provenance():
         _ng("Evidence provenance", str(result.errors + result.failures))
 
 
+def test_policy_gate():
+    _section("16p. AUTONOMY — Action/Policy Gate/予算/タスク状態(Phase A 順4)")
+    import unittest
+    from tools.test_policy_gate import SpecTest, GateTest, ApprovalTest, FailClosedTest, TaskStateTest, BudgetTest
+    result = unittest.TestResult()
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
+                               for c in (SpecTest, GateTest, ApprovalTest, FailClosedTest,
+                                         TaskStateTest, BudgetTest))
+    suite.run(result)
+    if result.wasSuccessful():
+        _ok("Policy Gate", f"{result.testsRun} tests: spec/scope/budget/dedupe/approval/fail-closed/unknown_outcome")
+    else:
+        _ng("Policy Gate", str(result.errors + result.failures))
+
+
 def test_audit_evidence():
     _section("16l. AGENT — AuditAgent 証拠保存・入力マスキング(P1.2)")
     import unittest
@@ -3124,6 +3139,7 @@ def main():
     test_run_journal()
     test_fuzz_characterization()
     test_evidence_provenance()
+    test_policy_gate()
     test_audit_evidence()
     test_defense_evidence()
     test_flag_routes()

@@ -82,7 +82,11 @@ AI-Security-tool/
 │   ├── evidence_store.py        # P1.2: reports/evidence/<scan_id>/へのHTTP証拠保存。EvidenceStore（件数/1件サイズ/総容量の上限、保存失敗はsave_errorsへ記録）
 │   ├── orchestrator.py          # LangGraph StateGraph。深層解析ループ回数はエフォート連動（smart_truncate採用）
 │   └── autonomy/
-│       └── journal.py           # 自律化Phase A1: 追記式JSONLのRun Journal（seq/prev_hash連鎖・部分行回復・fail closed・単一writer）。設計は docs/AUTONOMOUS_*.md
+│       ├── journal.py           # 自律化Phase A1: 追記式JSONLのRun Journal（seq/prev_hash連鎖・部分行回復・fail closed・単一writer）。設計は docs/AUTONOMOUS_*.md
+│       ├── actions.py           # CapabilitySpec/Action/ApprovalGrant等の型(mutating=T3のみ・秘密値を引数に取らない)
+│       ├── policy_gate.py       # 実行前の決定論Gate(スコープ・副作用クラス・予算・重複・承認)。判断はジャーナルへ先に記録しfail closed
+│       ├── budget.py            # Run予算(リクエストはHttpTransportの計数を参照・時間・LLMは呼出前に予約)
+│       └── task_graph.py        # TaskState(exhausted/unknown_outcome含む)とジャーナルからの状態再構築
 ├── agents/
 │   ├── base_agent.py            # 抽象基底クラス。threading.Eventで停止管理、EventBusヘルパー群、_check_scope()（スコープガード）
 │   ├── audit_agent.py           # CODE AUDITエージェント（7ステップ。ASTプリプロセッサ＋並列CVE照合＋FP検証強化）
@@ -105,6 +109,7 @@ AI-Security-tool/
 │   ├── test_run_journal.py      # Run Journal の固定回帰テスト（selftest 16mに統合）
 │   ├── fuzz_characterization.py # 現行FuzzAgentを固定fixture+モックLLMで動かす特性化装置（自律化の比較基準。FuzzAgentは無変更）
 │   ├── test_fuzz_characterization.py # 上記の固定試験（selftest 16nに統合）
+│   ├── test_policy_gate.py      # 上記autonomy型・Gate・予算・タスク状態の固定試験（selftest 16pに統合）
 │   ├── test_evidence_provenance.py # 証拠の由来情報(content_sha256/action_id/masking_version/truncated)とverify()の固定試験（selftest 16oに統合）
 │   ├── run_selftest.py          # 全機能セルフテスト（GUI以外をEventBus経由でE2E検証）
 │   └── capture_screenshots.py   # README用スクリーンショット自動撮影
