@@ -3036,6 +3036,18 @@ def test_policy_gate():
         _ng("Policy Gate", str(result.errors + result.failures))
 
 
+def test_fuzz_execution_record():
+    _section("16q. TOOLS — WebFuzzer 検査単位の実行記録(Phase A 順5)")
+    import unittest
+    from tools.test_fuzz_execution_record import FuzzExecutionRecordTest
+    result = unittest.TestResult()
+    unittest.defaultTestLoader.loadTestsFromTestCase(FuzzExecutionRecordTest).run(result)
+    if result.wasSuccessful():
+        _ok("Fuzz execution record", f"{result.testsRun} tests: 予算0/途中枯渇/ちょうど完遂/STOP/通信失敗")
+    else:
+        _ng("Fuzz execution record", str(result.errors + result.failures))
+
+
 def test_audit_evidence():
     _section("16l. AGENT — AuditAgent 証拠保存・入力マスキング(P1.2)")
     import unittest
@@ -3140,6 +3152,7 @@ def main():
     test_fuzz_characterization()
     test_evidence_provenance()
     test_policy_gate()
+    test_fuzz_execution_record()
     test_audit_evidence()
     test_defense_evidence()
     test_flag_routes()

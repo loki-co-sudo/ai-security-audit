@@ -137,6 +137,42 @@ class WebFuzzer:
             else ("unknown", "未認証（authenticate()未実行）")
         self.auth_state_b, self.auth_state_reason_b = ("anonymous", "認証設定なし") if not self.auth_b \
             else ("unknown", "未認証（authenticate_b()未実行）")
+        # 検査単位(注入点×カテゴリ)ごとの実行記録(自律化 設計 §11.3)。fuzz()の返り値・挙動は変えず、
+        # 「検査して異常なし」と「予算/STOPで未実施」を区別するための追加情報。
+        self._fuzz_log: list[dict] = []
+        self._fuzz_log_lock = threading.Lock()
+
+    @property
+    def fuzz_log(self) -> list[dict]:
+        """直近のfuzz()の検査単位ごとの実行記録(コピー)。
+
+        項目: url / method / param / category / planned(計画プローブ数) / attempted(実送信を試みた数) /
+        errors(応答を得られなかった数) / status / reason。statusは
+          completed       … 計画した全プローブを試行した、または最初の兆候で打ち切った(reason=first_signal)
+          exhausted       … 一部だけ試行して予算切れ
+          stopped         … 一部だけ試行してSTOP
+          not_started     … 1つも試行しなかった(reasonは budget_exhausted / stopped)
+          transport_error … 全試行が応答なし(応答を得られなかった)
+        同一カテゴリ内で一部だけ応答が得られなかった場合は completed のまま errors>0 で示す。
+        """
+        with self._fuzz_log_lock:
+            return [dict(r) for r in self._fuzz_log]
+
+    def _record_unit(self, point: dict, category: str, planned: int, attempted: int,
+                     errors: int, status: str, reason: str = "") -> None:
+        with self._fuzz_log_lock:
+            self._fuzz_log.append({
+                "url": point["url"], "method": point["method"], "param": point["param"],
+                "category": category, "planned": planned, "attempted": attempted,
+                "errors": errors, "status": status, "reason": reason,
+            })
+
+    def _cutoff(self, attempted: int) -> tuple[str, str]:
+        """予算切れ/STOPで打ち切られた検査単位の (status, reason)。"""
+        halt = "stopped" if self._stopped() else "budget_exhausted"
+        if attempted == 0:
+            return "not_started", halt
+        return ("stopped" if halt == "stopped" else "exhausted"), halt
 
     @property
     def _req_count(self) -> int:
@@ -454,6 +490,8 @@ class WebFuzzer:
         """各注入点へ検出プローブを送り、レスポンス異常を観測して兆候を返す。"""
         probes = probes or DEFAULT_PROBES
         findings: list[dict] = []
+        with self._fuzz_log_lock:
+            self._fuzz_log = []
 
         def _work(point):
             return self._fuzz_point(point, probes)
@@ -464,9 +502,12 @@ class WebFuzzer:
         return findings
 
     def _fuzz_point(self, point: dict, probes: dict[str, list[str]]) -> list[dict]:
-        if not self._budget_left() or self._stopped():
-            return []
         url, method, param = point["url"], point["method"], point["param"]
+        if not self._budget_left() or self._stopped():
+            status, reason = self._cutoff(0)
+            for category, payload_list in probes.items():
+                self._record_unit(point, category, len(payload_list), 0, 0, status, reason)
+            return []
         base_fields = dict(point.get("fields", {}))
 
         # ベースライン取得
@@ -475,9 +516,16 @@ class WebFuzzer:
         base_body = base_resp.text if base_resp is not None else ""
 
         out = []
-        for category, payload_list in probes.items():
+        cats = list(probes.items())
+        for idx, (category, payload_list) in enumerate(cats):
+            planned, attempted, errors = len(payload_list), 0, 0
+            first_signal = False
             for payload in payload_list:
                 if not self._budget_left() or self._stopped():
+                    status, reason = self._cutoff(attempted)
+                    self._record_unit(point, category, planned, attempted, errors, status, reason)
+                    for later, later_list in cats[idx + 1:]:
+                        self._record_unit(point, later, len(later_list), 0, 0, *self._cutoff(0))
                     return out
                 # XSSマーカー埋め込み
                 send_payload = payload.replace("__FZ__", f"alert('{_XSS_MARKER}')")
@@ -485,7 +533,12 @@ class WebFuzzer:
                 fields[param] = send_payload
                 resp = self._send(url, method, fields)
                 if resp is None:
+                    # 事前確認後に予算が尽きた場合は送信していないので試行に数えない
+                    if self._budget_left():
+                        attempted += 1
+                        errors += 1
                     continue
+                attempted += 1
                 ev = self._detect(category, send_payload, resp, base_body, base_len)
                 if ev:
                     out.append({
@@ -500,7 +553,19 @@ class WebFuzzer:
                         "baseline_body": base_body[:_EVIDENCE_BODY_CAP],
                     })
                     self.log(f"  [!] {category} 兆候: {param}@{url}")
+                    first_signal = True
                     break  # 同カテゴリは最初の兆候で十分
+            if first_signal:
+                self._record_unit(point, category, planned, attempted, errors, "completed", "first_signal")
+            elif attempted >= planned:
+                if planned and errors >= attempted:
+                    self._record_unit(point, category, planned, attempted, errors, "transport_error",
+                                      "all_attempts_failed")
+                else:
+                    self._record_unit(point, category, planned, attempted, errors, "completed")
+            else:   # 最後の送信が予算切れで未送信になった場合(上のループ先頭の確認に掛からない)
+                status, reason = self._cutoff(attempted)
+                self._record_unit(point, category, planned, attempted, errors, status, reason)
         return out
 
     def _send(self, url, method, fields):

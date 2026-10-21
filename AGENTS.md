@@ -109,6 +109,7 @@ AI-Security-tool/
 │   ├── test_run_journal.py      # Run Journal の固定回帰テスト（selftest 16mに統合）
 │   ├── fuzz_characterization.py # 現行FuzzAgentを固定fixture+モックLLMで動かす特性化装置（自律化の比較基準。FuzzAgentは無変更）
 │   ├── test_fuzz_characterization.py # 上記の固定試験（selftest 16nに統合）
+│   ├── test_fuzz_execution_record.py # WebFuzzer.fuzz_log(検査単位の実行記録)の固定試験（selftest 16qに統合）
 │   ├── test_policy_gate.py      # 上記autonomy型・Gate・予算・タスク状態の固定試験（selftest 16pに統合）
 │   ├── test_evidence_provenance.py # 証拠の由来情報(content_sha256/action_id/masking_version/truncated)とverify()の固定試験（selftest 16oに統合）
 │   ├── run_selftest.py          # 全機能セルフテスト（GUI以外をEventBus経由でE2E検証）
