@@ -580,3 +580,7 @@ profile_jsonに保存して`resume`で復元。実BenchmarkServerへのCLI実行
 `cli.py scan audit --target FILE [--out] [--fail-on] [--effort]`。AuditAgent(標準エンジン)を1回実行し、結果JSONをstdout・進捗をstderr。
 `--allow`/ジャーナルは不要(ローカルファイルのみ)。LLMへ送るソースは常にマスク済み。`tools/test_cli.py`に試験を追加(MockLLM)。
 未実装: attack/defense、LangGraph版の選択、`core/scan_runner.py`への共通化、`--format md`。
+
+## 2026-10-22 P3.1(4一部): `scan defense`
+`cli.py scan defense --target LOG`(MonitorAgentを`watch_mode=False`で1回走査)。試験はシグネチャ検知(アラート件数)を確認。
+MockLLMの`complete()`は`{}`を返すため、所見(Finding)化はこの試験では検証していない(実LLM未検証)。`--duration`、attackは未実装。

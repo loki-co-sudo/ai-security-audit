@@ -297,6 +297,20 @@ class CLITest(unittest.TestCase):
         p, data = self.call(["scan", "audit", "--target", str(self.base / "missing.py")])
         self.assertEqual((p.returncode, data["state"]), (2, "failed"))
 
+    def test_scan_defense_single_pass_over_a_local_log(self):
+        attack = self.base / "attack.log"
+        attack.write_text('10.0.0.5 - - [22/Oct/2026:01:00:00 +0900] "GET /?q=1 UNION SELECT 1,2 HTTP/1.1" 200 12 "-" "x"\n')
+        benign = self.base / "benign.log"
+        benign.write_text('10.0.0.6 - - [22/Oct/2026:01:00:01 +0900] "GET /index.html HTTP/1.1" 200 5 "-" "x"\n')
+        p, data = self.call(["scan", "defense", "--target", str(attack)])      # watchせず終了すること(timeout=45で検証)
+        self.assertEqual((p.returncode, data["state"]), (0, "completed"), data)
+        self.assertIn("1 alerts", p.stderr)                                    # シグネチャ検知はLLMに依存せず動く
+        p, data = self.call(["scan", "defense", "--target", str(benign)])
+        self.assertEqual(data["state"], "completed", data)
+        self.assertIn("0 alerts", p.stderr)
+        p, data = self.call(["scan", "defense", "--target", str(self.base / "none.log")])
+        self.assertEqual((p.returncode, data["state"]), (2, "failed"))
+
     def test_unknown_retry_and_extra_budget(self):
         with FixtureServer(post_form=False) as srv:
             p = subprocess.run(self.command(self.scan(srv)), cwd=self.base,
