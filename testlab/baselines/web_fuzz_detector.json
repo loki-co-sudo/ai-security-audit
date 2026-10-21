@@ -1,5 +1,5 @@
 {
- "created_at": "2026-10-22T01:27:01",
+ "created_at": "2026-10-22T01:29:55",
  "detections": [
   [
    "IDOR",
@@ -55,14 +55,14 @@
   ]
  ],
  "elapsed_sec": [
-  2.256,
-  2.274,
-  2.214
+  2.181,
+  2.348,
+  2.261
  ],
  "fixture_sha256": "7e8bcfb58754da644fa5f6c55566bbf8648176fb4b2e5faa65ae322ec3ee9704",
  "git": {
-  "commit": "49dd6a038d78b1d6200236d27650fff0575f7334",
-  "dirty": true
+  "commit": "49c394fecf27c8df4940b6918145adce1882fbb8",
+  "dirty": false
  },
  "http_requests": [
   256,

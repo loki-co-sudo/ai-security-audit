@@ -37,7 +37,8 @@
 | B1 [x] | **RunStore**（Phase B。設計は [AUTONOMOUS_PHASE_B_DESIGN.md](AUTONOMOUS_PHASE_B_DESIGN.md)） | SQLite(WAL)にタスク状態・マスク済み出力・消費済み承認を保存 | 8 | 再読込・原子性・承認の一意性・不明分の消費の試験 |
 | B2/B3 [x] | **再開**: 書込み順序（journal started→実行→store commit→journal finished）、突合（`resume.py`）、出力の復元、認証の再適用（新しい承認が必要）、`retry_unknown`、プロファイル不一致の拒否 | 状態ストアをGate/Runner/新経路に接続 | B1 | 実プロセスkill（`os._exit`）×全タスク×5位置で二重実行なし・予算の非巻き戻し・完了済みの非再実行・Findingの非重複 |
 | B4 [x] | **ヘッドレスCLI**（`cli.py scan fuzz` / `resume` / `status`、0600認証ファイル、期限付き一回限りの承認、終了コード、協調SIGINT） | P3.1の一部。2026-10-22の明示依頼で着手 | B2/B3 | `tools/test_cli.py` 11試験。selftest **163 PASS / 0 FAIL / 5 SKIP**（2026-10-22） |
-| 別 | P1.2残検証・P2.1の本体（`benchmark.py`・集計器・基準値の保存。fixtureは順3で作成済み） | ベンチマークと改修前基準値 | P1.2 | PRACTICAL_ROADMAP の受け入れ条件。Phase C以降の前提 |
+| P2.1 一部 [x] | **WEB FUZZ detector固定モードのベンチマークと改修前基準値**（`tools/benchmark.py`。基準: IDOR FP5・SSTI FP1・XSS FP1、SQLI/TRAVERSALは罠を無視、見逃し0。C0/C1の比較の物差し） | 順3のfixtureとは別（罠を含む評価用fixture） | 3 | 集計器の手計算試験・基準値との一致・未検査の扱い |
+| 別 | P1.2残検証・P2.1の残り（実LLM評価、他モード、認証期限切れ/共通ログイン画面の罠）（`benchmark.py`・集計器・基準値の保存。fixtureは順3で作成済み） | ベンチマークと改修前基準値 | P1.2 | PRACTICAL_ROADMAP の受け入れ条件。Phase C以降の前提 |
 
 順6までは既存挙動を変えない（順5の追加のみ変更が入るが、返り値は不変であることを試験で確認する）。差が出た場合は、
 Phase A設計 §11.5 のとおり**多重集合**で比較し、説明できない差は実装側を直す。予算が拘束するケースは多重集合の一致を求めず、総送信数と分類だけを検査する。

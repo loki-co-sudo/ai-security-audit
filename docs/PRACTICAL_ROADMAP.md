@@ -157,6 +157,12 @@ FUZZのIDOR証拠も保存対応済み。FUZZの入力マスキングも実装�
 
 受け入れ条件: 手計算可能な予測集合で集計器を検証し、同じ固定入力では同じ結果になる。LLM接続失敗でも評価成功を偽装しない。
 
+2026-10-22 進捗: WEB FUZZの**detector固定モード**のみ実装（`tools/benchmark.py`、`testlab/fixtures/web_benchmark.py`、
+`testlab/benchmark/ground_truth_web_fuzz.json`、基準値 `testlab/baselines/web_fuzz_detector.json`、`tools/test_benchmark.py`）。
+SQLi/XSS/SSTI/TRAVERSAL/IDORの脆弱例と罠（静的エラー文言・text/plain反射・偶然の49・公開/閲覧者別ページ）を含む。
+**P2.1全体は未完了**: 実LLM評価モード、AUDIT/ATTACK/DEFENSE、認証期限切れ・共通ログイン画面の罠、LLM使用量の取得、
+複数回実行での分散の報告（実LLM時）は未実装。基準値はdetectorの現状であり、実世界の精度の主張ではない。
+
 ### P2.2 IDOR・SSTI・XSS
 
 対象: `tools/web_fuzzer.py`、`agents/fuzz_agent.py`、認証dialog/fuzz panel、P2.1のfixture。

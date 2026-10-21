@@ -538,3 +538,12 @@ ATTACK MODE に、認可された偵察レスポンスからCTF形式のフラ�
   試験設計時に確認した既存の限界: 送信予算1でクロールが注入点発見前に打ち切られる場合、
   AutonomousFuzzAgentがcompletedを返すケースがある。CLIは既存ScanResultのstateを採用し、今回は検出側を変更していない。
   この境界の改善はP2.1の予算切れfixtureで別途扱う。
+
+- **P2.1 一部（WEB FUZZ detector固定モード、2026-10-22）**: `tools/benchmark.py`（`python tools/benchmark.py web-fuzz
+  [--runs N] [--save-baseline PATH] [--compare]`）、罠を含む`testlab/fixtures/web_benchmark.py`、正解データ
+  `testlab/benchmark/ground_truth_web_fuzz.json`（21ケース。IDORは期待権限つき）。集計器は(rule_id, location)で照合し、
+  重複は1件、未検査を正常例の正解に数えず、分母0はN/A。**改修前基準値**（`testlab/baselines/web_fuzz_detector.json`）:
+  TP6/FP7/FN0、IDORはPrecision0.29（公開/閲覧者別/アクセス制御外ページを長さ類似だけで候補にする）、SSTIとXSSは各FP1
+  （偶然の49・text/plain反射）、SQLI/TRAVERSALは静的な罠を無視。3回実行で検出集合は一致。テスト: `tools/test_benchmark.py`
+  （selftest 16w）。`SELFTEST_NON_LLM_ONLY=1` 164 PASS / 0 FAIL / 5 SKIP。P2.1全体は未完了（実LLM評価・他モード等）。
+
