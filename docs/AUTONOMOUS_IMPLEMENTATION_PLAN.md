@@ -30,7 +30,7 @@
 | 3b [x] | **証拠の最小由来情報** | `EvidenceStore` に `content_sha256`・`action_id`・`masking_version`・`truncated` を**追加のみ**で入れ、`verify()` を足す（設計 §3.7）。独立コミット | なし | 既存の証拠テスト・レポート出力が不変、改ざん/削除/切り詰めの各ケースで `verify()` と `truncated` が正しい |
 | 4 [x] | A2 `actions.py` / `policy_gate.py` / `budget.py` | `CapabilitySpec`（`mutating=True`はT3のみ）/`Action`/`GateDecision`/`ApprovalGrant`、Gate検査（§11.2〜11.3）、`TaskState`（`exhausted`・`unknown_outcome`を含む） | 1, 2 | Gateの単体テスト（承認の未承認・期限切れ・引数変更・再利用・A/B取り違え、予算0、重複、fail closed） |
 | 5 [x] | **検査実績の最小変更** | `WebFuzzer` に検査単位の実行記録を**追加のみ**で入れる（返り値・既存挙動は不変）。独立コミット | 3 | 予算0／途中枯渇／ちょうど完遂の3ケース、既存selftest全通過、特性化試験が不変 |
-| 5b | **LLM呼出の事前制限** | 呼出前に回数・入力サイズ・実行期限・再試行回数を予約して制限し、最大出力トークンを指定できるようにする（`BaseAgent` に任意のゲートフックと `LLMClient` の任意 `max_tokens` を**追加のみ**。未指定なら従来どおり）。検証パスのサンプルや再生成も同じ予算に計上。使用量が取得できない場合は `unknown`（0円にしない） | 4 | 上限直前・上限超過・再試行・検証パスの各ケースで呼出が**行われる前に**拒否される。ゲート未設定の既存経路は不変 |
+| 5b [x] | **LLM呼出の事前制限** | 呼出前に回数・入力サイズ・実行期限・再試行回数を予約して制限し、最大出力トークンを指定できるようにする（`BaseAgent` に任意のゲートフックと `LLMClient` の任意 `max_tokens` を**追加のみ**。未指定なら従来どおり）。検証パスのサンプルや再生成も同じ予算に計上。使用量が取得できない場合は `unknown`（0円にしない） | 4 | 上限直前・上限超過・再試行・検証パスの各ケースで呼出が**行われる前に**拒否される。ゲート未設定の既存経路は不変 |
 | 6 | A3＋最小Runner（一本通し） | `web.crawl` から1つずつcapabilityを足し、**足すたびに特性化試験の装置で比較**。GET注入点のみ、POSTは`skipped` | 4, 5 | 各段階で比較が通る。意図的な差（POST受信0）は期待値として固定 |
 | 7 | A4 Runnerの完成 | STOP、`finally`での終了処理（stop→`run_finished`→RESULT/DONE）、失敗点ごとの挙動 | 6 | 失敗点（Gate前／action_started前／送信後／run_finished）の各試験 |
 | 8 | A5 異常系・安全試験 | 範囲外canary、機密非漏えい、ジャーナル再生（`unknown_outcome`）、静的検査（直接送信なし） | 7 | Phase A設計 §6 の A1〜A12＋§11の受け入れ条件 |

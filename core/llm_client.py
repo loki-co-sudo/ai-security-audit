@@ -155,18 +155,25 @@ class LLMClient:
         on_chunk:   Callable[[str], None],
         on_done:    Callable[[], None] | None = None,
         on_error:   Callable[[Exception], None] | None = None,
+        max_tokens: int | None = None,
     ) -> str:
         """
         LLMをストリーミング呼び出しし、各チャンクを on_chunk に渡す。
         完全なレスポンス文字列を返す。
+
+        `max_tokens`（任意）を指定した場合のみ最大出力トークンをAPIへ渡す。未指定(None)なら
+        従来どおり何も渡さない。ストリーミングでは使用量を取得しない（互換性のため
+        stream_optionsを要求しない）。
         """
         full = ""
+        extra = {} if max_tokens is None else {"max_tokens": max_tokens}
         try:
             response = self._client.chat.completions.create(
                 model=self.model,
                 messages=messages,
                 stream=True,
                 timeout=self.timeout,
+                **extra,
             )
             for chunk in response:
                 delta = chunk.choices[0].delta.content or ""
@@ -184,14 +191,27 @@ class LLMClient:
         return full
 
     # ── 非ストリーミング API ───────────────────────────────
-    def complete(self, messages: list[dict]) -> str:
-        """LLMを一括呼び出しし、完全なレスポンス文字列を返す。"""
+    def complete(self, messages: list[dict], max_tokens: int | None = None,
+                 usage_out: dict | None = None) -> str:
+        """LLMを一括呼び出しし、完全なレスポンス文字列を返す。
+
+        `max_tokens`は指定時のみAPIへ渡す。`usage_out`（任意のdict）が渡されたら、応答に使用量が
+        含まれる場合のみ input_tokens / output_tokens を書き込む（含まれなければ空のまま。
+        呼び出し側は取得不能を0として扱ってはならない）。
+        """
+        extra = {} if max_tokens is None else {"max_tokens": max_tokens}
         response = self._client.chat.completions.create(
             model=self.model,
             messages=messages,
             stream=False,
             timeout=self.timeout,
+            **extra,
         )
+        if usage_out is not None:
+            u = getattr(response, "usage", None)
+            i, o = getattr(u, "prompt_tokens", None), getattr(u, "completion_tokens", None)
+            if isinstance(i, int) and isinstance(o, int):
+                usage_out.update({"input_tokens": i, "output_tokens": o})
         return response.choices[0].message.content or ""
 
     # ── モデル一覧の自動取得 ───────────────────────────────

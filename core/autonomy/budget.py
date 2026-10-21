@@ -37,6 +37,9 @@ class BudgetLedger:
         self._t0: float | None = None
         self._lock = threading.Lock()
         self._llm_calls = 0
+        self._tok_in = 0
+        self._tok_out = 0
+        self._usage_unknown = 0
 
     # ── リクエスト ──
     def requests_used(self) -> int:
@@ -77,6 +80,43 @@ class BudgetLedger:
             self._llm_calls += 1
             return BudgetDecision(True)
 
+    def record_llm_usage(self, usage: dict | None) -> None:
+        """呼出後に使用量を記録する。取得できなかった呼出は0ではなく「不明」として数える。"""
+        with self._lock:
+            i = usage.get("input_tokens") if usage else None
+            o = usage.get("output_tokens") if usage else None
+            if isinstance(i, int) and isinstance(o, int):
+                self._tok_in += i
+                self._tok_out += o
+            else:
+                self._usage_unknown += 1
+
+    def llm_usage_summary(self) -> dict:
+        """既知の使用量の合計と、使用量不明の呼出回数。費用は価格情報が無いため推定しない(unknown)。"""
+        with self._lock:
+            return {"calls": self._llm_calls, "input_tokens_known": self._tok_in,
+                    "output_tokens_known": self._tok_out, "calls_with_unknown_usage": self._usage_unknown,
+                    "estimated_cost": "unknown"}
+
     def snapshot(self) -> dict:
         return {"requests_used": self.requests_used(), "requests_max": self.max_requests,
                 "llm_calls_used": self._llm_calls, "llm_calls_max": self.max_llm_calls}
+
+
+class LLMGate:
+    """BaseAgentの任意フック(`agent._llm_gate`)。LLMを呼ぶ**前**に予約し、拒否されたら呼ばせない。
+
+    検証パスのサンプルや将来の再生成も、すべて BaseAgent の `_stream_llm` / `_complete_llm` を通るため
+    同じRun予算に数えられる。`max_output_tokens`（任意）は呼出ごとの最大出力トークンとして渡される。
+    """
+
+    def __init__(self, ledger: BudgetLedger, *, max_output_tokens: int | None = None):
+        self.ledger = ledger
+        self.max_output_tokens = max_output_tokens
+
+    def before_call(self, messages: list[dict], role: str) -> BudgetDecision:
+        chars = sum(len(str(m.get("content", ""))) for m in messages)
+        return self.ledger.reserve_llm_call(chars)
+
+    def after_call(self, usage: dict | None) -> None:
+        self.ledger.record_llm_usage(usage)

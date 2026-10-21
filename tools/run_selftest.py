@@ -3048,6 +3048,20 @@ def test_fuzz_execution_record():
         _ng("Fuzz execution record", str(result.errors + result.failures))
 
 
+def test_llm_budget_gate():
+    _section("16r. AUTONOMY — LLM呼出の事前制限(Phase A 順5b)")
+    import unittest
+    from tools.test_llm_budget_gate import AgentGateTest, ClientTest
+    result = unittest.TestResult()
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
+                               for c in (AgentGateTest, ClientTest))
+    suite.run(result)
+    if result.wasSuccessful():
+        _ok("LLM budget gate", f"{result.testsRun} tests: 呼出前拒否/検証パス/max_tokens/使用量不明/既定は不変")
+    else:
+        _ng("LLM budget gate", str(result.errors + result.failures))
+
+
 def test_audit_evidence():
     _section("16l. AGENT — AuditAgent 証拠保存・入力マスキング(P1.2)")
     import unittest
@@ -3153,6 +3167,7 @@ def main():
     test_evidence_provenance()
     test_policy_gate()
     test_fuzz_execution_record()
+    test_llm_budget_gate()
     test_audit_evidence()
     test_defense_evidence()
     test_flag_routes()

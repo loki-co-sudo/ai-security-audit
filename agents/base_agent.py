@@ -147,6 +147,9 @@ class BaseAgent(ABC):
         self._current_mode = ""
         self._current_target = ""
         self._scan_id: str | None = None
+        # 任意: LLM呼出前の予算ゲート(core.autonomy.budget.LLMGate)。未設定なら従来どおり無制限。
+        self._llm_gate = None
+        self._llm_denials: list[str] = []   # 予算で拒否した呼出の理由コード(Runnerが最終結果へ反映する)
 
     # ── ライフサイクル ─────────────────────────────────────
     def start(self, **kwargs) -> None:
@@ -318,11 +321,37 @@ class BaseAgent(ABC):
                     acc["last"] = counts
                     self._stats(counts)
 
-        return self.llm.stream(
-            messages=self._apply_language(messages),
+        msgs = self._apply_language(messages)
+        if not self._llm_permitted(msgs, "strong"):
+            return ""
+        kwargs = self._llm_call_kwargs()
+        text = self.llm.stream(
+            messages=msgs,
             on_chunk=_chunk,
             on_error=lambda e: self._out(f"\n[ LLM ERROR ] {e}\n", "critical"),
+            **kwargs,
         )
+        if self._llm_gate is not None:
+            self._llm_gate.after_call(None)   # ストリーミングは使用量を取得しない(不明として数える)
+        return text
+
+    # ── LLM予算ゲート(任意・呼出前に制限する) ─────────────────
+    def _llm_permitted(self, messages: list[dict], role: str) -> bool:
+        gate = self._llm_gate
+        if gate is None:
+            return True
+        decision = gate.before_call(messages, role)
+        if decision.ok:
+            return True
+        self._llm_denials.append(decision.reason)
+        self._log(f"LLM呼出を予算により拒否: {decision.reason}")
+        self._out(f"\n[ LLM BUDGET ] 呼出を拒否しました: {decision.reason}\n", "high")
+        return False
+
+    def _llm_call_kwargs(self) -> dict:
+        gate = self._llm_gate
+        mt = getattr(gate, "max_output_tokens", None) if gate is not None else None
+        return {} if mt is None else {"max_tokens": mt}
 
     def _fast_client(self) -> LLMClient:
         """FAST（廉価）モデルのクライアントを返す。未設定なら STRONG を共用する。
@@ -343,11 +372,23 @@ class BaseAgent(ABC):
         role="strong" を明示すると STRONG モデルを使う。
         """
         client = self._fast_client() if role == "fast" else self.llm
+        msgs = self._apply_language(messages)
+        if not self._llm_permitted(msgs, role):
+            return ""
+        kwargs = self._llm_call_kwargs()
+        usage: dict = {}
+        if self._llm_gate is not None:
+            kwargs["usage_out"] = usage
         try:
-            return client.complete(self._apply_language(messages))
+            text = client.complete(msgs, **kwargs)
         except Exception as e:
             self._log(f"LLM error: {e}")
+            if self._llm_gate is not None:
+                self._llm_gate.after_call(None)
             return ""
+        if self._llm_gate is not None:
+            self._llm_gate.after_call(usage or None)
+        return text
 
     # ── 推論エフォート ────────────────────────────────────
     def set_effort_override(self, level: str | None) -> None:
