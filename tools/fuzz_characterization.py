@@ -41,22 +41,30 @@ class MockLLM:
     @staticmethod
     def assistant(c): return {"role": "assistant", "content": c}
 
-    def complete(self, messages):
+    triage_text = CANNED_TRIAGE
+
+    def complete(self, messages, max_tokens=None, usage_out=None):
         self.complete_prompts.append("\n".join(m["content"] for m in messages))
         return "{}"
 
-    def stream(self, messages, on_chunk, on_done=None, on_error=None):
-        self.stream_prompts.append("\n".join(m["content"] for m in messages))
-        on_chunk(CANNED_TRIAGE)
+    def stream(self, messages, on_chunk, on_done=None, on_error=None, max_tokens=None):
+        prompt = "\n".join(m["content"] for m in messages)
+        self.stream_prompts.append(prompt)
+        text = self.reply_for(prompt)
+        on_chunk(text)
         if on_done:
             on_done()
-        return CANNED_TRIAGE
+        return text
+
+    def reply_for(self, prompt: str) -> str:
+        return self.triage_text
 
 
 @dataclass
 class Observation:
     result: dict
     requests: Counter
+    agent: object = None
     stream_prompts: list = field(default_factory=list)
     done_count: int = 0
     result_count: int = 0
@@ -94,17 +102,35 @@ class Observation:
 def run_legacy(server, *, max_requests: int = 200, max_pages: int = 20,
                profile: str = "aggressive", timeout: float = 60) -> Observation:
     """現行のFuzzAgentを実行して観測結果を返す(送信先はserverのみ)。"""
+    return run_agent(server, FuzzAgent, max_requests=max_requests, max_pages=max_pages,
+                     profile=profile, timeout=timeout)
+
+
+def run_agent(server, agent_cls, *, timeout: float = 60, sync: bool = False,
+              before_start=None, llm=None, config_overrides: dict | None = None,
+              **start_kwargs) -> Observation:
+    """agent_cls(FuzzAgent または新経路)を固定条件で実行して観測結果を返す。
+
+    sync=True はスレッドを使わず _safe_run を直接呼ぶ(STOP済みの状態から始める試験用)。
+    before_start(agent) で実行前にagentを操作できる。start_kwargs は run() へ渡す。
+    """
     server.requests.clear()
-    bus, llm = EventBus(), MockLLM()
-    agent = FuzzAgent(bus, llm)
+    bus, llm = EventBus(), (llm or MockLLM())
+    agent = agent_cls(bus, llm)
     agent.set_effort_override("speed")   # 検証パスなし(LLM呼出を決定論的に保つ)
-    out = Observation(result={}, requests=Counter())
+    if before_start:
+        before_start(agent)
+    start_kwargs.setdefault("profile", "aggressive")
+    start_kwargs.setdefault("target", server.base_url)
+    out = Observation(result={}, requests=Counter(), agent=agent)
     # 利用者のconfig.json(FASTモデル・allowed_targets等)に結果が左右されないよう既定値に固定する。
-    with patch.dict(_config._cfg, dict(_config._DEFAULTS), clear=True), \
+    with patch.dict(_config._cfg, {**_config._DEFAULTS, **(config_overrides or {})}, clear=True), \
          patch.object(FuzzAgent, "_save_investigation", lambda *a, **k: None), \
          patch.object(FuzzAgent, "_record_telemetry", lambda *a, **k: None):
-        agent.start(target=server.base_url, profile=profile,
-                    max_requests=max_requests, max_pages=max_pages)
+        if sync:
+            agent._safe_run(**start_kwargs)
+        else:
+            agent.start(**start_kwargs)
         t0, done = time.time(), False
         while time.time() - t0 < timeout and not done:
             for e in bus.drain(limit=200):
@@ -116,7 +142,8 @@ def run_legacy(server, *, max_requests: int = 200, max_pages: int = 20,
                     out.error = bool(e.payload and e.payload.get("error"))
                     done = True
             time.sleep(0.02)
-        agent._thread.join(timeout=5)
+        if agent._thread is not None:
+            agent._thread.join(timeout=5)
     out.requests = server.request_counter()
     out.stream_prompts = list(llm.stream_prompts)
     if not done:

@@ -35,7 +35,7 @@
 | 認可チェック | `idor_skip_reason()` → `fuzzer._detect_idor(points)` | `web.idor_compare` | T2（GET限定） | 認証状態が不明ならskipし理由を記録（既存挙動を保存） |
 | 証拠保存 | `_save_evidence(...)` | `evidence.save` | T0 | `save_evidence` 設定時のみ |
 | AIトリアージ＋検証パス | `_stream_llm` / `_verify_findings` | `llm.triage` | T0 | STRONG。マスク済みサマリーのみ入力 |
-| 結果確定 | `_findings_from_markers` / `_build_coverage` / `_determine_state` / `_finish` | `report.finalize` | T0 | `_finalize()`（RESULT→DONEを一度だけ）の契約を保つ |
+| 結果確定 | `_findings_from_markers` / `_finish` | （capabilityにしない。Runnerの終了処理 `close_run` → `_finalize`） | — | `_finalize()`（RESULT→DONEを一度だけ）の契約を保つ。終了処理は通常Actionから独立（§11.6）。実装では現行の `_build_coverage` / `_determine_state` は使わず、検査実績（`fuzz_log`）に基づく新しい組み立てを用いる |
 
 **切り出しの方針（strangler）**: `FuzzAgent` の既存メソッドは変更せず、capability側から**呼び出す**。重複するのは制御フロー
 （`if self.is_stopped(): return` の列）だけで、これをRunnerが担う。既存メソッド内部の挙動（`_fuzz_point`、`_detect` 等）は変えない。
@@ -287,3 +287,17 @@ Phase Aで**実装しない**もの（後続Phase）: 承認キュー、引数�
 | LLM予算を呼出前に制限する | 妥当。確認: `LLMClient.stream/complete` は `max_tokens` を渡さず使用量も捨てている。そのため出力上限と実使用量の記録には `LLMClient` への追加が必要 | 上位設計 §5.1、実装計画 順5b。Phase Aの範囲は呼出回数・入力サイズ・期限・再試行。トークン上限と実コストは取得できる範囲だけ（取得不能は `unknown`） |
 
 注意点: 順3のfixtureを P2.1 と共用する（二重に作らない）。ただし P2.1 の本体（`benchmark.py`・集計器・基準値の保存）はM1の後で良い。
+
+## 13. 実装で確定した現行経路との意図的な差（2026-10-22、`tools/test_fuzz_autonomy.py` で固定）
+
+新経路 `agents/fuzz_capabilities.py: AutonomousFuzzAgent` と現行 `FuzzAgent` の差。これ以外（予算が拘束しない場合の
+送信先・メソッド・回数の多重集合、異常、所見）は一致することを試験で確認している。
+
+| 差 | 現行 | 新経路 | 理由 |
+|---|---|---|---|
+| POST注入点 | 送信する | 送信しない。coverage=`skipped:post_requires_approval`、状態=`partial` | T3（§11.1） |
+| coverage | 注入点ごとに一律 `tested` | 注入点×カテゴリの実績。未実施は `skipped`（理由付き） | §11.3 |
+| ファジングが1件も実行できなかった場合 | トリアージ（LLM）を実行 | 実行しない（観測が無く、LLMに「異常なし」と言わせないため） | 無意味なLLM費用と誤解を避ける |
+| 到達できない対象（ページ0件） | 注入点なしの扱いで `completed` | `failed`（理由付き） | 未到達を完了にしない |
+| 許可対象 | `config.json` のscope設定（空=全許可） | 呼び出し引数で明示必須（空=Gateが拒否） | 自律実行の要件（§4.1） |
+| 認証 | 対応 | 未対応（指定されたら `failed`。黙って無視しない） | 承認の契約を接続するまで実行しない |

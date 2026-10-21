@@ -419,8 +419,10 @@ class FuzzAgent(BaseAgent):
 
     @staticmethod
     def _save_evidence(store: EvidenceStore, anomalies: list[dict], idor_findings: list[dict],
-                       known_secrets: set[str]) -> tuple[set[str], list[str]]:
+                       known_secrets: set[str], action_id: str = "") -> tuple[set[str], list[str]]:
         """異常・IDOR兆候のHTTP証拠を保存し、(LLMへ渡すID集合, errors用メッセージ)を返す。
+
+        `action_id`（任意）は証拠の由来情報として記録する（自律経路用。既定は空）。
 
         各辞書へ`evidence_id`を書き戻す（_build_summaryがプロンプトへ埋め込む）。
         IDOR兆候は第2セッション(B)の応答を主、第1セッション(A)の通常応答を比較用として保存する。
@@ -432,6 +434,7 @@ class FuzzAgent(BaseAgent):
                 method=a["method"], url=a["url"], status=a.get("status"),
                 headers=a.get("response_headers") or {}, body=a.get("response_body", ""),
                 baseline_body=a.get("baseline_body", ""), known_secrets=known_secrets,
+                action_id=action_id,
             )
             if eid:
                 a["evidence_id"] = eid
@@ -441,6 +444,7 @@ class FuzzAgent(BaseAgent):
                 method=f["method"], url=f["url"], status=f.get("status_b"),
                 headers=f.get("response_headers") or {}, body=f.get("response_body", ""),
                 baseline_body=f.get("baseline_body", ""), known_secrets=known_secrets,
+                action_id=action_id,
             )
             if eid:
                 f["evidence_id"] = eid

@@ -83,6 +83,7 @@ AI-Security-tool/
 │   ├── orchestrator.py          # LangGraph StateGraph。深層解析ループ回数はエフォート連動（smart_truncate採用）
 │   └── autonomy/
 │       ├── journal.py           # 自律化Phase A1: 追記式JSONLのRun Journal（seq/prev_hash連鎖・部分行回復・fail closed・単一writer）。設計は docs/AUTONOMOUS_*.md
+│       ├── runner.py            # ScriptedRunner: 固定計画をGate経由で実行・write-ahead開始記録・close_run(終了処理は通常Actionから独立)
 │       ├── actions.py           # CapabilitySpec/Action/ApprovalGrant等の型(mutating=T3のみ・秘密値を引数に取らない)
 │       ├── policy_gate.py       # 実行前の決定論Gate(スコープ・副作用クラス・予算・重複・承認)。判断はジャーナルへ先に記録しfail closed
 │       ├── budget.py            # Run予算(リクエストはHttpTransportの計数を参照・時間・LLMは呼出前に予約)
@@ -93,6 +94,7 @@ AI-Security-tool/
 │   ├── langgraph_audit_agent.py # LangGraph強化型監査エージェント（orchestrator.pyを使用）
 │   ├── recon_agent.py           # ATTACK MODEエージェント（10ステップ・Phase 0で受動的サブドメイン列挙(crt.sh)・既知サービスローカル照合付き）
 │   ├── fuzz_agent.py            # WEB FUZZエージェント（7ステップ・検出のみ・第2アカウント設定時はIDOR/アクセス制御チェックを追加実行）
+│   ├── fuzz_capabilities.py     # WEB FUZZ新経路(AutonomousFuzzAgent): capability+Policy Gate+Run Journal。POST不送信・coverageは検査実績ベース・許可対象の明示必須。現行FuzzAgentは無変更
 │   └── monitor_agent.py         # DEFENSE MODEエージェント（ログ監視＋パターン集約フィルタ＋バッチAI分析）
 ├── tools/
 │   ├── network_scanner.py       # socket-basedポートスキャナ、SSL証明書取得
@@ -111,6 +113,7 @@ AI-Security-tool/
 │   ├── test_fuzz_characterization.py # 上記の固定試験（selftest 16nに統合）
 │   ├── test_fuzz_execution_record.py # WebFuzzer.fuzz_log(検査単位の実行記録)の固定試験（selftest 16qに統合）
 │   ├── test_llm_budget_gate.py  # LLM呼出前の予算ゲート(BaseAgent._llm_gate/LLMClient.max_tokens)の固定試験（selftest 16rに統合）
+│   ├── test_fuzz_autonomy.py    # 新経路の現行経路との等価性・安全・予算/STOP・監査失敗の全位置・unknown_outcome（selftest 16sに統合）
 │   ├── test_policy_gate.py      # 上記autonomy型・Gate・予算・タスク状態の固定試験（selftest 16pに統合）
 │   ├── test_evidence_provenance.py # 証拠の由来情報(content_sha256/action_id/masking_version/truncated)とverify()の固定試験（selftest 16oに統合）
 │   ├── run_selftest.py          # 全機能セルフテスト（GUI以外をEventBus経由でE2E検証）

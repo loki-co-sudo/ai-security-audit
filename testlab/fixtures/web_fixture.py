@@ -12,7 +12,12 @@ from urllib.parse import parse_qs, urlparse
 
 
 class FixtureServer:
-    def __init__(self):
+    """post_form=False でPOSTフォームを持たない版、external_url で外部originへのリンク/フォームを
+    含む版(範囲外送信の検査用canaryと組み合わせる)を作れる。既定は特性化試験の基準構成。"""
+
+    def __init__(self, *, post_form: bool = True, external_url: str | None = None):
+        self.post_form = post_form
+        self.external_url = external_url
         self.requests: list[tuple[str, str, str, str]] = []  # (method, path, query, body)
         self._lock = threading.Lock()
         outer = self
@@ -43,8 +48,13 @@ class FixtureServer:
                 body = "<html><body>"
                 if u.path == "/":
                     body += ('<a href="/search?q=hi">search</a> <a href="/item?id=1">item</a> '
-                             '<a href="/safe?page=1">safe</a> <a href="/escaped?q=hi">escaped</a> '
-                             '<a href="/guestbook">guestbook</a>')
+                             '<a href="/safe?page=1">safe</a> <a href="/escaped?q=hi">escaped</a> ')
+                    if outer.post_form:
+                        body += '<a href="/guestbook">guestbook</a>'
+                    if outer.external_url:
+                        ext = outer.external_url.rstrip("/")
+                        body += (f'<a href="{ext}/x?q=1">external</a>'
+                                 f'<form method="POST" action="{ext}/post"><input name="z" value="1"></form>')
                 elif u.path == "/search":
                     body += "Results for: " + q                        # 未エスケープ反射 -> XSS
                 elif u.path == "/item":

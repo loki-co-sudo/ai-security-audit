@@ -3062,6 +3062,22 @@ def test_llm_budget_gate():
         _ng("LLM budget gate", str(result.errors + result.failures))
 
 
+def test_fuzz_autonomy():
+    _section("16s. AUTONOMY — WEB FUZZ 新経路(capability+Gate+Journal)の等価性・安全・異常系(Phase A 順6)")
+    import unittest
+    from tools.test_fuzz_autonomy import (EquivalenceTest, JournalTraceTest, SafetyTest,
+                                          BudgetAndStopTest, AuditFailureSweepTest)
+    result = unittest.TestResult()
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
+                               for c in (EquivalenceTest, JournalTraceTest, SafetyTest,
+                                         BudgetAndStopTest, AuditFailureSweepTest))
+    suite.run(result)
+    if result.wasSuccessful():
+        _ok("Fuzz autonomy path", f"{result.testsRun} tests: 現行経路との等価性/POST未送信/証拠→Action→Gate判断の追跡/予算/STOP/監査失敗の全位置")
+    else:
+        _ng("Fuzz autonomy path", str(result.errors + result.failures))
+
+
 def test_audit_evidence():
     _section("16l. AGENT — AuditAgent 証拠保存・入力マスキング(P1.2)")
     import unittest
@@ -3168,6 +3184,7 @@ def main():
     test_policy_gate()
     test_fuzz_execution_record()
     test_llm_budget_gate()
+    test_fuzz_autonomy()
     test_audit_evidence()
     test_defense_evidence()
     test_flag_routes()
