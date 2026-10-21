@@ -1,0 +1,138 @@
+{
+ "created_at": "2026-10-22T02:14:04",
+ "detections": [
+  [
+   "IDOR",
+   "GET /account id"
+  ],
+  [
+   "IDOR",
+   "GET /ticket id"
+  ],
+  [
+   "SQLI",
+   "GET /item id"
+  ],
+  [
+   "SSTI",
+   "GET /greet name"
+  ],
+  [
+   "TRAVERSAL",
+   "GET /download file"
+  ],
+  [
+   "XSS",
+   "GET /search q"
+  ]
+ ],
+ "elapsed_sec": [
+  2.21,
+  2.245,
+  2.191
+ ],
+ "fixture_sha256": "29d8bfd484c2cf47f8384344c372fc7fbd7ed1e2c082ad5001db190c827856b9",
+ "git": {
+  "commit": "f44e7b2c398add20eef146c4e96cbc22f908517a",
+  "dirty": true
+ },
+ "http_requests": [
+  321,
+  321,
+  321
+ ],
+ "kind": "web_fuzz_detector_with_expectations",
+ "llm_usage": "n/a (detector mode)",
+ "metrics": {
+  "per_rule": {
+   "IDOR": {
+    "cases": 10,
+    "fn": 0,
+    "fn_unexamined": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "tn": 8,
+    "tp": 2,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   },
+   "SQLI": {
+    "cases": 4,
+    "fn": 0,
+    "fn_unexamined": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "tn": 3,
+    "tp": 1,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   },
+   "SSTI": {
+    "cases": 3,
+    "fn": 0,
+    "fn_unexamined": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "tn": 2,
+    "tp": 1,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   },
+   "TRAVERSAL": {
+    "cases": 2,
+    "fn": 0,
+    "fn_unexamined": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "tn": 1,
+    "tp": 1,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   },
+   "XSS": {
+    "cases": 4,
+    "fn": 0,
+    "fn_unexamined": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "tn": 3,
+    "tp": 1,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   }
+  },
+  "total": {
+   "cases": 23,
+   "fn": 0,
+   "fn_unexamined": 0,
+   "fp": 0,
+   "precision": 1.0,
+   "recall": 1.0,
+   "tn": 17,
+   "tp": 6,
+   "unexamined": 0,
+   "unexamined_negative": 0,
+   "unexamined_rate": 0.0
+  }
+ },
+ "runs": 3,
+ "schema": "ai-security-audit-benchmark",
+ "schema_version": "1",
+ "stable": true,
+ "truth_sha256": "82f9d330ae035ae4a231c184caca83449f8a964763ad673866b3b1d77fc01a1b"
+}

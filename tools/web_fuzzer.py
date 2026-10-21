@@ -126,6 +126,7 @@ class WebFuzzer:
         self.session.verify = verify_value
         # 第2セッション（IDOR比較用）。auth_b 未設定なら None のまま
         # （_detect_idor は None なら即座に空リストを返す＝既存挙動への影響なし）。
+        self.idor_expectations: list[dict] = []     # 期待権限表(core.engagement.parse_idor_expectations の戻り値)
         self._rng = random.Random()     # SSTI追加確認の式選択。試験・ベンチマークではseedを固定できる
         self.session_b = None
         if self.auth_b:
@@ -625,6 +626,10 @@ class WebFuzzer:
             if p.get("fields"):
                 full_url = full_url + "?" + urlencode(p["fields"])
 
+            exp = self._expectation_for(p["url"], p["param"], value)
+            if exp and (exp["b"] == "allow" or exp["a"] == "deny"):
+                continue    # Bの閲覧が期待上許可、またはA対照が期待上拒否(比較の前提が成立しない)=違反の根拠なし
+
             resp_a = self._send_as(self.session, full_url)
             if resp_a is None or resp_a.status_code >= 400:
                 continue
@@ -635,7 +640,7 @@ class WebFuzzer:
                 # 確定根拠にしない応答: ログイン画面(共通ログイン・認証期限切れ)と、認証なしでも取れる公開リソース。
                 if _is_login_page(resp_a.text) or _is_login_page(resp_b.text):
                     continue
-                resp_anon = self._send_as(requests.Session(), full_url)
+                resp_anon = None if exp else self._send_as(requests.Session(), full_url)   # 期待表があれば公開判定より優先
                 if resp_anon is not None and resp_anon.status_code == 200 \
                         and not _is_login_page(resp_anon.text) \
                         and self._bodies_similar(resp_a.text, resp_anon.text):
@@ -647,13 +652,23 @@ class WebFuzzer:
                     # 呼び出し側（FuzzAgent）がマスク・サイズ制限して保存する。本辞書自体は保存・表示しない。
                     "response_headers": dict(resp_b.headers),
                     "response_body": resp_b.text, "baseline_body": resp_a.text,
+                    "basis": "expectation" if exp else "observed",
                     "evidence": (
+                        "期待上は拒否(b=deny)の第2セッションが、A対照が成功した同一URLへのGETで200・類似コンテンツを取得"
+                        if exp else
                         "第2セッションが同一URLへのGETで200・類似コンテンツを取得"
-                        "（本来アクセス権が無いはずの可能性 — 要人手確認）"
+                        "（本来アクセス権が無いはずの可能性 — 期待権限未設定のため要人手確認）"
                     ),
                 })
                 self.log(f"  [!] IDOR? 兆候: {p['param']}@{full_url}")
         return findings
+
+    def _expectation_for(self, url: str, param: str, value: str) -> dict | None:
+        path = urlsplit(url).path
+        for e in self.idor_expectations:
+            if e["path"] == path and e["param"] == param and e.get("value") in (None, value):
+                return e
+        return None
 
     def _send_as(self, session, url: str):
         """指定セッションでorigin検査・予算・ジッターを考慮してGETリクエストを送る。失敗時 None。"""

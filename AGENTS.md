@@ -80,6 +80,7 @@ AI-Security-tool/
 │   ├── model_router.py          # ロール別モデルルーティング（STRONG/FAST）＆推論エフォート（lokicode移植）。summarize_telemetry()/suggest_efficient_model()でテレメトリ実績を助言表示（自動切り替えはしない）
 │   ├── scope_guard.py           # バグバウンティ対応: 対象範囲(Scope)の機械的判定 in_scope()（許可リスト一致のみ・v1はdeny-list非対応）
 │   ├── http_transport.py        # P0.1/P0.2: WEB FUZZ全送信経路の唯一の送信口。normalize_origin()・HttpTransport（同一origin検査・共有予算・手動リダイレクト制御・RequestPolicyでレート/429リトライ/STOP中断/応答サイズ上限）。TLS設定・認証状態判定はtools/web_fuzzer.py側
+│   ├── engagement.py            # P3.1の一部: 案件設定の検証。現状はIDOR期待権限表 parse_idor_expectations()のみ（秘密値を含めない）
 │   ├── findings.py              # P1.1: 構造化所見・実行ライフサイクルのデータ契約。ScanResult/Finding/CoverageItem/ScanState/VerificationState/CoverageStatus（dataclass/Enum）
 │   ├── redaction.py             # P1.2: 証拠のマスキング。mask_headers()/mask_url()/mask_body()（既知の機密値の完全一致＋キー名ヒューリスティック）、mask_value()でsha256先頭12文字付与
 │   ├── evidence_store.py        # P1.2: reports/evidence/<scan_id>/へのHTTP証拠保存。EvidenceStore（件数/1件サイズ/総容量の上限、保存失敗はsave_errorsへ記録）

@@ -173,6 +173,13 @@ SQLi/XSS/SSTI/TRAVERSAL/IDORの脆弱例と罠（静的エラー文言・text/pl
 確認できなければ兆候にしない(追加送信は予算に含む)。XSSはHTML以外のcontent-typeの反射を兆候にせず、兆候の文言を
 「反射観測(content-type記録・ブラウザ実行は未確認)」にした。SSTI FP 1→0・XSS FP 1→0、TP/FNは不変
 (fixtureの/greetは任意の`a*b`を評価するよう変更)。期待権限入力は未着手。基準値更新済み。
+2026-10-22 P2.2(IDOR期待権限表・検出器側): `core/engagement.py`の`parse_idor_expectations()`と
+`WebFuzzer.idor_expectations`を追加。表(path・param・任意のvalue・a/b の allow|deny)がある対象だけ、b=allow(閲覧が期待上許可)
+またはa=deny(A対照が成立しない)なら違反の根拠にせず、a=allow・b=denyでBが200・類似内容・非ログイン画面を取得すれば
+`basis="expectation"`の所見にする(期待表は認証なし公開判定より優先)。表に無い対象は従来どおり`basis="observed"`・要人手確認。
+ベンチマーク`--with-expectations`(基準値`testlab/baselines/web_fuzz_detector_expectations.json`): IDOR TP2・FP0・TN8。
+**この数字は表を正解データ由来で与えた上限であり、利用者が正しく表を書いた場合の値。実世界の精度の主張ではない。**
+未実装: 表を実行に渡す経路(CLI/案件ファイル/GUI)、同一origin認証確認URL、JSONフィールド識別、逆方向(B所有物をAで読む)。
 
 ### P2.2 IDOR・SSTI・XSS
 
@@ -210,6 +217,13 @@ python cli.py status FINDING_ID accepted-risk --reason "対応判断を記録" -
 - 新規案件のネットワーク実行はscope_mode=block、明示的な許可対象を要求。除外は許可より優先。旧`in_scope()`の空リスト互換は既存GUI向けに残すが、新案件の検査を迂回させない。
 - allow/denyはまずhost/IP/CIDR（IPリテラルのみ）の既存文法に限定。pathルールは非対応として検証エラーにし、URLのpathを黙って捨てない。origin制約と案件scopeは両方満たす必要がある。
 - CIDRやcrt.sh発見結果を暗黙展開しない。対象リストで明示されたホストだけ実行する。CTF Active RetrievalはCLI初期版に公開しない。
+
+**案件ファイル設計(2026-10-22・未実装部分を含む)**: `--engagement FILE`(JSON・秘密値を含めない。認証は従来の`--auth-file`)。
+キー: `engagement_id`、`targets`、`allow`/`exclude`(host/IP/CIDR・excludeが優先)、`scan_profile`、`effort`、予算、
+`idor_expectations`(`core/engagement.py`で検証済み)。優先順位は明示CLI引数 > 案件ファイル > 既存設定。
+実装順: (1) 検出器が期待権限表を受け取る【済】→ (2) `--engagement`でfuzz CLIへ`idor_expectations`を渡す
+(再開用のprofile_jsonとprofile_hashに含め、再開時に表が変わったら拒否) → (3) exclude優先・targets-file →
+(4) `core/scan_runner.py`で他モードへ展開。(2)以降は未実装。
 
 受け入れ条件: GUIをimportせず全モードのモック実行、終了コード、stdoutのJSON単独解析、設定優先順位と非永続性、除外優先、バッチ設定分離、SIGINT後の最終結果保存を検証する。
 

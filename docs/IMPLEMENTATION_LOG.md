@@ -558,3 +558,8 @@ ATTACK MODE に、認可された偵察レスポンスからCTF形式のフラ�
 SSTI: 49出現後に別の算術式でも評価されるか追加確認(`WebFuzzer._confirm_ssti`、乱数は`_rng`でseed固定可、予算に含む)。
 XSS: HTML以外のcontent-typeの反射は兆候にしない。文言は「反射観測…ブラウザでの実行は未確認」。
 ベンチマーク: SSTI/XSSともFP1→0、TP維持。検証はコミット時のselftest結果を参照(SELFTEST_NON_LLM_ONLY=1)。
+
+## 2026-10-22 P2.2(IDOR期待権限表・検出器側)/P3.1設計
+`core/engagement.py`(`parse_idor_expectations`)、`WebFuzzer.idor_expectations`/`_expectation_for`、所見の`basis`(expectation|observed)。
+ベンチマーク`--with-expectations`と基準値を追加(IDOR FP 1→0・TP維持。表は正解データ由来の上限値)。案件ファイル設計はPRACTICAL_ROADMAP §P3.1。
+未実装: 表をCLI/GUI/再開経路へ渡す配線。

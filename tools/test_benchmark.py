@@ -123,6 +123,58 @@ class RealRunTest(unittest.TestCase):
                          sum(1 for c in truth["cases"] if c["expected"] == "not_vulnerable"))
 
 
+class ExpectationTest(unittest.TestCase):
+    PATH = os.path.join(os.path.dirname(bm.BASELINE_PATH), "web_fuzz_detector_expectations.json")
+
+    def test_parser_accepts_valid_and_rejects_ambiguous_or_unsafe_rows(self):
+        from core.engagement import EngagementError, parse_idor_expectations as parse
+        ok = parse([{"path": "/account", "param": "id", "a": "allow", "b": "deny"},
+                    {"path": "/account", "param": "id", "value": "2", "a": "deny", "b": "allow"}])
+        self.assertEqual((ok[0]["value"], ok[1]["value"]), (None, "2"))
+        self.assertEqual(parse(None), [])
+        bad = [[{"path": "/a", "param": "id", "a": "allow"}],                                  # b欠落
+               [{"path": "/a?x=1", "param": "id", "a": "allow", "b": "deny"}],                 # クエリ付きパス
+               [{"path": "http://h/a", "param": "id", "a": "allow", "b": "deny"}],             # origin付き
+               [{"path": "/a/*", "param": "id", "a": "allow", "b": "deny"}],                   # ワイルドカード
+               [{"path": "/a", "param": "id", "a": "maybe", "b": "deny"}],                     # 値が不正
+               [{"path": "/a", "param": "id", "a": "allow", "b": "deny", "x": 1}],             # 未知キー
+               [{"path": "/a", "param": "id", "a": "allow", "b": "deny"}] * 2,                  # 重複
+               "x"]
+        for rows in bad:
+            with self.assertRaises(EngagementError, msg=str(rows)):
+                parse(rows)
+
+    def test_with_expectations_matches_saved_baseline_and_keeps_true_positives(self):
+        with open(self.PATH, encoding="utf-8") as f:
+            saved = json.load(f)
+        cur = bm.benchmark_web_fuzz(runs=2, with_expectations=True)
+        self.assertTrue(cur["stable"])
+        self.assertEqual(bm.compare(saved, cur), {"per_rule": {}, "added_detections": [], "removed_detections": []})
+        without = bm.benchmark_web_fuzz(runs=1)["metrics"]["per_rule"]["IDOR"]
+        with_exp = cur["metrics"]["per_rule"]["IDOR"]
+        self.assertEqual(with_exp["tp"], without["tp"])        # 期待権限表で脆弱例を取りこぼさない
+        self.assertEqual(with_exp["fn"], 0)
+        self.assertLess(with_exp["fp"], without["fp"])         # 閲覧者別ページの誤検出が減る
+        self.assertEqual(saved["kind"], "web_fuzz_detector_with_expectations")
+
+    def test_expectation_overrides_public_check_and_marks_basis(self):
+        """期待上denyのBが読めれば、認証なしでも読める公開ページでも違反(期待表が公開判定より優先)。"""
+        from testlab.fixtures.web_benchmark import BenchmarkServer, TOKENS
+        from tools.web_fuzzer import WebFuzzer
+        with BenchmarkServer() as srv:
+            def run(exp):
+                f = WebFuzzer(profile="aggressive", max_pages=40, max_requests=3000, target=srv.base_url,
+                              auth={"cookie": "sid=" + TOKENS["alice"]}, auth_b={"cookie": "sid=" + TOKENS["bob"]},
+                              tls_verify=False, tls_ca_bundle="")
+                f.idor_expectations = exp
+                f.authenticate(); f.authenticate_b()
+                pts = [p for p in f.crawl(srv.base_url)["injection_points"] if p["url"].endswith("/public")]
+                return f._detect_idor(pts)
+            self.assertEqual(run([]), [])                                           # 表なし: 公開として除外
+            hit = run([{"path": "/public", "param": "id", "value": None, "a": "allow", "b": "deny"}])
+            self.assertEqual([h["basis"] for h in hit], ["expectation"])
+
+
 class CompareTest(unittest.TestCase):
     def test_compare_reports_changes_without_judging(self):
         with open(bm.BASELINE_PATH, encoding="utf-8") as f:

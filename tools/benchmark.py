@@ -28,6 +28,8 @@ from urllib.parse import urlsplit
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
+from core.engagement import parse_idor_expectations  # noqa: E402
+
 TRUTH_PATH = os.path.join(ROOT, "testlab", "benchmark", "ground_truth_web_fuzz.json")
 BASELINE_PATH = os.path.join(ROOT, "testlab", "baselines", "web_fuzz_detector.json")
 SCHEMA = "ai-security-audit-benchmark"
@@ -104,7 +106,7 @@ def evaluate(cases: list[dict], detections: set[tuple[str, str]], examined: set[
     return {"per_rule": dict(sorted(by_rule.items())), "total": total}
 
 
-def run_web_fuzz_detector(max_requests: int = 3000) -> dict:
+def run_web_fuzz_detector(max_requests: int = 3000, expectations: list | None = None) -> dict:
     """fixtureへ検出器を直接当てて、検出集合・実施済み集合・HTTP試行数・所要時間を返す。"""
     from testlab.fixtures.web_benchmark import BenchmarkServer, TOKENS
     from tools.web_fuzzer import DEFAULT_PROBES, WebFuzzer, _OBJ_ID_RE
@@ -114,6 +116,7 @@ def run_web_fuzz_detector(max_requests: int = 3000) -> dict:
         f = WebFuzzer(profile="aggressive", max_pages=40, max_requests=max_requests, target=srv.base_url,
                       auth={"cookie": "sid=" + TOKENS["alice"]}, auth_b={"cookie": "sid=" + TOKENS["bob"]},
                       tls_verify=False, tls_ca_bundle="")
+        f.idor_expectations = expectations or []
         f._rng = random.Random(20261022)    # SSTI追加確認の式を固定(同じ入力で同じ結果)
         f.authenticate()
         f.authenticate_b()
@@ -146,15 +149,27 @@ def _sha256(path: str) -> str:
         return hashlib.sha256(f.read()).hexdigest()
 
 
-def benchmark_web_fuzz(runs: int = 1) -> dict:
+def expectations_from_truth(truth: dict) -> list[dict]:
+    """正解データの期待権限(expected_access)を、利用者が入力する期待権限表の形に変換する(表あり評価用)。"""
+    rows = []
+    for c in truth["cases"]:
+        if c["rule_id"] == "IDOR" and "expected_access" in c:
+            _, path, param = c["location"].split(" ")
+            rows.append({"path": path, "param": param, "a": c["expected_access"]["alice"],
+                         "b": c["expected_access"]["bob"]})
+    return parse_idor_expectations(rows)
+
+
+def benchmark_web_fuzz(runs: int = 1, with_expectations: bool = False) -> dict:
     """runs回実行して結果をまとめる。回ごとの検出集合が一致しなければ stable=False(分散を隠さない)。"""
     truth = load_truth()
-    outs = [run_web_fuzz_detector() for _ in range(max(1, runs))]
+    exp = expectations_from_truth(truth) if with_expectations else None
+    outs = [run_web_fuzz_detector(expectations=exp) for _ in range(max(1, runs))]
     stable = all(o["detections"] == outs[0]["detections"] and o["examined"] == outs[0]["examined"] for o in outs)
     first = outs[0]
     metrics = evaluate(truth["cases"], first["detections"], first["examined"])
     return {
-        "schema": SCHEMA, "schema_version": SCHEMA_VERSION, "kind": "web_fuzz_detector",
+        "schema": SCHEMA, "schema_version": SCHEMA_VERSION, "kind": "web_fuzz_detector_with_expectations" if with_expectations else "web_fuzz_detector",
         "created_at": datetime.now().isoformat(timespec="seconds"), "git": _git(),
         "fixture_sha256": _sha256(os.path.join(ROOT, "testlab", "fixtures", "web_benchmark.py")),
         "truth_sha256": _sha256(TRUTH_PATH), "runs": len(outs), "stable": stable,
@@ -199,9 +214,10 @@ def main(argv=None) -> int:
     w.add_argument("--runs", type=int, default=1)
     w.add_argument("--save-baseline", metavar="PATH")
     w.add_argument("--compare", metavar="PATH", nargs="?", const=BASELINE_PATH)
+    w.add_argument("--with-expectations", action="store_true", help="IDOR期待権限表あり(正解データのexpected_accessを入力として与える)")
     w.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
-    report = benchmark_web_fuzz(args.runs)
+    report = benchmark_web_fuzz(args.runs, args.with_expectations)
     if args.save_baseline:
         os.makedirs(os.path.dirname(os.path.abspath(args.save_baseline)), exist_ok=True)
         with open(args.save_baseline, "w", encoding="utf-8") as f:
