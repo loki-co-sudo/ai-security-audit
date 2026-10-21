@@ -18,6 +18,7 @@ from urllib.parse import urlsplit
 
 from agents.audit_agent import AuditAgent
 from agents.monitor_agent import MonitorAgent
+from agents.recon_agent import ReconAgent
 from agents.fuzz_capabilities import AutonomousFuzzAgent, auth_action_args, load_profile
 from core import config, event_bus as ev, redaction
 from core.engagement import EngagementError, parse_idor_expectations
@@ -60,7 +61,15 @@ def parser():
     audit.add_argument("--target", required=True, help="監査するPythonソースのパス（ローカルファイル）")
     defense = scan.add_parser("defense")
     defense.add_argument("--target", required=True, help="解析するアクセスログのパス（ローカルファイル・1回だけ走査）")
-    for sub in (audit, defense):
+    attack = scan.add_parser("attack")
+    attack.add_argument("--target", required=True, help="偵察対象のhost/IP/URL。--allowで明示した範囲内のみ実行")
+    attack.add_argument("--allow", action="append", required=True, help="許可host/IP/CIDR。複数は繰り返す")
+    attack.add_argument("--exclude", action="append", default=[], help="除外host/IP/CIDR。許可より優先")
+    attack.add_argument("--profile", choices=list(SCAN_PROFILES), default=DEFAULT_SCAN_PROFILE)
+    attack.add_argument("--port-scope", choices=("common", "extended"), default="common")
+    attack.add_argument("--udp", action="store_true", help="UDPスキャンも行う")
+    attack.add_argument("--no-web", action="store_true", help="Web探査を行わない")
+    for sub in (audit, defense, attack):
         sub.add_argument("--out", help="結果JSONの追加保存先")
         sub.add_argument("--fail-on", choices=["none", *SEVERITIES], default="none")
         sub.add_argument("--effort", choices=("speed", "balanced", "quality"))
@@ -279,6 +288,33 @@ class ConsoleBus(ev.EventBus):
             print(masked(str(payload), self.secrets), file=sys.stderr, flush=True)
 
 
+def run_attack(args, on_agent, was_interrupted):
+    """ATTACK MODE(偵察のみ)を1回実行する。許可は--allow必須・scope_mode=blockで固定、除外は許可より優先。
+    設定の上書きはこのプロセス内だけで、config.jsonへは保存しない。CTF能動機能・exploit生成は公開しない。"""
+    exclude = check_rules(args.exclude, "--exclude")
+    check_target(args.target)
+    if target_excluded(args.target, exclude):
+        raise CLIError("除外対象のため実行しませんでした（除外は許可より優先）")
+    with redirect_stdout(sys.stderr):
+        config.load()
+        saved = {k: config._cfg.get(k) for k in ("allowed_targets", "scope_mode")}
+        config._cfg.update(allowed_targets=list(args.allow), scope_mode="block")
+        try:
+            llm = LLMClient(base_url=config.get("llm_base_url"), api_key=config.get("llm_api_key"),
+                            model=config.get("llm_model"), timeout=config.get("llm_timeout"))
+            bus = ConsoleBus(set())
+            agent = ReconAgent(bus, llm)
+            agent.set_effort_override(args.effort)
+            on_agent(agent)
+            if was_interrupted():
+                agent.stop()
+            agent._safe_run(target=args.target, scan_web=not args.no_web, intensity=args.profile,
+                            generate_exploit=False, port_scope=args.port_scope, scan_udp=args.udp)
+        finally:
+            config._cfg.update(saved)
+    return bus.result_payload or {"state": "failed", "errors": ["最終結果が通知されませんでした"], "findings": []}
+
+
 def run_local(mode, target, effort, on_agent, was_interrupted):
     """CODE AUDIT(標準エンジン)またはDEFENSE(ログ1回走査)を実行して最終結果を返す。ローカルファイルのみ・Runジャーナル無し。"""
     if not Path(target).is_file():
@@ -320,17 +356,19 @@ def main(argv=None):
     result = {"state": "failed", "errors": [], "findings": []}
     try:
         args = parser().parse_args(argv)
-        is_audit = args.command == "scan" and args.mode in ("audit", "defense")
-        if not is_audit:
+        is_audit = args.command == "scan" and args.mode in ("audit", "defense", "attack")
+        if not is_audit or args.mode == "attack":
             args.allow = check_rules(args.allow, "--allow")
         if args.out:
             out = Path(args.out).resolve()
-            if not is_audit and out.is_relative_to(Path(args.journal_root).resolve()):
+            if hasattr(args, "journal_root") and out.is_relative_to(Path(args.journal_root).resolve()):
                 raise CLIError("--outはRun保存ディレクトリの外を指定してください")
             if getattr(args, "auth_file", None) and out == Path(args.auth_file).resolve():
                 raise CLIError("--outと認証ファイルは別にしてください")
         out_validated = True
-        if is_audit:
+        if is_audit and args.mode == "attack":
+            result = run_attack(args, lambda a: set_agent(a), lambda: interrupted)
+        elif is_audit:
             result = run_local(args.mode, args.target, args.effort, lambda a: set_agent(a), lambda: interrupted)
         elif args.command == "status":
             result = status_result(args.run_id, args.journal_root, args.allow)

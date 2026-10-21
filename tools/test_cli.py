@@ -311,6 +311,22 @@ class CLITest(unittest.TestCase):
         p, data = self.call(["scan", "defense", "--target", str(self.base / "none.log")])
         self.assertEqual((p.returncode, data["state"]), (2, "failed"))
 
+    def test_scan_attack_is_scoped_and_exclude_wins(self):
+        with FixtureServer(post_form=False) as srv:
+            host = srv.base_url.split("//")[1].split("/")[0]
+            base = ["scan", "attack", "--target", host, "--profile", "aggressive"]
+            p, data = self.call([*base, "--allow", "192.0.2.1"])                    # 範囲外=scope_mode=blockで送信しない
+            self.assertEqual((p.returncode, data["state"]), (2, "failed"), data)
+            self.assertEqual(srv.count(), 0)
+            p, data = self.call([*base, "--allow", "127.0.0.1", "--exclude", "127.0.0.0/8"])
+            self.assertEqual((p.returncode, data["state"]), (2, "failed"))
+            self.assertEqual(srv.count(), 0)
+            p, data = self.call(["scan", "attack", "--target", host])               # --allow必須
+            self.assertEqual(p.returncode, 2)
+            p, data = self.call([*base, "--allow", "127.0.0.1", "--no-web"])
+            self.assertIn(data["state"], ("completed", "partial"), data)
+            self.assertIn("errors", data)
+
     def test_unknown_retry_and_extra_budget(self):
         with FixtureServer(post_form=False) as srv:
             p = subprocess.run(self.command(self.scan(srv)), cwd=self.base,

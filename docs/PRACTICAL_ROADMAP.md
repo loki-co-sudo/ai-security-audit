@@ -224,7 +224,8 @@ python cli.py status FINDING_ID accepted-risk --reason "対応判断を記録" -
 実装順: (1) 検出器が期待権限表を受け取る【済】→ (2) `--engagement`でfuzz CLIへ`idor_expectations`を渡す【済・2026-10-22】
 (再開用のprofile_jsonとprofile_hashに含め、再開時はprofile_jsonから復元。表が空のRunはhashにキーを入れず従来Runと再開互換) → (3) exclude優先・targets-file【済・2026-10-22】 →
 (4) 他モードへ展開【audit・defense済み・2026-10-22: `cli.py scan audit|defense --target FILE`(auditは標準エンジン、defenseはログの1回走査=`--single-pass`相当で
-`--duration`は未実装。どちらもローカルファイルのみ・Runジャーナル無し・`--out/--fail-on/--effort`)。attackと`core/scan_runner.py`への共通化は未実装(現状はcli.pyに実装)】。(3)以降は未実装。`--engagement`のキーは現状 `engagement_id`・`idor_expectations`・`exclude` のみ(未知キーは拒否)。
+`--duration`は未実装。どちらもローカルファイルのみ・Runジャーナル無し・`--out/--fail-on/--effort`)。attack【済・2026-10-22: `scan attack --target T --allow ...`。--allow必須・scope_mode=blockをプロセス内だけで固定(config.json非保存)・除外優先・
+CTF能動機能/exploit生成は公開しない。偵察のみ】と`core/scan_runner.py`への共通化は未実装(現状はcli.pyに実装)】。(3)以降は未実装。`--engagement`のキーは現状 `engagement_id`・`idor_expectations`・`exclude` のみ(未知キーは拒否)。
 `--exclude`/案件ファイルのexcludeは許可より優先(CLIで送信前に拒否し、Policy Gateにも渡す)。`--targets-file`は1〜50件を逐次実行し、
 対象ごとに設定コピー・別Run・別承認で、結果は`batch:true`の集約JSON(全対象completedのときだけcompleted、中断時は残りを未実行として記録)。
 **`--targets-file`と`--auth-file`は併用不可**(認証値を他対象へ送らないため)。

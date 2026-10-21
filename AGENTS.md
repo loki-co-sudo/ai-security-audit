@@ -48,7 +48,7 @@
 
 ```
 AI-Security-tool/
-├── cli.py                       # Phase B4: scan fuzz / resume / status。JSON stdout・進捗stderr・0600認証ファイル
+├── cli.py                       # scan fuzz/audit/defense/attack・resume・status。JSON stdout・進捗stderr・0600認証ファイル。fuzzは--engagement(IDOR期待権限表・除外)/--targets-file、attackは--allow必須でscope_mode=block固定
 ├── main.py                      # エントリポイント。スプラッシュ表示→遅延ロード→App起動
 ├── config.json                  # 実行時LLM設定（gitignore済み。APIキーを含む可能性あり）
 ├── requirements.txt             # pip install -r requirements.txt

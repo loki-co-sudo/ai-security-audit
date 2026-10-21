@@ -584,3 +584,9 @@ profile_jsonに保存して`resume`で復元。実BenchmarkServerへのCLI実行
 ## 2026-10-22 P3.1(4一部): `scan defense`
 `cli.py scan defense --target LOG`(MonitorAgentを`watch_mode=False`で1回走査)。試験はシグネチャ検知(アラート件数)を確認。
 MockLLMの`complete()`は`{}`を返すため、所見(Finding)化はこの試験では検証していない(実LLM未検証)。`--duration`、attackは未実装。
+
+## 2026-10-22 P3.1(4一部): `scan attack`
+`cli.py scan attack --target T --allow ... [--exclude] [--profile] [--port-scope common|extended] [--udp] [--no-web]`。ReconAgentを`generate_exploit=False`で実行。
+`allowed_targets`/`scope_mode=block`はプロセス内の`config._cfg`だけを一時的に上書きして終了時に戻す(config.jsonへ保存しない)。
+除外は許可より優先し、範囲外・除外は送信前に終了。試験: 範囲外/除外で0リクエスト、--allow必須、許可内で完走。
+実LLM・実環境での確認は未実施。`core/scan_runner.py`への共通化・attackの`--targets-file`は未実装。
