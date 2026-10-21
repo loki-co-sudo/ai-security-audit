@@ -126,7 +126,7 @@
 | Plannerが唯一のIntent生成者、Workerは1 Intentで終了 | **採用** | §3.4 Task Graph。本書の「Task」＝レポートの「Intent」 |
 | 状態変化イベントでのみPlannerをwake（定期実行しない） | **採用** | §5 の `ASSESS → PLAN` 遷移条件、コスト低減 |
 | `exhausted`（max_turns/予算到達）を `done` と区別 | **採用** | §5.2、coverageの `tested` にしない |
-| evidence_version / report_evidence_versionの分離 | **採用（Phase F）** | 古い証拠に基づく「確認済み」を拒否 |
+| evidence_version / report_evidence_versionの分離 | **二段階で採用** | 最小の由来情報（内容ハッシュ・Action ID・採取時刻・マスキング版・切り詰め有無）は**Planner/再開より前に前倒し**（§3.7）。`report_evidence_version` による古い証拠の拒否はPhase F |
 | 承認のタイムアウトは常にdeny | **採用** | §6.2 |
 | 発見資産をscopeへ自動昇格しない | **採用（元から同方針）** | §6.3 |
 | 全通信MITM録画を既定ONにしない | **採用（元から同方針）** | 既存の「必要な証拠だけ・保存前マスク」を維持 |
@@ -225,7 +225,7 @@ flowchart TB
 | **Capability Registry** | 実行可能な診断能力を `CapabilitySpec`（名前、入力スキーマ、副作用クラス、要する権限、概算コスト）として登録。Plannerはこの一覧からのみ選ぶ | `WebFuzzer.crawl/_fuzz_point/_detect_idor`、`audit_agent`のステップ等を薄く包む |
 | **Policy Gate** | `Action`（capability＋具体的引数）を実行前に検査: ①スコープ（明示許可必須）②カタログ内か ③副作用クラスと承認要否 ④予算 ⑤重複（同一キー） ⑥禁止リスト。結果（allow/deny/needs_approval＋理由）は必ずジャーナルへ | `core/scope_guard.py`、`core/ctf_safety.is_destructive`、`HttpTransport.reserve` の判定を一箇所に集約 |
 | **Run Journal** | 追記式JSONL。タスク状態遷移、Plannerの提案原文（マスク済み）、Gateの判断、capability実行結果の要約、LLM呼出メタ（モデル・トークン・費用）、承認の記録。**再開はこの再生で行う** | P3.2の `events.jsonl` と同じ方式・同じ排他/破損末尾回復のルールを共有（新規に別方式を作らない） |
-| **Fact Store（二層、§2.4）** | **Asset Graph**: `Asset`（origin/endpoint/service）。状態は `candidate`（発見しただけ）と `authorized`（プロファイルで許可済み）を分け、Plannerもcandidate→authorizedへ昇格できない。**Exploration Graph**: `Goal`/`Task(=Intent)`/`Fact`（観測。証拠ID必須）/`Hypothesis`（open/confirmed/refuted/inconclusive）/`Finding`（既存型）/`Decision`。両層はanchor（どのAssetについての探索か）で結び、coverageと重複排除に使う。各レコードに由来（どのTask/Action/モデルか）を持たせる | `core/findings.py`、`core/evidence_store.py` を再利用。**Planner入力に入るのは要約済みFactのみで、生の応答本文は入れない** |
+| **Fact Store（二層、§2.4。登録規則は§3.6）** | **Asset Graph**: `Asset`（origin/endpoint/service）。状態は `candidate`（発見しただけ）と `authorized`（プロファイルで許可済み）を分け、Plannerもcandidate→authorizedへ昇格できない。**Exploration Graph**: `Goal`/`Task(=Intent)`/`Fact`（観測。証拠ID必須）/`Hypothesis`（open/confirmed/refuted/inconclusive）/`Finding`（既存型）/`Decision`。両層はanchor（どのAssetについての探索か）で結び、coverageと重複排除に使う。各レコードに由来（どのTask/Action/モデルか）を持たせる | `core/findings.py`、`core/evidence_store.py` を再利用。**Planner入力に入るのは要約済みFactのみで、生の応答本文は入れない** |
 | **Task Graph** | 型付きDAG。ノード: `capability`＋引数＋依存＋状態（pending/ready/running/done/failed/skipped/needs_approval）＋重複キー | 新規 |
 | **Budget Ledger** | リクエスト数（`HttpTransport`と同じ予約方式）、壁時計時間、LLM呼出数・トークン・費用（`telemetry`の既存計測を流用）、Planner再計画回数、タスク数上限 | `core/http_transport.py`、`reports/telemetry.jsonl` |
 | **Approval Queue** | 承認待ちAction（内容・理由・想定リスク）を保持。承認はユーザー操作のみで、**LLMも他のエージェントも承認できない** | 新規。GUIとCLI（P3.1）の両方から操作 |
@@ -275,6 +275,29 @@ LangGraph版AUDITは現状のまま維持し、置き換えない。
 | V3. LLMによる文章レビューのみ（現状） | 検証パスの敵対的レビュー | 補助として継続 |
 
 ---
+
+### 3.6 Fact / Hypothesis / Finding の登録・昇格規則
+
+文章で区別するだけでなく、**登録できる内容を保存時に制限する**。実装はFact Store（Phase B以降）で行う。この節は契約で、現時点で実装はない。
+
+| 種別 | 意味 | 登録できる主体・必須項目 |
+|---|---|---|
+| **Fact** | どの検査で何を観測したか | **Capabilityのコードだけ**が登録できる（Planner・LLMの文章からは作れない）。必須: `action_id`、検査種別、`target_ref`、認証context、観測時刻、実在し内容ハッシュが検証できる `evidence_id`（証拠のない観測は登録不可。「送って異常なし」の否定観測も、送信記録を証拠として登録する）。同じ検査・対象・認証・証拠ハッシュは同一Factとして重複登録しない |
+| **Hypothesis** | その観測から疑う原因 | 規則またはLLMが登録できる。必須: 疑う種別（`rule_id`）、`target_ref`、**実在するFact IDの参照**（支持／反証）。実在しないFact IDを含む登録は拒否（未知の証拠IDを除外する既存方針と同じ）。状態（open / supported / refuted / inconclusive）は**規則でのみ**変更できる |
+| **Finding** | 報告対象の所見 | supportedな仮説から作る。必須: 仮説・Fact・証拠の参照、`verification_state`、その判定根拠（規則ID） |
+
+- 例: 「応答にDBエラー文字列があった」＝Fact、「SQL Injectionの可能性」＝Hypothesis。
+- **支持の数え方**: 支持は「内容ハッシュが異なる、別Actionで得られたFactの数」で数える。仮説の言い換え、同じLLMの再説明、別モデルの同意、同じ仮説の再登録は、観測が増えたことにならない（支持の数も `no_progress_counter` も増やさない）。
+- **昇格**: `observed → corroborated` は規則（例: 対照との差分再観測で独立したFactが得られた）で行う。LLMの検証パスや別モデルの同意は注釈として残すが昇格の根拠にしない。`manually_confirmed` は人のみ。
+- **既存実装との差（要注意）**: 現行の `BaseAgent._findings_from_markers()` は、品質エフォートの検証パス（STRONGによる敵対的レビュー）を通った所見を `corroborated` にする。これは同じ材料の再レビューであり、新しい観測ではない。既存経路の挙動は変えない（等価性のため）が、新経路のValidation（Phase D）では上記の規則を適用する。すると同じ語 `corroborated` が経路で異なる根拠を指すため、Phase Dで根拠の種別（`verifier_support` 等）を明示し、レポート上で区別できるようにする。
+
+### 3.7 証拠の最小限の由来情報（前倒し）
+
+Plannerや再開処理が証拠を参照し始める前に、保存した証拠が「同じ根拠で再検証できるか」を判定できるようにする。確認した現状: `core/evidence_store.py` の各証拠は `timestamp` と `omitted_reason` を持つが、**内容ハッシュ・生成Action ID・マスキング方式の版・本文を切り詰めたかの印を持たない**（`redaction.mask_body(max_len=)` は黙って切り詰める）。
+
+- 追加項目（既存フィールドは変えず、追加のみ・既定値あり）: `content_sha256`（保存するマスク済みデータの正規化JSON、ハッシュ項目自身を除く）、`action_id`、`masking_version`（`core/redaction` の版定数）、`truncated`（本文・抜粋を切り詰めたか）。
+- `EvidenceStore.verify(evidence_id)`: 保存済みファイルのハッシュが記録と一致するか。削除・変更されたら一致しない。ハッシュは改ざん検出の補助であり、匿名化でも完全性の保証でもない。
+- 大きな証拠管理（版の履歴、`report_evidence_version`）はPhase Fまで行わない。
 
 ## 4. エージェント間のデータフロー
 
@@ -332,9 +355,9 @@ stateDiagram-v2
 |---|---|
 | 同一調査の重複 | 重複キー = `hash(capability, 正規化した引数, 認証context, 対象origin)`。Gateが既実行/実行中キーを拒否。CoverageItemと突合 |
 | 無意味な再試行 | 失敗タスクの再試行は同一キーで最大N回（既定1）。429/タイムアウトは `HttpTransport` の既存ポリシーに従い、Plannerには再試行を決めさせない |
-| 進捗なしの空転 | `no_progress_counter`: 連続Mラウンドで新規Fact/Hypothesis/coverage更新がなければ終了（既定M=2） |
+| 進捗なしの空転 | `no_progress_counter`: 連続Mラウンド（既定M=2）で**進捗に数える変化**がなければ終了。進捗に数えるのは、(a) 未検査だった検査単位を実施した、(b) 新しい観測証拠（新しい内容ハッシュ）が得られた、(c) 規則に基づいて仮説の状態が変わった、の3つだけ。仮説の言い換え、新しいIDの発行、LLMの出力量・同意の増加ではカウンターをリセットしない（§3.6） |
 | 再計画の暴走 | 再計画回数・Plannerの1回あたり提案数・総タスク数・DAGの深さに上限 |
-| LLMコスト | LLM呼出数・トークン・費用の予算。上限接近で FAST のみ / 計画停止に縮退 |
+| LLMコスト | **呼出前に**予約して制限する（応答後の加算だけでは超過を防げない）。最初に制御するのは、呼出回数・入力サイズ・最大出力トークン・再試行回数・実行期限。検証パスのサンプル数や不正JSONの再生成もすべて同じRun予算に含める。上限接近で FAST のみ / 計画停止に縮退。費用は価格情報と使用量取得の確度付きの**推定値**で、取得不能は0ではなく `unknown` |
 | 同じ失敗エラーの反復 | AGENTS.md の開発ルールと同様、同一エラーが連続したらそのcapabilityを一時停止し、`partial` として報告 |
 | 連続したPolicy違反の提案 | 連続K回Gateに拒否されたらPlannerを停止し `partial`（Plannerへのフィードバックは拒否の理由コードのみ） |
 | Plannerの不正な構造化出力 | 連続N回スキーマ違反で当該ロールを停止。決定論の既定計画へ縮退するか `partial` |
@@ -345,6 +368,8 @@ stateDiagram-v2
 ### 5.2 終了条件（いずれか成立で REPORT へ）
 
 調査範囲の完了（coverage上のreadyタスクなし）／証拠充足（所見ごとの検証が規則上の基準に到達、またはこれ以上の非破壊検証手段がない）／時間・リクエスト数・LLM費用の上限／リスク（Gateの拒否が閾値、`HttpTransport` の連続エラー、認証失効）／STOP／承認待ちのまま期限到達。
+
+終了理由は `end_reason` として `run_finished` に残す: `frontier_empty`（予定した検査を完了）／`budget_exhausted`（要求数・時間・LLMのどれか）／`no_progress`／`stopped`／`policy_halt`／`approval_expired`／`error`。「完了した」と「予算の範囲で打ち切った」を区別して利用者が判断できるようにする。`ScanResult` のスキーマへ追加するかはJSONレポートのschema（v1）への影響を見て別途決める（Phase Aではジャーナルと `errors` への記載にとどめる）。
 
 **`completed` の意味は「指定した範囲の検査が完了した」であり、脆弱性がない保証ではない**（P1.1の定義を継承）。予算切れ・認証失敗・未承認で残ったタスクは `partial` と未検査として明示する。
 
@@ -428,7 +453,8 @@ stateDiagram-v2
 
 ### 7.3 比較実験の設計
 
-- 比較対象: ①現行固定パイプライン ②スクリプト化Planner（LLMなし。Phase Aの等価性確認）③LLM Planner（Phase C以降）。同一fixture・同一予算。
+- 比較対象: ①現行固定パイプライン（基準値。Phase Aのスクリプト化計画はこれと等価であることの確認用で、比較対象ではない）②**決定論的な優先順位方式**（LLMなし: 未検査の検査単位を優先、失敗済みの同一検査を繰り返さない、残予算で実行可能な検査を選ぶ）③LLM Planner（Phase C）。同一fixture・同一送信予算で Recall・誤検知・未検査率・費用を比較する。
+- 「Plannerを導入できた」と「Plannerが役に立った」を分ける。LLM Plannerを既定で有効にする条件は、②に対して追加費用に見合う改善が測定できること。測れなければ②を既定とし、LLM Plannerは任意機能にとどめる。ただし現行のtestlabのような小さなfixtureでは差が統計的に意味を持たない可能性が高く、P2.1で十分なケース数を用意するまで優劣を主張しない。
 - LLMを使う評価は複数回実行して分散を示す。モデル・設定・プロンプト版・commitを保存（P2.1の方針）。
 - CIはLLMモック＋決定論fixtureのみ。実LLM評価は手動実行で別枠。
 - 受け入れ基準は「検出数が増えた」ではなく、**正常例で確定扱いしない・既存脆弱例の取りこぼしが増えない・安全違反0**。
@@ -472,13 +498,15 @@ stateDiagram-v2
 
 ### Phase C: Planner v1（WEB FUZZ内で有限の選択）
 
-- 目的: 固定順序をやめ、対象に応じた優先順位付け・停止判断・追加調査の提案をLLMが行う。**選べるのはカタログ内のcapabilityだけ**。
-- 追加: `agents/planner.py`（STRONGで提案、スキーマ検証）、Fact Storeの要約生成、決定論のフォールバック計画、重複キー、終了条件。
+- 目的: 固定順序をやめ、対象に応じた優先順位付け・停止判断・追加調査の提案を行う。**選べるのはカタログ内のcapabilityだけ**。2段に分ける。
+  - **C0 決定論的な優先順位**（LLMなし）: 未検査の検査単位を優先、失敗済みの同一検査を繰り返さない、残予算で実行可能なものを選ぶ。状態機械の `FALLBACK_PLAN` を兼ねるため、LLM Plannerがなくても必要。
+  - **C1 LLM Planner**: C0に対して追加費用に見合う改善があるかを測る（§7.3）。
+- 追加: `core/autonomy/prioritizer.py`（C0）、`agents/planner.py`（C1。STRONGで提案、スキーマ検証）、Fact Storeの要約生成、重複キー、終了条件。
 - 既存機能への影響: 新しい実行モード（既定OFF）。OFF時は従来動作が完全に元通りであることをテストで固定（AGENTS.md §3の「トグルOFF互換」ルール）。
 - 依存: Phase A、B、P2.1の基準値。
 - 安全: 提案は常にGateを通す。インジェクション入りレスポンスfixtureで境界が変わらないことを確認。
 - テスト: LLMモック（不正JSON/幻覚capability/過剰提案/ループ誘導）、no_progress終了、再計画上限、コスト上限。
-- 完了条件: 同一fixtureで固定パイプライン比のRecall非退行・FP非悪化・安全違反0。差があれば理由を記載。
+- 完了条件: C0・C1とも、同一fixtureで固定パイプライン比のRecall非退行・FP非悪化・安全違反0。C1を既定にするには、さらにC0に対する改善が測定されていること（§7.3）。差があれば理由を記載。
 - 規模: 約1,000〜1,500行。
 
 ### Phase D: Validation Agentと承認キュー
