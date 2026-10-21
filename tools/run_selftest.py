@@ -3123,10 +3123,11 @@ def test_cli():
 def test_benchmark():
     _section("16w. BENCHMARK — WEB FUZZ 検出品質(P2.1 detector固定モード)")
     import unittest
-    from tools.test_benchmark import EvaluateTest, TruthTest, RealRunTest, CompareTest, ExpectationTest
+    from tools.test_benchmark import EvaluateTest, TruthTest, RealRunTest, CompareTest, ExpectationTest, DefenseBenchmarkTest
     result = unittest.TestResult()
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
-                               for c in (EvaluateTest, TruthTest, RealRunTest, CompareTest, ExpectationTest))
+                               for c in (EvaluateTest, TruthTest, RealRunTest, CompareTest, ExpectationTest,
+                                         DefenseBenchmarkTest))
     suite.run(result)
     if result.wasSuccessful():
         _ok("Benchmark", f"{result.testsRun} tests: 集計器(手計算)/正解データ/基準値との一致と決定性/未検査の扱い")

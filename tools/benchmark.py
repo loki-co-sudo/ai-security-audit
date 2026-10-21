@@ -32,6 +32,8 @@ from core.engagement import parse_idor_expectations  # noqa: E402
 
 TRUTH_PATH = os.path.join(ROOT, "testlab", "benchmark", "ground_truth_web_fuzz.json")
 BASELINE_PATH = os.path.join(ROOT, "testlab", "baselines", "web_fuzz_detector.json")
+DEFENSE_TRUTH_PATH = os.path.join(ROOT, "testlab", "benchmark", "ground_truth_defense.json")
+DEFENSE_BASELINE_PATH = os.path.join(ROOT, "testlab", "baselines", "defense_signatures.json")
 SCHEMA = "ai-security-audit-benchmark"
 SCHEMA_VERSION = "1"
 NA = "N/A"
@@ -135,6 +137,35 @@ def run_web_fuzz_detector(max_requests: int = 3000, expectations: list | None = 
                 "elapsed_sec": round(time.time() - t0, 3), "points": len(points)}
 
 
+def run_defense_detector(truth: dict | None = None) -> dict:
+    """DEFENSEのシグネチャ検知(MonitorAgent._pattern_match=実コードパス)を正解データの各行へ直接当てる。LLM・通信なし。"""
+    from agents.monitor_agent import MonitorAgent
+    truth = truth or load_truth(DEFENSE_TRUTH_PATH)
+    t0 = time.time()
+    lines = {c["location"]: c["line"] for c in truth["cases"]}
+    detections = {(pat, lid) for lid, line in lines.items() for pat in MonitorAgent._pattern_match(None, line)}
+    # 正規表現は全行に決定的に適用されるので、全ケースが検査済み(中断・予算切れの概念がない)
+    examined = {(c["rule_id"], c["location"]) for c in truth["cases"]}
+    return {"detections": detections, "examined": examined, "requests": 0, "elapsed_sec": round(time.time() - t0, 3),
+            "lines": len(lines)}
+
+
+def benchmark_defense(runs: int = 1) -> dict:
+    truth = load_truth(DEFENSE_TRUTH_PATH)
+    outs = [run_defense_detector(truth) for _ in range(max(1, runs))]
+    stable = all(o["detections"] == outs[0]["detections"] for o in outs)
+    first = outs[0]
+    return {
+        "schema": SCHEMA, "schema_version": SCHEMA_VERSION, "kind": "defense_signatures",
+        "created_at": datetime.now().isoformat(timespec="seconds"), "git": _git(),
+        "fixture_sha256": "n/a (正解データ内の行を直接評価)", "truth_sha256": _sha256(DEFENSE_TRUTH_PATH),
+        "runs": len(outs), "stable": stable, "http_requests": [0] * len(outs),
+        "elapsed_sec": [o["elapsed_sec"] for o in outs], "llm_usage": "n/a (signature mode)",
+        "metrics": evaluate(truth["cases"], first["detections"], first["examined"]),
+        "detections": sorted([list(d) for d in first["detections"]]),
+    }
+
+
 def _git() -> dict:
     def run(*a):
         try:
@@ -216,8 +247,17 @@ def main(argv=None) -> int:
     w.add_argument("--compare", metavar="PATH", nargs="?", const=BASELINE_PATH)
     w.add_argument("--with-expectations", action="store_true", help="IDOR期待権限表あり(正解データのexpected_accessを入力として与える)")
     w.add_argument("--json", action="store_true")
+    d = sub.add_parser("defense", help="DEFENSEシグネチャ検知(ATTACK_PATTERNS)の固定評価")
+    d.add_argument("--runs", type=int, default=1)
+    d.add_argument("--save-baseline", metavar="PATH")
+    d.add_argument("--compare", metavar="PATH", nargs="?", const=DEFENSE_BASELINE_PATH)
+    d.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
-    report = benchmark_web_fuzz(args.runs, args.with_expectations)
+    if args.cmd == "defense":
+        report = benchmark_defense(args.runs)
+        args.with_expectations = False
+    else:
+        report = benchmark_web_fuzz(args.runs, args.with_expectations)
     if args.save_baseline:
         os.makedirs(os.path.dirname(os.path.abspath(args.save_baseline)), exist_ok=True)
         with open(args.save_baseline, "w", encoding="utf-8") as f:

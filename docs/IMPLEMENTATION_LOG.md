@@ -610,3 +610,7 @@ CLI `openapi FILE` / `scan fuzz --openapi ... --openapi-op ...`。副次修正: 
 ## 2026-10-22 P4.2(初期版): Python複数ファイル監査
 `tools/code_index.py`、`AuditAgent._run_project`(ディレクトリ入力のみ)、CLI `scan audit --target DIR`。coverageは送信した関数を含むファイルのみtested、
 未送信・省略・解析不能はskipped、上限や未解析があればpartial。LangGraph版・GUI・証拠保存・CVE照合・実LLM評価は未対応。
+
+## 2026-10-22 P2.1(DEFENSE detector固定モード)
+`tools/benchmark.py defense`、`testlab/benchmark/ground_truth_defense.json`(43判定)、基準値`testlab/baselines/defense_signatures.json`。
+検知器は無変更。`tools/test_benchmark.py`に`DefenseBenchmarkTest`を追加(selftest 16w)。

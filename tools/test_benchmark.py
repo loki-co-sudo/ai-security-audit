@@ -175,6 +175,43 @@ class ExpectationTest(unittest.TestCase):
             self.assertEqual([h["basis"] for h in hit], ["expectation"])
 
 
+class DefenseBenchmarkTest(unittest.TestCase):
+    def test_truth_is_well_formed_and_labelled_by_meaning(self):
+        doc = bm.load_truth(bm.DEFENSE_TRUTH_PATH)
+        from core.settings import ATTACK_PATTERNS
+        rules = {c["rule_id"] for c in doc["cases"]}
+        self.assertEqual(rules, set(ATTACK_PATTERNS))                              # 全シグネチャに脆弱例/正常例がある
+        for rule in rules:
+            exp = {c["expected"] for c in doc["cases"] if c["rule_id"] == rule}
+            self.assertEqual(exp, {"vulnerable", "not_vulnerable"}, rule)
+        self.assertTrue(all(c["line"] for c in doc["cases"]))
+
+    def test_run_matches_the_saved_baseline_and_is_deterministic(self):
+        with open(bm.DEFENSE_BASELINE_PATH, encoding="utf-8") as f:
+            saved = json.load(f)
+        cur = bm.benchmark_defense(runs=3)
+        self.assertTrue(cur["stable"])
+        self.assertEqual(bm.compare(saved, cur), {"per_rule": {}, "added_detections": [], "removed_detections": []},
+                         "シグネチャ検知の品質が基準値から変わりました。意図した変更なら差(TP/FP/FN)を記載して"
+                         "`python tools/benchmark.py defense --runs 3 --save-baseline testlab/baselines/defense_signatures.json`で更新")
+        self.assertEqual(cur["metrics"]["total"]["unexamined"], 0)
+
+    def test_baseline_documents_the_known_blind_spots_and_false_positives(self):
+        """基準値は現行シグネチャの限界(エンコード・大文字小文字の見逃し、部分一致の誤検知)を隠さない。"""
+        with open(bm.DEFENSE_BASELINE_PATH, encoding="utf-8") as f:
+            doc = json.load(f)
+        det = {tuple(d) for d in doc["detections"]}
+        m = doc["metrics"]["per_rule"]
+        self.assertNotIn(("SQL_INJECTION", "sqli-union-urlencoded"), det)          # URLエンコードの攻撃を見逃す
+        self.assertNotIn(("BRUTE_FORCE", "bf-failed-login-capital"), det)          # 大文字小文字の違いを見逃す
+        self.assertNotIn(("SSRF", "ssrf-urlencoded"), det)
+        self.assertIn(("SCANNER", "scanner-benign-zapier"), det)                   # 記事slugのzapを誤検知
+        self.assertIn(("CMS_PROBE", "cms-benign-article"), det)
+        self.assertGreater(m["SQL_INJECTION"]["fn"], 0)
+        self.assertEqual(doc["metrics"]["total"]["fp"] + doc["metrics"]["total"]["tp"], len(det))
+        self.assertEqual(doc["llm_usage"], "n/a (signature mode)")
+
+
 class CompareTest(unittest.TestCase):
     def test_compare_reports_changes_without_judging(self):
         with open(bm.BASELINE_PATH, encoding="utf-8") as f:

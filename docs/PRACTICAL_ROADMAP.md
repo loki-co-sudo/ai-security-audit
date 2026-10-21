@@ -160,7 +160,7 @@ FUZZのIDOR証拠も保存対応済み。FUZZの入力マスキングも実装�
 2026-10-22 進捗: WEB FUZZの**detector固定モード**のみ実装（`tools/benchmark.py`、`testlab/fixtures/web_benchmark.py`、
 `testlab/benchmark/ground_truth_web_fuzz.json`、基準値 `testlab/baselines/web_fuzz_detector.json`、`tools/test_benchmark.py`）。
 SQLi/XSS/SSTI/TRAVERSAL/IDORの脆弱例と罠（静的エラー文言・text/plain反射・偶然の49・公開/閲覧者別ページ）を含む。
-**P2.1全体は未完了**: 実LLM評価モード、AUDIT/ATTACK/DEFENSE、LLM使用量の取得、
+**P2.1全体は未完了**: 実LLM評価モード、AUDIT/ATTACKのベンチ、LLM使用量の取得、
 複数回実行での分散の報告（実LLM時）は未実装。基準値はdetectorの現状であり、実世界の精度の主張ではない。
 2026-10-22追記: 認証期限切れ(`/inbox`・bobのみログイン画面)と共通ログイン画面(`/gate`)の罠を追加。現行detectorは
 期限切れを正しく無視(TN)、共通ログイン画面はIDOR候補にして誤検出(FP)。IDORのFPは5→6、基準値を更新。
@@ -180,6 +180,13 @@ SQLi/XSS/SSTI/TRAVERSAL/IDORの脆弱例と罠（静的エラー文言・text/pl
 ベンチマーク`--with-expectations`(基準値`testlab/baselines/web_fuzz_detector_expectations.json`): IDOR TP2・FP0・TN8。
 **この数字は表を正解データ由来で与えた上限であり、利用者が正しく表を書いた場合の値。実世界の精度の主張ではない。**
 未実装: 表のGUI入力、同一origin認証確認URL、JSONフィールド識別、逆方向(B所有物をAで読む)。
+
+2026-10-22 追記(DEFENSEのdetector固定モード): `python tools/benchmark.py defense`(正解データ`testlab/benchmark/ground_truth_defense.json`・
+基準値`testlab/baselines/defense_signatures.json`)。`ATTACK_PATTERNS`の実コードパス(`MonitorAgent._pattern_match`)を、攻撃行と正常な罠の行
+(記事slug・静的ファイル名・表示ラベル等)へ当てる。ラベルは行の意味で付け、検知器の出力に合わせていない。基準値(43判定): TP13・FP5・FN5・TN20、
+precision/recallとも約0.72。**見えている限界**: URLエンコードされたSQLi/XSS/SSRFの見逃し、BRUTE_FORCEの大文字小文字(`Failed login`)の見逃し、
+`zap`/`nmap`/`wp-admin`/`$(…)`/末尾`--`の部分一致による誤検知。検出器はまだ変更していない(改善は別作業で基準値との比較で行う)。
+LLM分析の品質は対象外(MonitorAgentのLLM部分は未評価)。
 
 ### P2.2 IDOR・SSTI・XSS
 
