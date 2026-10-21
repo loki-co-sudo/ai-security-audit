@@ -22,6 +22,10 @@ from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 
 _MASK_TAG = "***REDACTED***"
 
+# マスキング規則の版。規則(正規表現・機密名リスト等)を変えたら上げる。証拠に記録され、
+# 「どの版のマスクで保存された証拠か」を後から判別するために使う(core/evidence_store.py)。
+MASKING_VERSION = "1"
+
 # 常にマスクするヘッダー名（大文字小文字を無視）
 SENSITIVE_HEADER_NAMES = frozenset({
     "cookie", "set-cookie", "authorization", "proxy-authorization",

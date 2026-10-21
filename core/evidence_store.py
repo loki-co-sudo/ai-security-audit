@@ -13,6 +13,7 @@ core/evidence_store.py — 所見に紐づく証拠の保存 (P1.2)
 """
 
 from __future__ import annotations
+import hashlib
 import json
 import os
 import re
@@ -40,6 +41,11 @@ class HttpEvidence:
     baseline_excerpt: str     # 比較用の通常応答（マスク済み・切り詰め済み・任意）
     timestamp: str
     omitted_reason: str = ""  # 保存を省略した場合の理由（サイズ超過等）
+    # 由来情報(自律化 設計 §3.7)。全種別共通。保存時に埋まる。
+    action_id: str = ""        # この証拠を生んだAction(自律経路)。無ければ空
+    masking_version: str = ""  # 保存時のマスキング規則の版(core.redaction.MASKING_VERSION)
+    truncated: bool = False    # 本文/抜粋を切り詰めた・省略したか
+    content_sha256: str = ""   # 保存するマスク済みデータ(本項目を除く)のsha256。改ざん検出の補助
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -56,6 +62,10 @@ class CodeEvidence:
     timestamp: str
     omitted_reason: str = ""
     kind: str = "code"
+    action_id: str = ""
+    masking_version: str = ""
+    truncated: bool = False
+    content_sha256: str = ""
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -71,6 +81,10 @@ class LogEvidence:
     timestamp: str
     omitted_reason: str = ""
     kind: str = "log"
+    action_id: str = ""
+    masking_version: str = ""
+    truncated: bool = False
+    content_sha256: str = ""
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -85,9 +99,28 @@ class ObservationEvidence:
     timestamp: str
     omitted_reason: str = ""
     kind: str = "observation"
+    action_id: str = ""
+    masking_version: str = ""
+    truncated: bool = False
+    content_sha256: str = ""
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+
+_HASH_PLACEHOLDER = "0" * 64
+
+
+def content_digest(data: dict) -> str:
+    """証拠の保存内容(content_sha256自身を除く)の正規化JSONのsha256。
+
+    保存するのは**マスク済み**データなので、ハッシュ対象も常にマスク済み。改ざん・差し替えの
+    検出の補助であり、匿名化でも、証拠が正しいことの保証でもない(書換え側がハッシュも
+    作り直せる)。
+    """
+    body = {k: v for k, v in data.items() if k != "content_sha256"}
+    canon = json.dumps(body, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(canon.encode("utf-8")).hexdigest()
 
 
 def relativize_path(path: str, base: str | None = None) -> str:
@@ -148,7 +181,8 @@ class EvidenceStore:
     def save_http_evidence(self, *, method: str, url: str, status: int | None,
                            headers: dict | None = None, body: str = "",
                            baseline_body: str = "",
-                           known_secrets: set[str] | None = None) -> str | None:
+                           known_secrets: set[str] | None = None,
+                           action_id: str = "") -> str | None:
         """HTTP証拠をマスクした上で保存し evidence_id を返す。
 
         件数上限・総容量上限に達している場合はNoneを返す（呼び出し側は
@@ -169,12 +203,16 @@ class EvidenceStore:
             headers=masked_headers, body_excerpt=masked_body,
             baseline_excerpt=masked_baseline,
             timestamp=time.strftime("%Y-%m-%dT%H:%M:%S"),
+            action_id=action_id,
+            truncated=len(body or "") > self.max_item_bytes
+            or len(baseline_body or "") > self.max_item_bytes,
         )
         return self._persist(ev, shrink_fields=("body_excerpt", "baseline_excerpt"))
 
     def save_code_evidence(self, *, path: str, line_start: int, line_end: int,
                            excerpt: str, source: str,
-                           known_secrets: set[str] | None = None) -> str | None:
+                           known_secrets: set[str] | None = None,
+                           action_id: str = "") -> str | None:
         """コード証拠（相対パス・行範囲・マスク済み抜粋）を保存し evidence_id を返す。
 
         `source`には証拠の由来（"ast_prescan"等の決定的観測）を渡す。LLMが報告した
@@ -190,11 +228,13 @@ class EvidenceStore:
             line_start=line_start, line_end=line_end,
             excerpt=redaction.mask_source(excerpt, known_secrets, max_len=self.max_item_bytes),
             source=source, timestamp=time.strftime("%Y-%m-%dT%H:%M:%S"),
+            action_id=action_id, truncated=len(excerpt or "") > self.max_item_bytes,
         )
         return self._persist(ev, shrink_fields=("excerpt",))
 
     def save_log_evidence(self, *, source: str, line: str, patterns: list[str],
-                          known_secrets: set[str] | None = None) -> str | None:
+                          known_secrets: set[str] | None = None,
+                          action_id: str = "") -> str | None:
         """ログ証拠（入力元・マスク済み行・一致パターン・観測時刻）を保存し evidence_id を返す。"""
         if self._count >= self.max_items:
             self._omit(f"件数上限({self.max_items}件)に達したため証拠を保存しなかった")
@@ -205,11 +245,13 @@ class EvidenceStore:
             line=redaction.mask_log_line(line, known_secrets, max_len=self.max_item_bytes),
             patterns=list(patterns), observed_at=time.strftime("%Y-%m-%dT%H:%M:%S"),
             timestamp=time.strftime("%Y-%m-%dT%H:%M:%S"),
+            action_id=action_id, truncated=len(line or "") > self.max_item_bytes,
         )
         return self._persist(ev, shrink_fields=("line",))
 
     def save_observation_evidence(self, *, category: str, target_ref: str, detail: str,
-                                  known_secrets: set[str] | None = None) -> str | None:
+                                  known_secrets: set[str] | None = None,
+                                  action_id: str = "") -> str | None:
         """偵察で得た決定的観測（ポート/バナー、検出パス、応答ヘッダー等）を保存し evidence_id を返す。"""
         if self._count >= self.max_items:
             self._omit(f"件数上限({self.max_items}件)に達したため証拠を保存しなかった")
@@ -220,19 +262,25 @@ class EvidenceStore:
             target_ref=redaction.mask_log_line(target_ref, known_secrets, max_len=1000),
             detail=redaction.mask_log_line(detail, known_secrets, max_len=self.max_item_bytes),
             timestamp=time.strftime("%Y-%m-%dT%H:%M:%S"),
+            action_id=action_id,
+            truncated=len(detail or "") > self.max_item_bytes or len(target_ref or "") > 1000,
         )
         return self._persist(ev, shrink_fields=("detail",))
 
     def _persist(self, ev, *, shrink_fields: tuple[str, ...]) -> str | None:
         """サイズ検査→総容量検査→書き込みの共通処理。成功時evidence_id、省略/失敗時None。"""
+        ev.masking_version = redaction.MASKING_VERSION
+        ev.content_sha256 = _HASH_PLACEHOLDER   # 固定長。サイズ判定を最終形と一致させる
         payload = json.dumps(ev.to_dict(), ensure_ascii=False)
         size = len(payload.encode("utf-8"))
         if size > self.max_item_bytes:
             for fld in shrink_fields:
                 setattr(ev, fld, "")
             ev.omitted_reason = f"1件あたりの上限({self.max_item_bytes}bytes)超過のため本文を省略"
-            payload = json.dumps(ev.to_dict(), ensure_ascii=False)
-            size = len(payload.encode("utf-8"))
+            ev.truncated = True
+        ev.content_sha256 = content_digest(ev.to_dict())
+        payload = json.dumps(ev.to_dict(), ensure_ascii=False)
+        size = len(payload.encode("utf-8"))
         if self._total_bytes + size > self.max_total_bytes:
             self._omit(f"総容量上限({self.max_total_bytes}bytes)に達したため証拠を保存しなかった")
             return None
@@ -248,6 +296,23 @@ class EvidenceStore:
         self._count += 1
         self._total_bytes += size
         return eid
+
+    def verify(self, evidence_id: str) -> tuple[bool, str]:
+        """保存済み証拠が記録時のハッシュと一致するか検査する。(ok, 理由コード)を返す。
+
+        理由: ok / missing(存在しない・読めない・不正ID) / no_hash(由来情報導入前の旧証拠) /
+        hash_mismatch(保存後に内容が変わった)。切り詰め済み(truncated)の証拠は、ハッシュが
+        一致しても「元の全文」ではないため、同じ根拠での再検証には使えないことに注意。
+        """
+        data = self.load(evidence_id)
+        if data is None:
+            return False, "missing"
+        recorded = data.get("content_sha256", "")
+        if not recorded:
+            return False, "no_hash"
+        if content_digest(data) != recorded:
+            return False, "hash_mismatch"
+        return True, "ok"
 
     def load(self, evidence_id: str) -> dict | None:
         """保存済み証拠を読み込む。存在しない・壊れている場合はNone。"""

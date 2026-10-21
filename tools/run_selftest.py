@@ -3009,6 +3009,18 @@ def test_fuzz_characterization():
         _ng("Fuzz characterization", str(result.errors + result.failures))
 
 
+def test_evidence_provenance():
+    _section("16o. EVIDENCE — 最小由来情報とverify()(Phase A 順3b)")
+    import unittest
+    from tools.test_evidence_provenance import EvidenceProvenanceTest
+    result = unittest.TestResult()
+    unittest.defaultTestLoader.loadTestsFromTestCase(EvidenceProvenanceTest).run(result)
+    if result.wasSuccessful():
+        _ok("Evidence provenance", f"{result.testsRun} tests: sha256/action_id/masking_version/truncated/verify")
+    else:
+        _ng("Evidence provenance", str(result.errors + result.failures))
+
+
 def test_audit_evidence():
     _section("16l. AGENT — AuditAgent 証拠保存・入力マスキング(P1.2)")
     import unittest
@@ -3111,6 +3123,7 @@ def main():
     test_structured_reports()
     test_run_journal()
     test_fuzz_characterization()
+    test_evidence_provenance()
     test_audit_evidence()
     test_defense_evidence()
     test_flag_routes()
