@@ -18,6 +18,7 @@ import argparse
 import hashlib
 import json
 import os
+import random
 import subprocess
 import sys
 import time
@@ -113,6 +114,7 @@ def run_web_fuzz_detector(max_requests: int = 3000) -> dict:
         f = WebFuzzer(profile="aggressive", max_pages=40, max_requests=max_requests, target=srv.base_url,
                       auth={"cookie": "sid=" + TOKENS["alice"]}, auth_b={"cookie": "sid=" + TOKENS["bob"]},
                       tls_verify=False, tls_ca_bundle="")
+        f._rng = random.Random(20261022)    # SSTI追加確認の式を固定(同じ入力で同じ結果)
         f.authenticate()
         f.authenticate_b()
         points = f.crawl(srv.base_url)["injection_points"]

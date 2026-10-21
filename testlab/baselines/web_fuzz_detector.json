@@ -1,5 +1,5 @@
 {
- "created_at": "2026-10-22T01:39:10",
+ "created_at": "2026-10-22T01:49:14",
  "detections": [
   [
    "IDOR",
@@ -22,16 +22,8 @@
    "GET /greet name"
   ],
   [
-   "SSTI",
-   "GET /results q"
-  ],
-  [
    "TRAVERSAL",
    "GET /download file"
-  ],
-  [
-   "XSS",
-   "GET /raw q"
   ],
   [
    "XSS",
@@ -39,19 +31,19 @@
   ]
  ],
  "elapsed_sec": [
-  2.288,
-  2.168,
-  2.259
+  2.258,
+  2.328,
+  2.155
  ],
- "fixture_sha256": "3f38d500353d09a230f5ba18e94ccf3a92fae59bbebd0090a0f1a4cb146fffc1",
+ "fixture_sha256": "29d8bfd484c2cf47f8384344c372fc7fbd7ed1e2c082ad5001db190c827856b9",
  "git": {
-  "commit": "8f7a49082532456d54a4cc16c33ab101b02ab9d3",
+  "commit": "b7cc7d54921d62cf186cad76101b43d6b84fef9c",
   "dirty": true
  },
  "http_requests": [
-  333,
-  333,
-  333
+  340,
+  340,
+  340
  ],
  "kind": "web_fuzz_detector",
  "llm_usage": "n/a (detector mode)",
@@ -89,10 +81,10 @@
     "cases": 3,
     "fn": 0,
     "fn_unexamined": 0,
-    "fp": 1,
-    "precision": 0.5,
+    "fp": 0,
+    "precision": 1.0,
     "recall": 1.0,
-    "tn": 1,
+    "tn": 2,
     "tp": 1,
     "unexamined": 0,
     "unexamined_negative": 0,
@@ -117,10 +109,10 @@
     "cases": 4,
     "fn": 0,
     "fn_unexamined": 0,
-    "fp": 1,
-    "precision": 0.5,
+    "fp": 0,
+    "precision": 1.0,
     "recall": 1.0,
-    "tn": 2,
+    "tn": 3,
     "tp": 1,
     "unexamined": 0,
     "unexamined_negative": 0,
@@ -132,10 +124,10 @@
    "cases": 23,
    "fn": 0,
    "fn_unexamined": 0,
-   "fp": 3,
-   "precision": 0.6667,
+   "fp": 1,
+   "precision": 0.8571,
    "recall": 1.0,
-   "tn": 14,
+   "tn": 16,
    "tp": 6,
    "unexamined": 0,
    "unexamined_negative": 0,

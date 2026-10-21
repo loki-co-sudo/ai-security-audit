@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 import html
+import re
 import threading
 from collections import Counter
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -73,8 +74,8 @@ class BenchmarkServer:
                                        "SQL syntax'. Item " + html.escape(pid) + "</body></html>")
                 # ── SSTI ──
                 if p == "/greet":             # 脆弱: {{7*7}} を評価
-                    shown = name.replace("{{7*7}}", "49").replace("${7*7}", "49") \
-                                .replace("#{7*7}", "49").replace("<%= 7*7 %>", "49")
+                    shown = re.sub(r"(?:\{\{|\$\{|#\{)(\d+)\*(\d+)\}\}?|<%= (\d+)\*(\d+) %>",
+                                   lambda m: str(int(m.group(1) or m.group(3)) * int(m.group(2) or m.group(4))), name)
                     return self._reply("<html><body>Hello " + html.escape(shown) + "</body></html>")
                 if p == "/results":           # 罠: 入力長×7件と表示するだけ。"{{7*7}}"(7文字)で偶然"49"になる
                     return self._reply(f"<html><body>{len(q) * 7} results</body></html>")

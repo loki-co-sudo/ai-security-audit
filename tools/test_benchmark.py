@@ -97,14 +97,17 @@ class RealRunTest(unittest.TestCase):
                          "`python tools/benchmark.py web-fuzz --runs 3 --save-baseline testlab/baselines/web_fuzz_detector.json`で更新")
         self.assertEqual(saved["llm_usage"], "n/a (detector mode)")
 
-    def test_known_weaknesses_are_visible_in_the_baseline(self):
-        """基準値は「現行の検出が誤りやすい罠」でFPが出ることを示している(改善の余地の根拠)。"""
+    def test_baseline_records_remaining_weakness_and_kept_true_positives(self):
+        """P2.2後の基準値: 脆弱例の検出(TP)は維持され、残る誤検出は期待権限が要る閲覧者別ページのみ。"""
         with open(bm.BASELINE_PATH, encoding="utf-8") as f:
-            m = json.load(f)["metrics"]["per_rule"]
-        self.assertGreater(m["IDOR"]["fp"], 0)          # 閲覧者別ページ(/order)は期待権限なしでは区別できずIDOR候補に残る
-        self.assertGreater(m["SSTI"]["fp"], 0)          # 偶然の"49"
-        self.assertGreater(m["XSS"]["fp"], 0)           # text/plainの反射
-        self.assertEqual(m["SQLI"]["fp"] + m["TRAVERSAL"]["fp"], 0)   # 静的な罠は正しく無視される
+            doc = json.load(f)
+        m = doc["metrics"]["per_rule"]
+        self.assertEqual(m["IDOR"]["fp"], 1)            # /order(期待権限表が未実装のため区別できない)
+        self.assertIn(["IDOR", "GET /order id"], doc["detections"])
+        for rule in ("SQLI", "XSS", "SSTI", "TRAVERSAL", "IDOR"):
+            self.assertGreaterEqual(m[rule]["tp"], 1, rule)
+            self.assertEqual(m[rule]["fn"], 0, rule)    # 取りこぼしが増えていない
+        self.assertEqual(m["SSTI"]["fp"] + m["XSS"]["fp"] + m["SQLI"]["fp"] + m["TRAVERSAL"]["fp"], 0)
 
     def test_tiny_budget_surfaces_unexamined_cases_as_misses(self):
         truth = bm.load_truth()
@@ -125,11 +128,11 @@ class CompareTest(unittest.TestCase):
         with open(bm.BASELINE_PATH, encoding="utf-8") as f:
             saved = json.load(f)
         cur = copy.deepcopy(saved)
-        cur["detections"].remove(["SSTI", "GET /results q"])
-        cur["metrics"]["per_rule"]["SSTI"].update(fp=0, tn=2, precision=1.0)
+        cur["detections"].remove(["IDOR", "GET /order id"])
+        cur["metrics"]["per_rule"]["IDOR"].update(fp=0, tn=8, precision=1.0)
         d = bm.compare(saved, cur)
-        self.assertEqual(d["removed_detections"], [["SSTI", "GET /results q"]])
-        self.assertEqual(d["per_rule"]["SSTI"]["fp"], [1, 0])
+        self.assertEqual(d["removed_detections"], [["IDOR", "GET /order id"]])
+        self.assertEqual(d["per_rule"]["IDOR"]["fp"], [1, 0])
         self.assertEqual(d["added_detections"], [])
 
 

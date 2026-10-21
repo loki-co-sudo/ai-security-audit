@@ -126,6 +126,7 @@ class WebFuzzer:
         self.session.verify = verify_value
         # 第2セッション（IDOR比較用）。auth_b 未設定なら None のまま
         # （_detect_idor は None なら即座に空リストを返す＝既存挙動への影響なし）。
+        self._rng = random.Random()     # SSTI追加確認の式選択。試験・ベンチマークではseedを固定できる
         self.session_b = None
         if self.auth_b:
             self.session_b = requests.Session()
@@ -540,6 +541,8 @@ class WebFuzzer:
                     continue
                 attempted += 1
                 ev = self._detect(category, send_payload, resp, base_body, base_len)
+                if ev and category == "SSTI":
+                    ev = self._confirm_ssti(url, method, base_fields, param, send_payload, base_body, ev)
                 if ev:
                     out.append({
                         "url": url, "method": method, "param": param,
@@ -567,6 +570,24 @@ class WebFuzzer:
                 status, reason = self._cutoff(attempted)
                 self._record_unit(point, category, planned, attempted, errors, status, reason)
         return out
+
+    def _confirm_ssti(self, url, method, base_fields, param, payload, base_body, ev):
+        """固定の49一致だけでは偶然(件数表示等)と区別できないため、別の算術式でも評価されるか追加確認する。
+
+        確認できない・確認できなかった場合は None(兆候にしない)。追加送信は予算に含まれる。
+        """
+        if "7*7" not in payload:
+            return None
+        a, b = self._rng.sample(range(11, 98), 2)
+        want = str(a * b)
+        if want in base_body:
+            return None
+        fields = dict(base_fields)
+        fields[param] = payload.replace("7*7", f"{a}*{b}")
+        resp = self._send(url, method, fields)
+        if resp is None or want not in resp.text:
+            return None
+        return (ev[0], ev[1] + f" / 別式 {a}*{b}={want} も評価された")
 
     def _send(self, url, method, fields):
         if method == "POST":
@@ -672,9 +693,13 @@ class WebFuzzer:
         elif category == "XSS":
             # マーカーがエスケープされず原文のまま反射しているか
             if _XSS_MARKER in body:
+                ctype = (resp.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+                if ctype and ctype not in ("text/html", "application/xhtml+xml"):
+                    return None     # HTML以外の反射はブラウザで描画・実行されない
                 snippet = _context(body, _XSS_MARKER)
                 if _html.escape(f"alert('{_XSS_MARKER}')") not in body or "<svg" in snippet.lower():
-                    return ("HIGH", f"ペイロードが未エスケープで反射: …{snippet}…")
+                    return ("HIGH", f"ペイロードが未エスケープで反射観測(content-type={ctype or '不明'}、"
+                                    f"ブラウザでの実行は未確認): …{snippet}…")
 
         elif category == "TRAVERSAL":
             if _TRAVERSAL_SIG.search(body) and not _TRAVERSAL_SIG.search(base_body):

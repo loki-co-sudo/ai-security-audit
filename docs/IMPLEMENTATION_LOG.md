@@ -553,3 +553,8 @@ ATTACK MODE に、認可された偵察レスポンスからCTF形式のフラ�
 公開リソースなら除外、を追加(候補1件につき最大+1リクエスト)。ベンチマーク: IDOR TP2→2、FP6→1、TN2→7。
 残FPは閲覧者別ページ(/order)で期待権限表が必要(未実装)。selftestのIDORモックは認証必須に修正(公開扱いで除外されるため)。
 検証: `SELFTEST_NON_LLM_ONLY=1` 164 PASS / 0 FAIL / 5 SKIP。SSTI・XSS改善と期待権限入力は未着手。
+
+## 2026-10-22 P2.2(SSTI/XSS)
+SSTI: 49出現後に別の算術式でも評価されるか追加確認(`WebFuzzer._confirm_ssti`、乱数は`_rng`でseed固定可、予算に含む)。
+XSS: HTML以外のcontent-typeの反射は兆候にしない。文言は「反射観測…ブラウザでの実行は未確認」。
+ベンチマーク: SSTI/XSSともFP1→0、TP維持。検証はコミット時のselftest結果を参照(SELFTEST_NON_LLM_ONLY=1)。
