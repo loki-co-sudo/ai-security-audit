@@ -3078,6 +3078,18 @@ def test_fuzz_autonomy():
         _ng("Fuzz autonomy path", str(result.errors + result.failures))
 
 
+def test_run_store():
+    _section("16t. AUTONOMY — RunStore(実行状態のSQLite永続化・Phase B1)")
+    import unittest
+    from tools.test_run_store import RunStoreTest
+    result = unittest.TestResult()
+    unittest.defaultTestLoader.loadTestsFromTestCase(RunStoreTest).run(result)
+    if result.wasSuccessful():
+        _ok("RunStore", f"{result.testsRun} tests: 計画/タスク状態/出力の再読込/原子性/承認の一意性/不明分の消費/WAL")
+    else:
+        _ng("RunStore", str(result.errors + result.failures))
+
+
 def test_audit_evidence():
     _section("16l. AGENT — AuditAgent 証拠保存・入力マスキング(P1.2)")
     import unittest
@@ -3185,6 +3197,7 @@ def main():
     test_fuzz_execution_record()
     test_llm_budget_gate()
     test_fuzz_autonomy()
+    test_run_store()
     test_audit_evidence()
     test_defense_evidence()
     test_flag_routes()

@@ -85,6 +85,7 @@ AI-Security-tool/
 │   └── autonomy/
 │       ├── journal.py           # 自律化Phase A1: 追記式JSONLのRun Journal（seq/prev_hash連鎖・部分行回復・fail closed・単一writer）。設計は docs/AUTONOMOUS_*.md
 │       ├── runner.py            # ScriptedRunner: 固定計画をGate経由で実行・write-ahead開始記録・close_run(終了処理は通常Actionから独立)
+│       ├── run_store.py         # 実行状態のSQLite(WAL)永続化(Phase B1): 計画・タスク状態・マスク済み出力・消費済み承認。設計は docs/AUTONOMOUS_PHASE_B_DESIGN.md
 │       ├── actions.py           # CapabilitySpec/Action/ApprovalGrant等の型(mutating=T3のみ・秘密値を引数に取らない)
 │       ├── policy_gate.py       # 実行前の決定論Gate(スコープ・副作用クラス・予算・重複・承認)。判断はジャーナルへ先に記録しfail closed
 │       ├── budget.py            # Run予算(リクエストはHttpTransportの計数を参照・時間・LLMは呼出前に予約)
@@ -115,6 +116,7 @@ AI-Security-tool/
 │   ├── test_fuzz_execution_record.py # WebFuzzer.fuzz_log(検査単位の実行記録)の固定試験（selftest 16qに統合）
 │   ├── test_llm_budget_gate.py  # LLM呼出前の予算ゲート(BaseAgent._llm_gate/LLMClient.max_tokens)の固定試験（selftest 16rに統合）
 │   ├── test_fuzz_autonomy.py    # 新経路の現行経路との等価性・安全・予算/STOP・監査失敗の全位置・unknown_outcome（selftest 16sに統合）
+│   ├── test_run_store.py        # RunStoreの固定試験（selftest 16tに統合）
 │   ├── test_policy_gate.py      # 上記autonomy型・Gate・予算・タスク状態の固定試験（selftest 16pに統合）
 │   ├── test_evidence_provenance.py # 証拠の由来情報(content_sha256/action_id/masking_version/truncated)とverify()の固定試験（selftest 16oに統合）
 │   ├── run_selftest.py          # 全機能セルフテスト（GUI以外をEventBus経由でE2E検証）
