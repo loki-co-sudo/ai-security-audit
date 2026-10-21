@@ -3134,6 +3134,20 @@ def test_benchmark():
         _ng("Benchmark", str(result.errors + result.failures))
 
 
+def test_findings_ledger():
+    _section("16x. LEDGER — 所見台帳・差分・抑制(P3.2)")
+    import unittest
+    from tools import test_findings_ledger as t
+    result = unittest.TestResult()
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
+                               for c in (t.IdentityTest, t.DiffTest, t.StatusSuppressionTest, t.FileIntegrityTest))
+    suite.run(result)
+    if result.wasSuccessful():
+        _ok("FindingsLedger", f"{result.testsRun} tests: 差分状態/未検証の扱い/抑制期限/案件分離/破損・重複・同時writer")
+    else:
+        _ng("FindingsLedger", str(result.errors + result.failures))
+
+
 def test_audit_evidence():
     _section("16l. AGENT — AuditAgent 証拠保存・入力マスキング(P1.2)")
     import unittest
@@ -3244,6 +3258,7 @@ def main():
     test_run_store()
     test_fuzz_resume()
     test_benchmark()
+    test_findings_ledger()
     test_cli()
     test_audit_evidence()
     test_defense_evidence()

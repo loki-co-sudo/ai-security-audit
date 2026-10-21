@@ -327,6 +327,44 @@ class CLITest(unittest.TestCase):
             self.assertIn(data["state"], ("completed", "partial"), data)
             self.assertIn("errors", data)
 
+    def ledger_args(self, *a):
+        return [*a, "--engagement-id", "lab", "--ledger-root", str(self.base / "ledger")]
+
+    def test_ledger_records_scans_and_diff_status_suppress_flow(self):
+        with FixtureServer(post_form=False) as srv:
+            p, first = self.call(self.scan(srv, "--engagement-id", "lab", "--ledger-root", str(self.base / "ledger")))
+            self.assertEqual((p.returncode, first["engagement_id"]), (0, "lab"), first)
+            self.assertNotIn("ledger_error", first)
+            p, second = self.call(self.scan(srv, "--engagement-id", "lab", "--ledger-root", str(self.base / "ledger")))
+            a, b = first["scan_id"], second["scan_id"]
+            p, d = self.call(["diff", "--before", a, "--after", b, "--engagement-id", "lab",
+                              "--ledger-root", str(self.base / "ledger"), "--fail-on", "high"])
+            self.assertEqual(d["state"], "completed", d)
+            self.assertTrue(d["items"])
+            self.assertEqual(p.returncode, 0 if not d["findings"] else 1)
+            fid = d["items"][0]["finding_id"]
+            p, m = self.call(["mark", fid, "fixed", "--reason", "修正済み", *self.ledger_args()])
+            self.assertEqual((p.returncode, m["status"]), (0, "fixed"), m)
+            p, bad = self.call(["mark", fid, "fixed", "--reason", " ", *self.ledger_args()])
+            self.assertEqual(p.returncode, 2)
+            p, bad = self.call(["mark", "f_0123456789abcdef", "fixed", "--reason", "x", *self.ledger_args()])
+            self.assertEqual(p.returncode, 2)
+            p, s_ = self.call(["suppress", fid, "--reason", "調整中", "--until", "2999-01-01T00:00:00+00:00",
+                               *self.ledger_args()])
+            self.assertEqual(p.returncode, 0, s_)
+            p, f = self.call(["findings", *self.ledger_args()])
+            self.assertTrue(all(x["finding_id"] != fid for x in f["findings"]))
+            self.assertEqual(f["suppressed_count"], 1)
+            p, f = self.call(["findings", "--include-suppressed", *self.ledger_args()])
+            self.assertTrue(any(x["finding_id"] == fid and x["suppressed"] for x in f["findings"]))
+            p, bad = self.call(["diff", "--before", a, "--after", "nope", *self.ledger_args()])
+            self.assertEqual((p.returncode, bad["state"]), (2, "failed"))
+            p, bad = self.call(["findings", "--engagement-id", "../x", "--ledger-root", str(self.base / "ledger")])
+            self.assertEqual(p.returncode, 2)
+            p, bad = self.call(self.scan(srv, "--engagement-id", "a", "--engagement",
+                                         self.engagement_file({"engagement_id": "b"}, "mismatch.json")))
+            self.assertEqual(p.returncode, 2)
+
     def test_unknown_retry_and_extra_budget(self):
         with FixtureServer(post_form=False) as srv:
             p = subprocess.run(self.command(self.scan(srv)), cwd=self.base,

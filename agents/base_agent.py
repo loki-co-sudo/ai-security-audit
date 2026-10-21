@@ -15,6 +15,7 @@ import core.config as config
 from core.llm_client import LLMClient
 from core.model_router import build_fast_client, fast_signature, current_effort
 from core.scope_guard import in_scope
+from core.settings import DETECTOR_VERSIONS
 from core.findings import (
     ScanState, VerificationState, Finding, CoverageItem, ScanResult, new_scan_result, new_id,
 )
@@ -232,6 +233,7 @@ class BaseAgent(ABC):
         sr.findings = list(findings or [])
         sr.coverage = list(coverage or [])
         sr.model = getattr(self.llm, "model", "") or ""
+        sr.detector_version = DETECTOR_VERSIONS.get(sr.mode, "")
         self._last_scan_result = sr
         self.bus.result(sr.to_dict())
         # completed以外（partial/failed/cancelled）は成功扱いにしない。

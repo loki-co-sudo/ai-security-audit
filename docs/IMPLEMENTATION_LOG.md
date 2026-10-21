@@ -590,3 +590,9 @@ MockLLMの`complete()`は`{}`を返すため、所見(Finding)化はこの試験
 `allowed_targets`/`scope_mode=block`はプロセス内の`config._cfg`だけを一時的に上書きして終了時に戻す(config.jsonへ保存しない)。
 除外は許可より優先し、範囲外・除外は送信前に終了。試験: 範囲外/除外で0リクエスト、--allow必須、許可内で完走。
 実LLM・実環境での確認は未実施。`core/scan_runner.py`への共通化・attackの`--targets-file`は未実装。
+
+## 2026-10-22 P3.2(中核): 所見台帳
+`core/findings_ledger.py`(追記式JSONL・排他ロック・差分NEW/PERSISTING/NOT_OBSERVED/REGRESSED/UNVERIFIED・対応status・期限付き抑制)、
+`core.settings.DETECTOR_VERSIONS`と`BaseAgent._finalize`でScanResult.detector_versionを設定(従来は常に空)。
+CLI: `--engagement-id`で自動記録、`diff`/`mark`/`suppress`/`findings`。試験: `tools/test_findings_ledger.py`(selftest 16x)、`tools/test_cli.py`。
+設計判断と制約の詳細は docs/PRACTICAL_ROADMAP.md §P3.2。レポート側の抑制フィルター・差分表示は未実装。

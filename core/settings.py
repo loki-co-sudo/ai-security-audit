@@ -55,6 +55,9 @@ EFFORT_PRESETS = {
 APP_TITLE   = "AI Security Audit System  ·  Autonomous Penetration Testing & Defense v2.6"
 APP_VERSION = "2.6.0"
 
+# 検出ロジックを変えたら該当モードの版を上げる。所見台帳(P3.2)は版が異なる再検査を「不在の根拠」にしない。
+DETECTOR_VERSIONS = {"WEB FUZZ": "webfuzz-2", "AUDIT": "audit-1", "ATTACK": "attack-1", "DEFENSE": "defense-1"}
+
 # ─── カラーテーマ ───────────────────────────────────────────
 BG_ROOT    = "#070C14"
 BG_PANEL   = "#0B1220"

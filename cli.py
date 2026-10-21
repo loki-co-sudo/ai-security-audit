@@ -22,6 +22,7 @@ from agents.recon_agent import ReconAgent
 from agents.fuzz_capabilities import AutonomousFuzzAgent, auth_action_args, load_profile
 from core import config, event_bus as ev, redaction
 from core.engagement import EngagementError, parse_idor_expectations
+from core.findings_ledger import DEFAULT_ROOT as LEDGER_ROOT, STATUSES as LEDGER_STATUSES, Ledger, LedgerError
 from core.autonomy.actions import new_grant
 from core.autonomy.journal import JOURNAL_ROOT, replay, validate_run_id
 from core.autonomy.run_store import STATE_FILE
@@ -73,8 +74,31 @@ def parser():
         sub.add_argument("--out", help="結果JSONの追加保存先")
         sub.add_argument("--fail-on", choices=["none", *SEVERITIES], default="none")
         sub.add_argument("--effort", choices=("speed", "balanced", "quality"))
+    for sub in (fuzz, audit, defense, attack):
+        sub.add_argument("--engagement-id", help="指定すると完了した結果を所見台帳(reports/engagements/<id>)へ記録する")
+        sub.add_argument("--ledger-root", default=LEDGER_ROOT, help=argparse.SUPPRESS)
     resume = commands.add_parser("resume")
     status = commands.add_parser("status")
+    diff = commands.add_parser("diff", help="台帳内の2つのscanを比較する")
+    diff.add_argument("--before", required=True)
+    diff.add_argument("--after", required=True)
+    diff.add_argument("--include-suppressed", action="store_true")
+    mark = commands.add_parser("mark", help="所見の対応statusを記録する(open/fixed/accepted-risk)")
+    mark.add_argument("finding_id")
+    mark.add_argument("state", choices=LEDGER_STATUSES)
+    mark.add_argument("--reason", required=True)
+    suppress = commands.add_parser("suppress", help="所見を期限付きで抑制する(理由・期限必須)")
+    suppress.add_argument("finding_id")
+    suppress.add_argument("--reason", required=True)
+    suppress.add_argument("--until", required=True, help="期限(ISO 8601。例: 2026-12-31T00:00:00+09:00)")
+    findings_cmd = commands.add_parser("findings", help="台帳の所見一覧")
+    findings_cmd.add_argument("--include-suppressed", action="store_true")
+    for sub in (diff, mark, suppress, findings_cmd):
+        sub.add_argument("--engagement-id", required=True)
+        sub.add_argument("--ledger-root", default=LEDGER_ROOT, help=argparse.SUPPRESS)
+    for sub in (diff, findings_cmd):
+        sub.add_argument("--fail-on", choices=["none", *SEVERITIES], default="none")
+        sub.add_argument("--out", help="結果JSONの追加保存先")
     for sub in (fuzz, resume, status):
         sub.add_argument("--allow", action="append", required=True, help="許可host/IP/CIDR。複数は繰り返す")
         sub.add_argument("--journal-root", default=JOURNAL_ROOT)
@@ -288,6 +312,44 @@ class ConsoleBus(ev.EventBus):
             print(masked(str(payload), self.secrets), file=sys.stderr, flush=True)
 
 
+def ledger_command(args):
+    """台帳の参照・更新コマンド。結果はJSON、問題はCLIError(failed/exit 2)。"""
+    try:
+        led = Ledger(args.engagement_id, args.ledger_root)
+        if args.command == "mark":
+            led.set_status(args.finding_id, args.state, args.reason)
+            return {"state": "completed", "finding_id": args.finding_id, "status": args.state, "errors": [], "findings": []}
+        if args.command == "suppress":
+            led.suppress(args.finding_id, args.reason, args.until)
+            return {"state": "completed", "finding_id": args.finding_id, "suppressed_until": args.until,
+                    "errors": [], "findings": []}
+        if args.command == "findings":
+            res = led.findings(args.include_suppressed)
+            return {"state": "completed", "errors": [], **res}
+        res = led.diff(args.before, args.after, args.include_suppressed)
+        # 閾値判定の対象は新規・再発のみ(不在や未検証は所見ではない)。抑制分は除外済み。
+        res["findings"] = [i for i in res["items"] if i["state"] in ("NEW", "REGRESSED")]
+        return {"state": "completed", "errors": [], **res}
+    except LedgerError as e:
+        raise CLIError(str(e))
+
+
+def record_ledger(args, engagement, result):
+    """engagement_idが指定された場合だけ、完了した各scan結果を所見台帳へ追記する。台帳の失敗はscan結果を隠さない。"""
+    eid = getattr(args, "engagement_id", None) or (engagement or {}).get("engagement_id")
+    if not eid or args.command != "scan":
+        return
+    result["engagement_id"] = eid
+    try:
+        led = Ledger(eid, args.ledger_root)
+        for r in (result["results"] if result.get("batch") else [result]):
+            if r.get("scan_id"):
+                led.record_scan(r)
+    except LedgerError as e:
+        result.setdefault("errors", []).append(f"所見台帳への記録に失敗しました: {e}")
+        result["ledger_error"] = True
+
+
 def run_attack(args, on_agent, was_interrupted):
     """ATTACK MODE(偵察のみ)を1回実行する。許可は--allow必須・scope_mode=blockで固定、除外は許可より優先。
     設定の上書きはこのプロセス内だけで、config.jsonへは保存しない。CTF能動機能・exploit生成は公開しない。"""
@@ -356,17 +418,20 @@ def main(argv=None):
     result = {"state": "failed", "errors": [], "findings": []}
     try:
         args = parser().parse_args(argv)
+        is_ledger = args.command in ("diff", "mark", "suppress", "findings")
         is_audit = args.command == "scan" and args.mode in ("audit", "defense", "attack")
-        if not is_audit or args.mode == "attack":
+        if not is_ledger and (not is_audit or args.mode == "attack"):
             args.allow = check_rules(args.allow, "--allow")
-        if args.out:
+        if getattr(args, "out", None):
             out = Path(args.out).resolve()
             if hasattr(args, "journal_root") and out.is_relative_to(Path(args.journal_root).resolve()):
                 raise CLIError("--outはRun保存ディレクトリの外を指定してください")
             if getattr(args, "auth_file", None) and out == Path(args.auth_file).resolve():
                 raise CLIError("--outと認証ファイルは別にしてください")
         out_validated = True
-        if is_audit and args.mode == "attack":
+        if is_ledger:
+            result = ledger_command(args)
+        elif is_audit and args.mode == "attack":
             result = run_attack(args, lambda a: set_agent(a), lambda: interrupted)
         elif is_audit:
             result = run_local(args.mode, args.target, args.effort, lambda a: set_agent(a), lambda: interrupted)
@@ -397,6 +462,8 @@ def main(argv=None):
                     "profile", "max_requests", "max_pages", "max_llm_calls", "permit_t2",
                     "tls_verify", "tls_ca_bundle")}
                 engagement = read_engagement(args.engagement)
+                if args.engagement_id and engagement.get("engagement_id") not in (None, args.engagement_id):
+                    raise CLIError("--engagement-idと案件設定のengagement_idが一致しません")
                 kw["idor_expectations"] = engagement.get("idor_expectations", [])
                 kw["excluded_targets"] = sorted(set(check_rules(args.exclude, "--exclude")) | set(engagement.get("exclude", [])))
                 if args.targets_file:
@@ -442,8 +509,6 @@ def main(argv=None):
                     result.pop("target", None)
                 else:
                     result = aggregate(results, skipped)
-                if engagement.get("engagement_id"):
-                    result["engagement_id"] = engagement["engagement_id"]
     except SystemExit:
         result = None
         raise
@@ -458,10 +523,12 @@ def main(argv=None):
                     result["state"] = "cancelled"
                 result = masked(result, secrets)
                 if args is not None:
+                    record_ledger(args, engagement, result)
+                if args is not None:
                     paths = []
                     if agent is not None and getattr(agent, "last_run_id", None):
                         paths.append(Path(args.journal_root, agent.last_run_id, "cli_result.json"))
-                    if args.out and out_validated:
+                    if getattr(args, "out", None) and out_validated:
                         paths.insert(0, Path(args.out))
                     for path in paths:
                         try:
@@ -473,7 +540,7 @@ def main(argv=None):
                 print(json.dumps(result, ensure_ascii=False, allow_nan=False))
         finally:
             signal.signal(signal.SIGINT, previous)
-    return exit_code(result, args.fail_on if args else "none")
+    return exit_code(result, getattr(args, "fail_on", "none") if args else "none")
 
 
 if __name__ == "__main__":

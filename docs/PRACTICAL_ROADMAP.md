@@ -258,6 +258,22 @@ audit/defense/attackの`--targets-file`、`config.json`の`profiles`。
 
 受け入れ条件: 差分状態、認証/予算失敗による誤った修正判定の防止、抑制期限、同名別案件の分離、重複イベント、破損末尾、同時writerを非LLMで検証する。
 
+2026-10-22 実装済み(P3.2の中核): `core/findings_ledger.py`、`tools/test_findings_ledger.py`(20試験・非LLM)、CLI
+`scan ... --engagement-id ID`(完了結果を`reports/engagements/<id>/events.jsonl`へ追記。案件設定の`engagement_id`でも有効)、
+`diff --before --after --engagement-id`、`mark FINDING_ID {open,fixed,accepted-risk} --reason`、
+`suppress FINDING_ID --reason --until`、`findings [--include-suppressed]`。仕様書の`status`コマンド名は既存のRun状態確認`status`と
+衝突するため`mark`にした。要点:
+- finding_idは案件・対象host・rule・正規化位置・認証役割から生成(メソッド/origin/query/行番号/空白の揺れを吸収。tokenは使わない)。
+  **位置はLLMが書いた表記に依存するため、表記が大きく揺れると別所見(NEW)になりうる**(NOT_OBSERVEDには検査証拠が要るので誤fixedにはならない)。
+- NOT_OBSERVEDは、WEB FUZZの同じ検査単位(path+parameter)が**全カテゴリtested**、検出器版が一致(`core.settings.DETECTOR_VERSIONS`)、
+  認証役割が一致しanonymous/authenticatedと確認済み、の全てを満たす場合だけ。それ以外(予算切れ・失敗・認証期限切れ/不明・旧coverage・
+  IDOR集約項目・検出器版変更・LLM推論の3モード)はUNVERIFIED。REGRESSEDは過去fixed、または比較可能な再検査で未観測だった後の再検出。
+- 差分は人のstatusを自動更新しない。抑制は理由・未来の期限が必須で、期限切れで表示に復帰(イベントは削除しない)。
+- 追記は排他ロック(非ブロッキング)で、別writerがいればLedgerBusyで拒否。途中行の破損はLedgerCorrupt、最終行の不完全書き込みは警告し次回追記時に除去。
+  event_id重複は無視して警告。台帳には応答本文・coverage理由・snippetを保存しない。
+**未実装**: 関連レポート(HTML/MD/PDF/JSON)への抑制フィルター・差分表示、`--include-suppressed`のレポート側対応、
+GUI、複数案件をまたぐ集計、台帳のローテーション/圧縮、実環境での長期運用確認。
+
 ## 8. P4: 検査範囲の拡張
 
 ### P4.1 OpenAPI入力
