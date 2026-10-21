@@ -1,5 +1,5 @@
 {
- "created_at": "2026-10-22T01:29:55",
+ "created_at": "2026-10-22T01:33:38",
  "detections": [
   [
    "IDOR",
@@ -8,6 +8,10 @@
   [
    "IDOR",
    "GET /doc-sqlerr id"
+  ],
+  [
+   "IDOR",
+   "GET /gate id"
   ],
   [
    "IDOR",
@@ -55,32 +59,32 @@
   ]
  ],
  "elapsed_sec": [
-  2.181,
-  2.348,
-  2.261
+  2.214,
+  2.219,
+  2.189
  ],
- "fixture_sha256": "7e8bcfb58754da644fa5f6c55566bbf8648176fb4b2e5faa65ae322ec3ee9704",
+ "fixture_sha256": "3f38d500353d09a230f5ba18e94ccf3a92fae59bbebd0090a0f1a4cb146fffc1",
  "git": {
-  "commit": "49c394fecf27c8df4940b6918145adce1882fbb8",
-  "dirty": false
+  "commit": "3bef966b9ceec29cdac5c4ac17a027e4367a5388",
+  "dirty": true
  },
  "http_requests": [
-  256,
-  256,
-  256
+  326,
+  326,
+  326
  ],
  "kind": "web_fuzz_detector",
  "llm_usage": "n/a (detector mode)",
  "metrics": {
   "per_rule": {
    "IDOR": {
-    "cases": 8,
+    "cases": 10,
     "fn": 0,
     "fn_unexamined": 0,
-    "fp": 5,
-    "precision": 0.2857,
+    "fp": 6,
+    "precision": 0.25,
     "recall": 1.0,
-    "tn": 1,
+    "tn": 2,
     "tp": 2,
     "unexamined": 0,
     "unexamined_negative": 0,
@@ -145,13 +149,13 @@
    }
   },
   "total": {
-   "cases": 21,
+   "cases": 23,
    "fn": 0,
    "fn_unexamined": 0,
-   "fp": 7,
-   "precision": 0.4615,
+   "fp": 8,
+   "precision": 0.4286,
    "recall": 1.0,
-   "tn": 8,
+   "tn": 9,
    "tp": 6,
    "unexamined": 0,
    "unexamined_negative": 0,
@@ -162,5 +166,5 @@
  "schema": "ai-security-audit-benchmark",
  "schema_version": "1",
  "stable": true,
- "truth_sha256": "cc392607ca7c482adfe68996136c7bdfe78708154bd06a18b48c8dea70118181"
+ "truth_sha256": "82f9d330ae035ae4a231c184caca83449f8a964763ad673866b3b1d77fc01a1b"
 }

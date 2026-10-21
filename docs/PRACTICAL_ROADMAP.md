@@ -160,8 +160,10 @@ FUZZのIDOR証拠も保存対応済み。FUZZの入力マスキングも実装�
 2026-10-22 進捗: WEB FUZZの**detector固定モード**のみ実装（`tools/benchmark.py`、`testlab/fixtures/web_benchmark.py`、
 `testlab/benchmark/ground_truth_web_fuzz.json`、基準値 `testlab/baselines/web_fuzz_detector.json`、`tools/test_benchmark.py`）。
 SQLi/XSS/SSTI/TRAVERSAL/IDORの脆弱例と罠（静的エラー文言・text/plain反射・偶然の49・公開/閲覧者別ページ）を含む。
-**P2.1全体は未完了**: 実LLM評価モード、AUDIT/ATTACK/DEFENSE、認証期限切れ・共通ログイン画面の罠、LLM使用量の取得、
+**P2.1全体は未完了**: 実LLM評価モード、AUDIT/ATTACK/DEFENSE、LLM使用量の取得、
 複数回実行での分散の報告（実LLM時）は未実装。基準値はdetectorの現状であり、実世界の精度の主張ではない。
+2026-10-22追記: 認証期限切れ(`/inbox`・bobのみログイン画面)と共通ログイン画面(`/gate`)の罠を追加。現行detectorは
+期限切れを正しく無視(TN)、共通ログイン画面はIDOR候補にして誤検出(FP)。IDORのFPは5→6、基準値を更新。
 
 ### P2.2 IDOR・SSTI・XSS
 

@@ -16,7 +16,7 @@ TOKENS = {"alice": "TOK_ALICE_bench01", "bob": "TOK_BOB_bench02"}
 _LINKS = ["/search?q=hi", "/raw?q=hi", "/item?id=1", "/doc-sqlerr?id=1", "/greet?name=guest",
           "/results?q=ab", "/download?file=readme.txt", "/docs?file=a.txt",
           "/account?id=1", "/profile?id=1", "/public?id=5", "/ticket?id=7", "/order?id=9",
-          "/escaped?q=hi", "/safe?page=1"]
+          "/escaped?q=hi", "/safe?page=1", "/inbox?id=3", "/gate?id=4"]
 
 
 class BenchmarkServer:
@@ -87,6 +87,15 @@ class BenchmarkServer:
                 if p == "/docs":              # 罠: 常にroot:x:0:0:を含む解説(入力と無関係)
                     return self._reply("<html><body>Example: root:x:0:0:root:/root:/bin/bash</body></html>")
                 # ── アクセス制御(IDOR)。要ログイン ──
+                if p in ("/inbox", "/gate"):
+                    # 罠: 認証期限切れ(/inbox のbob)と、全員に同じログイン画面を返すゲート(/gate)。
+                    # どちらも200でログインフォームを返す。他人のデータを返したわけではない。
+                    if p == "/gate" or user != "alice":
+                        return self._reply('<html><body><form method="POST" action="/login"><input name="u">'
+                                           '<input type="password" name="p"></form>' + "Please sign in. " * 20
+                                           + "</body></html>")
+                    return self._reply(f"<html><body>Inbox {html.escape(pid)} of alice " + "message " * 25
+                                       + "</body></html>")
                 if p in ("/account", "/profile", "/public", "/ticket", "/order"):
                     if not user and p != "/public":
                         return self._reply('<html><body><form method="POST" action="/login"><input name="u">'

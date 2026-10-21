@@ -186,6 +186,28 @@
     "alice": "allow",
     "bob": "allow"
    }
+  },
+  {
+   "case_id": "idor-expired-session",
+   "rule_id": "IDOR",
+   "location": "GET /inbox id",
+   "expected": "not_vulnerable",
+   "note": "bobの認証が期限切れでログイン画面(200)が返る。他人のデータは返っていない",
+   "expected_access": {
+    "alice": "allow",
+    "bob": "deny"
+   }
+  },
+  {
+   "case_id": "idor-shared-login-gate",
+   "rule_id": "IDOR",
+   "location": "GET /gate id",
+   "expected": "not_vulnerable",
+   "note": "全員に同じ共通ログイン画面を返す",
+   "expected_access": {
+    "alice": "deny",
+    "bob": "deny"
+   }
   }
  ]
 }
