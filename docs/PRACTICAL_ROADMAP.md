@@ -179,7 +179,7 @@ SQLi/XSS/SSTI/TRAVERSAL/IDORの脆弱例と罠（静的エラー文言・text/pl
 `basis="expectation"`の所見にする(期待表は認証なし公開判定より優先)。表に無い対象は従来どおり`basis="observed"`・要人手確認。
 ベンチマーク`--with-expectations`(基準値`testlab/baselines/web_fuzz_detector_expectations.json`): IDOR TP2・FP0・TN8。
 **この数字は表を正解データ由来で与えた上限であり、利用者が正しく表を書いた場合の値。実世界の精度の主張ではない。**
-未実装: 表を実行に渡す経路(CLI/案件ファイル/GUI)、同一origin認証確認URL、JSONフィールド識別、逆方向(B所有物をAで読む)。
+未実装: 表のGUI入力、同一origin認証確認URL、JSONフィールド識別、逆方向(B所有物をAで読む)。
 
 ### P2.2 IDOR・SSTI・XSS
 
@@ -221,9 +221,10 @@ python cli.py status FINDING_ID accepted-risk --reason "対応判断を記録" -
 **案件ファイル設計(2026-10-22・未実装部分を含む)**: `--engagement FILE`(JSON・秘密値を含めない。認証は従来の`--auth-file`)。
 キー: `engagement_id`、`targets`、`allow`/`exclude`(host/IP/CIDR・excludeが優先)、`scan_profile`、`effort`、予算、
 `idor_expectations`(`core/engagement.py`で検証済み)。優先順位は明示CLI引数 > 案件ファイル > 既存設定。
-実装順: (1) 検出器が期待権限表を受け取る【済】→ (2) `--engagement`でfuzz CLIへ`idor_expectations`を渡す
-(再開用のprofile_jsonとprofile_hashに含め、再開時に表が変わったら拒否) → (3) exclude優先・targets-file →
-(4) `core/scan_runner.py`で他モードへ展開。(2)以降は未実装。
+実装順: (1) 検出器が期待権限表を受け取る【済】→ (2) `--engagement`でfuzz CLIへ`idor_expectations`を渡す【済・2026-10-22】
+(再開用のprofile_jsonとprofile_hashに含め、再開時はprofile_jsonから復元。表が空のRunはhashにキーを入れず従来Runと再開互換) → (3) exclude優先・targets-file →
+(4) `core/scan_runner.py`で他モードへ展開。(3)以降は未実装。`--engagement`のキーは現状 `engagement_id`・`idor_expectations` のみ(未知キーは拒否)。
+GUI(設定ダイアログ/fuzz panel)・旧FuzzAgent経路への表の配線は未実装。
 
 受け入れ条件: GUIをimportせず全モードのモック実行、終了コード、stdoutのJSON単独解析、設定優先順位と非永続性、除外優先、バッチ設定分離、SIGINT後の最終結果保存を検証する。
 

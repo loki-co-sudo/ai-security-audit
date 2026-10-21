@@ -24,6 +24,7 @@ import time
 import core.config as config
 from agents.fuzz_agent import FuzzAgent, _TRIAGE_SYS, idor_skip_reason
 from core import redaction
+from core.engagement import EngagementError, parse_idor_expectations
 from core.autonomy.actions import (
     Action, ActionResult, CapabilityRegistry, CapabilitySpec, SideEffect,
 )
@@ -156,7 +157,7 @@ class AutonomousFuzzAgent(FuzzAgent):
             tls_verify: bool | None = None, tls_ca_bundle: str | None = None,
             approvals: list | None = None, permit_t2: bool = False,
             resume_run_id: str | None = None, retry_unknown: list[str] | None = None,
-            additional_requests: int = 0) -> None:
+            additional_requests: int = 0, idor_expectations: list | None = None) -> None:
         """新規実行、または `resume_run_id` を指定した中断からの再開(docs/AUTONOMOUS_PHASE_B_DESIGN.md)。
 
         再開では、開始時と同じプロファイルを要求し(許可対象・予算・計画が違えば拒否)、完了済みタスクは再実行せず
@@ -175,6 +176,11 @@ class AutonomousFuzzAgent(FuzzAgent):
         if profile not in SCAN_PROFILES:
             profile = DEFAULT_SCAN_PROFILE
         base_url = normalize_base_url(target)
+        try:
+            idor_expectations = parse_idor_expectations(idor_expectations)
+        except EngagementError as e:
+            self._finalize(state=ScanState.FAILED.value, target=base_url, errors=[f"案件設定が不正です: {e}"])
+            return
         known_secrets = self._known_secrets(auth, auth_b)
         mask = lambda t: redaction.mask_log_line(str(t), known_secrets)  # noqa: E731
         save_evidence = bool(config.get("save_evidence", False))
@@ -187,7 +193,9 @@ class AutonomousFuzzAgent(FuzzAgent):
             "max_requests": max_requests, "max_pages": max_pages, "profile": profile,
             "permit_t2": bool(permit_t2), "save_evidence": save_evidence, "auth": bool(auth),
             "auth_b": bool(auth_b), "engine": ENGINE_VERSION,
-            "plan": [[t.task_id, t.capability, t.args, list(t.depends_on), t.auth_context] for t in plan]})
+            "plan": [[t.task_id, t.capability, t.args, list(t.depends_on), t.auth_context] for t in plan],
+            # 表が無い場合はキー自体を入れない(表導入前のRunのハッシュと再開互換を保つ)
+            **({"idor_expectations": idor_expectations} if idor_expectations else {})})
 
         journal = store = None
         resuming = resume_run_id is not None
@@ -203,7 +211,8 @@ class AutonomousFuzzAgent(FuzzAgent):
                     "max_pages": max_pages, "allowed_targets": list(allowed_targets or []),
                     "permit_t2": bool(permit_t2), "max_llm_calls": max_llm_calls,
                     "has_auth": bool(auth), "has_auth_b": bool(auth_b),
-                    "tls_verify": tls_verify, "tls_ca_bundle": tls_ca_bundle}, sort_keys=True))
+                    "tls_verify": tls_verify, "tls_ca_bundle": tls_ca_bundle,
+                    "idor_expectations": idor_expectations}, sort_keys=True))
             if resuming:
                 if store.get_meta("profile_hash") != phash:
                     raise ResumeError("プロファイル(対象・許可・予算・計画など)が開始時と異なるため再開しません")
@@ -229,6 +238,7 @@ class AutonomousFuzzAgent(FuzzAgent):
             log=lambda m: self._log(mask(m)), auth=auth, auth_b=auth_b, target=base_url,
             stop_event=self._stop_event, tls_verify=tls_verify, tls_ca_bundle=tls_ca_bundle,
         )
+        fuzzer.idor_expectations = idor_expectations
         ledger = BudgetLedger(max_requests=total_cap, request_counter=lambda: prior + fuzzer._req_count,
                               max_llm_calls=max_llm_calls)
         self._llm_gate = LLMGate(ledger)

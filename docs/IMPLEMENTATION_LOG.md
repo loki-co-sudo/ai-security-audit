@@ -563,3 +563,10 @@ XSS: HTML以外のcontent-typeの反射は兆候にしない。文言は「反�
 `core/engagement.py`(`parse_idor_expectations`)、`WebFuzzer.idor_expectations`/`_expectation_for`、所見の`basis`(expectation|observed)。
 ベンチマーク`--with-expectations`と基準値を追加(IDOR FP 1→0・TP維持。表は正解データ由来の上限値)。案件ファイル設計はPRACTICAL_ROADMAP §P3.1。
 未実装: 表をCLI/GUI/再開経路へ渡す配線。
+
+## 2026-10-22 P3.1(1)(2): `--engagement`でIDOR期待権限表をfuzz CLIへ配線
+`cli.py scan fuzz --engagement FILE`(キーは`engagement_id`/`idor_expectations`のみ・未知キーと不正な表はJSONのfailedで送信前に終了)。
+`AutonomousFuzzAgent.run(idor_expectations=)`が検証→`WebFuzzer.idor_expectations`へ渡し、表がある場合だけprofile_hashへ含め、
+profile_jsonに保存して`resume`で復元。実BenchmarkServerへのCLI実行で、表なしはobserved3件、表あり(/publicをb=deny宣言)で
+`basis=expectation`の所見が追加されることを確認。`tools/test_cli.py`に検証・復元の2試験を追加。
+未実装: 旧FuzzAgent(GUI)経路・GUI入力、所見のbasisのレポート表示、`--targets-file`、exclude優先。

@@ -201,6 +201,41 @@ class CLITest(unittest.TestCase):
                 self.assertRegex(actual["finding_id"], r"^finding_[0-9a-f]{12}$")
                 self.assertEqual(actual, {**baseline, "finding_id": actual["finding_id"]})
 
+    def engagement_file(self, doc, name="engagement.json"):
+        path = self.base / name
+        path.write_text(json.dumps(doc))
+        return str(path)
+
+    def test_engagement_validation_fails_closed_before_any_request(self):
+        row = {"path": "/account", "param": "id", "a": "allow", "b": "deny"}
+        bad = [{"cookie": "sid=ENG_SECRET_123456"},                                        # 認証値などの未知キー
+               {"idor_expectations": [{**row, "path": "http://evil/account"}]},            # origin付きpath
+               {"idor_expectations": [row, row]},                                          # 重複
+               {"engagement_id": "bad id!"}]
+        with FixtureServer(post_form=False) as srv:
+            for doc in bad:
+                p, data = self.call(self.scan(srv, "--engagement", self.engagement_file(doc)))
+                self.assertEqual((p.returncode, data["state"]), (2, "failed"), doc)
+                self.assertNotIn("ENG_SECRET_123456", p.stdout + p.stderr)
+            p, data = self.call(self.scan(srv, "--engagement", str(self.base / "missing.json")))
+            self.assertEqual(p.returncode, 2)
+            self.assertEqual(srv.count(), 0)
+
+    def test_engagement_expectations_are_recorded_and_restored_on_resume(self):
+        row = {"path": "/account", "param": "id", "a": "allow", "b": "deny"}
+        eng = self.engagement_file({"engagement_id": "lab-1", "idor_expectations": [row]})
+        with FixtureServer(post_form=False) as srv:
+            rid = self.crash(self.scan(srv, "--engagement", eng))
+            profile = json.loads(__import__("sqlite3").connect(self.runs / rid / "state.sqlite3").execute(
+                "SELECT value FROM meta WHERE key='profile_json'").fetchone()[0])
+            self.assertEqual([(e["path"], e["a"], e["b"]) for e in profile["idor_expectations"]],
+                             [("/account", "allow", "deny")])
+            self.assertNotIn("cookie", json.dumps(profile))
+            p, resumed = self.call(["resume", rid, *self.common()])     # 表は開始時のプロファイルから復元される
+            self.assertEqual((p.returncode, resumed["state"]), (0, "completed"), resumed)
+            p, data = self.call(self.scan(srv, "--engagement", eng))
+            self.assertEqual(data["engagement_id"], "lab-1")
+
     def test_unknown_retry_and_extra_budget(self):
         with FixtureServer(post_form=False) as srv:
             p = subprocess.run(self.command(self.scan(srv)), cwd=self.base,

@@ -18,6 +18,7 @@ from urllib.parse import urlsplit
 
 from agents.fuzz_capabilities import AutonomousFuzzAgent, auth_action_args, load_profile
 from core import config, event_bus as ev, redaction
+from core.engagement import EngagementError, parse_idor_expectations
 from core.autonomy.actions import new_grant
 from core.autonomy.journal import JOURNAL_ROOT, replay, validate_run_id
 from core.autonomy.run_store import STATE_FILE
@@ -64,6 +65,7 @@ def parser():
         sub.add_argument("--approve-auth", default="", help="今回だけ認証を承認する役割: a または a,b（5分有効）")
         sub.add_argument("--effort", choices=("speed", "balanced", "quality"))
     fuzz.add_argument("--target", required=True)
+    fuzz.add_argument("--engagement", help="案件設定JSON(秘密値は含めない): engagement_id / idor_expectations")
     fuzz.add_argument("--profile", choices=list(SCAN_PROFILES), default=DEFAULT_SCAN_PROFILE)
     fuzz.add_argument("--max-requests", type=nonnegative, default=200)
     fuzz.add_argument("--max-pages", type=nonnegative, default=20)
@@ -100,6 +102,31 @@ def read_auth(path):
             raise CLIError("認証設定の形式が不正です")
     if "b" in data and "a" not in data:
         raise CLIError("認証bには認証aも必要です")
+    return data
+
+
+def read_engagement(path):
+    """案件設定(非機密)を読む。未知のキーは拒否する(認証値などを誤って入れた場合に黙って無視しない)。"""
+    if not path:
+        return {}
+    p = Path(path)
+    if not p.is_file():
+        raise CLIError("案件設定ファイルが見つかりません")
+    if p.stat().st_size > 262144:
+        raise CLIError("案件設定ファイルが大きすぎます")
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise CLIError("案件設定ファイルをJSONとして読めません")
+    if not isinstance(data, dict) or set(data) - {"engagement_id", "idor_expectations"}:
+        raise CLIError("案件設定のキーはengagement_id/idor_expectationsのみです（認証値はこのファイルに入れません）")
+    eid = data.get("engagement_id")
+    if eid is not None and not (isinstance(eid, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}", eid)):
+        raise CLIError("engagement_idは英数字・._-の64文字以内で指定してください")
+    try:
+        data["idor_expectations"] = parse_idor_expectations(data.get("idor_expectations"))
+    except EngagementError as e:
+        raise CLIError(f"案件設定が不正です: {e}")
     return data
 
 
@@ -182,6 +209,7 @@ def main(argv=None):
     out_validated = False
     interrupted = False
     secrets = set()
+    engagement = {}
     previous = signal.getsignal(signal.SIGINT)
 
     def stop(signum, frame):
@@ -236,6 +264,8 @@ def main(argv=None):
                 kw = {k: getattr(args, k) for k in (
                     "target", "profile", "max_requests", "max_pages", "max_llm_calls", "permit_t2",
                     "tls_verify", "tls_ca_bundle")}
+                engagement = read_engagement(args.engagement)
+                kw["idor_expectations"] = engagement.get("idor_expectations", [])
             target = urlsplit(kw["target"] if "://" in kw["target"] else "http://" + kw["target"])
             if target.scheme not in ("http", "https") or not target.hostname or target.username or target.password or target.query or target.fragment:
                 raise CLIError("対象URLにはHTTP(S)のhost/pathだけを指定してください（認証値・queryは不可）")
@@ -255,6 +285,8 @@ def main(argv=None):
                 agent._safe_run(**kw)
                 result = bus.result_payload or {"state": "failed", "errors": ["最終結果が通知されませんでした"], "findings": []}
                 result["run_id"] = agent.last_run_id
+                if engagement.get("engagement_id"):
+                    result["engagement_id"] = engagement["engagement_id"]
     except SystemExit:
         result = None
         raise
