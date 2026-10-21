@@ -218,24 +218,30 @@ python cli.py status FINDING_ID accepted-risk --reason "対応判断を記録" -
 - allow/denyはまずhost/IP/CIDR（IPリテラルのみ）の既存文法に限定。pathルールは非対応として検証エラーにし、URLのpathを黙って捨てない。origin制約と案件scopeは両方満たす必要がある。
 - CIDRやcrt.sh発見結果を暗黙展開しない。対象リストで明示されたホストだけ実行する。CTF Active RetrievalはCLI初期版に公開しない。
 
-**案件ファイル設計(2026-10-22・未実装部分を含む)**: `--engagement FILE`(JSON・秘密値を含めない。認証は従来の`--auth-file`)。
-キー: `engagement_id`、`targets`、`allow`/`exclude`(host/IP/CIDR・excludeが優先)、`scan_profile`、`effort`、予算、
-`idor_expectations`(`core/engagement.py`で検証済み)。優先順位は明示CLI引数 > 案件ファイル > 既存設定。
-実装順: (1) 検出器が期待権限表を受け取る【済】→ (2) `--engagement`でfuzz CLIへ`idor_expectations`を渡す【済・2026-10-22】
-(再開用のprofile_jsonとprofile_hashに含め、再開時はprofile_jsonから復元。表が空のRunはhashにキーを入れず従来Runと再開互換) → (3) exclude優先・targets-file【済・2026-10-22】 →
-(4) 他モードへ展開【audit・defense済み・2026-10-22: `cli.py scan audit|defense --target FILE`(auditは標準エンジン、defenseはログの1回走査=`--single-pass`相当で
-`--duration`は未実装。どちらもローカルファイルのみ・Runジャーナル無し・`--out/--fail-on/--effort`)。attack【済・2026-10-22: `scan attack --target T --allow ...`。--allow必須・scope_mode=blockをプロセス内だけで固定(config.json非保存)・除外優先・
-CTF能動機能/exploit生成は公開しない。偵察のみ】と`core/scan_runner.py`への共通化は未実装(現状はcli.pyに実装)】。(3)以降は未実装。`--engagement`のキーは現状 `engagement_id`・`idor_expectations`・`exclude` のみ(未知キーは拒否)。
-`--exclude`/案件ファイルのexcludeは許可より優先(CLIで送信前に拒否し、Policy Gateにも渡す)。`--targets-file`は1〜50件を逐次実行し、
-対象ごとに設定コピー・別Run・別承認で、結果は`batch:true`の集約JSON(全対象completedのときだけcompleted、中断時は残りを未実行として記録)。
-**`--targets-file`と`--auth-file`は併用不可**(認証値を他対象へ送らないため)。
-GUI(設定ダイアログ/fuzz panel)・旧FuzzAgent経路への表の配線は未実装。
+**案件ファイル設計と実装状況(2026-10-22)**: `--engagement FILE`(JSON・秘密値を含めない。認証は従来の`--auth-file`)。
+優先順位は明示CLI引数 > 案件ファイル > 既存設定。現状のキーは `engagement_id`・`idor_expectations`(`core/engagement.py`で検証)・
+`exclude`(host/IP/CIDR)のみで、未知キーは拒否する。`targets`・`allow`・`scan_profile`・`effort`・予算の案件ファイル化は未実装(CLI引数で指定)。
+
+実装順と状況:
+1. 検出器がIDOR期待権限表を受け取る【済】。
+2. `--engagement`でfuzz CLIへ`idor_expectations`を渡す【済】。再開用のprofile_json/profile_hashに含め、再開時はprofile_jsonから復元。
+   表が空のRunはhashにキーを入れず従来Runと再開互換。
+3. 除外優先・`--targets-file`【済】。`--exclude`/案件ファイルのexcludeは許可より優先(CLIで送信前に拒否し、Policy Gateにも渡す)。
+   `--targets-file`は1〜50件(重複除去・1件でも不正なら全体を実行しない)を逐次実行し、対象ごとに設定コピー・別Run・別承認。
+   結果は`batch:true`の集約JSON(全対象completedのときだけcompleted、中断時の残りは未実行として記録)。
+   **`--targets-file`と`--auth-file`は併用不可**(認証値を他対象へ送らないため)。
+4. 他モードへ展開【済(ただし`core/scan_runner.py`への共通化は未実装・現状はcli.pyに実装)】:
+   `scan audit|defense --target FILE`(ローカルファイルのみ・Runジャーナル無し・`--out/--fail-on/--effort`。auditは標準エンジン、
+   defenseはログの1回走査で`--duration`は未実装)、`scan attack --target T --allow ...`(--allow必須・scope_mode=blockをプロセス内だけで
+   固定しconfig.jsonへ保存しない・除外優先・CTF能動機能とexploit生成は公開しない。偵察のみ)。
+未実装: `--format md`・`--effort auto`、GUI(設定ダイアログ/fuzz panel)と旧FuzzAgent経路への期待権限表の配線、
+audit/defense/attackの`--targets-file`、`config.json`の`profiles`。
 
 受け入れ条件: GUIをimportせず全モードのモック実行、終了コード、stdoutのJSON単独解析、設定優先順位と非永続性、除外優先、バッチ設定分離、SIGINT後の最終結果保存を検証する。
 
 2026-10-22: P3.1の一部として、自律化Phase B4の `cli.py scan fuzz / resume / status` を実装。
 この `status` はRunの状態確認であり、上記将来案の所見対応状態の変更コマンドではない。
-全モード・案件プロファイル・除外・バッチ等は未実装であり、P3.1全体は未完了のままとする。
+案件プロファイル(`config.json`の`profiles`)等は未実装であり、P3.1全体は未完了のままとする(上記の実装状況を参照)。
 検証は自律化実装計画およびREADMEを参照。
 
 ### P3.2 所見台帳と再検査
