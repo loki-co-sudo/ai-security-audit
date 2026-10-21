@@ -22,6 +22,7 @@
 | バグバウンティ対応の設計・実装計画 | [docs/BOUNTY_ROADMAP.md](docs/BOUNTY_ROADMAP.md) |
 | WEB FUZZ をバグバウンティで使う際の具体的な運用フロー | [docs/BOUNTY_WEBFUZZ_WORKFLOW.md](docs/BOUNTY_WEBFUZZ_WORKFLOW.md) |
 | 次の実装順序・対象ファイル・データ契約・受け入れ条件の正本（P0〜P4） | [docs/PRACTICAL_ROADMAP.md](docs/PRACTICAL_ROADMAP.md) |
+| 自律完結型への発展（設計書・Phase A詳細設計・**実装計画と進捗の正本**）。自律化の実装依頼ではまず実装計画を読む | [docs/AUTONOMOUS_IMPLEMENTATION_PLAN.md](docs/AUTONOMOUS_IMPLEMENTATION_PLAN.md) / [docs/AUTONOMOUS_PLATFORM_DESIGN.md](docs/AUTONOMOUS_PLATFORM_DESIGN.md) / [docs/AUTONOMOUS_PHASE_A_DESIGN.md](docs/AUTONOMOUS_PHASE_A_DESIGN.md) |
 | 完了済み機能の実装詳細・セルフテスト結果（通常のタスクでは読まなくてよい） | [docs/IMPLEMENTATION_LOG.md](docs/IMPLEMENTATION_LOG.md) |
 
 実践運用対応の実装依頼では、`docs/PRACTICAL_ROADMAP.md` §3の未完了IDを選んで該当節を読む。
@@ -277,6 +278,11 @@ fix: fix ALERT event not firing in DEFENSE MODE
   PoC送信なし・非DoS）を一切変えない範囲に限る。→ [docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md)
 - 重要な変更後は `py tools/run_selftest.py` でリグレッションを確認する（`PYTHONUTF8=1` 推奨）。
   Windows のコンソールは cp932 のことがあり、`—` 等の出力で UnicodeEncodeError になるため。
+- **capabilityの副作用クラス（T0〜T3・`mutating`）は、宣言ではなく実際の送信動作で決める**。自律化の新経路を
+  設計した際、WEB FUZZのファジングを一律「読み取り(T1)」と宣言したが、実コード（`WebFuzzer._send`）はフォームの
+  POSTも送信しており、宣言と動作が食い違っていた（実装計画レビューで発覚）。新しいcapabilityを足すときは、
+  呼び出し先のメソッドを読んで送信するメソッド・認証情報の使用を確認してから分類し、未承認で状態を変え得る
+  経路が無いことを、サーバー側の受信記録で確認する試験を付ける（`tools/test_fuzz_autonomy.py`）。
 - **Markdown/ドキュメント中に `tools/`・`agents/` 等のパスを書くときは、直前にバックスラッシュを
   置かない**（v2.5.0で `AGENTS.md` にmojibake混入 — `\a`/`\t`/`\r`/`\v`/`\b` が制御文字として
   解釈され `a`/`t`/`r`/`v`/`b` の文字が消失した。原因はエスケープ解釈する何らかの中間処理を経由した
@@ -375,6 +381,10 @@ WEB FUZZへの証拠配線は実装済み・下記参照）。P1.2は継続中�
 次の実装はAUDIT/DEFENSEの証拠保存と入力マスキング。ATTACKは別途対象範囲を確認する。
 WEB FUZZにも表示・LLM入力全体のマスキング、IDOR証拠、保存省略理由、未知IDの
 validation error記録が残る。JSON出力も未実装。P1.2全体を完了扱いにしない。
+
+2026-10-22: 自律完結型への発展（`docs/AUTONOMOUS_*.md`）のPhase A（Run Journal・Policy Gate・WEB FUZZ新経路・
+認証の役割別承認・LLM呼出の事前制限）を実装。進捗と次の単位は `docs/AUTONOMOUS_IMPLEMENTATION_PLAN.md` が正本
+（PRACTICAL_ROADMAPの順序は置き換えていない）。
 
 P0.1・P0.2・P1.1は完了済み。実装詳細・セルフテスト結果は
 [docs/IMPLEMENTATION_LOG.md](docs/IMPLEMENTATION_LOG.md) を参照。

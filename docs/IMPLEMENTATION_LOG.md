@@ -498,3 +498,16 @@ ATTACK MODE に、認可された偵察レスポンスからCTF形式のフラ�
   `evidence_listing/evidence_instruction`を追加。テスト: `test_audit_evidence`に
   LangGraphEvidenceTest（ON/OFF・マスク・実在ID採用・未知ID記録）。
 
+- **自律化 Phase A（2026-10-21〜22）**: 設計 `docs/AUTONOMOUS_PLATFORM_DESIGN.md`・`AUTONOMOUS_PHASE_A_DESIGN.md`・
+  `AUTONOMOUS_IMPLEMENTATION_PLAN.md`。実装: `core/autonomy/`（`journal.py` 追記式JSONL・seq/prev_hash連鎖・
+  部分行回復・fail closed・単一writer・`run_finished`は一度だけ/16KB/終端、`actions.py`、`policy_gate.py`
+  スコープ/副作用クラス/予算/重複/ApprovalGrant（引数ハッシュ・期限・一回限り・期限切れは常にdeny）・判断を
+  実行前に記録、`budget.py` LLMは呼出前に予約、`task_graph.py` `unknown_outcome`、`runner.py`）、
+  `agents/fuzz_capabilities.py`（WEB FUZZ新経路`AutonomousFuzzAgent`。現行`FuzzAgent`は無変更）。
+  既存コードへの追加のみの変更: `EvidenceStore`の由来情報（`content_sha256`/`action_id`/`masking_version`/
+  `truncated`と`verify()`）、`WebFuzzer.fuzz_log`（検査単位の実行記録）、`BaseAgent._llm_gate`と
+  `LLMClient`の任意`max_tokens`/`usage_out`。testlabに決定論fixtureと`ground_truth.json`。
+  テスト: selftest 16m〜16s（Journal 16件、特性化8件、由来情報7件、Gate/予算/状態25件、実行記録7件、
+  LLMゲート11件、新経路24件）。`SELFTEST_NON_LLM_ONLY=1` 160 PASS / 0 FAIL / 5 SKIP。
+  現行経路との意図的な差は `AUTONOMOUS_PHASE_A_DESIGN.md` §13。未実装: Planner（固定計画のみ）、再開（SQLite）、
+  Fact/Hypothesisストア、Validation、他モードのcapability化、解決先IP再検査、GUI接続。実LLM・実環境での確認は未実施。
