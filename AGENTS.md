@@ -59,6 +59,7 @@ AI-Security-tool/
 ├── samples/
 │   └── target_code.py           # CODE AUDIT 動作確認用のサンプル脆弱コード
 ├── testlab/
+│   ├── fixtures/web_benchmark.py # 検出品質評価用fixture(罠を含む。P2.1)。正解は benchmark/ground_truth_web_fuzz.json、改修前の基準値は baselines/web_fuzz_detector.json
 │   ├── vuln_server.py           # 手動確認用の模擬脆弱サーバー
 │   ├── fixtures/web_fixture.py  # WEB FUZZ評価用の決定論的fixture（全リクエスト記録。特性化試験・P2.1で共用）
 │   └── ground_truth.json        # 上記fixtureの正解（case_id/rule_id/location/expected）
@@ -123,6 +124,8 @@ AI-Security-tool/
 │   ├── test_run_store.py        # RunStoreの固定試験（selftest 16tに統合）
 │   ├── test_policy_gate.py      # 上記autonomy型・Gate・予算・タスク状態の固定試験（selftest 16pに統合）
 │   ├── test_evidence_provenance.py # 証拠の由来情報(content_sha256/action_id/masking_version/truncated)とverify()の固定試験（selftest 16oに統合）
+│   ├── benchmark.py             # P2.1 検出品質ベンチマーク(detector固定モード。`python tools/benchmark.py web-fuzz`)
+│   ├── test_benchmark.py        # 集計器(手計算)・正解データ・基準値との一致の固定試験（selftest 16wに統合）
 │   ├── test_cli.py              # CLIプロセス試験（JSON・認証・再開・SIGINT。selftest 16v）
 │   ├── run_selftest.py          # 全機能セルフテスト（GUI以外をEventBus経由でE2E検証）
 │   └── capture_screenshots.py   # README用スクリーンショット自動撮影

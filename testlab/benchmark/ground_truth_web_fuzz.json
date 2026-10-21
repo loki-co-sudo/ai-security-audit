@@ -1,0 +1,191 @@
+{
+ "schema_version": "1",
+ "fixture": "testlab/fixtures/web_benchmark.py",
+ "mode": "web_fuzz_detector",
+ "note": "WEB FUZZ検出品質(P2.1)の正解。照合キーは (rule_id, location)。LLMのタイトル文字列では照合しない。location は 'METHOD /path param'。expected_access は期待権限(IDORの判定根拠)。",
+ "users": [
+  "alice",
+  "bob"
+ ],
+ "cases": [
+  {
+   "case_id": "sqli-item",
+   "rule_id": "SQLI",
+   "location": "GET /item id",
+   "expected": "vulnerable",
+   "note": "単一引用符でDBエラー署名"
+  },
+  {
+   "case_id": "sqli-doc-static-error",
+   "rule_id": "SQLI",
+   "location": "GET /doc-sqlerr id",
+   "expected": "not_vulnerable",
+   "note": "入力と無関係に常にエラー文言を含む静的ページ"
+  },
+  {
+   "case_id": "sqli-safe",
+   "rule_id": "SQLI",
+   "location": "GET /safe page",
+   "expected": "not_vulnerable",
+   "note": "入力を使わないページ"
+  },
+  {
+   "case_id": "sqli-escaped",
+   "rule_id": "SQLI",
+   "location": "GET /escaped q",
+   "expected": "not_vulnerable",
+   "note": "エスケープして反射するだけ"
+  },
+  {
+   "case_id": "xss-search",
+   "rule_id": "XSS",
+   "location": "GET /search q",
+   "expected": "vulnerable",
+   "note": "text/htmlで未エスケープ反射"
+  },
+  {
+   "case_id": "xss-escaped",
+   "rule_id": "XSS",
+   "location": "GET /escaped q",
+   "expected": "not_vulnerable",
+   "note": "エスケープ済みの反射"
+  },
+  {
+   "case_id": "xss-text-plain",
+   "rule_id": "XSS",
+   "location": "GET /raw q",
+   "expected": "not_vulnerable",
+   "note": "反射するがtext/plainでブラウザは実行しない(反射観測であり実行可能XSSではない)"
+  },
+  {
+   "case_id": "xss-safe",
+   "rule_id": "XSS",
+   "location": "GET /safe page",
+   "expected": "not_vulnerable",
+   "note": "入力を使わないページ"
+  },
+  {
+   "case_id": "ssti-greet",
+   "rule_id": "SSTI",
+   "location": "GET /greet name",
+   "expected": "vulnerable",
+   "note": "{{7*7}}等を評価して49を表示"
+  },
+  {
+   "case_id": "ssti-accidental-49",
+   "rule_id": "SSTI",
+   "location": "GET /results q",
+   "expected": "not_vulnerable",
+   "note": "入力長×7件と表示するだけ。'{{7*7}}'は7文字で偶然49になる"
+  },
+  {
+   "case_id": "ssti-safe",
+   "rule_id": "SSTI",
+   "location": "GET /safe page",
+   "expected": "not_vulnerable",
+   "note": "入力を使わないページ"
+  },
+  {
+   "case_id": "traversal-download",
+   "rule_id": "TRAVERSAL",
+   "location": "GET /download file",
+   "expected": "vulnerable",
+   "note": "../ で/etc/passwd風の内容"
+  },
+  {
+   "case_id": "traversal-doc-static",
+   "rule_id": "TRAVERSAL",
+   "location": "GET /docs file",
+   "expected": "not_vulnerable",
+   "note": "入力と無関係に常にroot:x:0:0:を含む静的ページ"
+  },
+  {
+   "case_id": "idor-account",
+   "rule_id": "IDOR",
+   "location": "GET /account id",
+   "expected": "vulnerable",
+   "note": "所有者(alice)以外(bob)も取得できる",
+   "expected_access": {
+    "alice": "allow",
+    "bob": "deny"
+   }
+  },
+  {
+   "case_id": "idor-ticket",
+   "rule_id": "IDOR",
+   "location": "GET /ticket id",
+   "expected": "vulnerable",
+   "note": "他人のチケットが取得できる(内容は別人でも長さが近い)",
+   "expected_access": {
+    "alice": "allow",
+    "bob": "deny"
+   }
+  },
+  {
+   "case_id": "idor-profile-enforced",
+   "rule_id": "IDOR",
+   "location": "GET /profile id",
+   "expected": "not_vulnerable",
+   "note": "所有者以外は403",
+   "expected_access": {
+    "alice": "allow",
+    "bob": "deny"
+   }
+  },
+  {
+   "case_id": "idor-public",
+   "rule_id": "IDOR",
+   "location": "GET /public id",
+   "expected": "not_vulnerable",
+   "note": "公開オブジェクト。誰が読んでも同じで、期待上は許可",
+   "expected_access": {
+    "alice": "allow",
+    "bob": "allow"
+   }
+  },
+  {
+   "case_id": "idor-per-user-order",
+   "rule_id": "IDOR",
+   "location": "GET /order id",
+   "expected": "not_vulnerable",
+   "note": "閲覧者ごとの注文を返す(別内容・同じ長さ。正常な動作)",
+   "expected_access": {
+    "alice": "allow",
+    "bob": "allow"
+   }
+  },
+  {
+   "case_id": "idor-item-public",
+   "rule_id": "IDOR",
+   "location": "GET /item id",
+   "expected": "not_vulnerable",
+   "note": "アクセス制御の対象ではない公開ページ",
+   "expected_access": {
+    "alice": "allow",
+    "bob": "allow"
+   }
+  },
+  {
+   "case_id": "idor-doc-public",
+   "rule_id": "IDOR",
+   "location": "GET /doc-sqlerr id",
+   "expected": "not_vulnerable",
+   "note": "アクセス制御の対象ではない公開ページ",
+   "expected_access": {
+    "alice": "allow",
+    "bob": "allow"
+   }
+  },
+  {
+   "case_id": "idor-safe-public",
+   "rule_id": "IDOR",
+   "location": "GET /safe page",
+   "expected": "not_vulnerable",
+   "note": "アクセス制御の対象ではない公開ページ",
+   "expected_access": {
+    "alice": "allow",
+    "bob": "allow"
+   }
+  }
+ ]
+}

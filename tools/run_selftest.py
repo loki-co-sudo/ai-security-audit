@@ -3116,6 +3116,20 @@ def test_cli():
         _ng("CLI", str(result.errors + result.failures))
 
 
+def test_benchmark():
+    _section("16w. BENCHMARK — WEB FUZZ 検出品質(P2.1 detector固定モード)")
+    import unittest
+    from tools.test_benchmark import EvaluateTest, TruthTest, RealRunTest, CompareTest
+    result = unittest.TestResult()
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
+                               for c in (EvaluateTest, TruthTest, RealRunTest, CompareTest))
+    suite.run(result)
+    if result.wasSuccessful():
+        _ok("Benchmark", f"{result.testsRun} tests: 集計器(手計算)/正解データ/基準値との一致と決定性/未検査の扱い")
+    else:
+        _ng("Benchmark", str(result.errors + result.failures))
+
+
 def test_audit_evidence():
     _section("16l. AGENT — AuditAgent 証拠保存・入力マスキング(P1.2)")
     import unittest
@@ -3225,6 +3239,7 @@ def main():
     test_fuzz_autonomy()
     test_run_store()
     test_fuzz_resume()
+    test_benchmark()
     test_cli()
     test_audit_evidence()
     test_defense_evidence()

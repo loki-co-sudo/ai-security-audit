@@ -1,0 +1,166 @@
+{
+ "created_at": "2026-10-22T01:27:01",
+ "detections": [
+  [
+   "IDOR",
+   "GET /account id"
+  ],
+  [
+   "IDOR",
+   "GET /doc-sqlerr id"
+  ],
+  [
+   "IDOR",
+   "GET /item id"
+  ],
+  [
+   "IDOR",
+   "GET /order id"
+  ],
+  [
+   "IDOR",
+   "GET /public id"
+  ],
+  [
+   "IDOR",
+   "GET /safe page"
+  ],
+  [
+   "IDOR",
+   "GET /ticket id"
+  ],
+  [
+   "SQLI",
+   "GET /item id"
+  ],
+  [
+   "SSTI",
+   "GET /greet name"
+  ],
+  [
+   "SSTI",
+   "GET /results q"
+  ],
+  [
+   "TRAVERSAL",
+   "GET /download file"
+  ],
+  [
+   "XSS",
+   "GET /raw q"
+  ],
+  [
+   "XSS",
+   "GET /search q"
+  ]
+ ],
+ "elapsed_sec": [
+  2.256,
+  2.274,
+  2.214
+ ],
+ "fixture_sha256": "7e8bcfb58754da644fa5f6c55566bbf8648176fb4b2e5faa65ae322ec3ee9704",
+ "git": {
+  "commit": "49dd6a038d78b1d6200236d27650fff0575f7334",
+  "dirty": true
+ },
+ "http_requests": [
+  256,
+  256,
+  256
+ ],
+ "kind": "web_fuzz_detector",
+ "llm_usage": "n/a (detector mode)",
+ "metrics": {
+  "per_rule": {
+   "IDOR": {
+    "cases": 8,
+    "fn": 0,
+    "fn_unexamined": 0,
+    "fp": 5,
+    "precision": 0.2857,
+    "recall": 1.0,
+    "tn": 1,
+    "tp": 2,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   },
+   "SQLI": {
+    "cases": 4,
+    "fn": 0,
+    "fn_unexamined": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "tn": 3,
+    "tp": 1,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   },
+   "SSTI": {
+    "cases": 3,
+    "fn": 0,
+    "fn_unexamined": 0,
+    "fp": 1,
+    "precision": 0.5,
+    "recall": 1.0,
+    "tn": 1,
+    "tp": 1,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   },
+   "TRAVERSAL": {
+    "cases": 2,
+    "fn": 0,
+    "fn_unexamined": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "tn": 1,
+    "tp": 1,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   },
+   "XSS": {
+    "cases": 4,
+    "fn": 0,
+    "fn_unexamined": 0,
+    "fp": 1,
+    "precision": 0.5,
+    "recall": 1.0,
+    "tn": 2,
+    "tp": 1,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   }
+  },
+  "total": {
+   "cases": 21,
+   "fn": 0,
+   "fn_unexamined": 0,
+   "fp": 7,
+   "precision": 0.4615,
+   "recall": 1.0,
+   "tn": 8,
+   "tp": 6,
+   "unexamined": 0,
+   "unexamined_negative": 0,
+   "unexamined_rate": 0.0
+  }
+ },
+ "runs": 3,
+ "schema": "ai-security-audit-benchmark",
+ "schema_version": "1",
+ "stable": true,
+ "truth_sha256": "cc392607ca7c482adfe68996136c7bdfe78708154bd06a18b48c8dea70118181"
+}
