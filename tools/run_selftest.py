@@ -3176,6 +3176,20 @@ def test_log_watcher_realworld():
         _ng("LogWatcher", str(result.errors + result.failures))
 
 
+def test_code_index():
+    _section("16aa. AUDIT — Python複数ファイル監査の索引・文脈生成(P4.2)")
+    import unittest
+    from tools import test_code_index as t
+    result = unittest.TestResult()
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
+                               for c in (t.SplitProjectTest, t.SafetyTest, t.LimitsAndGapsTest, t.AuditProjectTest))
+    suite.run(result)
+    if result.wasSuccessful():
+        _ok("CodeIndex", f"{result.testsRun} tests: 非実行/root外symlink/秘密除外/上限/循環/動的import/正直なcoverage")
+    else:
+        _ng("CodeIndex", str(result.errors + result.failures))
+
+
 def test_audit_evidence():
     _section("16l. AGENT — AuditAgent 証拠保存・入力マスキング(P1.2)")
     import unittest
@@ -3289,6 +3303,7 @@ def main():
     test_findings_ledger()
     test_openapi_loader()
     test_log_watcher_realworld()
+    test_code_index()
     test_cli()
     test_audit_evidence()
     test_defense_evidence()

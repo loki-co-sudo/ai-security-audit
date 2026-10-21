@@ -297,6 +297,18 @@ class CLITest(unittest.TestCase):
         p, data = self.call(["scan", "audit", "--target", str(self.base / "missing.py")])
         self.assertEqual((p.returncode, data["state"]), (2, "failed"))
 
+    def test_scan_audit_accepts_a_project_directory(self):
+        proj = self.base / "proj"
+        (proj / "app").mkdir(parents=True)
+        (proj / "app" / "views.py").write_text("@app.route('/u')\ndef u(uid):\n    return db.get(uid)\n")
+        (proj / "app" / "db.py").write_text("def get(uid):\n    return cur.execute('SELECT ' + uid)\n")
+        p, data = self.call(["scan", "audit", "--target", str(proj), "--fail-on", "high"])
+        self.assertIn(data["state"], ("completed", "partial"), data)
+        self.assertEqual(p.returncode, 1, data)
+        self.assertTrue(any(c["target_ref"] == "app/views.py" and c["status"] == "tested" for c in data["coverage"]))
+        p, data = self.call(["scan", "audit", "--target", str(self.base / "missing_dir")])
+        self.assertEqual((p.returncode, data["state"]), (2, "failed"))
+
     def test_scan_defense_single_pass_over_a_local_log(self):
         attack = self.base / "attack.log"
         attack.write_text('10.0.0.5 - - [22/Oct/2026:01:00:00 +0900] "GET /?q=1 UNION SELECT 1,2 HTTP/1.1" 200 12 "-" "x"\n')

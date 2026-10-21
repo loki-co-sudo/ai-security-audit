@@ -271,6 +271,9 @@ class AuditAgent(BaseAgent):
         scan_id = self._begin_scan()  # 証拠保存(EvidenceStore)がfinalize前から使うため(P1.2)
         self.bus.clear()
         t0 = time.time()
+        if os.path.isdir(path):
+            self._run_project(path, t0)     # P4.2: ディレクトリ入力。単一ファイルの経路は変更しない
+            return
 
         # Step 0: ファイル読み込み
         self._step(0, "running")
@@ -431,6 +434,119 @@ class AuditAgent(BaseAgent):
         errors = errors + evidence_errors + rejected
         self._finalize(state=state, errors=errors, findings=findings, coverage=coverage,
                        mode="AUDIT", target=path)
+
+    # ── Pythonプロジェクト(複数ファイル)監査 (P4.2) ─────────────
+    def _run_project(self, path: str, t0: float) -> None:
+        """ディレクトリを索引化(AST・実行/importなし)し、入口→認可→DB操作に関係する関数を優先してLLMへ渡す。
+
+        単一ファイル経路との差: ASTプリスキャン・証拠保存・CVE照合は未対応(所見は証拠なし扱い)。
+        上限で入らなかった関数・解析できなかったファイル・動的importは、coverageとerrorsに明示する。
+        """
+        from tools import code_index
+        self._step(0, "running")
+        self._log(f"Indexing project: {path}")
+        try:
+            idx = code_index.build_index(path)
+        except OSError as e:
+            self._step(0, "error")
+            self._finalize(state=ScanState.FAILED.value, errors=[f"プロジェクトを読めません: {e}"],
+                           mode="AUDIT", target=path)
+            return
+        if not idx.files:
+            self._step(0, "error")
+            self._finalize(state=ScanState.FAILED.value, mode="AUDIT", target=path, coverage=[
+                CoverageItem(target_ref=p, status=CoverageStatus.SKIPPED.value, rule_id="LLM_CODE_REVIEW", reason=r)
+                for p, r in idx.skipped], errors=["解析できるPythonファイルがありません"])
+            return
+        # LLM送信前に機密名リテラルの値をマスクする(行数は不変なので行番号は元のまま)
+        idx.sources = {rel: redaction.mask_source(src) for rel, src in idx.sources.items()}
+        ctx = code_index.render_context(idx, 12000)
+        self._log(f"Indexed {len(idx.files)} files, {len(idx.functions)} functions; "
+                  f"{len(ctx.included)} included, {len(ctx.omitted)} omitted")
+        self._step(0, "done")
+        self._step(1, "running")
+        self._out(
+            "╔══════════════════════════════════════════════════════╗\n"
+            "║      CODE AUDIT — PROJECT (MULTI-FILE) SCAN          ║\n"
+            "╚══════════════════════════════════════════════════════╝\n\n", "header")
+        self._out(f"  TARGET : {path}\n  FILES  : {len(idx.files)} analyzed, {len(idx.skipped)} not analyzed\n"
+                  f"  CONTEXT: {len(ctx.included)} function(s) sent, {len(ctx.omitted)} omitted by budget\n"
+                  f"  MODEL  : {self.llm.model}\n\n", "dim")
+        self._step(1, "done")
+        if self.is_stopped():
+            return
+        self._step(2, "running")
+        self._step(3, "running")
+        self._status(f"AI が {os.path.basename(path.rstrip('/')) or path} を解析中 ...")
+        full = self._stream_llm([
+            self.llm.system(SYSTEM_PROMPT),
+            self.llm.user(
+                "Analyze this multi-file Python project excerpt for unknown and logic-based security vulnerabilities. "
+                "Each block is labelled `file:start-end` and lines carry their real line numbers (`NN| code`). "
+                "Look for missing authorization between entry points and data access, IDOR, injection and unsafe calls "
+                "across file boundaries. Report LINES as `file:line`. Code that is not shown was NOT analyzed — do not "
+                "claim it is safe.\n\n```python\n" + ctx.text + "\n```"),
+        ], live_stats=True)
+        self._step(3, "done")
+        self._step(2, "done")
+        if self.is_stopped():
+            return
+        effort = self._effort()
+        if effort.get("verify_pass"):
+            full = self._verify_findings(f"```python\n{ctx.text[:6000]}\n```", full,
+                                         samples=effort.get("verify_samples", 1))
+        self._step(4, "running")
+        parsed_findings, counts = _findings_and_counts("CODE AUDIT", full)
+        self._step(4, "done")
+        self._step(5, "done")           # CVE照合はプロジェクト監査では未対応
+        self._step(6, "running")
+        self._save_investigation("CODE AUDIT (project)", path, f"## AI Reasoning Output\n{full}\n")
+        self._step(6, "done")
+        total = sum(counts.values())
+        self._stats(counts)
+        self._record_telemetry("CODE AUDIT", path, counts, time.time() - t0)
+        self._out("\n\n" + "═" * 56 + "\n", "sep")
+        self._out(f"  SCAN COMPLETE  |  {total} vulnerabilities detected\n", "green")
+        self._out("═" * 56 + "\n", "sep")
+        findings = self._findings_from_markers(parsed_findings, corroborated=bool(effort.get("verify_pass")))
+        coverage = self._project_coverage(ctx)
+        state, errors = self._determine_state(triage_text=full)
+        errors = errors + self._project_notes(ctx)
+        if state == ScanState.COMPLETED.value and (ctx.omitted or idx.limit_hit or idx.skipped):
+            state = ScanState.PARTIAL.value        # 文脈・ファイル上限で見ていない箇所があるためcompletedにしない
+        self._finalize(state=state, errors=errors, findings=findings, coverage=coverage, mode="AUDIT", target=path)
+
+    @staticmethod
+    def _project_coverage(ctx) -> list[CoverageItem]:
+        idx = ctx.index
+        sent = {f for f, *_ in ctx.included}
+        items = []
+        for rel in idx.files:
+            if rel in sent:
+                items.append(CoverageItem(target_ref=rel, status=CoverageStatus.TESTED.value, rule_id="LLM_CODE_REVIEW",
+                                          reason="優先度の高い関数のみLLMへ送信(全体のレビューではない)"))
+            else:
+                items.append(CoverageItem(target_ref=rel, status=CoverageStatus.SKIPPED.value, rule_id="LLM_CODE_REVIEW",
+                                          reason="入口/認可/DB操作に関係する関数が無く文脈に含めていない"))
+        items += [CoverageItem(target_ref=f"{p}:{ln} {q}", status=CoverageStatus.SKIPPED.value, rule_id="LLM_CODE_REVIEW",
+                               reason="文脈量の上限で省略") for p, q, ln in ctx.omitted]
+        items += [CoverageItem(target_ref=p, status=CoverageStatus.SKIPPED.value, rule_id="LLM_CODE_REVIEW", reason=r)
+                  for p, r in idx.skipped]
+        return items
+
+    @staticmethod
+    def _project_notes(ctx) -> list[str]:
+        idx, notes = ctx.index, []
+        if config.get("save_evidence", False):
+            notes.append("プロジェクト監査では証拠保存は未対応です(所見は証拠なし)")
+        if idx.limit_hit:
+            notes.append("ファイル数/サイズの上限に達し、一部のファイルは解析対象外です")
+        if idx.dynamic_files:
+            notes.append("動的import/getattr/eval等を含むため呼出し関係を解決できない箇所があります: "
+                         + ", ".join(idx.dynamic_files[:10]))
+        if idx.cycles:
+            notes.append(f"循環importを{len(idx.cycles)}組検出しました")
+        return notes
 
     # ── 構造化所見・実行状態(P1.1) ─────────────────────────
     @staticmethod

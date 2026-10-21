@@ -606,3 +606,7 @@ CLI `openapi FILE` / `scan fuzz --openapi ... --openapi-op ...`。副次修正: 
 `LogWatcher`の作り直し(バイナリ読み・inode+サイズ追跡・部分行保持・rename-create/copytruncate/一時不在、`stats`)、`normalize_log_line()`(JSONL平坦化、
 不正行は生テキストで検知)、`core/mitre.py`(未収録IDは「未確認」)、`MonitorAgent`への接続(縮小時はpartial+注記)。
 試験: `tools/test_log_watcher.py`(selftest 16z)。journald/syslog・gzip回転・長時間実運用検証は未実施。
+
+## 2026-10-22 P4.2(初期版): Python複数ファイル監査
+`tools/code_index.py`、`AuditAgent._run_project`(ディレクトリ入力のみ)、CLI `scan audit --target DIR`。coverageは送信した関数を含むファイルのみtested、
+未送信・省略・解析不能はskipped、上限や未解析があればpartial。LangGraph版・GUI・証拠保存・CVE照合・実LLM評価は未対応。

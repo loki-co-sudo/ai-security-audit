@@ -298,6 +298,16 @@ CLI: `openapi FILE`(operation一覧。通信しない)、`scan fuzz --openapi FI
 対象コードをimport/実行しない。`.venv`・生成物・秘密ファイルを除外し、symlinkによる対象root外への逸脱を防ぐ。ファイル数/サイズ/文脈量の上限を持ち、動的importや解決不能の呼出しは解析済みにしない。単一ファイル入力は維持する。
 テスト: 複数ファイルに分割した脆弱例と正常な認可例、行移動、循環import、root外symlink、解析上限を確認。多言語化は別計画。
 
+2026-10-22 実装済み(P4.2の初期版・標準エンジンのみ): `tools/code_index.py`(AST索引・関数/呼出し/import・循環import検出・優先付き文脈生成)、
+`AuditAgent._run_project`(ディレクトリ入力時のみ。単一ファイル経路は無変更)、`cli.py scan audit --target DIR`、`tools/test_code_index.py`(selftest 16aa)。
+- 対象コードはimport/実行しない(ast.parseのみ)。`.venv`等・秘密ファイル(.env/*.pem/secrets*等)は除外、**symlinkは辿らない**(root外への逸脱防止)。
+  上限: 200ファイル/1ファイル200KB/合計2MB/文脈12000文字。超過・構文エラー・動的import・解決不能の呼出しはcoverage(skipped)とerrorsへ明示し、
+  上限や未解析があればcompletedにせずpartialにする。文脈には「見ていないコードを安全と見なさない」注記を入れる。
+- 優先順位は入口(route/get/post等のデコレータ)→認可らしい名前→DB操作→危険呼出し、入口から名前一致で辿れる関数(+1)。**呼出し解決は名前一致の近似で、
+  優先付け専用**(到達可能性や脆弱性の主張には使わない)。機密名リテラルの値は送信前にマスク(行数不変)。
+**未実装/限界**: LangGraph版(`orchestrator.py`)・GUIのディレクトリ選択、ASTプリスキャン/証拠保存/CVE照合(プロジェクト監査では未対応で、証拠は「なし」)、
+クラス継承・メソッド解決・動的ディスパッチ、Python以外、実LLMでの検出品質評価(ベンチマーク未作成)。
+
 ### P4.3 実ログとローテーション
 
 `tools/log_watcher.py`でファイル識別子とsizeを追跡し、置換/縮小で位置を補正。未完の最終行は次回まで保持する。旧ファイルに残る行の扱いと取りこぼし得る条件を明記し、exactly-onceを保証したと主張しない。

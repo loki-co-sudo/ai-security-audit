@@ -60,7 +60,7 @@ def parser():
     scan = commands.add_parser("scan").add_subparsers(dest="mode", required=True)
     fuzz = scan.add_parser("fuzz")
     audit = scan.add_parser("audit")
-    audit.add_argument("--target", required=True, help="監査するPythonソースのパス（ローカルファイル）")
+    audit.add_argument("--target", required=True, help="監査するPythonソースのパス（ローカルのファイルまたはディレクトリ）")
     defense = scan.add_parser("defense")
     defense.add_argument("--target", required=True, help="解析するアクセスログのパス（ローカルファイル・1回だけ走査）")
     attack = scan.add_parser("attack")
@@ -394,8 +394,8 @@ def run_attack(args, on_agent, was_interrupted):
 
 def run_local(mode, target, effort, on_agent, was_interrupted):
     """CODE AUDIT(標準エンジン)またはDEFENSE(ログ1回走査)を実行して最終結果を返す。ローカルファイルのみ・Runジャーナル無し。"""
-    if not Path(target).is_file():
-        raise CLIError("対象のファイルが見つかりません")
+    if not (Path(target).is_file() or (mode == "audit" and Path(target).is_dir())):
+        raise CLIError("対象のファイル(auditはディレクトリも可)が見つかりません")
     with redirect_stdout(sys.stderr):
         config.load()
         llm = LLMClient(base_url=config.get("llm_base_url"), api_key=config.get("llm_api_key"),
