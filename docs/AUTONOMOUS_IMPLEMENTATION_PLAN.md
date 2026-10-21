@@ -16,26 +16,34 @@
 
 ## 2. 実装順序
 
+改訂（2026-10-21）: 実装計画のレビュー6点を既存コードと照合し、妥当と判断して順序と契約を改めた
+（根拠と契約は [AUTONOMOUS_PHASE_A_DESIGN.md](AUTONOMOUS_PHASE_A_DESIGN.md) §11）。主な変更は、
+**契約の確定を最初に置く**、**等価性の比較をA2より前から始める**、**coverageの事実化を独立した変更にする**こと。
+
 | 順 | 単位 | 内容 | 依存 | 完了条件（検証） |
 |---|---|---|---|---|
 | 0 | 設計文書のコミット | 設計3本＋本書 | なし | リンク・制御文字の検査 |
-| 1 [x] | **A1 `core/autonomy/journal.py`** | 追記式JSONL、`seq`/`prev_hash`、`run_id`検証、単一writer排他、部分行回復、容量上限（fail closed）、機密マスク | なし | 単体テスト（追記・再生・部分行・途中破損・hash不整合・排他・上限・マスク・不正run_id）がselftestに統合され通る |
-| 2 | A2 `actions.py` / `policy_gate.py` / `budget.py` | `CapabilitySpec`/`Action`/`GateDecision`、Gate検査（スコープ・カタログ・副作用クラス・予算・重複・fail closed・承認タイムアウト=deny）、`TaskState`（`exhausted`含む） | A1 | A3〜A5, A8の一部に相当する単体テスト |
-| 3 | A3 `agents/fuzz_capabilities.py` | 既存メソッドを呼ぶ薄い層。`requests`等の直接送信を持たない | A2 | 静的検査テスト（直接送信なし） |
-| 4 | A4 `core/autonomy/runner.py` | スクリプト化計画、STOP、`_finalize`契約、`skipped`/`cancelled` | A3 | STOP・予算0・注入点なしの各試験 |
-| 5 | A5 等価性・安全試験 | 従来経路との等価性、範囲外canary、機密非漏えい、既存結果の非退行 | A4 | Phase A設計 §6 の A1〜A12 |
-| 6 | P2.1（並行可） | ベンチマークと改修前基準値 | P1.2 | PRACTICAL_ROADMAP の受け入れ条件。Phase C以降の前提 |
+| 1 [x] | **A1 `core/autonomy/journal.py`** | 追記式JSONL、`seq`/`prev_hash`、`run_id`検証、単一writer排他、部分行回復、容量上限（fail closed）、機密マスク | なし | 単体テストがselftestに統合され通る |
+| 1b [x] | A1補正 | `run_finished` を一度だけ・16KBまで・終端に（レビュー6） | A1 | 追加テスト通過 |
+| 2 | **契約の確定（文書）** | 副作用とPOST、ApprovalGrant、予算三層、unknown_outcome、終了処理（Phase A設計 §11） | なし | 文書内の食い違いが無い（旧記述の撤回を確認） |
+| 3 | **特性化試験（characterization）** | 現行経路の固定fixture（GET/POSTフォーム、認証あり/なし）とモックLLMで基準を取り、サーバー側の (メソッド,パス,クエリ/本文) の多重集合・所見・coverage・stateを記録する装置 | なし（既存コードは変更しない） | 現行経路で安定して通る（複数回実行して揺れない箇所だけを期待値にする） |
+| 4 | A2 `actions.py` / `policy_gate.py` / `budget.py` | `CapabilitySpec`（`mutating=True`はT3のみ）/`Action`/`GateDecision`/`ApprovalGrant`、Gate検査（§11.2〜11.3）、`TaskState`（`exhausted`・`unknown_outcome`を含む） | 1, 2 | Gateの単体テスト（承認の未承認・期限切れ・引数変更・再利用・A/B取り違え、予算0、重複、fail closed） |
+| 5 | **検査実績の最小変更** | `WebFuzzer` に検査単位の実行記録を**追加のみ**で入れる（返り値・既存挙動は不変）。独立コミット | 3 | 予算0／途中枯渇／ちょうど完遂の3ケース、既存selftest全通過、特性化試験が不変 |
+| 6 | A3＋最小Runner（一本通し） | `web.crawl` から1つずつcapabilityを足し、**足すたびに特性化試験の装置で比較**。GET注入点のみ、POSTは`skipped` | 4, 5 | 各段階で比較が通る。意図的な差（POST受信0）は期待値として固定 |
+| 7 | A4 Runnerの完成 | STOP、`finally`での終了処理（stop→`run_finished`→RESULT/DONE）、失敗点ごとの挙動 | 6 | 失敗点（Gate前／action_started前／送信後／run_finished）の各試験 |
+| 8 | A5 異常系・安全試験 | 範囲外canary、機密非漏えい、ジャーナル再生（`unknown_outcome`）、静的検査（直接送信なし） | 7 | Phase A設計 §6 の A1〜A12＋§11の受け入れ条件 |
+| 別 | P1.2残検証・P2.1（並行可） | ベンチマークと改修前基準値 | P1.2 | PRACTICAL_ROADMAP の受け入れ条件。Phase C以降の前提 |
 
-順4までは、新規ファイルの追加が中心で既存挙動に影響しない。**順5で初めて既存経路との比較**を行う。差が出た場合は、
-Phase A設計 §9 のとおり集合比較で説明できる差かを確認し、説明できない差は実装側を直す。
+順6までは既存挙動を変えない（順5の追加のみ変更が入るが、返り値は不変であることを試験で確認する）。差が出た場合は、
+Phase A設計 §11.5 のとおり**多重集合**で比較し、説明できない差は実装側を直す。予算が拘束するケースは多重集合の一致を求めず、総送信数と分類だけを検査する。
 
 ## 3. 各単位の停止・見直し条件
 
 - 検証が通らず、同じエラーが2回連続: 止めて原因・試したこと・残課題を報告する。
-- A5で既存経路との等価性が取れない: Phase Aの設計（capability境界の切り方）を見直す。ここまでの部品（A1〜A4）は再利用できる粒度に保つ。
+- 順6の比較で等価性が取れない: 差が意図的か（期待値に固定してよいか）を判断し、そうでなければcapability境界の切り方を見直す。比較は各capabilityの追加直後に行うので、見直しの範囲は直近の1段に収まる。
 - `HttpTransport` の変更が必要と分かった: 当該変更を独立コミットにし、既存selftestの全通過を条件とする。解決先IP再検査（上位設計 §9 #8）はPhase Cの前の別単位であり、ここには混ぜない。
 
 ## 4. 今回の範囲
 
-順0〜順1（A1）まで。A1の完了後にコミットし、結果を報告して次の単位へ進むかを判断する。
+順0〜順2（A1・A1補正・契約の確定）まで。次は順3（特性化試験）。各単位の完了後にコミットして報告する。
 実LLM・外部ネットワークを使う試験は追加しない。

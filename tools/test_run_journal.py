@@ -144,6 +144,22 @@ class RunJournalTest(unittest.TestCase):
             with self.assertRaises(jr.JournalFull):
                 j.append("task_added", note="x" * 400)
 
+    def test_run_finished_once_bounded_and_terminal(self):
+        with jr.RunJournal(self.run_id, self.root, max_events=1) as j:
+            j.append("task_added", task_id="t0")
+            with self.assertRaises(jr.JournalFull):  # 巨大な終了イベントは拒否され何も残さない
+                j.append("run_finished", state="partial", errors=["x" * (jr.MAX_FINISH_BYTES + 1)])
+            self.assertEqual(j.event_count, 1)
+            j.append("run_finished", state="partial", errors=["compact"])  # 上限超過後でも一度は書ける
+            for t in ("run_finished", "task_state"):  # 二度目以降・他種別も不可（終端）
+                with self.assertRaises(jr.JournalError):
+                    j.append(t, state="x")
+            self.assertEqual(j.event_count, 2)
+        with jr.RunJournal(self.run_id, self.root) as j:  # 再オープンしても終端のまま
+            with self.assertRaises(jr.JournalError):
+                j.append("task_state", state="x")
+        self.assertEqual(len(jr.replay(self.run_id, self.root).events), 2)
+
     def test_secrets_are_masked_before_write(self):
         secret = "S3CR3T-cookie-value-9f2"
         with jr.RunJournal(self.run_id, self.root, known_secrets={secret}) as j:

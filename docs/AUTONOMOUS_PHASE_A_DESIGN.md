@@ -27,10 +27,11 @@
 | 現行の処理 | 呼び出し | capability名（案） | 副作用クラス | 備考 |
 |---|---|---|---|---|
 | スコープ確認 | `_check_scope()` | （Gateに吸収） | — | 既存の `scope_mode=warn` 既定は自律経路では使わない（§4.1） |
-| 認証（A/B） | `fuzzer.authenticate()` / `authenticate_b()` | `web.authenticate` | **T3相当（認証情報の送信）** | Phase Aではプロファイルで明示された認証のみ許可。Planner不在なので承認は「実行開始時の明示設定」で代替し、ジャーナルに記録 |
+| 認証（A/B） | `fuzzer.authenticate()` / `authenticate_b()` | `web.authenticate`（役割 a / b ごとに別Action） | **T3（認証情報の送信）** | 「認証設定」（プロファイルの認証参照）と「そのActionへの承認」は**別契約**。承認は §11.2 の `ApprovalGrant` が無ければ実行しない |
 | クロール・注入点検出 | `fuzzer.crawl(base_url)` | `web.crawl` | T1 | 結果: `injection_points` を `Asset`相当の記録へ |
 | プローブ生成 | `self._gen_probes(points)`（FAST） | `llm.gen_probes` | T0 | 送信なし。LLM呼出は予算台帳に計上 |
-| ファジング | `fuzzer.fuzz(points, probes)` | `web.fuzz_points` | T1 | 内部でThreadPoolExecutor。**1回の実行をActionにする**（注入点単位への分割はPhase C以降） |
+| ファジング（GET） | `fuzzer.fuzz(get_points, probes)`（呼び出し側でGET注入点だけに絞る。`WebFuzzer`は変更しない） | `web.fuzz_get_points` | T1（`mutating=False`） | 内部でThreadPoolExecutor。**1回の実行をActionにする**。GETであることは副作用がない保証ではない（§11.1） |
+| ファジング（POST） | （Phase Aでは実行しない） | `web.fuzz_post_points`（Phase Aでは登録のみ・実行不可） | **T3** | POST注入点は coverage に `skipped`（理由 `post_requires_approval`）で記録し送信しない。送信する場合は個別承認（§11.2） |
 | 認可チェック | `idor_skip_reason()` → `fuzzer._detect_idor(points)` | `web.idor_compare` | T2（GET限定） | 認証状態が不明ならskipし理由を記録（既存挙動を保存） |
 | 証拠保存 | `_save_evidence(...)` | `evidence.save` | T0 | `save_evidence` 設定時のみ |
 | AIトリアージ＋検証パス | `_stream_llm` / `_verify_findings` | `llm.triage` | T0 | STRONG。マスク済みサマリーのみ入力 |
@@ -118,8 +119,8 @@ class GateDecision:
 
 1. **スコープ**: ターゲットのoriginが `allowed` に含まれ `excluded` に含まれない。**自律経路では空の許可リストを `deny`**（`scope.empty_allowlist`）。`normalize_origin()` を再利用。
 2. **カタログ**: 未登録capabilityは `deny`（`capability.unknown`）。
-3. **副作用クラス**: T3は、プロファイルに明示された承認事項（認証の使用）がある場合のみ `allow`、なければ `needs_approval`（Phase Aには承認UIがないため、結果は実行拒否として記録）。
-4. **予算**: `BudgetLedger` のリクエスト・時間の残量。タスクの `max_requests` が残量を超えるなら `deny`。**実送信の計数は引き続き `HttpTransport` が正**（Gateは二重計数せず、実測値をジャーナルへ記録する）。
+3. **副作用クラス**: T0/T1はプロファイルが許可していれば `allow`。T3は**有効な `ApprovalGrant`（§11.2）がある場合のみ `allow`**。なければ `needs_approval`（Phase Aには承認UIがないため実行せず記録）、期限切れ・引数不一致・再利用は `deny`。`mutating=True` のcapabilityをT3以外で登録しようとしたら登録時エラー。
+4. **予算**（§11.3）: Runの残リクエストが0なら `deny`（`budget.requests_exhausted`）。残量が正なら開始を許可し、**Action単位の上限で丸ごと拒否しない**（旧経路は残予算まで進むため）。**実送信の計数は引き続き `HttpTransport` が正**で、Gateは二重計数せず実測消費をジャーナルへ記録する。
 5. **重複**: 同じ `dedupe_key` が `done` または `running` なら `deny`（`dedupe.already_done`）。
 6. **fail closed**: `gate_decision` のジャーナル書込みに失敗したら `deny` 扱いで実行しない。
 
@@ -128,7 +129,7 @@ Phase Aで**実装しない**もの（後続Phase）: 承認キュー、引数�
 ### 3.4 ScriptedRunner
 
 固定のタスク列（`authenticate → crawl → gen_probes → fuzz_points → idor_compare → save_evidence → triage → finalize`）を、依存順に実行する。
-各タスク前に `is_stopped()` を確認し、STOP時は残りを `skipped` とし、`cancelled` で最終化する（現行の `_safe_run` の契約と同じ）。
+各タスク前に `is_stopped()` を確認し、STOP時は残りを `skipped` とし、`cancelled` で最終化する（現行の `_safe_run` の契約と同じ）。終了処理は通常Actionと独立し、`finally` で保証する（§11.6）。
 注入点なしの場合は現行どおり、以降のタスクを `skipped`（理由: `no_injection_points`）として最終化する。これは現行の `_finish(0, ...)` の早期終了と等価な結果にする。
 
 ## 4. 既存機能への影響と互換性
@@ -183,6 +184,8 @@ Phase Aで**実装しない**もの（後続Phase）: 承認キュー、引数�
 
 ## 8. 実装の小分け（レビュー可能な単位）
 
+> 2026-10-21改訂: 実際の着手順序は [AUTONOMOUS_IMPLEMENTATION_PLAN.md](AUTONOMOUS_IMPLEMENTATION_PLAN.md) §2 を正とする（特性化試験とcoverage事実化を前倒し）。下表は部品の分割の目安。
+
 | 単位 | 内容 | この単位で確認すること |
 |---|---|---|
 | A1 | `journal.py`（追記・再生・回復・容量上限）と単体テスト | A9, A6 |
@@ -209,6 +212,63 @@ Phase Aで**実装しない**もの（後続Phase）: 承認キュー、引数�
 
 - **ジャーナルは監査記録、実行状態の永続化は別**: Phase AのRun Journalは判断・実行の追記式記録として実装する。Phase B（再開）で実行状態をSQLite（WAL）に置くかは上位設計 §9 #7 で決定済み（SQLite WAL、監査記録はJSONL。本Phaseでは未実装）。どちらでもA9（ジャーナル再生の整合）は監査記録の整合試験として有効。
 - **`exhausted` 状態の追加**: `TaskState` に `exhausted`（上限到達）を設け、`done` と区別する。coverageでは `tested` に数えない。試験A8（予算N）で、予算切れのタスクが `exhausted` になり、結果が `partial` になることを確認する。
-- **承認のタイムアウトは常に deny**: Phase Aには承認UIがないため、T3は常に実行拒否として記録されるが、「承認待ち→期限切れ→deny」の遷移型だけは先に定義する（後から`allow`を設定可能にしない）。
+- **承認のタイムアウトは常に deny**: 承認が無いT3は `needs_approval` として記録して実行しない。期限切れの承認は `deny`。承認の契約は §11.2（以前の「T3は常に実行拒否」という記述は撤回し、§11.2に一本化した）。
 - **Assetの `candidate`/`authorized` 区別**: `web.crawl` が見つけた外部originの資産は `candidate` として記録するだけで、送信対象にしない。A2（範囲外canary）で、candidateへの送信が0であることを確認する。
 - **未決事項の追加**: 送信直前の解決先IP再検査（上位設計 §9 #8（Phase Cの前に独立した変更単位。Phase Aには含めない））。Phase Aで扱うなら `HttpTransport` への変更が必要になり、「`HttpTransport` は原則変更なし」の前提が崩れるため、実装前に別の変更単位として決める。
+
+## 11. 契約の確定（実装計画レビュー反映・2026-10-21）
+
+実装計画のレビュー6点を既存コードと照合し、いずれも妥当と判断した（根拠は各項）。A2以降の判断基準になる契約をここで固定する。
+
+### 11.1 副作用クラスと POST（レビュー1）
+
+- 確認: `WebFuzzer._send()` は `method == "POST"` なら `data=fields` で送信し（`tools/web_fuzzer.py` の `_send`）、注入点の `method` はフォームの `method` 属性由来。つまりPOSTフォームの注入点が実際に送信される。上位設計 §6.1 はPOSTをT3（個別承認）としており、`web.fuzz_points` を一律T1とした旧記述は宣言と動作が食い違っていた。
+- 契約: 新経路の `web.fuzz_get_points` は**GET注入点だけ**を対象にする（呼び出し側で絞る。`WebFuzzer`は変更しない）。POST注入点はcoverageに `skipped`（`post_requires_approval`）で残し、送信しない。
+- GETは副作用なしの保証ではない（`/logout?` のような例がある）。T1は「プロファイルで読み取り検査を許可した」場合のみ自動実行し、残余リスクをレポートに明記する。
+- 既存のGUI経路はPOSTも送信する。これは**変更しない**。新経路との差は意図的な差として期待値に固定する（§11.5）。
+
+### 11.2 承認（ApprovalGrant）の契約（レビュー2）
+
+- 確認: 旧記述は §2表（開始時の明示設定で認証を許可）、§3.3（設定があれば`allow`）、§10（T3は常に拒否）の3箇所で食い違っていた。
+- 契約: **認証設定**（プロファイルの認証参照: どの役割にどの資格情報か）と**承認**（そのActionを実行してよい）は別。承認は `ApprovalGrant` で表す。
+  - 項目: `grant_id`、`capability`、`args_hash`（対象origin・メソッド・認証参照名・役割a/bを含む正規化引数のハッシュ）、`expires_at`、`single_use`（常にTrue）、`issued_by`。
+  - Runnerの開始引数としてユーザーが明示的に渡す。LLMや他エージェントは発行できない。時計は注入可能（試験用）。
+  - Gateは、`args_hash` 一致・未失効・未使用を検査し、`approval_consumed` イベントを**実行前に**書く。書けなければ実行しない。
+  - 理由コード: `approval.missing`（needs_approval）、`approval.expired`、`approval.args_mismatch`、`approval.reused`（いずれもdeny）。
+  - A認証とB認証は別Action・別Grant。片方の承認でもう片方は実行されない。
+- 受け入れ条件: 未承認・期限切れ・引数変更・再利用・A/B取り違えがすべて拒否され、承認通りの場合のみ実行される。
+
+### 11.3 予算の三層とcoverageの事実化（レビュー3）
+
+- 確認: `FuzzAgent._build_coverage()` は検出された注入点を一律 `tested` にする（docstringも「全プローブ完遂の保証ではない」と認めている）。`WebFuzzer.fuzz()` の返り値は異常一覧だけで、`_fuzz_point` は予算切れで `[]` を返すため、「検査して異常なし」と「予算不足で未実施」を区別できない。また、旧記述の「Actionの `max_requests` が残量を超えたら丸ごと拒否」は、残予算まで進む旧経路と非等価。
+- 契約（三層）:
+  1. **Run予算**: `HttpTransport` の `max_requests`。送信の唯一の真実。
+  2. **Action上限**: `CapabilitySpec.max_requests` は**情報用**（Phase Aでは拒否に使わない）。強制する場合は transport 側の下位予算が必要で、Phase C以降で別途設計する。
+  3. **実測消費**: Action前後の transport 計数の差をジャーナルへ記録。
+  - Gateの予算判定は「Run残が0なら拒否、正なら開始許可」のみ。
+- 検査実績の最小変更（独立コミット）: `WebFuzzer` に、検査単位（注入点×カテゴリ）ごとの実行記録を貯める**追加のみ**の仕組みを入れる（返り値・既存挙動は不変、スレッドセーフ）。項目: 対象・メソッド・パラメータ・カテゴリ・計画プローブ数・実送信数・状態（`completed` / `exhausted` / `stopped` / `not_started` / `transport_error`）・理由。同カテゴリで最初の兆候が出て打ち切った場合は `completed`（理由 `first_signal`）。
+- coverage: `completed` のみ `tested`。他は `skipped`（理由に状態名）または `failed`。旧 `_build_coverage` は旧経路用に残す。
+- 受け入れ条件: 予算0、途中枯渇、ちょうど完遂（予算＝必要数）の3ケースで実施済みと未実施が正しく区別される。
+
+### 11.4 結果不明（unknown_outcome）と再開（レビュー4）
+
+- 確認: 実行状態をSQLite、監査をJSONLに分ける決定（上位設計 §9 #7）の下では、「送信先が処理した直後・ローカル完了記録の前」に停止すると、ローカル記録だけでは実行済みか判別できない。再開試験の「二重実行なし」だけでは足りない。
+- 契約: `action_started` を送信**前**に必ず記録する（write-ahead）。再生で `action_started` があり `action_finished` が無いタスクは `unknown_outcome` とし、**自動再実行しない**（既定）。予算は不明分を巻き戻さない（開始時点の予約を消費済みとして扱う）。再実行は新しいActionとして、Gateを通し直し、必要なら承認を得る。
+- A2: `TaskState` に `unknown_outcome` を含める（型と再生時の判定のみ）。回復処理（SQLiteとJSONLの突合）は **Phase B**。そのとき両ストアに**共通の `event_id`** を持たせ、片側だけ保存された場合の照合手順を定義する。
+- Phase Bの受け入れ条件: 送信直後／結果保存直前／監査追記直前で停止させ、不明状態の保持・予算の非巻き戻し・無断再送なしを検証。
+
+### 11.5 等価性は先に・逐次に（レビュー5）
+
+- 確認: 旧計画は「順5で初めて既存経路と比較」だった。POST・coverageの問題はcapability境界に関わるため、最後に発見するとA2〜A4に戻る。
+- 契約: A2より前に、現行経路の**特性化試験（characterization）**を作る。固定fixture（GET/POSTフォーム・認証あり/なし）をローカルサーバーに用意し、モックLLMで現行経路を実行して基準を取る。capabilityを1つ足すたびに同じ装置で比較する。
+- 比較の仕方: 所見・coverage・stateに加え、**サーバー側で観測した (メソッド, パス, クエリ/本文) の回数（多重集合）**を比較する。集合化は二重送信・二重所見を隠すため使わない。
+- 非決定性の扱い: 予算が途中で枯渇する場合は、ThreadPoolExecutorの競合でどの注入点が消費するかが変わる。このケースは多重集合の一致を要求せず、「総送信数 ≤ 予算」と「未実施の分類」だけを検査する。多重集合比較は予算が拘束しないケースで行う。
+- 意図的な差は期待値として事前に固定する（例: 新経路のPOST受信は0、旧経路のPOST数は特性化試験で記録）。
+
+### 11.6 終了処理の独立（レビュー6）
+
+- 確認: `core/autonomy/journal.py` は書込み失敗後に writer を使用不能にする（`_broken`）。固定計画の末尾に `report.finalize` を置くだけだと、監査記録の失敗で終了できなくなり得る。
+- 契約: Runnerは `finally` で次を**この順**に行う。(1) 新規送信を止める（stop）。(2) 監査の `run_finished` を試みる（失敗は握りつぶさず `errors` に追加）。(3) `ScanResult` を確定し RESULT→DONE を**一度だけ**通知する。監査記録が書けなくても(3)は必ず通る。
+- 失敗点ごとの挙動: Gate判断の記録に失敗→そのActionは実行せず、以降の送信を止める／`action_started` 記録に失敗→実行しない／送信後に `action_finished` を書けない→結果はメモリ上にあるが `unknown_outcome` 相当として扱い、以降の送信を止める／`run_finished` に失敗→errorsへ反映。いずれも最終状態は `partial` か `failed`（`completed` にしない）。
+- `run_finished` の容量上限除外は無制限ではなく、**一度だけ・1件16KBまで・書いた後は終端**とした（`journal.py` 実装済み）。
+- 受け入れ条件: 上記の各失敗点で、新規送信の停止と最終結果へのエラー反映、DONEの一度きりを確認する。

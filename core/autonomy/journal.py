@@ -8,6 +8,7 @@ core/autonomy/journal.py — Run Journal（追記式JSONLの判断・実行記�
   - 1行1イベント。共通フィールド: event_id / schema_version / run_id / seq(1始まり連続) /
     ts / type / prev_hash。prev_hash は直前の行（改行を除く）のsha256で、先頭は全ゼロ。
     これは破損・欠落の検出補助であり、改ざん防止ではない（書換え側が連鎖を作り直せる）。
+  - run_finished は容量上限の対象外だが、一度だけ・サイズ制限付き。書いた後は終端（追記不可）。
   - 書込みはfail closed: 記録できなかった判断を実行してはならないため、容量超過・書込み失敗は
     例外にし、呼び出し側（Policy Gate）は実行を拒否する。書込み失敗後はこのwriterを使えない。
   - 末尾の改行なしの部分行は書込み途中の残骸として警告付きで破棄し、sidecar(.partial)に退避する。
@@ -39,8 +40,12 @@ GENESIS_HASH = "0" * 64
 DEFAULT_MAX_EVENTS = 20_000
 DEFAULT_MAX_BYTES = 10_000_000
 
-# 容量上限の対象外。上限に達してもRunの終了を記録できるようにする。
-UNCAPPED_TYPES = frozenset({"run_finished"})
+# 件数・総サイズ上限の対象外。上限に達してもRunの終了を記録できるようにするが、
+# 無制限にはしない: 終了イベントは1Runにつき一度だけ、かつ1件のサイズを制限する。
+# 終了イベントを書いたRunはそれ以降いかなる追記も受け付けない（終端）。
+FINISH_TYPE = "run_finished"
+UNCAPPED_TYPES = frozenset({FINISH_TYPE})
+MAX_FINISH_BYTES = 16_384
 
 _RUN_ID_RE = re.compile(r"^run_[0-9a-f]{12}$")
 _TYPE_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
@@ -167,12 +172,14 @@ class RunJournal:
         self._mutex = threading.Lock()
         self._closed = False
         self._broken = False
+        self._finished = False
         self.warnings: list[str] = []
 
         os.makedirs(self.dir, exist_ok=True)
         self._lock_fd = self._acquire_lock(os.path.join(self.dir, LOCK_FILE))
         try:
             rep = self._recover()
+            self._finished = bool(rep.events) and rep.events[-1].get("type") == FINISH_TYPE
             self._seq = len(rep.events)
             self._prev_hash = rep.last_hash
             self._bytes = rep.good_bytes
@@ -239,6 +246,8 @@ class RunJournal:
                 raise JournalError("closeされたjournalには書き込めません")
             if self._broken:
                 raise JournalWriteError("以前の書込み失敗により、このjournalは使用できません")
+            if self._finished:
+                raise JournalError("終了済みのRunには追記できません")
             event = {
                 "event_id": new_id("evt"),
                 "schema_version": SCHEMA_VERSION,
@@ -252,6 +261,9 @@ class RunJournal:
             raw = json.dumps(event, ensure_ascii=False, sort_keys=True,
                              separators=(",", ":")).encode("utf-8")
             size = len(raw) + 1
+            if type == FINISH_TYPE and size > MAX_FINISH_BYTES:
+                raise JournalFull(
+                    f"{FINISH_TYPE}が大きすぎます({size}バイト > {MAX_FINISH_BYTES})。要約して再試行してください")
             if type not in UNCAPPED_TYPES and (
                     self._seq >= self.max_events or self._bytes + size > self.max_bytes):
                 raise JournalFull(
@@ -264,6 +276,7 @@ class RunJournal:
                 self._broken = True
                 raise JournalWriteError(f"journalへの書込みに失敗しました: {e}") from e
             self._seq += 1
+            self._finished = self._finished or type == FINISH_TYPE
             self._prev_hash = _line_hash(raw)
             self._bytes += size
             return event
