@@ -101,7 +101,7 @@ class RealRunTest(unittest.TestCase):
         """基準値は「現行の検出が誤りやすい罠」でFPが出ることを示している(改善の余地の根拠)。"""
         with open(bm.BASELINE_PATH, encoding="utf-8") as f:
             m = json.load(f)["metrics"]["per_rule"]
-        self.assertGreater(m["IDOR"]["fp"], 0)          # 公開/閲覧者別ページを長さ類似だけでIDOR候補にする
+        self.assertGreater(m["IDOR"]["fp"], 0)          # 閲覧者別ページ(/order)は期待権限なしでは区別できずIDOR候補に残る
         self.assertGreater(m["SSTI"]["fp"], 0)          # 偶然の"49"
         self.assertGreater(m["XSS"]["fp"], 0)           # text/plainの反射
         self.assertEqual(m["SQLI"]["fp"] + m["TRAVERSAL"]["fp"], 0)   # 静的な罠は正しく無視される

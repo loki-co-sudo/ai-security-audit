@@ -1818,7 +1818,11 @@ def _start_idor_mock_server():
             if u.path == "/":
                 body += '<a href="/resource?id=1">r</a>'
             elif u.path == "/resource":
-                # 脆弱: セッション種別を確認せずid=1の内容を返す（IDOR再現用モック）
+                if not cookie:      # 認証必須(認証なしで読める公開リソースはIDORの根拠にしない)
+                    self.send_response(401)
+                    self.end_headers()
+                    return
+                # 脆弱: ログインさえしていれば所有者を確認せずid=1の内容を返す（IDOR再現用モック）
                 body += f"secret data for resource 1 (cookie={cookie})"
             body += "</body></html>"
             self.send_response(200)

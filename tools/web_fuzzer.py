@@ -611,6 +611,14 @@ class WebFuzzer:
             if resp_b is None:
                 continue
             if resp_b.status_code == 200 and self._bodies_similar(resp_a.text, resp_b.text):
+                # 確定根拠にしない応答: ログイン画面(共通ログイン・認証期限切れ)と、認証なしでも取れる公開リソース。
+                if _is_login_page(resp_a.text) or _is_login_page(resp_b.text):
+                    continue
+                resp_anon = self._send_as(requests.Session(), full_url)
+                if resp_anon is not None and resp_anon.status_code == 200 \
+                        and not _is_login_page(resp_anon.text) \
+                        and self._bodies_similar(resp_a.text, resp_anon.text):
+                    continue
                 findings.append({
                     "url": full_url, "param": p["param"], "method": p["method"],
                     "status_a": resp_a.status_code, "status_b": resp_b.status_code,
@@ -687,6 +695,11 @@ def _attr(attr_str: str, name: str) -> str | None:
         return m.group(1)
     m = re.search(rf"{name}\s*=\s*([^\s>]+)", attr_str, re.I)
     return m.group(1) if m else None
+
+
+def _is_login_page(body: str) -> bool:
+    low = (body or "").lower()
+    return "type=\"password\"" in low or "type='password'" in low
 
 
 def _context(body: str, needle: str, width: int = 40) -> str:

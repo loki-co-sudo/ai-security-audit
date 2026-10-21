@@ -1,5 +1,5 @@
 {
- "created_at": "2026-10-22T01:33:38",
+ "created_at": "2026-10-22T01:39:10",
  "detections": [
   [
    "IDOR",
@@ -7,27 +7,7 @@
   ],
   [
    "IDOR",
-   "GET /doc-sqlerr id"
-  ],
-  [
-   "IDOR",
-   "GET /gate id"
-  ],
-  [
-   "IDOR",
-   "GET /item id"
-  ],
-  [
-   "IDOR",
    "GET /order id"
-  ],
-  [
-   "IDOR",
-   "GET /public id"
-  ],
-  [
-   "IDOR",
-   "GET /safe page"
   ],
   [
    "IDOR",
@@ -59,19 +39,19 @@
   ]
  ],
  "elapsed_sec": [
-  2.214,
-  2.219,
-  2.189
+  2.288,
+  2.168,
+  2.259
  ],
  "fixture_sha256": "3f38d500353d09a230f5ba18e94ccf3a92fae59bbebd0090a0f1a4cb146fffc1",
  "git": {
-  "commit": "3bef966b9ceec29cdac5c4ac17a027e4367a5388",
+  "commit": "8f7a49082532456d54a4cc16c33ab101b02ab9d3",
   "dirty": true
  },
  "http_requests": [
-  326,
-  326,
-  326
+  333,
+  333,
+  333
  ],
  "kind": "web_fuzz_detector",
  "llm_usage": "n/a (detector mode)",
@@ -81,10 +61,10 @@
     "cases": 10,
     "fn": 0,
     "fn_unexamined": 0,
-    "fp": 6,
-    "precision": 0.25,
+    "fp": 1,
+    "precision": 0.6667,
     "recall": 1.0,
-    "tn": 2,
+    "tn": 7,
     "tp": 2,
     "unexamined": 0,
     "unexamined_negative": 0,
@@ -152,10 +132,10 @@
    "cases": 23,
    "fn": 0,
    "fn_unexamined": 0,
-   "fp": 8,
-   "precision": 0.4286,
+   "fp": 3,
+   "precision": 0.6667,
    "recall": 1.0,
-   "tn": 9,
+   "tn": 14,
    "tp": 6,
    "unexamined": 0,
    "unexamined_negative": 0,

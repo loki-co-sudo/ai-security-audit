@@ -547,3 +547,9 @@ ATTACK MODE に、認可された偵察レスポンスからCTF形式のフラ�
   （偶然の49・text/plain反射）、SQLI/TRAVERSALは静的な罠を無視。3回実行で検出集合は一致。テスト: `tools/test_benchmark.py`
   （selftest 16w）。`SELFTEST_NON_LLM_ONLY=1` 164 PASS / 0 FAIL / 5 SKIP。P2.1全体は未完了（実LLM評価・他モード等）。
 
+
+## 2026-10-22 P2.2(IDOR一部): ログイン画面・公開リソースを根拠にしない
+`WebFuzzer._detect_idor` に、(1) A/B応答がログイン画面(`type=password`)なら除外、(2) 認証なしセッションでも同内容が取れる
+公開リソースなら除外、を追加(候補1件につき最大+1リクエスト)。ベンチマーク: IDOR TP2→2、FP6→1、TN2→7。
+残FPは閲覧者別ページ(/order)で期待権限表が必要(未実装)。selftestのIDORモックは認証必須に修正(公開扱いで除外されるため)。
+検証: `SELFTEST_NON_LLM_ONLY=1` 164 PASS / 0 FAIL / 5 SKIP。SSTI・XSS改善と期待権限入力は未着手。
