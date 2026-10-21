@@ -33,7 +33,7 @@
 | 5b [x] | **LLM呼出の事前制限** | 呼出前に回数・入力サイズ・実行期限・再試行回数を予約して制限し、最大出力トークンを指定できるようにする（`BaseAgent` に任意のゲートフックと `LLMClient` の任意 `max_tokens` を**追加のみ**。未指定なら従来どおり）。検証パスのサンプルや再生成も同じ予算に計上。使用量が取得できない場合は `unknown`（0円にしない） | 4 | 上限直前・上限超過・再試行・検証パスの各ケースで呼出が**行われる前に**拒否される。ゲート未設定の既存経路は不変 |
 | 6 [x] | A3＋最小Runner（一本通し・匿名経路） | `web.crawl` から1つずつcapabilityを足し、**足すたびに特性化試験の装置で比較**。GET注入点のみ、POSTは`skipped` | 4, 5 | 各段階で比較が通る。意図的な差（POST受信0）は期待値として固定 |
 | 7 [x] | A4 Runnerの完成（順6と同時に実装: STOP・`close_run`・失敗点の全位置スイープ・`unknown_outcome`の再生） | STOP、`finally`での終了処理（stop→`run_finished`→RESULT/DONE）、失敗点ごとの挙動 | 6 | 失敗点（Gate前／action_started前／送信後／run_finished）の各試験 |
-| 8 | A5 異常系・安全試験（範囲外canary・機密非漏えい・静的検査・証拠→Action→Gate判断の追跡は順6で実装済み。**残り: 認証/IDORのcapability（`web.authenticate`・`web.idor_compare`）とApprovalGrantの結合試験、認証fixture**） | 範囲外canary、機密非漏えい、ジャーナル再生（`unknown_outcome`）、静的検査（直接送信なし） | 7 | Phase A設計 §6 の A1〜A12＋§11の受け入れ条件 |
+| 8 [x] | A5 異常系・安全試験（範囲外canary・機密非漏えい・静的検査・証拠→Action→Gate判断の追跡・STOP・0予算・監査失敗の全位置・認証(T3)の役割別承認・IDOR(T2)の明示許可と等価性まで実装） | 範囲外canary、機密非漏えい、ジャーナル再生（`unknown_outcome`）、静的検査（直接送信なし） | 7 | Phase A設計 §6 の A1〜A12＋§11の受け入れ条件 |
 | 別 | P1.2残検証・P2.1の本体（`benchmark.py`・集計器・基準値の保存。fixtureは順3で作成済み） | ベンチマークと改修前基準値 | P1.2 | PRACTICAL_ROADMAP の受け入れ条件。Phase C以降の前提 |
 
 順6までは既存挙動を変えない（順5の追加のみ変更が入るが、返り値は不変であることを試験で確認する）。差が出た場合は、

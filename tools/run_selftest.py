@@ -3066,14 +3066,14 @@ def test_fuzz_autonomy():
     _section("16s. AUTONOMY — WEB FUZZ 新経路(capability+Gate+Journal)の等価性・安全・異常系(Phase A 順6)")
     import unittest
     from tools.test_fuzz_autonomy import (EquivalenceTest, JournalTraceTest, SafetyTest,
-                                          BudgetAndStopTest, AuditFailureSweepTest)
+                                          BudgetAndStopTest, AuditFailureSweepTest, AuthApprovalTest)
     result = unittest.TestResult()
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
                                for c in (EquivalenceTest, JournalTraceTest, SafetyTest,
-                                         BudgetAndStopTest, AuditFailureSweepTest))
+                                         BudgetAndStopTest, AuditFailureSweepTest, AuthApprovalTest))
     suite.run(result)
     if result.wasSuccessful():
-        _ok("Fuzz autonomy path", f"{result.testsRun} tests: 現行経路との等価性/POST未送信/証拠→Action→Gate判断の追跡/予算/STOP/監査失敗の全位置")
+        _ok("Fuzz autonomy path", f"{result.testsRun} tests: 現行経路との等価性/POST未送信/証拠→Action→Gate判断の追跡/予算/STOP/監査失敗の全位置/認証の承認(役割別)/IDOR")
     else:
         _ng("Fuzz autonomy path", str(result.errors + result.failures))
 

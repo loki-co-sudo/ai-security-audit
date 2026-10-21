@@ -8,11 +8,14 @@
 import os
 import re
 import tempfile
+import time
 import unittest
 from collections import Counter
 from unittest.mock import patch
 
-from agents.fuzz_capabilities import AutonomousFuzzAgent
+from agents.fuzz_capabilities import AutonomousFuzzAgent, auth_action_args
+from agents.fuzz_agent import FuzzAgent
+from core.autonomy.actions import new_grant
 from core.autonomy import journal as jr
 from core.autonomy.task_graph import TaskState, derive_task_states
 from testlab.fixtures.web_fixture import FixtureServer
@@ -164,10 +167,6 @@ class SafetyTest(_Base):
         self.assertEqual(obs.state, "failed")
         self.assertTrue(any("scope.out_of_scope" in e for e in obs.result["errors"]))
 
-    def test_excluded_target_wins_over_allowed(self):
-        # excluded_targets は run() の公開引数ではないため、Gate側の単体試験(test_policy_gate)で検証済み
-        self.assertTrue(True)
-
     def test_external_links_and_forms_never_reach_another_origin(self):
         with FixtureServer() as canary:
             with FixtureServer(external_url=canary.base_url) as srv:
@@ -175,15 +174,6 @@ class SafetyTest(_Base):
             self.assertEqual(canary.count(), 0)                            # 範囲外canaryの受信は0
         self.assertIn(obs.state, ("partial", "completed"))
         self.assertGreater(obs.total_requests(), 0)
-
-    def test_auth_is_not_silently_ignored(self):
-        with FixtureServer() as srv:
-            obs = self.auto(srv, auth={"cookie": "sessionid=DUMMY_SECRET_ZZZ"})
-            self.assertEqual(srv.count(), 0)
-        self.assertEqual(obs.state, "failed")
-        self.assertTrue(any("未対応" in e for e in obs.result["errors"]))
-        dump = repr(obs.result)
-        self.assertNotIn("DUMMY_SECRET_ZZZ", dump)
 
     def test_no_direct_network_calls_in_new_modules(self):
         forbidden = re.compile(r"\b(requests\.|urllib|socket\.|http\.client|httpx|aiohttp)")
@@ -241,6 +231,39 @@ class BudgetAndStopTest(_Base):
         rep = self.journal(obs)
         self.assertEqual(rep.events[-1]["end_reason"], "stopped")
         self.assertEqual((obs.result_count, obs.done_count), (1, 1))
+
+    def test_stop_during_run_skips_remaining_tasks(self):
+        class StoppingLLM(MockLLM):
+            agent = None
+
+            def complete(self, messages, max_tokens=None, usage_out=None):
+                self.agent.stop()                       # プローブ生成中にSTOP
+                return super().complete(messages)
+
+        crawl_n = self.crawl_count(post_form=False)
+        llm = StoppingLLM()
+        with FixtureServer(post_form=False) as srv:
+            obs = self.auto(srv, llm=llm, before_start=lambda a: setattr(llm, "agent", a))
+            self.assertEqual(srv.count(), crawl_n)                           # ファジングの送信は始まらない
+        self.assertEqual(obs.state, "cancelled")
+        rep = self.journal(obs)
+        reasons = {e["task_id"]: e.get("reason") for e in rep.events if e["type"] == "task_state"}
+        self.assertEqual(reasons, {"fuzz": "stopped", "triage": "stopped"})
+        self.assertEqual(rep.events[-1]["end_reason"], "stopped")
+        self.assertEqual((obs.result_count, obs.done_count), (1, 1))
+
+    def test_zero_request_budget_sends_nothing_even_with_approved_auth(self):
+        with FixtureServer(post_form=False, auth=True) as srv:
+            kw = dict(auth={"cookie": f"sid={TOK_A}", "confirm_url": srv.base_url + "me",
+                            "expect_text": "Hello alice"})
+            grants = [new_grant("web.authenticate", auth_action_args(srv.base_url, "a"),
+                                expires_at=time.time() + 600)]
+            obs = self.auto(srv, max_requests=0, approvals=grants, **kw)
+            self.assertEqual((srv.count(), srv.cookies_seen), (0, []))
+        self.assertEqual(obs.state, "failed")
+        d = [e for e in self.journal(obs).events if e["type"] == "gate_decision"][0]
+        self.assertEqual(d["reason_codes"], ["budget.requests_exhausted"])
+        self.assertEqual([e for e in self.journal(obs).events if e["type"] == "approval_consumed"], [])
 
     def test_llm_budget_blocks_triage_before_the_call(self):
         llm = MockLLM()
@@ -311,6 +334,138 @@ class AuditFailureSweepTest(_Base):
         self.assertNotIn("triage", started)                                # 以後の実行は止まっている
         # 同じjournalを引き継いだGateは、結果不明のActionを自動再実行しない(単体: test_policy_gate)
 
+
+
+TOK_A, TOK_B = "TOK_ALICE_9f3a71", "TOK_BOB_c42e08"
+
+
+class AuthApprovalTest(_Base):
+    """認証(T3)は役割ごとの承認が無ければ実行せず、認証情報は一切送信されない。IDOR比較(T2)は明示許可が必要。"""
+
+    def auth(self, token, role_state):
+        return {"cookie": f"sid={token}", "confirm_url": "{base}me", "expect_text": role_state}
+
+    def kw(self, srv, with_b=False, **extra):
+        base = srv.base_url
+        a = {"cookie": f"sid={TOK_A}", "confirm_url": base + "me", "expect_text": "Hello alice"}
+        b = {"cookie": f"sid={TOK_B}", "confirm_url": base + "me", "expect_text": "Hello bob"}
+        kw = dict(auth=a, **extra)
+        if with_b:
+            kw["auth_b"] = b
+        return kw
+
+    def grants(self, srv, roles=("a", "b"), ttl=600):
+        return [new_grant("web.authenticate", auth_action_args(srv.base_url, r),
+                          expires_at=time.time() + ttl) for r in roles]
+
+    def run_auth(self, srv, **kw):
+        return self.auto(srv, **kw)
+
+    def test_no_grant_means_no_request_and_no_credentials_sent(self):
+        with FixtureServer(post_form=False, auth=True) as srv:
+            obs = self.run_auth(srv, **self.kw(srv))
+            self.assertEqual((srv.count(), srv.cookies_seen), (0, []))
+        self.assertEqual(obs.state, "failed")
+        self.assertTrue(any("approval.missing" in e for e in obs.result["errors"]))
+        rep = self.journal(obs)
+        d = [e for e in rep.events if e["type"] == "gate_decision" and e["task_id"] == "auth_a"][0]
+        self.assertEqual((d["verdict"], d["reason_codes"]), ("needs_approval", ["approval.missing"]))
+        self.assertNotIn("auth_a", [e["task_id"] for e in rep.events if e["type"] == "action_started"])
+        self.assertEqual((obs.result_count, obs.done_count), (1, 1))
+
+    def test_changed_args_expired_and_wrong_role_grants_are_refused(self):
+        with FixtureServer(post_form=False, auth=True) as srv:
+            other = new_grant("web.authenticate",
+                              dict(auth_action_args(srv.base_url, "a"), url="http://127.0.0.1:9/"),
+                              expires_at=time.time() + 600)                      # 別の引数
+            expired = new_grant("web.authenticate", auth_action_args(srv.base_url, "a"),
+                                expires_at=time.time() - 1)                       # 期限切れ
+            b_only = new_grant("web.authenticate", auth_action_args(srv.base_url, "b"),
+                               expires_at=time.time() + 600)                      # 役割違い
+            for g, code in ((other, "approval.args_mismatch"), (expired, "approval.expired"),
+                            (b_only, "approval.args_mismatch")):
+                with self.subTest(code):
+                    obs = self.run_auth(srv, approvals=[g], **self.kw(srv))
+                    self.assertEqual((srv.count(), srv.cookies_seen), (0, []))
+                    self.assertTrue(any(code in e for e in obs.result["errors"]), obs.result["errors"])
+                    self.assertEqual(obs.state, "failed")
+                    self.assertEqual([e for e in self.journal(obs).events
+                                      if e["type"] == "approval_consumed"], [])
+
+    def test_with_approval_authenticated_run_matches_legacy_requests(self):
+        with FixtureServer(post_form=False, auth=True) as srv:
+            legacy = run_agent(srv, FuzzAgent, max_requests=200, max_pages=20, **self.kw(srv))
+            new = self.run_auth(srv, approvals=self.grants(srv, ("a",)), **self.kw(srv))
+        self.assertEqual(new.requests, legacy.requests)                           # 認証・クロール・ファジングまで一致
+        self.assertEqual(new.state, "completed")
+        self.assertEqual(new.result["errors"], [])
+        self.assertEqual({c["auth_context"] for c in new.result["coverage"]}, {"authenticated"})
+        rep = self.journal(new)
+        used = [e for e in rep.events if e["type"] == "approval_consumed"]
+        self.assertEqual(len(used), 1)
+        types = [e["type"] for e in rep.events]
+        self.assertLess(types.index("approval_consumed"), types.index("action_started"))
+
+    def test_grant_for_a_does_not_authorize_b_and_b_credentials_are_never_used(self):
+        with FixtureServer(post_form=False, auth=True) as srv:
+            obs = self.run_auth(srv, approvals=self.grants(srv, ("a",)), permit_t2=True,
+                                **self.kw(srv, with_b=True))
+            self.assertTrue(srv.cookies_seen)                                     # Aは送信される
+            self.assertTrue(all(TOK_B not in c for c in srv.cookies_seen))        # Bは送信されない
+        self.assertEqual(obs.state, "partial")
+        idor = [c for c in obs.result["coverage"] if c["rule_id"] == "IDOR"]
+        self.assertEqual([(c["status"], c["reason"]) for c in idor], [("skipped", "dependency_not_done")])
+        self.assertTrue(any("approval." in e for e in obs.result["errors"]))
+
+    def test_idor_requires_both_approvals_and_explicit_t2_permission(self):
+        with FixtureServer(post_form=False, auth=True) as srv:
+            no_t2 = self.run_auth(srv, approvals=self.grants(srv), **self.kw(srv, with_b=True))
+            self.assertTrue(any(TOK_B in c for c in srv.cookies_seen))           # 認証Bの確認URL(承認済み)は送信
+        self.assertEqual(no_t2.state, "partial")
+        denied = [e for e in self.journal(no_t2).events
+                  if e["type"] == "gate_decision" and e["task_id"] == "idor"]
+        self.assertEqual(denied[0]["reason_codes"], ["side_effect.not_permitted"])
+        self.assertFalse(no_t2.result["findings"] and any("IDOR" in f["description"] for f in no_t2.result["findings"]))
+
+    def test_idor_with_approvals_matches_legacy_and_traces_evidence(self):
+        import core.evidence_store as es
+
+        class CitingLLM(MockLLM):
+            def reply_for(self, prompt):
+                m = re.search(r"evidence_id=(\S+)", prompt)
+                cite = f"EVIDENCE_IDS: {m.group(1)}\n" if m else ""
+                return ("---VULN_START---\nNAME: IDOR\nSEVERITY: HIGH\nCWE: CWE-639\n"
+                        f"LINES: /account id\n{cite}SNIPPET:\n```\nx\n```\nATTACK:\nr\nFIX:\n```\ne\n```\n"
+                        "---VULN_END---\n")
+
+        with tempfile.TemporaryDirectory() as ev_root, FixtureServer(post_form=False, auth=True) as srv, \
+                patch.dict(es.EvidenceStore.__init__.__kwdefaults__, {"root": ev_root}):
+            legacy = run_agent(srv, FuzzAgent, max_requests=200, max_pages=20, **self.kw(srv, with_b=True))
+            new = self.run_auth(srv, llm=CitingLLM(), approvals=self.grants(srv), permit_t2=True,
+                                config_overrides={"save_evidence": True}, **self.kw(srv, with_b=True))
+            self.assertEqual(new.requests, legacy.requests)                       # IDOR比較を含め送信が一致
+            self.assertTrue(any(TOK_B in c for c in srv.cookies_seen))
+            ids = [f["evidence_ids"][0] for f in new.result["findings"] if f["evidence_ids"]]
+            self.assertTrue(ids)
+            store = es.EvidenceStore(new.result["scan_id"], root=ev_root)
+            ev = store.load(ids[0])
+            self.assertEqual(store.verify(ids[0]), (True, "ok"))
+            # IDOR証拠: 認証情報の値は保存物に残らない
+            raw = repr(ev) + repr(new.result)
+            self.assertNotIn(TOK_A, raw)
+            self.assertNotIn(TOK_B, raw)
+        self.assertEqual(new.state, "completed")
+        cov = [c for c in new.result["coverage"] if c["rule_id"] == "IDOR"]
+        self.assertEqual([c["status"] for c in cov], ["tested"])
+        rep = self.journal(new)
+        idor_done = [e for e in rep.events if e["type"] == "action_finished" and e["task_id"] == "idor"]
+        self.assertGreaterEqual(idor_done[0]["summary"]["signals"], 1)          # IDOR兆候が実際に観測された
+        self.assertGreater(idor_done[0]["requests_used"], 0)
+        self.assertEqual(len([e for e in rep.events if e["type"] == "approval_consumed"]), 2)
+        with open(os.path.join(self.jroot, new.agent.last_run_id, jr.JOURNAL_FILE), encoding="utf-8") as f:
+            text = f.read()
+        self.assertNotIn(TOK_A, text)
+        self.assertNotIn(TOK_B, text)
 
 if __name__ == "__main__":
     unittest.main()

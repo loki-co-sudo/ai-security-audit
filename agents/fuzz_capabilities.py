@@ -10,7 +10,9 @@ agents/fuzz_capabilities.py — WEB FUZZ を capability + Policy Gate + Run Jour
   - coverage は検査単位(注入点×カテゴリ)の実績(WebFuzzer.fuzz_log)に基づく。予算切れで未実施の
     ものを tested にしない。
   - 許可対象(allowed_targets)の明示が必須(空は Gate が拒否)。config.json の scope 設定には依存しない。
-  - 認証付き実行は未対応(承認契約の接続後に追加する)。指定されたら黙って無視せず failed にする。
+  - 認証(web.authenticate)は T3: 役割(a/b)ごとに引数ハッシュへ結び付いた ApprovalGrant が無ければ実行せず、
+    認証情報は一切セッションへ適用されない(承認が無い認証付き実行は crawl も行わず failed)。
+  - IDOR比較(web.idor_compare)は T2: run() の permit_t2=True を明示した場合のみ実行する。
 
 送信は WebFuzzer(=HttpTransport)だけが行い、本モジュールは requests / socket を直接呼ばない。
 """
@@ -19,7 +21,7 @@ from __future__ import annotations
 import time
 
 import core.config as config
-from agents.fuzz_agent import FuzzAgent, _TRIAGE_SYS
+from agents.fuzz_agent import FuzzAgent, _TRIAGE_SYS, idor_skip_reason
 from core import redaction
 from core.autonomy.actions import (
     Action, ActionResult, CapabilityRegistry, CapabilitySpec, SideEffect,
@@ -35,16 +37,38 @@ from core.settings import DEFAULT_SCAN_PROFILE, SCAN_PROFILES
 from tools.report_generator import _findings_and_counts
 from tools.web_fuzzer import DEFAULT_PROBES, WebFuzzer
 
-T0, T1, T3 = SideEffect.T0_LOCAL, SideEffect.T1_OBSERVE, SideEffect.T3_NEEDS_APPROVAL
+T0, T1, T2, T3 = (SideEffect.T0_LOCAL, SideEffect.T1_OBSERVE, SideEffect.T2_DIFFERENTIAL,
+                  SideEffect.T3_NEEDS_APPROVAL)
 _URL = {"url": {"type": "str", "required": True}}
+_AUTH_ARGS = {"url": {"type": "str", "required": True}, "role": {"type": "str", "required": True},
+              "auth_ref": {"type": "str", "required": True}}
+
+
+def normalize_base_url(target: str) -> str:
+    return target if target.startswith("http") else "http://" + target
+
+
+def auth_action_args(target: str, role: str) -> dict:
+    """web.authenticate の引数。ApprovalGrant はこの引数のハッシュに結び付けて発行する
+    (`new_grant("web.authenticate", auth_action_args(target, "a"), expires_at=...)`)。
+    認証情報そのものは含めない(参照名のみ)。role は "a"(主セッション)または "b"(第2セッション)。"""
+    if role not in ("a", "b"):
+        raise ValueError("role は 'a' または 'b' です")
+    return {"url": normalize_base_url(target), "role": role, "auth_ref": f"auth_{role}"}
 
 
 def build_registry(max_requests: int, triage_llm_calls: int) -> CapabilityRegistry:
     r = CapabilityRegistry()
     r.register(CapabilitySpec("web.crawl", T1, args_schema=dict(_URL), target_arg="url",
                               max_requests=max_requests))
+    # 認証情報をセッションへ適用する(ログインPOSTや確認URLへの送信を含み得る)ためT3。承認が無ければ実行しない。
+    r.register(CapabilitySpec("web.authenticate", T3, mutating=True, args_schema=dict(_AUTH_ARGS),
+                              target_arg="url", max_requests=3))
     r.register(CapabilitySpec("llm.gen_probes", T0, uses_llm="fast", llm_calls=1))
     r.register(CapabilitySpec("web.fuzz_get_points", T1, args_schema=dict(_URL), target_arg="url",
+                              max_requests=max_requests))
+    # 第2セッションとの読取り(GET)比較。副作用がない保証ではないためプロファイルでの明示許可が必要(T2)。
+    r.register(CapabilitySpec("web.idor_compare", T2, args_schema=dict(_URL), target_arg="url",
                               max_requests=max_requests))
     # POST注入点への送信は状態を変え得るためT3。Phase Aでは登録のみで実行しない(設計 §11.1)。
     r.register(CapabilitySpec("web.fuzz_post_points", T3, mutating=True, enabled=False,
@@ -62,6 +86,9 @@ class _Ctx:
         self.pages = 0
         self.probes: dict[str, list[str]] = {}
         self.anomalies: list[dict] = []
+        self.idor_findings: list[dict] = []
+        self.idor_ran = False
+        self.idor_skip_reason: str | None = None
         self.known_evidence_ids: set[str] = set()
         self.evidence_errors: list[str] = []
         self.summary = ""
@@ -77,25 +104,26 @@ class AutonomousFuzzAgent(FuzzAgent):
             max_pages: int = 20, allowed_targets: list[str] | None = None,
             journal_root: str = JOURNAL_ROOT, max_llm_calls: int | None = None,
             auth: dict | None = None, auth_b: dict | None = None,
-            tls_verify: bool | None = None, tls_ca_bundle: str | None = None) -> None:
+            tls_verify: bool | None = None, tls_ca_bundle: str | None = None,
+            approvals: list | None = None, permit_t2: bool = False) -> None:
         self._current_mode, self._current_target = "WEB FUZZ", target
         scan_id = self._begin_scan()
         self.bus.clear()
         t0 = time.time()
-        if auth or auth_b:
+        if auth_b and not auth:
             self._finalize(state=ScanState.FAILED.value, target=target, errors=[
-                "認証付き実行は自律経路では未対応です(承認の契約を接続するまで実行しません)"])
+                "第2セッション(auth_b)は主セッション(auth)と併せて指定してください"])
             return
         if profile not in SCAN_PROFILES:
             profile = DEFAULT_SCAN_PROFILE
-        base_url = target if target.startswith("http") else "http://" + target
-        known_secrets: set[str] = set()
+        base_url = normalize_base_url(target)
+        known_secrets = self._known_secrets(auth, auth_b)
         mask = lambda t: redaction.mask_log_line(str(t), known_secrets)  # noqa: E731
 
         fuzzer = WebFuzzer(
             profile=profile, max_pages=max_pages, max_requests=max_requests,
-            log=lambda m: self._log(mask(m)), target=base_url, stop_event=self._stop_event,
-            tls_verify=tls_verify, tls_ca_bundle=tls_ca_bundle,
+            log=lambda m: self._log(mask(m)), auth=auth, auth_b=auth_b, target=base_url,
+            stop_event=self._stop_event, tls_verify=tls_verify, tls_ca_bundle=tls_ca_bundle,
         )
         try:
             journal = RunJournal(new_run_id(), journal_root, known_secrets=known_secrets)
@@ -111,25 +139,39 @@ class AutonomousFuzzAgent(FuzzAgent):
                               max_llm_calls=max_llm_calls)
         self._llm_gate = LLMGate(ledger)
         registry = build_registry(max_requests, 1 + verify_samples)
+        effects = {T0, T1} | ({T2} if permit_t2 else set())
         policy = EngagementPolicy(base_origin=base_url, allowed_targets=list(allowed_targets or []),
-                                  allowed_side_effects=frozenset({T0, T1}))
-        gate = PolicyGate(registry, policy, ledger, journal)
+                                  allowed_side_effects=frozenset(effects))
+        gate = PolicyGate(registry, policy, ledger, journal, grants=list(approvals or []))
         ctx = _Ctx(base_url)
         save_evidence = bool(config.get("save_evidence", False))
 
         executors = {
+            "web.authenticate": lambda a: self._cap_auth(a, fuzzer, mask),
+            "web.idor_compare": lambda a: self._cap_idor(a, ctx, fuzzer, mask),
             "web.crawl": lambda a: self._cap_crawl(a, ctx, fuzzer, mask),
             "llm.gen_probes": lambda a: self._cap_gen_probes(a, ctx),
             "web.fuzz_get_points": lambda a: self._cap_fuzz(a, ctx, fuzzer, mask),
             "evidence.save": lambda a: self._cap_evidence(a, ctx, scan_id, known_secrets),
             "llm.triage": lambda a: self._cap_triage(a, ctx, base_url, mask, effort),
         }
-        plan = [PlanTask("crawl", "web.crawl", {"url": base_url}),
-                PlanTask("probes", "llm.gen_probes", {}, ("crawl",)),
-                PlanTask("fuzz", "web.fuzz_get_points", {"url": base_url}, ("probes",))]
+        plan: list[PlanTask] = []
+        if auth:
+            plan.append(PlanTask("auth_a", "web.authenticate", auth_action_args(base_url, "a")))
+        if auth_b:
+            plan.append(PlanTask("auth_b", "web.authenticate", auth_action_args(base_url, "b")))
+        plan += [PlanTask("crawl", "web.crawl", {"url": base_url}, ("auth_a",) if auth else ()),
+                 PlanTask("probes", "llm.gen_probes", {}, ("crawl",)),
+                 PlanTask("fuzz", "web.fuzz_get_points", {"url": base_url}, ("probes",))]
+        last = "fuzz"
+        if auth_b:
+            plan.append(PlanTask("idor", "web.idor_compare", {"url": base_url},
+                                 ("fuzz", "auth_a", "auth_b"), auth_context="session_b"))
+            last = "idor"
         if save_evidence:
             plan.append(PlanTask("evidence", "evidence.save", {}, ("fuzz",)))
-        plan.append(PlanTask("triage", "llm.triage", {}, ("evidence" if save_evidence else "fuzz",)))
+            last = "evidence"
+        plan.append(PlanTask("triage", "llm.triage", {}, (last,)))
 
         runner = ScriptedRunner(gate=gate, journal=journal, registry=registry, executors=executors,
                                 is_stopped=self.is_stopped, budget=ledger, plan=plan)
@@ -152,6 +194,29 @@ class AutonomousFuzzAgent(FuzzAgent):
             journal.close()
 
     # ── capability 本体(既存メソッドを呼ぶだけ) ───────────────
+    def _cap_auth(self, action: Action, fuzzer: WebFuzzer, mask) -> ActionResult:
+        role = action.args["role"]
+        ok, msg = fuzzer.authenticate() if role == "a" else fuzzer.authenticate_b()
+        state, reason = ((fuzzer.auth_state, fuzzer.auth_state_reason) if role == "a"
+                         else (fuzzer.auth_state_b, fuzzer.auth_state_reason_b))
+        self._out(mask(f"  [AUTH-{role.upper()}] {msg}\n  [AUTH-{role.upper()}-STATE] {state} — {reason}\n"),
+                  "green" if state == "authenticated" else "dim")
+        # 認証状態(authenticated/unknown/expired)は要約に残す。理由文は対象由来になり得るため入れない。
+        return ActionResult("done" if ok else "failed", {"role": role, "auth_state": state})
+
+    def _cap_idor(self, action: Action, ctx: _Ctx, fuzzer: WebFuzzer, mask) -> ActionResult:
+        reason = idor_skip_reason(fuzzer)
+        if reason:
+            ctx.idor_skip_reason = reason
+            self._out(f"\n  (IDOR比較スキップ: {mask(reason)})\n", "high")
+            return ActionResult("skipped", {"reason": "auth_expired"})
+        self._status("認可チェック中（別セッション比較）...")
+        ctx.idor_findings = fuzzer._detect_idor(ctx.points)
+        ctx.idor_ran = True
+        for f in ctx.idor_findings:
+            self._out(mask(f"    [IDOR?] {f['param']}@{f['url']}\n"), "high")
+        return ActionResult("done", {"signals": len(ctx.idor_findings)})
+
     def _cap_crawl(self, action: Action, ctx: _Ctx, fuzzer: WebFuzzer, mask) -> ActionResult:
         self._out("  PHASE 1 — CRAWL & INJECTION-POINT DISCOVERY\n", "section")
         self._status("クロール中 ...")
@@ -196,7 +261,8 @@ class AutonomousFuzzAgent(FuzzAgent):
 
     def _cap_evidence(self, action: Action, ctx: _Ctx, scan_id: str, known_secrets: set[str]) -> ActionResult:
         ctx.known_evidence_ids, ctx.evidence_errors = self._save_evidence(
-            EvidenceStore(scan_id), ctx.anomalies, [], known_secrets, action_id=action.action_id)
+            EvidenceStore(scan_id), ctx.anomalies, ctx.idor_findings, known_secrets,
+            action_id=action.action_id)
         return ActionResult("done", {"saved": len(ctx.known_evidence_ids),
                                      "errors": len(ctx.evidence_errors)},
                             evidence_ids=sorted(ctx.known_evidence_ids))
@@ -204,7 +270,7 @@ class AutonomousFuzzAgent(FuzzAgent):
     def _cap_triage(self, action: Action, ctx: _Ctx, base_url: str, mask, effort: dict) -> ActionResult:
         self._out("  PHASE 4 — AI TRIAGE & REPORT  (streaming)\n", "section")
         self._status("AIが結果をトリアージ中 ...")
-        ctx.summary = mask(self._build_summary(base_url, ctx.points, ctx.anomalies, []))
+        ctx.summary = mask(self._build_summary(base_url, ctx.points, ctx.anomalies, ctx.idor_findings))
         full = self._stream_llm([
             self.llm.system(_TRIAGE_SYS),
             self.llm.user(f"Triage these authorized fuzzing results:\n\n{ctx.summary}"),
@@ -233,11 +299,12 @@ class AutonomousFuzzAgent(FuzzAgent):
         log = {(u["url"], u["method"], u["param"], u["category"]): u for u in fuzzer.fuzz_log}
         fuzz_rec = outcome.tasks.get("fuzz")
         not_run = (fuzz_rec.reason if fuzz_rec and fuzz_rec.reason else "not_run")
+        auth_ctx = fuzzer.auth_state if fuzzer.auth else "anonymous"   # 実際の認証状態(未確認を authenticated と書かない)
         items: list[CoverageItem] = []
         for p in ctx.points:
             for cat in cats:
                 base = dict(target_ref=p["url"], parameter=p["param"], rule_id=f"WEB_FUZZ_{cat}",
-                            auth_context="anonymous")
+                            auth_context=auth_ctx)
                 if p["method"] == "POST":
                     items.append(CoverageItem(status=CoverageStatus.SKIPPED.value,
                                               reason="post_requires_approval", **base))
@@ -253,6 +320,16 @@ class AutonomousFuzzAgent(FuzzAgent):
                     items.append(CoverageItem(
                         status=CoverageStatus.SKIPPED.value,
                         reason=f"{u['status']}:{u['reason']} ({u['attempted']}/{u['planned']})", **base))
+        if fuzzer.auth_b:
+            idor = outcome.tasks.get("idor")
+            if idor is not None and idor.state == TaskState.DONE:
+                items.append(CoverageItem(target_ref="(access-control-check)", rule_id="IDOR",
+                                          status=CoverageStatus.TESTED.value, auth_context="session_b"))
+            else:
+                why = (ctx.idor_skip_reason or (idor.reason if idor else "") or "not_run")
+                items.append(CoverageItem(target_ref="(access-control-check)", rule_id="IDOR",
+                                          status=CoverageStatus.SKIPPED.value, auth_context="session_b",
+                                          reason=why))
         return items
 
     def _autonomy_state(self, ctx: _Ctx, fuzzer: WebFuzzer, outcome, rejected: list[str]):
@@ -265,8 +342,15 @@ class AutonomousFuzzAgent(FuzzAgent):
             return (ScanState.PARTIAL.value if done else ScanState.FAILED.value), errors
         if "crawl" not in done:
             return ScanState.FAILED.value, errors
+        auth_gaps = [t for t in ("auth_a", "auth_b") if t in outcome.tasks and t not in done]
+        if fuzzer.auth and fuzzer.auth_state != "authenticated":
+            auth_gaps.append("auth_a_state")
+            errors.append(f"主セッションの認証状態が{fuzzer.auth_state}です({fuzzer.auth_state_reason})")
+        if fuzzer.auth_b and "auth_b" in done and fuzzer.auth_state_b != "authenticated":
+            auth_gaps.append("auth_b_state")
+            errors.append(f"第2セッションの認証状態が{fuzzer.auth_state_b}です({fuzzer.auth_state_reason_b})")
         if not ctx.points:                                   # 現行経路と同じ: 注入点なしは完了
-            return ScanState.COMPLETED.value, errors
+            return (ScanState.PARTIAL.value if auth_gaps else ScanState.COMPLETED.value), errors
         posts = sum(1 for p in ctx.points if p["method"] == "POST")
         if posts:
             errors.append(f"POST注入点{posts}件は個別承認が無いため未検査です")
@@ -275,7 +359,7 @@ class AutonomousFuzzAgent(FuzzAgent):
             errors.append(f"検査単位{len(unfinished)}件が未完了です(予算切れ・中断・通信失敗)")
         if ctx.anomalies and ctx.full is not None and not ctx.full.strip() and "triage" in done:
             errors.append("AIトリアージが空応答でした（LLM呼び出し失敗の可能性）")
-        incomplete = (posts or unfinished or any(
+        incomplete = (posts or unfinished or auth_gaps or any(
             t not in done for t in outcome.tasks) or (ctx.anomalies and not ctx.full.strip())
             or self._llm_denials)
         return (ScanState.PARTIAL.value if incomplete else ScanState.COMPLETED.value), errors

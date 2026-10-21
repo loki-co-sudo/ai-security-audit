@@ -15,9 +15,11 @@ class FixtureServer:
     """post_form=False でPOSTフォームを持たない版、external_url で外部originへのリンク/フォームを
     含む版(範囲外送信の検査用canaryと組み合わせる)を作れる。既定は特性化試験の基準構成。"""
 
-    def __init__(self, *, post_form: bool = True, external_url: str | None = None):
+    def __init__(self, *, post_form: bool = True, external_url: str | None = None, auth: bool = False):
         self.post_form = post_form
         self.external_url = external_url
+        self.auth = auth
+        self.cookies_seen: list[str] = []      # 受信したCookieヘッダー(認証情報が送られたかの検査用)
         self.requests: list[tuple[str, str, str, str]] = []  # (method, path, query, body)
         self._lock = threading.Lock()
         outer = self
@@ -30,7 +32,17 @@ class FixtureServer:
                 u = urlparse(self.path)
                 with outer._lock:
                     outer.requests.append((self.command, u.path, u.query, body))
+                    if self.headers.get("Cookie"):
+                        outer.cookies_seen.append(self.headers.get("Cookie"))
                 return u
+
+            def _user(self):
+                """Cookie 'sid=TOK_<NAME>_...' から利用者名を返す(認証fixture用)。無ければ None。"""
+                for part in (self.headers.get("Cookie") or "").split(";"):
+                    k, _, v = part.strip().partition("=")
+                    if k == "sid" and v.startswith("TOK_"):
+                        return v.split("_")[1].lower()
+                return None
 
             def _reply(self, text: str, ctype: str = "text/html"):
                 data = text.encode()
@@ -49,6 +61,8 @@ class FixtureServer:
                 if u.path == "/":
                     body += ('<a href="/search?q=hi">search</a> <a href="/item?id=1">item</a> '
                              '<a href="/safe?page=1">safe</a> <a href="/escaped?q=hi">escaped</a> ')
+                    if outer.auth:
+                        body += '<a href="/account?id=1">account</a>'
                     if outer.post_form:
                         body += '<a href="/guestbook">guestbook</a>'
                     if outer.external_url:
@@ -66,6 +80,20 @@ class FixtureServer:
                     body += "Static page"                               # 入力を使わない正常例
                 elif u.path == "/escaped":
                     body += "Results for: " + html.escape(q)            # エスケープ済みの正常例
+                elif outer.auth and u.path == "/me":
+                    user = self._user()
+                    body += (f"Hello {user}" if user else
+                             '<form method="POST" action="/login"><input name="u">'
+                             '<input type="password" name="p"></form>')
+                elif outer.auth and u.path == "/account":
+                    user = self._user()
+                    owners = {"1": "alice", "2": "bob"}
+                    if not user:
+                        body += ('<form method="POST" action="/login"><input name="u">'
+                                 '<input type="password" name="p"></form>')
+                    else:   # 意図的なIDOR: 所有者を検査しない(誰でも任意のidを取得できる)
+                        body += (f"Account {pid or '1'} owner={owners.get(pid or '1', '?')} "
+                                 + "private-note " * 20)
                 elif u.path == "/guestbook":
                     body += ('<form method="POST" action="/comment">'
                              '<input name="text" value="hello"><input type="submit"></form>')
