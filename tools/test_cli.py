@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -226,8 +227,11 @@ class CLITest(unittest.TestCase):
         eng = self.engagement_file({"engagement_id": "lab-1", "idor_expectations": [row]})
         with FixtureServer(post_form=False) as srv:
             rid = self.crash(self.scan(srv, "--engagement", eng))
-            profile = json.loads(__import__("sqlite3").connect(self.runs / rid / "state.sqlite3").execute(
-                "SELECT value FROM meta WHERE key='profile_json'").fetchone()[0])
+            db = sqlite3.connect(self.runs / rid / "state.sqlite3")
+            try:
+                profile = json.loads(db.execute("SELECT value FROM meta WHERE key='profile_json'").fetchone()[0])
+            finally:
+                db.close()
             self.assertEqual([(e["path"], e["a"], e["b"]) for e in profile["idor_expectations"]],
                              [("/account", "allow", "deny")])
             self.assertNotIn("cookie", json.dumps(profile))
@@ -278,6 +282,20 @@ class CLITest(unittest.TestCase):
             self.assertEqual(srv.count(), 0)
             p, data = self.call(["scan", "fuzz", "--target", srv.base_url, "--targets-file", str(tf), *self.common()])
             self.assertEqual(p.returncode, 2)
+
+    def test_scan_audit_local_file_json_and_thresholds(self):
+        src = self.base / "app.py"
+        src.write_text("import os\nPASSWORD = 'AUDIT_SECRET_123456'\ndef run(x):\n    os.system(x)\n")
+        out = self.base / "audit.json"
+        p, data = self.call(["scan", "audit", "--target", str(src), "--fail-on", "high", "--out", str(out)])
+        self.assertEqual(data["state"], "completed", data)
+        self.assertEqual(p.returncode, 1, p.stderr)                  # MockLLMの固定所見はHIGH
+        self.assertEqual(json.loads(out.read_text()), data)
+        self.assertNotIn("AUDIT_SECRET_123456", p.stdout)             # 入力マスキングは常に有効
+        p, data = self.call(["scan", "audit", "--target", str(src), "--fail-on", "critical"])
+        self.assertEqual(p.returncode, 0, data)
+        p, data = self.call(["scan", "audit", "--target", str(self.base / "missing.py")])
+        self.assertEqual((p.returncode, data["state"]), (2, "failed"))
 
     def test_unknown_retry_and_extra_budget(self):
         with FixtureServer(post_form=False) as srv:

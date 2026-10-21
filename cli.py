@@ -16,6 +16,7 @@ import tempfile
 import time
 from urllib.parse import urlsplit
 
+from agents.audit_agent import AuditAgent
 from agents.fuzz_capabilities import AutonomousFuzzAgent, auth_action_args, load_profile
 from core import config, event_bus as ev, redaction
 from core.engagement import EngagementError, parse_idor_expectations
@@ -54,6 +55,11 @@ def parser():
     commands = p.add_subparsers(dest="command", required=True)
     scan = commands.add_parser("scan").add_subparsers(dest="mode", required=True)
     fuzz = scan.add_parser("fuzz")
+    audit = scan.add_parser("audit")
+    audit.add_argument("--target", required=True, help="監査するPythonソースのパス（ローカルファイル）")
+    audit.add_argument("--out", help="結果JSONの追加保存先")
+    audit.add_argument("--fail-on", choices=["none", *SEVERITIES], default="none")
+    audit.add_argument("--effort", choices=("speed", "balanced", "quality"))
     resume = commands.add_parser("resume")
     status = commands.add_parser("status")
     for sub in (fuzz, resume, status):
@@ -269,6 +275,24 @@ class ConsoleBus(ev.EventBus):
             print(masked(str(payload), self.secrets), file=sys.stderr, flush=True)
 
 
+def run_audit(target, effort, on_agent, was_interrupted):
+    """CODE AUDIT(標準エンジン)を1回実行して最終結果を返す。Runジャーナルは持たない(ローカルファイルの監査)。"""
+    if not Path(target).is_file():
+        raise CLIError("監査対象のファイルが見つかりません")
+    with redirect_stdout(sys.stderr):
+        config.load()
+        llm = LLMClient(base_url=config.get("llm_base_url"), api_key=config.get("llm_api_key"),
+                        model=config.get("llm_model"), timeout=config.get("llm_timeout"))
+        bus = ConsoleBus(set())
+        agent = AuditAgent(bus, llm)
+        agent.set_effort_override(effort)
+        on_agent(agent)
+        if was_interrupted():
+            agent.stop()
+        agent._safe_run(path=target)
+    return bus.result_payload or {"state": "failed", "errors": ["最終結果が通知されませんでした"], "findings": []}
+
+
 def main(argv=None):
     args = None
     agent = None
@@ -277,6 +301,10 @@ def main(argv=None):
     secrets = set()
     engagement = {}
     previous = signal.getsignal(signal.SIGINT)
+
+    def set_agent(a):
+        nonlocal agent
+        agent = a
 
     def stop(signum, frame):
         nonlocal interrupted
@@ -288,15 +316,19 @@ def main(argv=None):
     result = {"state": "failed", "errors": [], "findings": []}
     try:
         args = parser().parse_args(argv)
-        args.allow = check_rules(args.allow, "--allow")
+        is_audit = args.command == "scan" and args.mode == "audit"
+        if not is_audit:
+            args.allow = check_rules(args.allow, "--allow")
         if args.out:
             out = Path(args.out).resolve()
-            if out.is_relative_to(Path(args.journal_root).resolve()):
+            if not is_audit and out.is_relative_to(Path(args.journal_root).resolve()):
                 raise CLIError("--outはRun保存ディレクトリの外を指定してください")
             if getattr(args, "auth_file", None) and out == Path(args.auth_file).resolve():
                 raise CLIError("--outと認証ファイルは別にしてください")
         out_validated = True
-        if args.command == "status":
+        if is_audit:
+            result = run_audit(args.target, args.effort, lambda a: set_agent(a), lambda: interrupted)
+        elif args.command == "status":
             result = status_result(args.run_id, args.journal_root, args.allow)
             if args.fail_on != "none":
                 raise CLIError("statusは所見を再評価しません。--fail-onはscan/resumeで指定してください")
@@ -385,7 +417,7 @@ def main(argv=None):
                 result = masked(result, secrets)
                 if args is not None:
                     paths = []
-                    if agent is not None and agent.last_run_id:
+                    if agent is not None and getattr(agent, "last_run_id", None):
                         paths.append(Path(args.journal_root, agent.last_run_id, "cli_result.json"))
                     if args.out and out_validated:
                         paths.insert(0, Path(args.out))

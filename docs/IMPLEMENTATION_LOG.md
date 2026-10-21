@@ -575,3 +575,8 @@ profile_jsonに保存して`resume`で復元。実BenchmarkServerへのCLI実行
 `--exclude`/案件ファイル`exclude`(host/IP/CIDR)を許可より優先(`AutonomousFuzzAgent.run(excluded_targets=)`→Policy Gate、
 表がある時のみprofile_hashに含め、profile_jsonへ保存して再開で復元)。`--targets-file`(逐次・最大50件・重複除去・1件でも不正なら全体を実行しない)、
 `--auth-file`併用は拒否。`tools/test_cli.py`に除外優先・バッチ・併用拒否の3試験を追加。
+
+## 2026-10-22 P3.1(4一部): `scan audit`
+`cli.py scan audit --target FILE [--out] [--fail-on] [--effort]`。AuditAgent(標準エンジン)を1回実行し、結果JSONをstdout・進捗をstderr。
+`--allow`/ジャーナルは不要(ローカルファイルのみ)。LLMへ送るソースは常にマスク済み。`tools/test_cli.py`に試験を追加(MockLLM)。
+未実装: attack/defense、LangGraph版の選択、`core/scan_runner.py`への共通化、`--format md`。
