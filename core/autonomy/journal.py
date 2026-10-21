@@ -49,6 +49,7 @@ MAX_FINISH_BYTES = 16_384
 
 _RUN_ID_RE = re.compile(r"^run_[0-9a-f]{12}$")
 _TYPE_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+_EVENT_ID_RE = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")
 _RESERVED = frozenset({"event_id", "schema_version", "run_id", "seq", "ts", "type", "prev_hash"})
 
 try:  # POSIX
@@ -235,9 +236,11 @@ class RunJournal:
         return rep
 
     # ── 追記 ──────────────────────────────────────────
-    def append(self, type: str, /, **fields) -> dict:
+    def append(self, type: str, /, *, event_id: str | None = None, **fields) -> dict:
         if not isinstance(type, str) or not _TYPE_RE.match(type):
             raise ValueError(f"不正なイベント種別です: {type!r}")
+        if event_id is not None and (not isinstance(event_id, str) or not _EVENT_ID_RE.match(event_id)):
+            raise ValueError(f"不正なevent_idです: {event_id!r}")
         clash = _RESERVED.intersection(fields)
         if clash:
             raise ValueError(f"予約済みフィールドは指定できません: {sorted(clash)}")
@@ -249,7 +252,7 @@ class RunJournal:
             if self._finished:
                 raise JournalError("終了済みのRunには追記できません")
             event = {
-                "event_id": new_id("evt"),
+                "event_id": event_id or new_id("evt"),
                 "schema_version": SCHEMA_VERSION,
                 "run_id": self.run_id,
                 "seq": self._seq + 1,

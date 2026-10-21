@@ -180,6 +180,15 @@ class RunJournalTest(unittest.TestCase):
             with self.assertRaises(jr.JournalWriteError):  # 以後は使えない
                 j.append("gate_decision", verdict="allow")
 
+    def test_explicit_event_id_is_accepted_and_validated(self):
+        with jr.RunJournal(self.run_id, self.root) as j:
+            e = j.append("task_added", event_id="evt_custom_123", task_id="t")
+            self.assertEqual(e["event_id"], "evt_custom_123")
+            for bad in ("", "a b", "x" * 80, "../x", 5):
+                with self.assertRaises(ValueError):
+                    j.append("task_added", event_id=bad, task_id="t")
+            self.assertEqual(j.event_count, 1)
+
     def test_closed_journal_rejects_append(self):
         j = jr.RunJournal(self.run_id, self.root)
         j.close()

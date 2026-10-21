@@ -23,6 +23,9 @@ from core.autonomy.actions import (
 )
 from core.autonomy.budget import BudgetLedger
 from core.autonomy.journal import JournalError, RunJournal
+from core.autonomy.run_store import RunStore, RunStoreError
+from core.findings import new_id
+import sqlite3
 from core.http_transport import normalize_origin
 from core.scope_guard import extract_host, in_scope
 
@@ -44,8 +47,9 @@ class EngagementPolicy:
 class PolicyGate:
     def __init__(self, registry: CapabilityRegistry, policy: EngagementPolicy, budget: BudgetLedger,
                  journal: RunJournal, *, grants: list[ApprovalGrant] | None = None,
-                 clock: Callable[[], float] = time.time):
+                 clock: Callable[[], float] = time.time, store: RunStore | None = None):
         self.registry = registry
+        self.store = store
         self.policy = policy
         self.budget = budget
         self.journal = journal
@@ -55,6 +59,41 @@ class PolicyGate:
         self._key_state: dict[str, str] = {}      # dedupe_key -> running|done|exhausted|unknown_outcome
         self._key_failures: dict[str, int] = {}
         self._audit_failed = False
+        if store is not None:
+            self.restore_from_store()
+
+    def restore_from_store(self) -> None:
+        """再開用: 消費済み承認・重複キーの状態・失敗回数をストアから復元する。"""
+        if self.store is None:
+            return
+        self._consumed |= set(self.store.consumed_grants())
+        for t in self.store.tasks().values():
+            key, st = t["dedupe_key"], t["state"]
+            if not key:
+                continue
+            if st in ("done", "exhausted"):
+                self._key_state[key] = st
+            elif st in ("unknown_outcome", "running"):
+                self._key_state[key] = "unknown_outcome"
+            elif st == "failed":
+                self._key_failures[key] = max(self._key_failures.get(key, 0), t["attempt"])
+
+    def authorize_reexecution(self, action: Action, reason: str) -> None:
+        """同じ重複キーの再実行を、理由付きで明示的に許可する(session_reapply / retry_unknown)。
+
+        許可は監査記録に残る。記録できなければ AuditUnavailable(以後Gateは使えない)。再実行する場合でも、
+        実行前にGateの通常の判断(スコープ・予算・承認)を通し直す。
+        """
+        if self._audit_failed:
+            raise AuditUnavailable("監査記録を書けないため再実行を許可できません")
+        try:
+            self.journal.append("reexecution_authorized", task_id=action.task_id, action_id=action.action_id,
+                                capability=action.capability, dedupe_key=action.dedupe_key, reason=reason)
+        except JournalError as e:
+            self._audit_failed = True
+            raise AuditUnavailable(str(e)) from e
+        self._key_state.pop(action.dedupe_key, None)
+        self._key_failures.pop(action.dedupe_key, None)
 
     # ── 判断 ──────────────────────────────────────────
     def decide(self, action: Action) -> GateDecision:
@@ -64,7 +103,13 @@ class PolicyGate:
         decision, grant = self._evaluate(action)
         try:
             if grant is not None:
-                self.journal.append("approval_consumed", grant_id=grant.grant_id,
+                eid = new_id("evt")
+                if self.store is not None and not self.store.consume_grant(
+                        grant.grant_id, action_id=action.action_id, event_id=eid):
+                    decision, grant = GateDecision("deny", ("approval.reused",),
+                                                   "この承認は使用済みです(状態ストアの記録)"), None
+            if grant is not None:
+                self.journal.append("approval_consumed", event_id=eid, grant_id=grant.grant_id,
                                     action_id=action.action_id, task_id=action.task_id,
                                     args_hash=args_hash(action.capability, action.args))
                 self._consumed.add(grant.grant_id)
@@ -73,7 +118,7 @@ class PolicyGate:
                 capability=action.capability, args_hash=args_hash(action.capability, action.args),
                 verdict=decision.verdict, reason_codes=list(decision.reason_codes),
                 detail=decision.detail)
-        except JournalError as e:
+        except (JournalError, RunStoreError, sqlite3.Error) as e:
             self._audit_failed = True
             return GateDecision("deny", ("audit.unavailable",), f"判断を記録できません: {e}")
         return decision
@@ -177,33 +222,51 @@ class PolicyGate:
         if self._audit_failed:
             raise AuditUnavailable("監査記録を書けないため開始できません")
         try:
-            self.journal.append("action_started", action_id=action.action_id, task_id=action.task_id,
-                                capability=action.capability, dedupe_key=action.dedupe_key,
-                                budget=self.budget.snapshot())
-        except JournalError as e:
+            ev = self.journal.append("action_started", action_id=action.action_id, task_id=action.task_id,
+                                     capability=action.capability, dedupe_key=action.dedupe_key,
+                                     budget=self.budget.snapshot())
+            if self.store is not None:
+                self.store.start_task(action.task_id, action_id=action.action_id,
+                                      dedupe_key=action.dedupe_key, event_id=ev["event_id"])
+        except (JournalError, RunStoreError, sqlite3.Error) as e:
             self._audit_failed = True
             raise AuditUnavailable(str(e)) from e
         self._key_state[action.dedupe_key] = "running"
 
     def finish_action(self, action: Action, result: ActionResult) -> None:
-        """実行後に呼ぶ。記録に失敗した場合、結果は不明扱い(unknown_outcome)として以後の再実行を止める。"""
+        """実行後に呼ぶ。順序: ①状態ストアに結果と出力をcommit → ②ジャーナルに action_finished。
+
+        ①に失敗した場合、結果は永続化されていないので不明扱い(unknown_outcome)にして以後の再実行を止める。
+        ②だけに失敗した場合は結果はストアに残る(再開時に突合してジャーナルへ補う)。
+        """
         if result.status == "failed":
             self._key_failures[action.dedupe_key] = self._key_failures.get(action.dedupe_key, 0) + 1
+        final = ("failed" if result.status == "failed" else
+                 "exhausted" if result.status == "exhausted" else
+                 "skipped" if result.status == "skipped" else "done")
+        eid = new_id("evt")
+        committed = False          # 状態ストアにcommitできたか(ストアが無ければ永続化された結果は無い)
         try:
             if self._audit_failed:
                 raise JournalError("監査記録を書けない状態です")
+            if self.store is not None:
+                self.store.finish_task(
+                    action.task_id, state=final, reason=str(result.summary.get("reason", "")),
+                    requests_used=result.requests_used,
+                    result={"status": result.status, "summary": result.summary,
+                            "evidence_ids": list(result.evidence_ids)},
+                    outputs=result.outputs, event_id=eid)
+                committed = True
             self.journal.append(
-                "action_finished", action_id=action.action_id, task_id=action.task_id,
+                "action_finished", event_id=eid, action_id=action.action_id, task_id=action.task_id,
                 status=result.status, requests_used=result.requests_used, llm_usage=result.llm_usage,
                 evidence_ids=list(result.evidence_ids), summary=result.summary,
                 budget=self.budget.snapshot())
-        except JournalError as e:
+        except (JournalError, RunStoreError, sqlite3.Error) as e:
             self._audit_failed = True
-            self._key_state[action.dedupe_key] = "unknown_outcome"
+            self._key_state[action.dedupe_key] = final if committed else "unknown_outcome"
             raise AuditUnavailable(f"完了を記録できません: {e}") from e
-        self._key_state[action.dedupe_key] = (
-            "failed" if result.status == "failed" else
-            "exhausted" if result.status == "exhausted" else "done")
+        self._key_state[action.dedupe_key] = final
 
     @property
     def audit_failed(self) -> bool:

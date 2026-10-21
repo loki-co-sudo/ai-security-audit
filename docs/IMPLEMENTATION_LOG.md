@@ -511,3 +511,15 @@ ATTACK MODE に、認可された偵察レスポンスからCTF形式のフラ�
   LLMゲート11件、新経路24件）。`SELFTEST_NON_LLM_ONLY=1` 160 PASS / 0 FAIL / 5 SKIP。
   現行経路との意図的な差は `AUTONOMOUS_PHASE_A_DESIGN.md` §13。未実装: Planner（固定計画のみ）、再開（SQLite）、
   Fact/Hypothesisストア、Validation、他モードのcapability化、解決先IP再検査、GUI接続。実LLM・実環境での確認は未実施。
+
+- **自律化 Phase B（B1〜B3、2026-10-22）**: `docs/AUTONOMOUS_PHASE_B_DESIGN.md`。`core/autonomy/run_store.py`
+  （sqlite3 WAL・`synchronous=FULL`。計画・タスク状態・マスク済み出力・消費済み承認）、`resume.py`
+  （プロファイルハッシュ、ジャーナル⇔ストアの突合）。書込み順序は journal `action_started` → 実行 →
+  store commit → journal `action_finished`（`event_id` を両者で共有）。再開は完了済みタスクを再実行せず出力を復元し、
+  結果不明（`unknown_outcome`）は自動再実行しない（`retry_unknown`で明示、予算は不明分を宣言上限で計上）、
+  認証はセッションがプロセス内にしか無いため再適用（新しい承認が必要）、プロファイル不一致・終了済みRunは拒否。
+  `AutonomousFuzzAgent.run(resume_run_id=, retry_unknown=, additional_requests=)`。テスト: `tools/test_fuzz_resume.py`
+  （子プロセスを`os._exit(137)`で強制終了 × 4タスク × 5位置の全走査、承認・拒否・非漏えい）、`test_run_store.py`。
+  selftest 16t/16u。`SELFTEST_NON_LLM_ONLY=1` 162 PASS / 0 FAIL / 5 SKIP。未実装: CLI（B4）、案件プロファイル、
+  所見台帳の差分、他モード。
+

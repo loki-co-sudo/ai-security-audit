@@ -29,7 +29,9 @@ from core.autonomy.actions import (
 from core.autonomy.budget import BudgetLedger, LLMGate
 from core.autonomy.journal import JOURNAL_ROOT, JournalError, RunJournal, new_run_id
 from core.autonomy.policy_gate import EngagementPolicy, PolicyGate
-from core.autonomy.runner import PlanTask, ScriptedRunner
+from core.autonomy.resume import ResumeError, profile_hash, reconcile
+from core.autonomy.run_store import RunStore, RunStoreError
+from core.autonomy.runner import ENGINE_VERSION, PlanTask, ScriptedRunner
 from core.autonomy.task_graph import TaskState
 from core.evidence_store import EvidenceStore
 from core.findings import CoverageItem, CoverageStatus, ScanState
@@ -57,13 +59,49 @@ def auth_action_args(target: str, role: str) -> dict:
     return {"url": normalize_base_url(target), "role": role, "auth_ref": f"auth_{role}"}
 
 
+def build_plan(base_url: str, has_auth: bool, has_auth_b: bool, save_evidence: bool) -> list[PlanTask]:
+    plan: list[PlanTask] = []
+    if has_auth:
+        plan.append(PlanTask("auth_a", "web.authenticate", auth_action_args(base_url, "a")))
+    if has_auth_b:
+        plan.append(PlanTask("auth_b", "web.authenticate", auth_action_args(base_url, "b")))
+    plan += [PlanTask("crawl", "web.crawl", {"url": base_url}, ("auth_a",) if has_auth else ()),
+             PlanTask("probes", "llm.gen_probes", {}, ("crawl",)),
+             PlanTask("fuzz", "web.fuzz_get_points", {"url": base_url}, ("probes",))]
+    last = "fuzz"
+    if has_auth_b:
+        plan.append(PlanTask("idor", "web.idor_compare", {"url": base_url},
+                             ("fuzz", "auth_a", "auth_b"), auth_context="session_b"))
+        last = "idor"
+    if save_evidence:
+        plan.append(PlanTask("evidence", "evidence.save", {}, ("fuzz",)))
+        last = "evidence"
+    plan.append(PlanTask("triage", "llm.triage", {}, (last,)))
+    return plan
+
+
+def _mask_signal(d: dict, known: set[str]) -> dict:
+    """異常/IDOR兆候を状態ストアへ保存する前にマスクする(生の応答本文・ヘッダー・URLを永続化しない)。"""
+    out = dict(d)
+    if "url" in out:
+        out["url"] = redaction.mask_url(out["url"], known)
+    if "evidence" in out:
+        out["evidence"] = redaction.mask_log_line(str(out["evidence"]), known)
+    if "response_headers" in out:
+        out["response_headers"] = redaction.mask_headers(out["response_headers"] or {}, known_secrets=known)
+    for k in ("response_body", "baseline_body"):
+        if k in out:
+            out[k] = redaction.mask_body(out[k] or "", known, max_len=5000)
+    return out
+
+
 def build_registry(max_requests: int, triage_llm_calls: int) -> CapabilityRegistry:
     r = CapabilityRegistry()
     r.register(CapabilitySpec("web.crawl", T1, args_schema=dict(_URL), target_arg="url",
                               max_requests=max_requests))
     # 認証情報をセッションへ適用する(ログインPOSTや確認URLへの送信を含み得る)ためT3。承認が無ければ実行しない。
     r.register(CapabilitySpec("web.authenticate", T3, mutating=True, args_schema=dict(_AUTH_ARGS),
-                              target_arg="url", max_requests=3))
+                              target_arg="url", max_requests=3, session_scoped=True))
     r.register(CapabilitySpec("llm.gen_probes", T0, uses_llm="fast", llm_calls=1))
     r.register(CapabilitySpec("web.fuzz_get_points", T1, args_schema=dict(_URL), target_arg="url",
                               max_requests=max_requests))
@@ -84,6 +122,7 @@ class _Ctx:
         self.base_url = base_url
         self.points: list[dict] = []
         self.pages = 0
+        self.fuzz_log: list[dict] = []
         self.probes: dict[str, list[str]] = {}
         self.anomalies: list[dict] = []
         self.idor_findings: list[dict] = []
@@ -105,7 +144,16 @@ class AutonomousFuzzAgent(FuzzAgent):
             journal_root: str = JOURNAL_ROOT, max_llm_calls: int | None = None,
             auth: dict | None = None, auth_b: dict | None = None,
             tls_verify: bool | None = None, tls_ca_bundle: str | None = None,
-            approvals: list | None = None, permit_t2: bool = False) -> None:
+            approvals: list | None = None, permit_t2: bool = False,
+            resume_run_id: str | None = None, retry_unknown: list[str] | None = None,
+            additional_requests: int = 0) -> None:
+        """新規実行、または `resume_run_id` を指定した中断からの再開(docs/AUTONOMOUS_PHASE_B_DESIGN.md)。
+
+        再開では、開始時と同じプロファイルを要求し(許可対象・予算・計画が違えば拒否)、完了済みタスクは再実行せず
+        出力を復元する。認証はセッションがプロセス内にしか無いため**再適用**する(新しい承認が必要)。結果不明の
+        タスクは `retry_unknown` に明示した場合のみ新しいActionとして再実行する。予算は前回の消費を引いた残りで、
+        増やせるのは `additional_requests` を明示した場合だけ。
+        """
         self._current_mode, self._current_target = "WEB FUZZ", target
         scan_id = self._begin_scan()
         self.bus.clear()
@@ -119,65 +167,75 @@ class AutonomousFuzzAgent(FuzzAgent):
         base_url = normalize_base_url(target)
         known_secrets = self._known_secrets(auth, auth_b)
         mask = lambda t: redaction.mask_log_line(str(t), known_secrets)  # noqa: E731
+        save_evidence = bool(config.get("save_evidence", False))
+        effort = self._effort()
+        verify_samples = effort.get("verify_samples", 1) if effort.get("verify_pass") else 0
+        registry = build_registry(max_requests, 1 + verify_samples)
+        plan = build_plan(base_url, bool(auth), bool(auth_b), save_evidence)
+        phash = profile_hash({
+            "mode": "WEB FUZZ", "base_url": base_url, "allowed_targets": sorted(allowed_targets or []),
+            "max_requests": max_requests, "max_pages": max_pages, "profile": profile,
+            "permit_t2": bool(permit_t2), "save_evidence": save_evidence, "auth": bool(auth),
+            "auth_b": bool(auth_b), "engine": ENGINE_VERSION,
+            "plan": [[t.task_id, t.capability, t.args, list(t.depends_on), t.auth_context] for t in plan]})
 
+        journal = store = None
+        resuming = resume_run_id is not None
+        prior = 0
+        try:
+            journal = RunJournal(resume_run_id or new_run_id(), journal_root, known_secrets=known_secrets)
+            store = RunStore(journal.run_id, journal_root, must_exist=resuming)
+            self.last_run_id = journal.run_id
+            if resuming:
+                if store.get_meta("profile_hash") != phash:
+                    raise ResumeError("プロファイル(対象・許可・予算・計画など)が開始時と異なるため再開しません")
+                scan_id = store.get_meta("scan_id") or scan_id
+                self._scan_id = scan_id
+                report = reconcile(journal, store)
+                for tid in (retry_unknown or []):
+                    if tid not in {t.task_id for t in plan}:
+                        raise ResumeError(f"retry_unknown に未知のタスクがあります: {tid}")
+                prior = self._prior_consumption(store, registry, max_requests)
+                journal.append("run_resumed", profile_hash=phash, retry_unknown=sorted(retry_unknown or []),
+                               additional_requests=int(additional_requests), prior_requests=prior,
+                               notes=report.notes, unknown_tasks=report.unknown_tasks)
+        except (ResumeError, JournalError, RunStoreError, OSError, ValueError) as e:
+            self._close_quietly(journal, store)
+            self._finalize(state=ScanState.FAILED.value, target=base_url,
+                           errors=[f"{'再開' if resuming else '監査記録の開始'}に失敗しました: {e}"])
+            return
+
+        total_cap = max_requests + max(0, int(additional_requests))
         fuzzer = WebFuzzer(
-            profile=profile, max_pages=max_pages, max_requests=max_requests,
+            profile=profile, max_pages=max_pages, max_requests=max(0, total_cap - prior),
             log=lambda m: self._log(mask(m)), auth=auth, auth_b=auth_b, target=base_url,
             stop_event=self._stop_event, tls_verify=tls_verify, tls_ca_bundle=tls_ca_bundle,
         )
-        try:
-            journal = RunJournal(new_run_id(), journal_root, known_secrets=known_secrets)
-        except (JournalError, OSError) as e:
-            self._finalize(state=ScanState.FAILED.value, target=base_url,
-                           errors=[f"監査記録(Run Journal)を開始できません: {e}"])
-            return
-        self.last_run_id = journal.run_id
-
-        effort = self._effort()
-        verify_samples = effort.get("verify_samples", 1) if effort.get("verify_pass") else 0
-        ledger = BudgetLedger(max_requests=max_requests, request_counter=lambda: fuzzer._req_count,
+        ledger = BudgetLedger(max_requests=total_cap, request_counter=lambda: prior + fuzzer._req_count,
                               max_llm_calls=max_llm_calls)
         self._llm_gate = LLMGate(ledger)
-        registry = build_registry(max_requests, 1 + verify_samples)
         effects = {T0, T1} | ({T2} if permit_t2 else set())
         policy = EngagementPolicy(base_origin=base_url, allowed_targets=list(allowed_targets or []),
                                   allowed_side_effects=frozenset(effects))
-        gate = PolicyGate(registry, policy, ledger, journal, grants=list(approvals or []))
+        gate = PolicyGate(registry, policy, ledger, journal, grants=list(approvals or []), store=store)
         ctx = _Ctx(base_url)
-        save_evidence = bool(config.get("save_evidence", False))
 
         executors = {
             "web.authenticate": lambda a: self._cap_auth(a, fuzzer, mask),
-            "web.idor_compare": lambda a: self._cap_idor(a, ctx, fuzzer, mask),
+            "web.idor_compare": lambda a: self._cap_idor(a, ctx, fuzzer, mask, known_secrets),
             "web.crawl": lambda a: self._cap_crawl(a, ctx, fuzzer, mask),
             "llm.gen_probes": lambda a: self._cap_gen_probes(a, ctx),
-            "web.fuzz_get_points": lambda a: self._cap_fuzz(a, ctx, fuzzer, mask),
+            "web.fuzz_get_points": lambda a: self._cap_fuzz(a, ctx, fuzzer, mask, known_secrets),
             "evidence.save": lambda a: self._cap_evidence(a, ctx, scan_id, known_secrets),
             "llm.triage": lambda a: self._cap_triage(a, ctx, base_url, mask, effort),
         }
-        plan: list[PlanTask] = []
-        if auth:
-            plan.append(PlanTask("auth_a", "web.authenticate", auth_action_args(base_url, "a")))
-        if auth_b:
-            plan.append(PlanTask("auth_b", "web.authenticate", auth_action_args(base_url, "b")))
-        plan += [PlanTask("crawl", "web.crawl", {"url": base_url}, ("auth_a",) if auth else ()),
-                 PlanTask("probes", "llm.gen_probes", {}, ("crawl",)),
-                 PlanTask("fuzz", "web.fuzz_get_points", {"url": base_url}, ("probes",))]
-        last = "fuzz"
-        if auth_b:
-            plan.append(PlanTask("idor", "web.idor_compare", {"url": base_url},
-                                 ("fuzz", "auth_a", "auth_b"), auth_context="session_b"))
-            last = "idor"
-        if save_evidence:
-            plan.append(PlanTask("evidence", "evidence.save", {}, ("fuzz",)))
-            last = "evidence"
-        plan.append(PlanTask("triage", "llm.triage", {}, (last,)))
-
         runner = ScriptedRunner(gate=gate, journal=journal, registry=registry, executors=executors,
-                                is_stopped=self.is_stopped, budget=ledger, plan=plan)
+                                is_stopped=self.is_stopped, budget=ledger, plan=plan, store=store,
+                                resumed=resuming, restore_cb=lambda t, row: self._restore(ctx, t, row),
+                                retry_unknown=frozenset(retry_unknown or []))
         finished = False
         try:
-            outcome = runner.run(mode="WEB FUZZ", target=base_url, scan_id=scan_id)
+            outcome = runner.run(mode="WEB FUZZ", target=base_url, scan_id=scan_id, profile_hash=phash)
             findings, counts, rejected = self._assemble_findings(ctx, effort)
             coverage = self._autonomy_coverage(ctx, fuzzer, outcome)
             state, errors = self._autonomy_state(ctx, fuzzer, outcome, rejected)
@@ -192,7 +250,50 @@ class AutonomousFuzzAgent(FuzzAgent):
         finally:
             if not finished:
                 runner.close_run(state=ScanState.FAILED.value, errors=["内部エラーで中断しました"])
-            journal.close()
+            self._close_quietly(journal, store)
+
+    @staticmethod
+    def _close_quietly(journal, store) -> None:
+        for obj in (store, journal):
+            if obj is not None:
+                try:
+                    obj.close()
+                except Exception:   # noqa: BLE001 — 後始末の失敗で結果の通知を妨げない
+                    pass
+
+    @staticmethod
+    def _prior_consumption(store: RunStore, registry: CapabilityRegistry, max_requests: int) -> int:
+        """前回までの消費。完了済みは実測、結果不明のタスクは宣言された上限を消費済みとみなす(巻き戻さない)。"""
+        known = store.requests_consumed(0)
+        for row in store.tasks().values():
+            if row["state"] in ("unknown_outcome", "running") or row["consumption_unknown"]:
+                spec = registry.get(row["capability"])
+                known += min(spec.max_requests or 0, max_requests) if spec else 0
+        return known
+
+    # ── 再開時の文脈復元 ───────────────────────────────────
+    @staticmethod
+    def _restore(ctx: _Ctx, t: PlanTask, row: dict) -> None:
+        o = row["outputs"]
+        if t.capability == "web.crawl":
+            ctx.points, ctx.pages = o.get("points", []), o.get("pages", 0)
+        elif t.capability == "llm.gen_probes":
+            ctx.probes = o.get("probes", {})
+        elif t.capability == "web.fuzz_get_points":
+            ctx.anomalies, ctx.fuzz_log = o.get("anomalies", []), o.get("fuzz_log", [])
+        elif t.capability == "web.idor_compare":
+            ctx.idor_findings, ctx.idor_ran = o.get("findings", []), bool(o.get("ran"))
+        elif t.capability == "evidence.save":
+            ctx.known_evidence_ids = set(o.get("known_ids", []))
+            ctx.evidence_errors = o.get("errors", [])
+            for a, eid in zip(ctx.anomalies, o.get("anomaly_evidence_ids", [])):
+                if eid:
+                    a["evidence_id"] = eid
+            for f, eid in zip(ctx.idor_findings, o.get("idor_evidence_ids", [])):
+                if eid:
+                    f["evidence_id"] = eid
+        elif t.capability == "llm.triage":
+            ctx.full, ctx.summary = o.get("full", ""), o.get("summary", "")
 
     # ── capability 本体(既存メソッドを呼ぶだけ) ───────────────
     def _cap_auth(self, action: Action, fuzzer: WebFuzzer, mask) -> ActionResult:
@@ -205,7 +306,8 @@ class AutonomousFuzzAgent(FuzzAgent):
         # 認証状態(authenticated/unknown/expired)は要約に残す。理由文は対象由来になり得るため入れない。
         return ActionResult("done" if ok else "failed", {"role": role, "auth_state": state})
 
-    def _cap_idor(self, action: Action, ctx: _Ctx, fuzzer: WebFuzzer, mask) -> ActionResult:
+    def _cap_idor(self, action: Action, ctx: _Ctx, fuzzer: WebFuzzer, mask,
+                  known_secrets: set[str]) -> ActionResult:
         reason = idor_skip_reason(fuzzer)
         if reason:
             ctx.idor_skip_reason = reason
@@ -216,7 +318,9 @@ class AutonomousFuzzAgent(FuzzAgent):
         ctx.idor_ran = True
         for f in ctx.idor_findings:
             self._out(mask(f"    [IDOR?] {f['param']}@{f['url']}\n"), "high")
-        return ActionResult("done", {"signals": len(ctx.idor_findings)})
+        return ActionResult("done", {"signals": len(ctx.idor_findings)},
+                            outputs={"ran": True, "findings": [_mask_signal(f, known_secrets)
+                                                               for f in ctx.idor_findings]})
 
     def _cap_crawl(self, action: Action, ctx: _Ctx, fuzzer: WebFuzzer, mask) -> ActionResult:
         self._out("  PHASE 1 — CRAWL & INJECTION-POINT DISCOVERY\n", "section")
@@ -231,7 +335,8 @@ class AutonomousFuzzAgent(FuzzAgent):
         if ctx.pages == 0:
             return ActionResult("failed", {"reason": "no_pages", "detail": fuzzer._transport_error_reason()})
         return ActionResult("done", {"pages": ctx.pages, "points": len(ctx.points),
-                                     "post_points": posts})
+                                     "post_points": posts},
+                            outputs={"pages": ctx.pages, "points": ctx.points})
 
     def _cap_gen_probes(self, action: Action, ctx: _Ctx) -> ActionResult:
         if not ctx.points:
@@ -239,26 +344,29 @@ class AutonomousFuzzAgent(FuzzAgent):
         self._status("AIが検出プローブを生成中 ...")
         ctx.probes = self._gen_probes(ctx.points)
         return ActionResult("done", {"categories": len(ctx.probes),
-                                     "probes": sum(len(v) for v in ctx.probes.values())})
+                                     "probes": sum(len(v) for v in ctx.probes.values())},
+                            outputs={"probes": ctx.probes})
 
-    def _cap_fuzz(self, action: Action, ctx: _Ctx, fuzzer: WebFuzzer, mask) -> ActionResult:
+    def _cap_fuzz(self, action: Action, ctx: _Ctx, fuzzer: WebFuzzer, mask,
+                  known_secrets: set[str]) -> ActionResult:
         get_points = [p for p in ctx.points if p["method"] == "GET"]
         if not get_points:
             return ActionResult("skipped", {"reason": "no_get_points"})
         self._out("  PHASE 3 — FUZZING (DETECTION ONLY, GET only)\n", "section")
         self._status("ファジング実行中 ...")
         ctx.anomalies = fuzzer.fuzz(get_points, ctx.probes)
-        units = fuzzer.fuzz_log
+        units = ctx.fuzz_log = fuzzer.fuzz_log
+        outputs = {"anomalies": [_mask_signal(a, known_secrets) for a in ctx.anomalies], "fuzz_log": units}
         for a in ctx.anomalies:
             self._out(mask(f"    [{a['category']}] {a['param']}@{a['url']}\n"),
                       a["severity"].lower() if a["severity"] != "CRITICAL" else "critical")
         unfinished = [u for u in units if u["status"] != "completed"]
         summary = {"anomalies": len(ctx.anomalies), "units": len(units), "units_unfinished": len(unfinished)}
         if any(u["reason"] == "stopped" for u in unfinished):
-            return ActionResult("skipped", dict(summary, reason="stopped"))
+            return ActionResult("skipped", dict(summary, reason="stopped"), outputs=outputs)
         if any(u["status"] in ("exhausted", "not_started") for u in unfinished):
-            return ActionResult("exhausted", summary)
-        return ActionResult("done", summary)
+            return ActionResult("exhausted", summary, outputs=outputs)
+        return ActionResult("done", summary, outputs=outputs)
 
     def _cap_evidence(self, action: Action, ctx: _Ctx, scan_id: str, known_secrets: set[str]) -> ActionResult:
         ctx.known_evidence_ids, ctx.evidence_errors = self._save_evidence(
@@ -266,7 +374,11 @@ class AutonomousFuzzAgent(FuzzAgent):
             action_id=action.action_id)
         return ActionResult("done", {"saved": len(ctx.known_evidence_ids),
                                      "errors": len(ctx.evidence_errors)},
-                            evidence_ids=sorted(ctx.known_evidence_ids))
+                            evidence_ids=sorted(ctx.known_evidence_ids),
+                            outputs={"known_ids": sorted(ctx.known_evidence_ids),
+                                     "errors": list(ctx.evidence_errors),
+                                     "anomaly_evidence_ids": [a.get("evidence_id") for a in ctx.anomalies],
+                                     "idor_evidence_ids": [f.get("evidence_id") for f in ctx.idor_findings]})
 
     def _cap_triage(self, action: Action, ctx: _Ctx, base_url: str, mask, effort: dict) -> ActionResult:
         self._out("  PHASE 4 — AI TRIAGE & REPORT  (streaming)\n", "section")
@@ -281,7 +393,8 @@ class AutonomousFuzzAgent(FuzzAgent):
         ctx.full = full
         self._save_investigation("WEB FUZZ", base_url,
                                  f"## Fuzzing Summary\n```\n{ctx.summary}\n```\n\n## AI Triage\n{full}\n")
-        return ActionResult("done", {"triage_chars": len(full)})
+        return ActionResult("done", {"triage_chars": len(full)},
+                            outputs={"full": full, "summary": ctx.summary})
 
     # ── 最終結果の組み立て(終了処理の一部) ─────────────────
     def _assemble_findings(self, ctx: _Ctx, effort: dict):
@@ -297,7 +410,7 @@ class AutonomousFuzzAgent(FuzzAgent):
     def _autonomy_coverage(self, ctx: _Ctx, fuzzer: WebFuzzer, outcome) -> list[CoverageItem]:
         """検査単位(注入点×カテゴリ)の実績に基づく。未実施・未承認を tested にしない。"""
         cats = list((ctx.probes or DEFAULT_PROBES).keys())
-        log = {(u["url"], u["method"], u["param"], u["category"]): u for u in fuzzer.fuzz_log}
+        log = {(u["url"], u["method"], u["param"], u["category"]): u for u in ctx.fuzz_log}
         fuzz_rec = outcome.tasks.get("fuzz")
         not_run = (fuzz_rec.reason if fuzz_rec and fuzz_rec.reason else "not_run")
         auth_ctx = fuzzer.auth_state if fuzzer.auth else "anonymous"   # 実際の認証状態(未確認を authenticated と書かない)
@@ -355,7 +468,7 @@ class AutonomousFuzzAgent(FuzzAgent):
         posts = sum(1 for p in ctx.points if p["method"] == "POST")
         if posts:
             errors.append(f"POST注入点{posts}件は個別承認が無いため未検査です")
-        unfinished = [u for u in fuzzer.fuzz_log if u["status"] != "completed"]
+        unfinished = [u for u in ctx.fuzz_log if u["status"] != "completed"]
         if unfinished:
             errors.append(f"検査単位{len(unfinished)}件が未完了です(予算切れ・中断・通信失敗)")
         if ctx.anomalies and ctx.full is not None and not ctx.full.strip() and "triage" in done:

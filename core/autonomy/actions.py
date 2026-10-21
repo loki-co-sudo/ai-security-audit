@@ -46,6 +46,7 @@ class CapabilitySpec:
     uses_llm: str | None = None            # "strong" | "fast" | None
     llm_calls: int = 0                     # このcapabilityが呼び得るLLM回数の上限(事前確認に使う)
     enabled: bool = True                   # Falseは登録のみで実行不可(例: web.fuzz_post_points)
+    session_scoped: bool = False           # プロセス内のセッション状態を作る(認証など)。再開時は再適用が必要
 
     def __post_init__(self):
         if not _NAME_RE.match(self.name):
@@ -153,6 +154,7 @@ class ActionResult:
     evidence_ids: list[str] = field(default_factory=list)
     requests_used: int = 0                 # 実測(transport計数の差)
     llm_usage: dict | str = "unknown"      # 取得不能は0ではなく "unknown"
+    outputs: dict = field(default_factory=dict)   # 後続タスク/再開用の出力。**呼び出し側がマスク済みにして渡す**
 
 
 @dataclass(frozen=True)

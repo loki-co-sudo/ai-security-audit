@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS tasks(
     consumption_unknown INTEGER NOT NULL DEFAULT 0,
     result_json TEXT NOT NULL DEFAULT '{}', outputs_json TEXT NOT NULL DEFAULT '{}',
     start_event_id TEXT NOT NULL DEFAULT '', finish_event_id TEXT NOT NULL DEFAULT '',
+    state_event_id TEXT NOT NULL DEFAULT '',
     updated_at TEXT NOT NULL DEFAULT '');
 CREATE TABLE IF NOT EXISTS consumed_grants(
     grant_id TEXT PRIMARY KEY, action_id TEXT NOT NULL, event_id TEXT NOT NULL, consumed_at TEXT NOT NULL);
@@ -123,7 +124,7 @@ class RunStore:
         with self._tx() as db:
             cur = db.execute(
                 "UPDATE tasks SET state='running', action_id=?, dedupe_key=?, start_event_id=?, "
-                "attempt=attempt+1, updated_at=? WHERE task_id=?",
+                "finish_event_id='', attempt=attempt+1, updated_at=? WHERE task_id=?",
                 (action_id, dedupe_key, event_id, _now(), task_id))
             if cur.rowcount != 1:
                 raise RunStoreError(f"未登録のタスクです: {task_id}")
@@ -145,9 +146,9 @@ class RunStore:
         """実行を伴わない状態更新(skipped / needs_approval / unknown_outcome など)。"""
         with self._tx() as db:
             db.execute(
-                "UPDATE tasks SET state=?, reason=?, consumption_unknown=?, "
-                "finish_event_id=CASE WHEN ?<>'' THEN ? ELSE finish_event_id END, updated_at=? WHERE task_id=?",
-                (state, reason, 1 if consumption_unknown else 0, event_id, event_id, _now(), task_id))
+                "UPDATE tasks SET state=?, reason=?, consumption_unknown=?, state_event_id=?, "
+                "updated_at=? WHERE task_id=?",
+                (state, reason, 1 if consumption_unknown else 0, event_id, _now(), task_id))
 
     def task(self, task_id: str) -> dict | None:
         with self._lock:

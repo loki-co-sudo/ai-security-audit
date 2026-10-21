@@ -1,6 +1,6 @@
 # Phase B 詳細設計: 実行状態の永続化・中断からの再開・ヘッドレス実行
 
-作成: 2026-10-22。状態: **提案（実装中）**。上位設計: [AUTONOMOUS_PLATFORM_DESIGN.md](AUTONOMOUS_PLATFORM_DESIGN.md) §5.3 / §8 Phase B、
+作成: 2026-10-22。状態: **B1〜B3 実装済み（2026-10-22）／B4（CLI）未実装**。上位設計: [AUTONOMOUS_PLATFORM_DESIGN.md](AUTONOMOUS_PLATFORM_DESIGN.md) §5.3 / §8 Phase B、
 決定済み事項: 同 §9（#7 実行状態はSQLite WAL・監査記録はJSONL）、[AUTONOMOUS_PHASE_A_DESIGN.md](AUTONOMOUS_PHASE_A_DESIGN.md) §11.4（結果不明と再開）。
 進捗は [AUTONOMOUS_IMPLEMENTATION_PLAN.md](AUTONOMOUS_IMPLEMENTATION_PLAN.md) が正本。
 

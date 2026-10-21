@@ -3090,6 +3090,20 @@ def test_run_store():
         _ng("RunStore", str(result.errors + result.failures))
 
 
+def test_fuzz_resume():
+    _section("16u. AUTONOMY — 中断・再開(強制終了×全タスク×5位置・承認・拒否, Phase B)")
+    import unittest
+    from tools.test_fuzz_resume import ResumeSweepTest, UnknownOutcomeTest, AuthResumeTest, RefusalTest
+    result = unittest.TestResult()
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
+                               for c in (ResumeSweepTest, UnknownOutcomeTest, AuthResumeTest, RefusalTest))
+    suite.run(result)
+    if result.wasSuccessful():
+        _ok("Fuzz resume", f"{result.testsRun} tests: 二重実行なし/予算の非巻き戻し/不明は自動再実行しない/認証は新承認/プロファイル不一致は拒否")
+    else:
+        _ng("Fuzz resume", str(result.errors + result.failures))
+
+
 def test_audit_evidence():
     _section("16l. AGENT — AuditAgent 証拠保存・入力マスキング(P1.2)")
     import unittest
@@ -3198,6 +3212,7 @@ def main():
     test_llm_budget_gate()
     test_fuzz_autonomy()
     test_run_store()
+    test_fuzz_resume()
     test_audit_evidence()
     test_defense_evidence()
     test_flag_routes()

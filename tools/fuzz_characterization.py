@@ -108,13 +108,14 @@ def run_legacy(server, *, max_requests: int = 200, max_pages: int = 20,
 
 def run_agent(server, agent_cls, *, timeout: float = 60, sync: bool = False,
               before_start=None, llm=None, config_overrides: dict | None = None,
-              **start_kwargs) -> Observation:
+              keep_requests: bool = False, **start_kwargs) -> Observation:
     """agent_cls(FuzzAgent または新経路)を固定条件で実行して観測結果を返す。
 
     sync=True はスレッドを使わず _safe_run を直接呼ぶ(STOP済みの状態から始める試験用)。
     before_start(agent) で実行前にagentを操作できる。start_kwargs は run() へ渡す。
     """
-    server.requests.clear()
+    if not keep_requests:
+        server.requests.clear()
     bus, llm = EventBus(), (llm or MockLLM())
     agent = agent_cls(bus, llm)
     agent.set_effort_override("speed")   # 検証パスなし(LLM呼出を決定論的に保つ)
