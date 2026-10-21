@@ -530,13 +530,13 @@ P0.1・P0.2・P1.1は完了済み。実装詳細・セルフテスト結果は
   未知ID除外）・16k（FuzzAgentでの実際の証拠保存〜evidence_id引用〜検証の一連の流れ）
   を追加。
   （`tools/run_selftest.py` 142 PASS / 0 FAIL、実LLM系5件は既定どおりSKIP・2026-09-05）
-- [ ] P2.1 CLI非依存の最小ベンチマーク（正常例と未検査を含む）
-- [ ] P2.2 IDOR/SSTI/XSSの既存検出品質改善（P2.1の基準値取得後）
-- [ ] P3.1 CLI・案件プロファイル・除外優先・実行設定分離
-- [ ] P3.2 案件別JSONLイベント台帳・差分・期限付き抑制（不在だけでfixedにしない）
-- [ ] P4.1 OpenAPI入力（明示選択された読み取り用GETから）
-- [ ] P4.2 Python複数ファイル監査（多言語化とは別）
-- [ ] P4.3 実ログ対応・ローテーション/縮小/部分行処理
+- [ ] P2.1 CLI非依存の最小ベンチマーク（**WEB FUZZのdetector固定モードは実装済み**＋認証期限切れ・共通ログイン画面の罠。未: 実LLM評価、AUDIT/ATTACK/DEFENSE、LLM使用量）
+- [ ] P2.2 IDOR/SSTI/XSSの既存検出品質改善（**検出器側は実装済み**: IDORのログイン画面/公開除外・期待権限表、SSTI別式確認、XSS content-type。未: 期待権限表のGUI入力・旧FuzzAgent経路への配線、同一origin認証確認URL、逆方向）
+- [ ] P3.1 CLI・案件プロファイル・除外優先・実行設定分離（**scan fuzz/audit/defense/attack、--engagement、除外優先、--targets-fileは実装済み**。未: config.jsonのprofiles、--format md、--effort auto、defenseの--duration、core/scan_runner.pyへの共通化）
+- [ ] P3.2 案件別JSONLイベント台帳・差分・期限付き抑制（**台帳・差分・mark/suppress/findings CLIは実装済み**。未: HTML/MD/PDF/JSONレポートへの抑制フィルター・差分表示）
+- [ ] P4.1 OpenAPI入力（**初期版は実装済み**: ローカルJSON・明示選択のGET+query。未: YAML、複雑schema、認証scheme、GUI）
+- [ ] P4.2 Python複数ファイル監査（**標準エンジンの初期版は実装済み**。未: LangGraph版・GUI・証拠保存・実LLM評価）
+- [ ] P4.3 実ログ対応・ローテーション/縮小/部分行処理（**中核は実装済み**＋JSONL・MITRE ID確認。未: journald/syslog、gzip回転、長時間の実運用検証）
 
 引き継ぎ上の注意:
 
