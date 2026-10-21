@@ -76,7 +76,9 @@ AI-Security-tool/
 │   ├── findings.py              # P1.1: 構造化所見・実行ライフサイクルのデータ契約。ScanResult/Finding/CoverageItem/ScanState/VerificationState/CoverageStatus（dataclass/Enum）
 │   ├── redaction.py             # P1.2: 証拠のマスキング。mask_headers()/mask_url()/mask_body()（既知の機密値の完全一致＋キー名ヒューリスティック）、mask_value()でsha256先頭12文字付与
 │   ├── evidence_store.py        # P1.2: reports/evidence/<scan_id>/へのHTTP証拠保存。EvidenceStore（件数/1件サイズ/総容量の上限、保存失敗はsave_errorsへ記録）
-│   └── orchestrator.py          # LangGraph StateGraph。深層解析ループ回数はエフォート連動（smart_truncate採用）
+│   ├── orchestrator.py          # LangGraph StateGraph。深層解析ループ回数はエフォート連動（smart_truncate採用）
+│   └── autonomy/
+│       └── journal.py           # 自律化Phase A1: 追記式JSONLのRun Journal（seq/prev_hash連鎖・部分行回復・fail closed・単一writer）。設計は docs/AUTONOMOUS_*.md
 ├── agents/
 │   ├── base_agent.py            # 抽象基底クラス。threading.Eventで停止管理、EventBusヘルパー群、_check_scope()（スコープガード）
 │   ├── audit_agent.py           # CODE AUDITエージェント（7ステップ。ASTプリプロセッサ＋並列CVE照合＋FP検証強化）
@@ -96,6 +98,7 @@ AI-Security-tool/
 │   ├── create_shortcut.py       # デスクトップショートカット生成（Windows・OneDrive対応／Linux・.desktop対応）
 │   ├── known_vulns.yaml         # 既知サービスバナー脆弱性DB（ローカル照合用・LLMコストゼロ）
 │   ├── test_structured_reports.py # 確定所見・証拠リンク・GUI出力配線の固定回帰テスト
+│   ├── test_run_journal.py      # Run Journal の固定回帰テスト（selftest 16mに統合）
 │   ├── run_selftest.py          # 全機能セルフテスト（GUI以外をEventBus経由でE2E検証）
 │   └── capture_screenshots.py   # README用スクリーンショット自動撮影
 ├── gui/

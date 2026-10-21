@@ -19,7 +19,7 @@
 | 順 | 単位 | 内容 | 依存 | 完了条件（検証） |
 |---|---|---|---|---|
 | 0 | 設計文書のコミット | 設計3本＋本書 | なし | リンク・制御文字の検査 |
-| 1 | **A1 `core/autonomy/journal.py`** | 追記式JSONL、`seq`/`prev_hash`、`run_id`検証、単一writer排他、部分行回復、容量上限（fail closed）、機密マスク | なし | 単体テスト（追記・再生・部分行・途中破損・hash不整合・排他・上限・マスク・不正run_id）がselftestに統合され通る |
+| 1 [x] | **A1 `core/autonomy/journal.py`** | 追記式JSONL、`seq`/`prev_hash`、`run_id`検証、単一writer排他、部分行回復、容量上限（fail closed）、機密マスク | なし | 単体テスト（追記・再生・部分行・途中破損・hash不整合・排他・上限・マスク・不正run_id）がselftestに統合され通る |
 | 2 | A2 `actions.py` / `policy_gate.py` / `budget.py` | `CapabilitySpec`/`Action`/`GateDecision`、Gate検査（スコープ・カタログ・副作用クラス・予算・重複・fail closed・承認タイムアウト=deny）、`TaskState`（`exhausted`含む） | A1 | A3〜A5, A8の一部に相当する単体テスト |
 | 3 | A3 `agents/fuzz_capabilities.py` | 既存メソッドを呼ぶ薄い層。`requests`等の直接送信を持たない | A2 | 静的検査テスト（直接送信なし） |
 | 4 | A4 `core/autonomy/runner.py` | スクリプト化計画、STOP、`_finalize`契約、`skipped`/`cancelled` | A3 | STOP・予算0・注入点なしの各試験 |

@@ -2985,6 +2985,18 @@ def test_structured_reports():
         _ng("Structured reports", str(result.errors + result.failures))
 
 
+def test_run_journal():
+    _section("16m. AUTONOMY — Run Journal (Phase A1)")
+    import unittest
+    from tools.test_run_journal import RunJournalTest
+    result = unittest.TestResult()
+    unittest.defaultTestLoader.loadTestsFromTestCase(RunJournalTest).run(result)
+    if result.wasSuccessful():
+        _ok("Run Journal", f"{result.testsRun} tests: chain/recovery/corruption/lock/caps/masking/fail-closed")
+    else:
+        _ng("Run Journal", str(result.errors + result.failures))
+
+
 def test_audit_evidence():
     _section("16l. AGENT — AuditAgent 証拠保存・入力マスキング(P1.2)")
     import unittest
@@ -3085,6 +3097,7 @@ def main():
     log_path = test_log_watcher()
     test_pattern_match()
     test_structured_reports()
+    test_run_journal()
     test_audit_evidence()
     test_defense_evidence()
     test_flag_routes()
