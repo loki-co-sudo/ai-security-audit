@@ -56,6 +56,10 @@ AI-Security-tool/
 ├── 起動.command                 # macOSランチャー（Finderダブルクリック対応）
 ├── samples/
 │   └── target_code.py           # CODE AUDIT 動作確認用のサンプル脆弱コード
+├── testlab/
+│   ├── vuln_server.py           # 手動確認用の模擬脆弱サーバー
+│   ├── fixtures/web_fixture.py  # WEB FUZZ評価用の決定論的fixture（全リクエスト記録。特性化試験・P2.1で共用）
+│   └── ground_truth.json        # 上記fixtureの正解（case_id/rule_id/location/expected）
 ├── assets/
 │   ├── create_icon.py           # アプリアイコン生成スクリプト（PIL）
 │   └── icon.ico / icon.png      # 生成済みアプリアイコン
@@ -99,6 +103,8 @@ AI-Security-tool/
 │   ├── known_vulns.yaml         # 既知サービスバナー脆弱性DB（ローカル照合用・LLMコストゼロ）
 │   ├── test_structured_reports.py # 確定所見・証拠リンク・GUI出力配線の固定回帰テスト
 │   ├── test_run_journal.py      # Run Journal の固定回帰テスト（selftest 16mに統合）
+│   ├── fuzz_characterization.py # 現行FuzzAgentを固定fixture+モックLLMで動かす特性化装置（自律化の比較基準。FuzzAgentは無変更）
+│   ├── test_fuzz_characterization.py # 上記の固定試験（selftest 16nに統合）
 │   ├── run_selftest.py          # 全機能セルフテスト（GUI以外をEventBus経由でE2E検証）
 │   └── capture_screenshots.py   # README用スクリーンショット自動撮影
 ├── gui/

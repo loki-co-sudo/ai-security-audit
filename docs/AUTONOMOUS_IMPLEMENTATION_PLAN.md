@@ -26,7 +26,7 @@
 | 1 [x] | **A1 `core/autonomy/journal.py`** | 追記式JSONL、`seq`/`prev_hash`、`run_id`検証、単一writer排他、部分行回復、容量上限（fail closed）、機密マスク | なし | 単体テストがselftestに統合され通る |
 | 1b [x] | A1補正 | `run_finished` を一度だけ・16KBまで・終端に（レビュー6） | A1 | 追加テスト通過 |
 | 2 | **契約の確定（文書）** | 副作用とPOST、ApprovalGrant、予算三層、unknown_outcome、終了処理（Phase A設計 §11） | なし | 文書内の食い違いが無い（旧記述の撤回を確認） |
-| 3 | **特性化試験（characterization）＋P2.1最小fixture（共用）** | 現行経路の固定fixture（GET/POSTフォーム、認証あり/なし、正常例を含む）とモックLLMで基準を取り、サーバー側の (メソッド,パス,クエリ/本文) の多重集合・所見・coverage・stateを記録する装置。fixtureは P2.1 の `testlab/fixtures/` と `ground_truth.json` の形式に合わせ、同じ資産を両方で使う（WEB FUZZの対象クラスだけ・最小） | なし（既存コードは変更しない） | 現行経路で安定して通る（複数回実行して揺れない箇所だけを期待値にする）。ground truthで手計算できるTP/FP/FNが出る |
+| 3 [x] | **特性化試験（characterization）＋P2.1最小fixture（共用）** | 現行経路の固定fixture（GET/POSTフォーム、認証あり/なし、正常例を含む）とモックLLMで基準を取り、サーバー側の (メソッド,パス,クエリ/本文) の多重集合・所見・coverage・stateを記録する装置。fixtureは P2.1 の `testlab/fixtures/` と `ground_truth.json` の形式に合わせ、同じ資産を両方で使う（WEB FUZZの対象クラスだけ・最小） | なし（既存コードは変更しない） | 現行経路で安定して通る（複数回実行して揺れない箇所だけを期待値にする）。ground truthで手計算できるTP/FP/FNが出る。**認証あり/IDORのfixtureは、`web.authenticate` を足す順6で追加する**（今回の範囲外） |
 | 3b | **証拠の最小由来情報** | `EvidenceStore` に `content_sha256`・`action_id`・`masking_version`・`truncated` を**追加のみ**で入れ、`verify()` を足す（設計 §3.7）。独立コミット | なし | 既存の証拠テスト・レポート出力が不変、改ざん/削除/切り詰めの各ケースで `verify()` と `truncated` が正しい |
 | 4 | A2 `actions.py` / `policy_gate.py` / `budget.py` | `CapabilitySpec`（`mutating=True`はT3のみ）/`Action`/`GateDecision`/`ApprovalGrant`、Gate検査（§11.2〜11.3）、`TaskState`（`exhausted`・`unknown_outcome`を含む） | 1, 2 | Gateの単体テスト（承認の未承認・期限切れ・引数変更・再利用・A/B取り違え、予算0、重複、fail closed） |
 | 5 | **検査実績の最小変更** | `WebFuzzer` に検査単位の実行記録を**追加のみ**で入れる（返り値・既存挙動は不変）。独立コミット | 3 | 予算0／途中枯渇／ちょうど完遂の3ケース、既存selftest全通過、特性化試験が不変 |

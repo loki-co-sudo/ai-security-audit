@@ -2997,6 +2997,18 @@ def test_run_journal():
         _ng("Run Journal", str(result.errors + result.failures))
 
 
+def test_fuzz_characterization():
+    _section("16n. AUTONOMY — 現行WEB FUZZ経路の特性化(Phase A 順3)")
+    import unittest
+    from tools.test_fuzz_characterization import FuzzCharacterizationTest
+    result = unittest.TestResult()
+    unittest.defaultTestLoader.loadTestsFromTestCase(FuzzCharacterizationTest).run(result)
+    if result.wasSuccessful():
+        _ok("Fuzz characterization", f"{result.testsRun} tests: ground truth/lifecycle/決定性/予算拘束/現行の限界")
+    else:
+        _ng("Fuzz characterization", str(result.errors + result.failures))
+
+
 def test_audit_evidence():
     _section("16l. AGENT — AuditAgent 証拠保存・入力マスキング(P1.2)")
     import unittest
@@ -3098,6 +3110,7 @@ def main():
     test_pattern_match()
     test_structured_reports()
     test_run_journal()
+    test_fuzz_characterization()
     test_audit_evidence()
     test_defense_evidence()
     test_flag_routes()

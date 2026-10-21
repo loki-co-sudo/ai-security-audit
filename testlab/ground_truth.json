@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "fixture": "testlab/fixtures/web_fixture.py",
+  "note": "WEB FUZZ最小fixtureの正解。P2.1のground truthと形式を共用する(case_id/rule_id/location/expected)。",
+  "cases": [
+    {"case_id": "sqli-item-id",   "rule_id": "SQLI", "location": "GET /item id",       "expected": "vulnerable"},
+    {"case_id": "xss-search-q",   "rule_id": "XSS",  "location": "GET /search q",      "expected": "vulnerable"},
+    {"case_id": "xss-comment-text", "rule_id": "XSS", "location": "POST /comment text", "expected": "vulnerable"},
+    {"case_id": "xss-escaped-q",  "rule_id": "XSS",  "location": "GET /escaped q",     "expected": "not_vulnerable"},
+    {"case_id": "sqli-escaped-q", "rule_id": "SQLI", "location": "GET /escaped q",     "expected": "not_vulnerable"},
+    {"case_id": "sqli-safe-page", "rule_id": "SQLI", "location": "GET /safe page",     "expected": "not_vulnerable"},
+    {"case_id": "xss-safe-page",  "rule_id": "XSS",  "location": "GET /safe page",     "expected": "not_vulnerable"}
+  ]
+}
