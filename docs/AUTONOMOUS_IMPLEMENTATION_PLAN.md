@@ -36,7 +36,7 @@
 | 8 [x] | A5 異常系・安全試験（範囲外canary・機密非漏えい・静的検査・証拠→Action→Gate判断の追跡・STOP・0予算・監査失敗の全位置・認証(T3)の役割別承認・IDOR(T2)の明示許可と等価性まで実装） | 範囲外canary、機密非漏えい、ジャーナル再生（`unknown_outcome`）、静的検査（直接送信なし） | 7 | Phase A設計 §6 の A1〜A12＋§11の受け入れ条件 |
 | B1 [x] | **RunStore**（Phase B。設計は [AUTONOMOUS_PHASE_B_DESIGN.md](AUTONOMOUS_PHASE_B_DESIGN.md)） | SQLite(WAL)にタスク状態・マスク済み出力・消費済み承認を保存 | 8 | 再読込・原子性・承認の一意性・不明分の消費の試験 |
 | B2/B3 [x] | **再開**: 書込み順序（journal started→実行→store commit→journal finished）、突合（`resume.py`）、出力の復元、認証の再適用（新しい承認が必要）、`retry_unknown`、プロファイル不一致の拒否 | 状態ストアをGate/Runner/新経路に接続 | B1 | 実プロセスkill（`os._exit`）×全タスク×5位置で二重実行なし・予算の非巻き戻し・完了済みの非再実行・Findingの非重複 |
-| B4 | **ヘッドレスCLI**（`cli.py scan fuzz` / `resume` / `status`、認証ファイル、終了コード） | P3.1の一部 | B2/B3 | モック/fixtureでJSON出力・終了コード・SIGINT後の最終結果 |
+| B4（保留） | **ヘッドレスCLI**（`cli.py scan fuzz` / `resume` / `status`、認証ファイル、終了コード） | P3.1の一部 | B2/B3 | モック/fixtureでJSON出力・終了コード・SIGINT後の最終結果。**2026-10-22: 実装中に安全分類器が応答を停止したため未着手。再開前にひろの判断を仰ぐ**（再開に必要な非機密プロファイルの保存 `load_profile` だけ実装済み） |
 | 別 | P1.2残検証・P2.1の本体（`benchmark.py`・集計器・基準値の保存。fixtureは順3で作成済み） | ベンチマークと改修前基準値 | P1.2 | PRACTICAL_ROADMAP の受け入れ条件。Phase C以降の前提 |
 
 順6までは既存挙動を変えない（順5の追加のみ変更が入るが、返り値は不変であることを試験で確認する）。差が出た場合は、

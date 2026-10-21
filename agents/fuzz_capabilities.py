@@ -18,6 +18,7 @@ agents/fuzz_capabilities.py — WEB FUZZ を capability + Policy Gate + Run Jour
 """
 
 from __future__ import annotations
+import json
 import time
 
 import core.config as config
@@ -57,6 +58,15 @@ def auth_action_args(target: str, role: str) -> dict:
     if role not in ("a", "b"):
         raise ValueError("role は 'a' または 'b' です")
     return {"url": normalize_base_url(target), "role": role, "auth_ref": f"auth_{role}"}
+
+
+def load_profile(run_id: str, journal_root: str = JOURNAL_ROOT) -> dict:
+    """再開に必要な、開始時の非機密プロファイルを状態ストアから読む(無ければRunStoreError)。"""
+    with RunStore(run_id, journal_root, must_exist=True) as st:
+        raw = st.get_meta("profile_json")
+    if not raw:
+        raise RunStoreError("開始時のプロファイルが保存されていません")
+    return json.loads(raw)
 
 
 def build_plan(base_url: str, has_auth: bool, has_auth_b: bool, save_evidence: bool) -> list[PlanTask]:
@@ -186,6 +196,14 @@ class AutonomousFuzzAgent(FuzzAgent):
             journal = RunJournal(resume_run_id or new_run_id(), journal_root, known_secrets=known_secrets)
             store = RunStore(journal.run_id, journal_root, must_exist=resuming)
             self.last_run_id = journal.run_id
+            if not resuming:
+                # 再開に必要な非機密のプロファイル(認証値は含めない。CLIのresumeが読み戻す)
+                store.set_meta("profile_json", json.dumps({
+                    "target": base_url, "profile": profile, "max_requests": max_requests,
+                    "max_pages": max_pages, "allowed_targets": list(allowed_targets or []),
+                    "permit_t2": bool(permit_t2), "max_llm_calls": max_llm_calls,
+                    "has_auth": bool(auth), "has_auth_b": bool(auth_b),
+                    "tls_verify": tls_verify, "tls_ca_bundle": tls_ca_bundle}, sort_keys=True))
             if resuming:
                 if store.get_meta("profile_hash") != phash:
                     raise ResumeError("プロファイル(対象・許可・予算・計画など)が開始時と異なるため再開しません")
