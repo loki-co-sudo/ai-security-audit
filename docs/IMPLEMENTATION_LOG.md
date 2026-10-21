@@ -523,3 +523,18 @@ ATTACK MODE に、認可された偵察レスポンスからCTF形式のフラ�
   selftest 16t/16u。`SELFTEST_NON_LLM_ONLY=1` 162 PASS / 0 FAIL / 5 SKIP。未実装: CLI（B4）、案件プロファイル、
   所見台帳の差分、他モード。
 
+
+- **自律化 Phase B4（2026-10-22）**: `cli.py` を追加。`scan fuzz / resume / status`、必須の空でない
+  `--allow`、JSON stdout・進捗stderr、Run配下の結果保存と`--out`、終了コード130→2→1→0。
+  認証は0600・所有者検査済み通常ファイルのみ。`--approve-auth`で役割ごとに5分・一回限りの承認を発行し、
+  未承認では送信しない。クラッシュ再開は`load_profile()`と既存run引数を使用。SIGINTは協調停止し結果保存後130。
+  `status`はread-onlyのSQLiteとジャーナルを参照し、実行や所見閾値の再評価は行わない。
+  事前コミット指定のprofile_json/load_profileは既に`aa3b53e`でコミット済みだったため重複コミットは行っていない。
+  既存FuzzAgent/WebFuzzer/AutonomousFuzzAgentは変更なし。READMEに操作・制約を記載。
+  `tools/test_cli.py`の11試験をselftest 16vへ統合（MockLLM・loopback fixture・子プロセス）。
+  検証コマンド: `PYTHONUTF8=1 SELFTEST_NON_LLM_ONLY=1 .venv/bin/python3 tools/run_selftest.py`。
+  出力末尾: `163 PASS / 0 FAIL / 5 SKIP (89.2s)`。実LLM系5項目・GUI・Windowsは未検証。
+  サンドボックス内はsocket作成がEPERMのため、承認済みのサンドボックス外実行で検証した。
+  試験設計時に確認した既存の限界: 送信予算1でクロールが注入点発見前に打ち切られる場合、
+  AutonomousFuzzAgentがcompletedを返すケースがある。CLIは既存ScanResultのstateを採用し、今回は検出側を変更していない。
+  この境界の改善はP2.1の予算切れfixtureで別途扱う。

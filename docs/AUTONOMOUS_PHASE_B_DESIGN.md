@@ -1,6 +1,6 @@
 # Phase B 詳細設計: 実行状態の永続化・中断からの再開・ヘッドレス実行
 
-作成: 2026-10-22。状態: **B1〜B3 実装済み（2026-10-22）／B4（CLI）未実装**。上位設計: [AUTONOMOUS_PLATFORM_DESIGN.md](AUTONOMOUS_PLATFORM_DESIGN.md) §5.3 / §8 Phase B、
+作成: 2026-10-22。状態: **B1〜B4 実装・検証済み（2026-10-22）**。上位設計: [AUTONOMOUS_PLATFORM_DESIGN.md](AUTONOMOUS_PLATFORM_DESIGN.md) §5.3 / §8 Phase B、
 決定済み事項: 同 §9（#7 実行状態はSQLite WAL・監査記録はJSONL）、[AUTONOMOUS_PHASE_A_DESIGN.md](AUTONOMOUS_PHASE_A_DESIGN.md) §11.4（結果不明と再開）。
 進捗は [AUTONOMOUS_IMPLEMENTATION_PLAN.md](AUTONOMOUS_IMPLEMENTATION_PLAN.md) が正本。
 
@@ -67,3 +67,21 @@ Phase Aの新経路は、プロセスが落ちると途中結果（クロール�
 
 資産/探索グラフ・Fact/Hypothesisストア（Phase C以降）、複数Workerの並列、Reconの共通送信層への移行（Phase E）、
 GUIからの再開操作、案件プロファイルの永続化（P3.1の残り）、所見台帳の差分（P3.2）。
+
+## 7. B4の実装・検証（2026-10-22）
+
+`cli.py` を追加。使用方法・認証JSON形式はREADMEの「ヘッドレスWEB FUZZ」を参照。
+stdoutは結果JSON一件、進捗はstderr。`run_id`を付加し、Run配下と任意の`--out`へ保存する。
+認証ファイルはPOSIXの所有者・通常ファイル・0600を同じfdで検査し、symlinkを拒否する。
+認証役割への明示承認が不足した場合は送信前に拒否。承認は引数ハッシュに結び付く5分・一回限り。
+POSIX以外は認証ファイルの権限を検証できないため拒否する。
+
+再開は既存B2/B3の契約を維持し、クラッシュで終了記録のないRunだけを対象とする。
+SIGINTは最終化して130で終了するため、SIGINTで終了済みのRunは再開対象ではない。
+`retry_unknown`の監査記録は既存実装の `reexecution_authorized` / `reason=retry_unknown` を使う
+（§2の `unknown_outcome_retry_authorized` は概念名であり実イベント名ではない）。
+`status` はSQLiteをread-onlyで開き、タスク状態と監査終了状態を返す。所見閾値の再評価はしない。
+
+検証: `tools/test_cli.py` 11試験（MockLLM、127.0.0.1 FixtureServer、実子プロセス）。
+selftest 16vへ統合。指定コマンドで **163 PASS / 0 FAIL / 5 SKIP（89.2秒）**。
+実LLM系5項目・GUI・Windowsの動作確認は未実施。

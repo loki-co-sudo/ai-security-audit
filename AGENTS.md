@@ -48,6 +48,7 @@
 
 ```
 AI-Security-tool/
+├── cli.py                       # Phase B4: scan fuzz / resume / status。JSON stdout・進捗stderr・0600認証ファイル
 ├── main.py                      # エントリポイント。スプラッシュ表示→遅延ロード→App起動
 ├── config.json                  # 実行時LLM設定（gitignore済み。APIキーを含む可能性あり）
 ├── requirements.txt             # pip install -r requirements.txt
@@ -122,6 +123,7 @@ AI-Security-tool/
 │   ├── test_run_store.py        # RunStoreの固定試験（selftest 16tに統合）
 │   ├── test_policy_gate.py      # 上記autonomy型・Gate・予算・タスク状態の固定試験（selftest 16pに統合）
 │   ├── test_evidence_provenance.py # 証拠の由来情報(content_sha256/action_id/masking_version/truncated)とverify()の固定試験（selftest 16oに統合）
+│   ├── test_cli.py              # CLIプロセス試験（JSON・認証・再開・SIGINT。selftest 16v）
 │   ├── run_selftest.py          # 全機能セルフテスト（GUI以外をEventBus経由でE2E検証）
 │   └── capture_screenshots.py   # README用スクリーンショット自動撮影
 ├── gui/
@@ -389,7 +391,7 @@ validation error記録が残る。JSON出力も未実装。P1.2全体を完了�
 
 2026-10-22: 自律完結型への発展（`docs/AUTONOMOUS_*.md`）のPhase A（Run Journal・Policy Gate・WEB FUZZ新経路・
 認証の役割別承認・LLM呼出の事前制限）を実装。進捗と次の単位は `docs/AUTONOMOUS_IMPLEMENTATION_PLAN.md` が正本
-（PRACTICAL_ROADMAPの順序は置き換えていない）。
+（PRACTICAL_ROADMAPの順序は置き換えていない）。B1〜B4（クラッシュ復旧・ヘッドレスCLI）も実装・検証済み。次はP1.2残検証・P2.1本体。
 
 P0.1・P0.2・P1.1は完了済み。実装詳細・セルフテスト結果は
 [docs/IMPLEMENTATION_LOG.md](docs/IMPLEMENTATION_LOG.md) を参照。

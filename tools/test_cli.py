@@ -1,0 +1,257 @@
+"""CLIのプロセス境界試験。LLMはMockLLM、HTTPは127.0.0.1のFixtureServerのみ。"""
+import json
+import os
+from pathlib import Path
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+import unittest
+
+from cli import exit_code
+from core.autonomy.journal import replay
+from testlab.fixtures.web_fixture import FixtureServer
+
+ROOT = str(Path(__file__).resolve().parents[1])
+CHILD = r'''
+import os, sys, time
+from pathlib import Path
+from unittest.mock import patch
+import cli
+from core import config
+from tools.fuzz_characterization import MockLLM
+from agents.fuzz_agent import FuzzAgent
+from tools.autonomy_crash_child import install_crash
+if os.environ.get("CLI_TEST_CRASH"):
+    install_crash(os.environ["CLI_TEST_CRASH"])
+original = cli.AutonomousFuzzAgent._cap_crawl
+def crawl(self, *a, **kw):
+    result = original(self, *a, **kw)
+    ready = os.environ.get("CLI_TEST_READY")
+    if ready:
+        Path(ready).touch()
+        while not self.is_stopped():
+            time.sleep(0.01)
+    return result
+with patch.dict(config._cfg, {**config._DEFAULTS, "effort": "speed"}, clear=True), \
+     patch.object(config, "load", lambda: None), \
+     patch.object(cli, "LLMClient", lambda **kw: MockLLM()), \
+     patch.object(FuzzAgent, "_save_investigation", lambda *a, **kw: None), \
+     patch.object(FuzzAgent, "_record_telemetry", lambda *a, **kw: None), \
+     patch.object(cli.AutonomousFuzzAgent, "_cap_crawl", crawl):
+    sys.exit(cli.main(sys.argv[1:]))
+'''
+
+
+class CLITest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.base = Path(self.tmp.name)
+        self.runs = self.base / "runs"
+
+    def command(self, args):
+        return [sys.executable, "-c", CHILD, *args]
+
+    def env(self, **extra):
+        return {**os.environ, "PYTHONPATH": ROOT, **extra}
+
+    def call(self, args):
+        p = subprocess.run(self.command(args), cwd=self.base, env=self.env(), capture_output=True,
+                           text=True, timeout=45)
+        data = json.loads(p.stdout)
+        self.assertIsInstance(data, dict)
+        return p, data
+
+    def crash(self, args):
+        before = set(self.runs.glob("run_*"))
+        p = subprocess.run(self.command(args), cwd=self.base,
+                           env=self.env(CLI_TEST_CRASH="journal:gate_decision:triage:after"),
+                           capture_output=True, text=True, timeout=45)
+        self.assertEqual(p.returncode, 137, p.stderr)
+        created = set(self.runs.glob("run_*")) - before
+        self.assertEqual(len(created), 1)
+        return created.pop().name
+
+    def common(self):
+        return ["--allow", "127.0.0.1", "--journal-root", str(self.runs)]
+
+    def scan(self, srv, *extra):
+        return ["scan", "fuzz", "--target", srv.base_url, "--profile", "aggressive",
+                *self.common(), *extra]
+
+    def auth_file(self, srv, mode=0o600):
+        path = self.base / "auth.json"
+        path.write_text(json.dumps({r: {"cookie": f"sid={token}", "confirm_url": srv.base_url + "me",
+                                       "expect_text": f"Hello {name}"}
+                                    for r, token, name in (("a", "TOK_ALICE_cli_12345", "alice"),
+                                                            ("b", "TOK_BOB_cli_98765", "bob"))}))
+        path.chmod(mode)
+        return str(path)
+
+    def test_json_progress_and_thresholds(self):
+        with FixtureServer(post_form=False) as srv:
+            p, data = self.call(self.scan(srv, "--fail-on", "high", "--out", str(self.base / "result.json")))
+            self.assertEqual(p.returncode, 1, p.stderr)
+            self.assertEqual(data["state"], "completed")
+            self.assertTrue(p.stderr)
+            self.assertEqual(json.loads((self.base / "result.json").read_text()), data)
+            self.assertEqual(json.loads((self.runs / data["run_id"] / "cli_result.json").read_text()), data)
+            self.assertTrue(srv.count())
+            p, data = self.call(self.scan(srv, "--fail-on", "critical"))
+            self.assertEqual(p.returncode, 0, data)
+
+    def test_exit_priority(self):
+        for state, expected in (("completed", 1), ("partial", 2), ("failed", 2), ("cancelled", 130)):
+            with self.subTest(state=state):
+                self.assertEqual(exit_code({"state": state, "findings": [{"severity": "CRITICAL"}]}, "low"), expected)
+        self.assertEqual(exit_code({"state": "completed", "findings": [{"severity": "HIGH"}]}), 0)
+
+    def test_budget_and_scope_failure(self):
+        with FixtureServer(post_form=False) as srv:
+            p, data = self.call(self.scan(srv, "--max-requests", "3"))
+            self.assertEqual((p.returncode, data["state"]), (2, "partial"))
+            self.assertLessEqual(srv.count(), 3)
+            count = srv.count()
+            args = self.scan(srv)
+            args[args.index("127.0.0.1")] = "192.0.2.1"
+            p, data = self.call(args)
+            self.assertEqual((p.returncode, data["state"]), (2, "failed"))
+            self.assertEqual(srv.count(), count)
+
+    def test_invalid_args_are_json_and_do_not_echo_secrets(self):
+        for args in (["scan", "fuzz", "--target", "http://127.0.0.1"],
+                     ["status", "run_123456789abc", "--allow", ""],
+                     ["scan", "fuzz", "--target", "http://127.0.0.1", "--allow", "127.0.0.1",
+                      "--password", "CLI_SECRET_23456"]):
+            p, data = self.call(args)
+            self.assertEqual(p.returncode, 2)
+            self.assertEqual(data["state"], "failed")
+            self.assertNotIn("CLI_SECRET_23456", p.stdout + p.stderr)
+
+    def test_loose_permissions_rejected(self):
+        with FixtureServer(auth=True) as srv:
+            path = self.auth_file(srv, 0o644)
+            p, data = self.call(self.scan(srv, "--auth-file", path, "--approve-auth", "a,b"))
+            self.assertEqual(p.returncode, 2)
+            self.assertIn("0600", str(data))
+            self.assertEqual(srv.count(), 0)
+
+    def test_unapproved_auth_sends_nothing(self):
+        with FixtureServer(auth=True) as srv:
+            path = self.auth_file(srv)
+            for extra in ([], ["--approve-auth", "a"]):
+                p, data = self.call(self.scan(srv, "--auth-file", path, *extra))
+                self.assertEqual(p.returncode, 2)
+                self.assertEqual(srv.count(), 0)
+                self.assertEqual(srv.cookies_seen, [])
+
+    def test_approved_auth_is_masked_and_single_use(self):
+        with FixtureServer(post_form=False, auth=True) as srv:
+            path = self.auth_file(srv)
+            p, data = self.call(self.scan(srv, "--auth-file", path, "--approve-auth", "a,b", "--permit-t2"))
+            self.assertEqual(p.returncode, 0, (data, p.stderr))
+            self.assertTrue(any("TOK_ALICE_cli_12345" in c for c in srv.cookies_seen))
+            self.assertTrue(any("TOK_BOB_cli_98765" in c for c in srv.cookies_seen))
+            rid = data["run_id"]
+            events = replay(rid, str(self.runs)).events
+            consumed = [e for e in events if e["type"] == "approval_consumed"]
+            self.assertEqual(len(consumed), 2)
+            self.assertEqual(len({e["grant_id"] for e in consumed}), 2)
+            for token in (b"TOK_ALICE_cli_12345", b"TOK_BOB_cli_98765"):
+                self.assertNotIn(token, (p.stdout + p.stderr).encode())
+                for file in self.runs.rglob("*"):
+                    if file.is_file():
+                        self.assertNotIn(token, file.read_bytes(), str(file))
+            rid = self.crash(self.scan(srv, "--auth-file", path, "--approve-auth", "a,b", "--permit-t2"))
+            before = srv.count()
+            p, denied = self.call(["resume", rid, *self.common(), "--auth-file", path])
+            self.assertEqual(p.returncode, 2)
+            self.assertEqual(srv.count(), before)
+            p, resumed = self.call(["resume", rid, *self.common(), "--auth-file", path,
+                                    "--approve-auth", "a,b"])
+            self.assertEqual(p.returncode, 0, resumed)
+            consumed = [e for e in replay(rid, str(self.runs)).events if e["type"] == "approval_consumed"]
+            self.assertEqual(len({e["grant_id"] for e in consumed}), 4)
+
+    def test_resume_and_read_only_status(self):
+        with FixtureServer(post_form=False) as srv:
+            p, data = self.call(self.scan(srv))
+            self.assertEqual(p.returncode, 0, data)
+            rid, count = data["run_id"], srv.count()
+            journal = self.runs / rid / "journal.jsonl"
+            before = journal.read_bytes()
+            p, state = self.call(["status", rid, *self.common()])
+            self.assertEqual(p.returncode, 0, state)
+            self.assertEqual(state["state"], "completed")
+            self.assertTrue(state["tasks"])
+            self.assertEqual(journal.read_bytes(), before)
+            p, rejected = self.call(["resume", rid, *self.common()])
+            self.assertEqual(p.returncode, 2, rejected)
+            self.assertEqual(srv.count(), count)
+            rid = self.crash(self.scan(srv))
+            count = srv.count()
+            p, resumed = self.call(["resume", rid, *self.common()])
+            self.assertEqual(p.returncode, 0, resumed)
+            self.assertEqual(resumed["run_id"], rid)
+            self.assertEqual(srv.count(), count)
+            self.assertEqual(len(resumed["findings"]), len(data["findings"]))
+            for actual, baseline in zip(resumed["findings"], data["findings"]):
+                self.assertRegex(actual["finding_id"], r"^finding_[0-9a-f]{12}$")
+                self.assertEqual(actual, {**baseline, "finding_id": actual["finding_id"]})
+
+    def test_unknown_retry_and_extra_budget(self):
+        with FixtureServer(post_form=False) as srv:
+            p = subprocess.run(self.command(self.scan(srv)), cwd=self.base,
+                               env=self.env(CLI_TEST_CRASH="journal:action_started:fuzz:after"),
+                               capture_output=True, text=True, timeout=45)
+            self.assertEqual(p.returncode, 137, p.stderr)
+            rid = next(self.runs.glob("run_*")).name
+            p, result = self.call(["resume", rid, *self.common(), "--retry-unknown", "fuzz",
+                                   "--additional-requests", "200"])
+            self.assertEqual(p.returncode, 0, result)
+            events = replay(rid, str(self.runs)).events
+            self.assertTrue(any(e["type"] == "reexecution_authorized" and e["reason"] == "retry_unknown"
+                                and e["task_id"] == "fuzz" for e in events))
+            resumed = next(e for e in events if e["type"] == "run_resumed")
+            self.assertEqual(resumed["additional_requests"], 200)
+            self.assertGreaterEqual(resumed["prior_requests"], 200)
+
+    def test_out_failure_returns_failed_and_retains_result(self):
+        with FixtureServer(post_form=False) as srv:
+            p, result = self.call(self.scan(srv, "--out", str(self.base)))
+            self.assertEqual(p.returncode, 2, result)
+            self.assertEqual(result["state"], "failed")
+            self.assertEqual(json.loads((self.runs / result["run_id"] / "cli_result.json").read_text()), result)
+
+    def test_sigint_saves_result_and_terminal_run_is_not_replayed(self):
+        with FixtureServer(post_form=False) as srv:
+            ready, output = self.base / "ready", self.base / "cancelled.json"
+            child = subprocess.Popen(self.command(self.scan(srv, "--out", str(output))), cwd=self.base,
+                                     env=self.env(CLI_TEST_READY=str(ready)), stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE, text=True)
+            try:
+                deadline = time.monotonic() + 20
+                while not ready.exists() and child.poll() is None and time.monotonic() < deadline:
+                    time.sleep(0.02)
+                self.assertTrue(ready.exists(), "crawlが完了しませんでした")
+                child.send_signal(signal.SIGINT)
+                stdout, stderr = child.communicate(timeout=20)
+                data = json.loads(stdout)
+                self.assertEqual(child.returncode, 130, stderr)
+                self.assertEqual(data["state"], "cancelled")
+                self.assertEqual(json.loads(output.read_text()), data)
+                self.assertEqual(json.loads((self.runs / data["run_id"] / "cli_result.json").read_text()), data)
+                before = srv.count(path="/")
+                p, resumed = self.call(["resume", data["run_id"], *self.common()])
+                self.assertEqual(p.returncode, 2, resumed)
+                self.assertEqual(srv.count(path="/"), before)
+            finally:
+                if child.poll() is None:
+                    child.kill()
+                    child.communicate()
+
+
+if __name__ == "__main__":
+    unittest.main()

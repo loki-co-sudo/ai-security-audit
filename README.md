@@ -471,3 +471,62 @@ MIT License — 詳細は [LICENSE](LICENSE) を参照してください。
 
 **本ツールは教育・研究・許可されたセキュリティ診断を目的としています。  
 いかなる不正アクセスにも使用しないでください。**
+
+### ヘッドレスWEB FUZZ（自律化 Phase B4）
+
+`cli.py` はGUIを読み込まず、既存の自律化WEB FUZZ経路を呼び出します。
+固定計画・GET検査のみです。POST注入点は未検査として記録します。
+通常実行には既存の `config.json` のLLM設定を使用します。設定ファイルは上書きしません。
+
+```bash
+# 明示した許可対象を検査。JSONはstdout、進捗はstderr。
+.venv/bin/python3 cli.py scan fuzz --target http://127.0.0.1:8080 \
+  --allow 127.0.0.1 --max-requests 200 --tls-verify --out result.json
+
+# クラッシュで終了記録が残っていないRunを再開。
+.venv/bin/python3 cli.py resume run_012345abcdef --allow 127.0.0.1
+
+# 送信せず状態ストア・監査記録を参照。
+.venv/bin/python3 cli.py status run_012345abcdef --allow 127.0.0.1
+```
+
+- 全コマンドで `--allow` は必須・空は禁止。host/IP/CIDRを指定し、複数はオプションを繰り返します。
+  URL/pathは受け付けません。再開・状態確認では開始時と同じ許可リストが必要です。
+- 対象URLはHTTP(S)のhost/pathを指定します。userinfo、query、fragmentは受け付けません。
+  秘密値の直接入力オプションはありません。
+- `--profile` は既存スキャンプロファイル、`--effort` は `speed/balanced/quality`、
+  `--max-llm-calls` はLLM呼出上限です。TLS設定を省略すると既存設定を引き継ぎます。
+- 結果には `run_id` を追加し、Runが作成された実行は `reports/runs/<run_id>/cli_result.json` にも保存します。
+  `--out` は追加保存先です。認証ファイルやRun保存ディレクトリ内への指定は禁止します。
+  `--journal-root` でRun保存先を変更できます。状態確認は最終所見を再評価せず、タスク状態を返します。
+- `--fail-on {none,low,medium,high,critical}`（既定none）は同じ深刻度以上の所見を検査します。
+  終了コードは **130=cancelled → 2=failed/partial/引数・保存エラー → 1=completedかつ閾値以上 → 0=completed**
+  の優先順位です。`status` では `--fail-on none` のみ使用でき、未完了の状態確認は2です。
+- SIGINT（Ctrl+C）は協調停止です。進行中の同期HTTP/LLM呼出が戻るまで待つ場合があります。
+  結果を保存・JSON出力した後130で終了します。正常終了・partial・cancelledを含む、終了記録のあるRunは
+  再開できません。新規scanを開始してください。
+- クラッシュ再開では保存済みプロファイルを `load_profile()` で復元します。証拠保存など、計画に影響する
+  `config.json` の設定は開始時と同じにしてください。不一致は既存のプロファイル検査で拒否します。
+  結果不明のタスクは既定で再実行しません。明示する場合のみ `--retry-unknown TASK_ID`（繰り返し可）、
+  追加送信予算が必要な場合は `--additional-requests N` を指定します。
+
+認証は次のJSON形式をファイルで渡します。`a` は主セッション、任意の `b` は第2セッションです。
+フィールドはGUI認証設定と同じです（cookie、header_name/header_value、login_url/post_url、
+user_field/user_val、pass_field/pass_val、confirm_url/expect_text）。
+
+```json
+{"a": {"cookie": "sid=REPLACE_LOCALLY", "confirm_url": "http://127.0.0.1:8080/me", "expect_text": "Hello alice"}}
+```
+
+```bash
+chmod 600 auth.json
+.venv/bin/python3 cli.py scan fuzz --target http://127.0.0.1:8080 \
+  --allow 127.0.0.1 --auth-file auth.json --approve-auth a --out result.json
+```
+
+認証ファイルは実行ユーザー所有の通常ファイル・権限0600が必要です。シンボリックリンクは拒否します。
+POSIX以外は権限の同等性を検証できないため、認証ファイルを拒否します（匿名実行は可能）。
+認証ファイルを指定した場合、含まれる全役割への `--approve-auth a` / `--approve-auth a,b` が必要です。
+承認不足では匿名実行へ切り替えず、送信前に終了コード2で拒否します。
+承認は引数ハッシュに結び付け、5分間有効・一回限りです。再開でも新しい承認を発行します。
+第2セッションのIDOR比較には、別途 `--permit-t2` の明示が必要です。

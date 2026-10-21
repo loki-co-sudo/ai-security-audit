@@ -3104,6 +3104,18 @@ def test_fuzz_resume():
         _ng("Fuzz resume", str(result.errors + result.failures))
 
 
+def test_cli():
+    _section("16v. AUTONOMY — ヘッドレスCLI (Phase B4)")
+    import unittest
+    from tools.test_cli import CLITest
+    result = unittest.TestResult()
+    unittest.defaultTestLoader.loadTestsFromTestCase(CLITest).run(result)
+    if result.wasSuccessful():
+        _ok("CLI", f"{result.testsRun} tests: JSON/終了コード/認証権限/承認/非漏えい/再開/SIGINT")
+    else:
+        _ng("CLI", str(result.errors + result.failures))
+
+
 def test_audit_evidence():
     _section("16l. AGENT — AuditAgent 証拠保存・入力マスキング(P1.2)")
     import unittest
@@ -3213,6 +3225,7 @@ def main():
     test_fuzz_autonomy()
     test_run_store()
     test_fuzz_resume()
+    test_cli()
     test_audit_evidence()
     test_defense_evidence()
     test_flag_routes()

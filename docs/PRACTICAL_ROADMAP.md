@@ -196,6 +196,11 @@ python cli.py status FINDING_ID accepted-risk --reason "対応判断を記録" -
 
 受け入れ条件: GUIをimportせず全モードのモック実行、終了コード、stdoutのJSON単独解析、設定優先順位と非永続性、除外優先、バッチ設定分離、SIGINT後の最終結果保存を検証する。
 
+2026-10-22: P3.1の一部として、自律化Phase B4の `cli.py scan fuzz / resume / status` を実装。
+この `status` はRunの状態確認であり、上記将来案の所見対応状態の変更コマンドではない。
+全モード・案件プロファイル・除外・バッチ等は未実装であり、P3.1全体は未完了のままとする。
+検証は自律化実装計画およびREADMEを参照。
+
 ### P3.2 所見台帳と再検査
 
 対象: 新規 `core/findings_ledger.py`、`cli.py`、`tools/report_generator.py`。
