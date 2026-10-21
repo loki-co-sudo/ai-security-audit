@@ -181,6 +181,7 @@ class AutonomousFuzzAgent(FuzzAgent):
             findings, counts, rejected = self._assemble_findings(ctx, effort)
             coverage = self._autonomy_coverage(ctx, fuzzer, outcome)
             state, errors = self._autonomy_state(ctx, fuzzer, outcome, rejected)
+            errors = [mask(e) for e in errors]        # 例外メッセージ等に混入した機密値を最終結果へ出さない
             audit_end_errors = runner.close_run(state=state, errors=errors)   # 通常Actionから独立した終了処理
             errors += audit_end_errors
             if audit_end_errors and state == ScanState.COMPLETED.value:

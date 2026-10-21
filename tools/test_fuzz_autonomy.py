@@ -417,6 +417,21 @@ class AuthApprovalTest(_Base):
         self.assertEqual([(c["status"], c["reason"]) for c in idor], [("skipped", "dependency_not_done")])
         self.assertTrue(any("approval." in e for e in obs.result["errors"]))
 
+    def test_executor_exception_is_reported_masked_and_run_still_finishes(self):
+        from tools.web_fuzzer import WebFuzzer
+        boom = RuntimeError(f"upstream failed for cookie sid={TOK_A}")
+        with FixtureServer(post_form=False, auth=True) as srv, \
+                patch.object(WebFuzzer, "crawl", side_effect=boom):
+            obs = self.run_auth(srv, approvals=self.grants(srv, ("a",)), **self.kw(srv))
+        self.assertEqual(obs.state, "failed")
+        self.assertTrue(any("RuntimeError" in e for e in obs.result["errors"]))
+        self.assertNotIn(TOK_A, repr(obs.result))
+        rep = self.journal(obs)
+        with open(os.path.join(self.jroot, obs.agent.last_run_id, jr.JOURNAL_FILE), encoding="utf-8") as f:
+            self.assertNotIn(TOK_A, f.read())
+        self.assertEqual(rep.events[-1]["type"], "run_finished")
+        self.assertEqual((obs.result_count, obs.done_count), (1, 1))
+
     def test_idor_requires_both_approvals_and_explicit_t2_permission(self):
         with FixtureServer(post_form=False, auth=True) as srv:
             no_t2 = self.run_auth(srv, approvals=self.grants(srv), **self.kw(srv, with_b=True))
