@@ -22,6 +22,7 @@ from core.llm_client import LLMClient
 from core.model_router import classify_effort
 from core.redaction import mask_source
 from core.scope_guard import extract_host, in_scope
+from tools.log_watcher import parse_journal_target
 
 
 APPROVAL_TTL_SECONDS = 300
@@ -148,7 +149,12 @@ def run_attack(target, allow, exclude, profile, port_scope, udp, no_web, effort,
 
 def run_local(mode, target, effort, on_agent, was_interrupted, duration=None, llm_factory=None):
     """CODE AUDIT(標準エンジン)またはDEFENSE(ログ1回走査)を実行して最終結果を返す。ローカルファイルのみ・Runジャーナル無し。"""
-    if not (Path(target).is_file() or (mode == "audit" and Path(target).is_dir())):
+    if mode == "defense" and target.startswith("journald"):
+        try:
+            parse_journal_target(target)
+        except ValueError as e:
+            raise CLIError(str(e))
+    elif not (Path(target).is_file() or (mode == "audit" and Path(target).is_dir())):
         raise CLIError("対象のファイル(auditはディレクトリも可)が見つかりません")
     if duration is not None and not 1 <= duration <= 86400:
         raise CLIError("--durationは1〜86400秒で指定してください")

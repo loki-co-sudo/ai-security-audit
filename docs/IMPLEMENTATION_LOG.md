@@ -678,3 +678,7 @@ AUDITの証拠ID引用、`--effort auto`、DEFENSEのMITRE ID、WEB FUZZのト�
 
 ## 2026-10-22 P4.3(追補): gzipアーカイブ入力
 `LogWatcher`が`.gz`を1回通しで読む(`_read_gzip`: 展開後256MiB・1行1MiBの上限、BadGzipFile/EOFError/zlib.errorをstatsへ記録)。`MonitorAgent`は上限超過・破損でstateをpartialにしerrorsへ注記。試験: `tools/test_log_watcher.py`の`GzipArchiveTest`(5件)、`tools/test_cli.py`にCLI経由1件。journald/syslogは未実装。
+
+## 2026-10-22 P4.3(追補): journaldアダプター
+`tools/log_watcher.py`: `parse_journal_target()`、`LogWatcher._read_journal()`(固定引数のsubprocess・select+os.readで停止に応答・1行1MiB上限)、`normalize_log_line()`でjournaldの`MESSAGE`先頭化とバイト配列復号。`core/scan_runner.run_local`はdefenseの`journald*`対象をファイル検査の代わりにunit検証する。`MonitorAgent`は`journal_error`でpartial+注記。
+試験: `tools/test_log_watcher.py`の`JournaldTest`(6件・偽のjournalctlで引数/エラー/追跡停止/検知を確認)、`tools/test_cli.py`にCLI経由1件(PATH上の偽journalctl、オプション注入unitは実行前に拒否)。実機のjournalctlは件数のみ確認(直近10000件を読め、不正行0・エラー無し)。権限不足環境・長時間追跡は未検証。

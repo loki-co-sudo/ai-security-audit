@@ -539,7 +539,7 @@ P0.1・P0.2・P1.1は完了済み。実装詳細・セルフテスト結果は
 - [ ] P3.2 案件別JSONLイベント台帳・差分・期限付き抑制（**台帳・差分・mark/suppress/findings CLIは実装済み**。**レポート層(HTML/MD/PDF/JSON)は`Ledger.report_view()`を`scan_result["ledger"]`に付けると抑制除外・差分表示に対応済み**。**CLIの`--engagement-id`指定で出力に台帳ビュー・`--fail-on`が期限内抑制を除外・`--format md`が抑制除外/差分に対応済み**。未: GUIからのengagement_id指定と配線）
 - [ ] P4.1 OpenAPI入力（**初期版は実装済み**: ローカルJSON・明示選択のGET+query。**YAML(safe_load・alias拒否)対応済み**。**サンプル値生成(example/allOf/oneOf/3.1型配列/array/format)と操作ごとの認証要件表示も対応済み**。未: path param・body・POST(境界として非対応)、認証schemeの自動適用、GUI）
 - [ ] P4.2 Python複数ファイル監査（**標準エンジン・LangGraph版(モックLLM検証のみ)の初期版は実装済み**。未: GUI・証拠保存・実LLM評価）
-- [ ] P4.3 実ログ対応・ローテーション/縮小/部分行処理（**中核は実装済み**＋JSONL・MITRE ID確認。**回転済み`.gz`の1回通し読み(上限・破損検知つき)も対応済み**。未: journald/syslog、長時間の実運用検証）
+- [ ] P4.3 実ログ対応・ローテーション/縮小/部分行処理（**中核は実装済み**＋JSONL・MITRE ID確認。**回転済み`.gz`の1回通し読み(上限・破損検知つき)と`journald[:UNIT]`(固定引数のjournalctl・読み取り専用)も対応済み**。未: syslogの構造化パース、長時間の実運用検証）
 
 引き継ぎ上の注意:
 

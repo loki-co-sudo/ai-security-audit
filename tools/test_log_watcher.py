@@ -10,7 +10,7 @@ import unittest
 from unittest import mock
 
 from tools import log_watcher
-from tools.log_watcher import LogWatcher
+from tools.log_watcher import LogWatcher, normalize_log_line, parse_journal_target
 
 TICK = 0.01
 
@@ -262,6 +262,98 @@ class GzipArchiveTest(unittest.TestCase):
         self.assertEqual(len(alerts), 1)                               # 読めた分は検知する
         self.assertEqual(res.state, "partial")                         # 途中切れは検出0件の成功にしない
         self.assertTrue(any("gzipアーカイブを最後まで読めませんでした" in e for e in res.errors), res.errors)
+
+
+class JournaldTest(unittest.TestCase):
+    ATTACK = '{"MESSAGE":"GET /?q=1 UNION SELECT 1,2 from 10.0.0.5","_SYSTEMD_UNIT":"web.service","SYSLOG_IDENTIFIER":"web"}'
+
+    def setUp(self):
+        self.d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.d, True)
+        self.argv_file = os.path.join(self.d, "argv.txt")
+
+    def fake(self, body: str):
+        """journalctlの代わりの実行ファイル。受けた引数をargv.txtへ残す。"""
+        path = os.path.join(self.d, "journalctl")
+        with open(path, "w") as f:
+            f.write(f'#!/bin/sh\nprintf "%s\\n" "$@" > "{self.argv_file}"\n{body}\n')
+        os.chmod(path, 0o755)
+        return mock.patch("tools.log_watcher.shutil.which", lambda name: path if name == "journalctl" else None)
+
+    def test_target_parsing_accepts_units_and_rejects_option_injection(self):
+        self.assertIsNone(parse_journal_target("/var/log/auth.log"))
+        self.assertEqual(parse_journal_target("journald"), "")
+        self.assertEqual(parse_journal_target("journald:ssh.service"), "ssh.service")
+        self.assertEqual(parse_journal_target("journald:user@1000.service"), "user@1000.service")
+        for bad in ("journald:", "journald:-f", "journald:--vacuum-size=1", "journald:a b", "journald:a;rm", "journald:" + "a" * 101):
+            with self.assertRaises(ValueError, msg=bad):
+                parse_journal_target(bad)
+
+    def test_single_pass_reads_recent_entries_with_fixed_arguments(self):
+        with self.fake(f"echo '{self.ATTACK}'\necho '{{\"MESSAGE\":\"ok\"}}'"):
+            w = LogWatcher("journald:web.service")
+            got = list(w.watch(interval=TICK, stop_fn=lambda: False, single_pass=True))
+        self.assertEqual(len(got), 2)
+        self.assertEqual(w.stats["journal_error"], "")
+        with open(self.argv_file) as fh:
+            argv = fh.read().split()
+        self.assertEqual(argv, ["--no-pager", "-o", "json", "-u", "web.service", "-n", "10000"])
+
+    def test_message_byte_arrays_and_message_first_ordering(self):
+        text, problem = normalize_log_line('{"_PID":"5","MESSAGE":[85,78,73,79,78,32,83,69,76,69,67,84],"x":{"a":1}}')
+        self.assertEqual(problem, "")
+        self.assertTrue(text.startswith("MESSAGE=UNION SELECT"), text)
+        self.assertIn("x.a=1", text)
+
+    def test_unreadable_journal_is_an_error_not_an_empty_success(self):
+        from agents.monitor_agent import MonitorAgent
+        from core.event_bus import EventBus
+        from tools.fuzz_characterization import MockLLM
+        body = 'echo "No journal files were opened due to insufficient permissions." >&2\nexit 1'
+        with self.fake(body):
+            w = LogWatcher("journald")
+            self.assertEqual(list(w.watch(interval=TICK, stop_fn=lambda: False, single_pass=True)), [])
+            self.assertIn("insufficient permissions", w.stats["journal_error"])
+            agent = MonitorAgent(EventBus(), MockLLM())
+            with mock.patch.object(MonitorAgent, "_save_investigation", lambda *a, **k: None), \
+                 mock.patch.object(MonitorAgent, "_record_telemetry", lambda *a, **k: None):
+                agent._safe_run(log_path="journald", watch_mode=False)
+        res = agent._last_scan_result
+        self.assertEqual(res.state, "partial")
+        self.assertTrue(any("journaldを最後まで読めませんでした" in e for e in res.errors), res.errors)
+        with mock.patch("tools.log_watcher.shutil.which", lambda n: None):
+            w = LogWatcher("journald")
+            self.assertEqual(list(w.watch(single_pass=True)), [])
+            self.assertIn("見つかりません", w.stats["journal_error"])
+
+    def test_follow_streams_new_entries_and_terminates_the_child_on_stop(self):
+        with self.fake(f"echo '{self.ATTACK}'\nsleep 30"):
+            w = LogWatcher("journald:web.service")
+            stop = threading.Event()
+            got = []
+            t0 = time.time()
+            for line in w.watch(interval=0.05, stop_fn=stop.is_set):
+                got.append(line)
+                stop.set()
+            self.assertLess(time.time() - t0, 5)                      # sleep 30を待たない
+        self.assertEqual(len(got), 1)
+        with open(self.argv_file) as fh:
+            argv = fh.read().split()
+        self.assertEqual(argv[-3:], ["-f", "-n", "0"])
+        self.assertEqual(w.stats["journal_error"], "")                 # terminateでの終了はエラーにしない
+
+    def test_defense_detects_attack_in_a_journal_message(self):
+        from agents.monitor_agent import MonitorAgent
+        from core.event_bus import EventBus
+        from tools.fuzz_characterization import MockLLM
+        bus = EventBus()
+        with self.fake(f"echo '{self.ATTACK}'"):
+            agent = MonitorAgent(bus, MockLLM())
+            with mock.patch.object(MonitorAgent, "_save_investigation", lambda *a, **k: None), \
+                 mock.patch.object(MonitorAgent, "_record_telemetry", lambda *a, **k: None):
+                agent._safe_run(log_path="journald:web.service", watch_mode=False)
+        self.assertEqual(agent._last_scan_result.state, "completed", agent._last_scan_result.errors)
+        self.assertEqual(len([e for e in bus.drain() if e.kind == "alert"]), 1)
 
 
 class MonitorIntegrationTest(unittest.TestCase):

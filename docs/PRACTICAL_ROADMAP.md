@@ -71,7 +71,7 @@ P4内は用途に応じて一項目ずつ選択できる。保留事項を自動
 | P3.2 | 中核+レポート連携 | 台帳・差分・mark/suppress/findings、レポート層の抑制除外と差分表示、CLI(`--engagement-id`)の出力への台帳ビュー付与・`--format md`の抑制除外/差分・`--fail-on`の期限内抑制除外 | GUIからのengagement_id指定と配線 |
 | P4.1 | 初期版 | ローカルJSON/YAML・明示選択のGET+query・サンプル値生成(parameter/schemaのexample・allOf/oneOf/anyOf・3.1型配列・array・format)・操作ごとの認証要件表示 | path param・body・POST等(境界として非対応のまま)、認証schemeの自動適用、GUI |
 | P4.2 | 初期版 | 標準エンジン・LangGraph版(モックLLM)の複数ファイル監査 | GUI、証拠保存、実LLM評価 |
-| P4.3 | 中核 | ローテーション/縮小/部分行/JSONL/MITRE確認・回転済みgzipアーカイブの1回通し読み | journald/syslog、長時間運用検証 |
+| P4.3 | 中核 | ローテーション/縮小/部分行/JSONL/MITRE確認・回転済みgzipアーカイブの1回通し読み・journaldアダプター(`journald[:UNIT]`) | syslog形式の構造化パース、長時間運用検証、journaldの実運用(権限・大量ログ)での確認 |
 | 共通 | 一部検証 | selftest 170 PASS / 0 FAIL / 5 SKIP(`SELFTEST_NON_LLM_ONLY=1`)。AUDITは実LLMで3回評価、証拠ID引用・effort autoは実LLMで各1回、DEFENSE・WEB FUZZは各3回の小規模測定(付録) | 実LLM系5件のselftest、AUDIT/DEFENSE/WEB FUZZ以外の実LLM評価、より大きな正解データでの複数回評価、GUIの目視確認は全体を通して未実施 |
 
 ## 4. P0: 通信・認証の境界
@@ -362,7 +362,8 @@ JSONL平坦化`normalize_log_line()`、`core/mitre.py`、`agents/monitor_agent.p
 - JSONLは全スカラー値を`key=value`へ平坦化して既存シグネチャ検知へ渡す。不正行は件数をerrorsに出しつつ**生テキストのまま検知へ回す**(不正行に紛れた攻撃を見逃さない)。
 - MITRE: LLMのIDは`core/mitre.KNOWN_TECHNIQUES`(部分集合・権威ある一覧ではない)に無ければ「未確認:Txxxx」と表示し、確定タグにしない(削除はしない)。プロンプトにも推測禁止を追記。
 **追補(2026-10-22)**: 拡張子`.gz`の入力は追跡できないため、watch_modeでも1回通しで読む(`LogWatcher.archive`)。展開後256MiB・1行1MiBを上限とし、超過・破損・途中切れは`stats`(`archive_truncated`/`archive_error`)に記録して読めた分で終了、DEFENSEはpartial+errors注記(検出0件の成功にしない)。連結gzip(複数メンバー)は全て読む。ライブ追跡中のlogrotate圧縮は、開いたままのfdで旧ファイルの残りを読むため既存のrename-create経路で足りる(gzip化は追跡に影響しない)。
-**未実装**: journald/syslog adapter、巨大ログのバックプレッシャー、Windowsでのinode相当の検証、実LLMでのMITRE出力確認、
+**journald(2026-10-22)**: 対象`journald`または`journald:UNIT`(unitは英数字始まり・文字種/100文字制限で`-`始まりのオプション注入を拒否)。`journalctl --no-pager -o json [-u UNIT]`を**固定引数・shell無し・読み取り専用**で起動し、1回通しは直近10000件(`-n`)、`--duration`指定時は`-f -n 0`で新着を追跡(停止時にterminate→kill)。出力はJSONLとして既存の平坦化に乗り、`MESSAGE`を先頭へ置く(非UTF-8のバイト配列も復号)。journalctl不在・権限不足・異常終了は`stats["journal_error"]`→DEFENSEはpartial+errors注記(検出0件の成功にしない)。権限不足時は利用者が`systemd-journal`グループ等で読める状態にする必要がある(このツールは権限を上げない)。syslog形式のファイルは従来どおり平文行として検知するだけで、RFC3164/5424の構造化パースはしない。
+**未実装**: syslogの構造化パース、巨大ログのバックプレッシャー、Windowsでのinode相当の検証、実LLMでのMITRE出力確認、
 `--duration`、実運用ログでの長時間検証。
 
 ## 9. 保留する作業と判断理由

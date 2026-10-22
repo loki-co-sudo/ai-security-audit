@@ -353,6 +353,26 @@ class CLITest(unittest.TestCase):
         self.assertEqual(data["state"], "partial", data)
         self.assertTrue(any("gzip" in e for e in data["errors"]), data["errors"])
 
+    def test_scan_defense_reads_journald_through_a_fixed_journalctl_command(self):
+        bindir = self.base / "bin"
+        bindir.mkdir()
+        fake = bindir / "journalctl"
+        fake.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$ARGV_OUT"\n'
+                        'echo \'{"MESSAGE":"GET /?q=1 UNION SELECT 1,2 from 10.0.0.5"}\'\n')
+        fake.chmod(0o755)
+        env = self.env(PATH=f"{bindir}{os.pathsep}{os.environ['PATH']}", ARGV_OUT=str(self.base / "argv.txt"))
+        p = subprocess.run(self.command(["scan", "defense", "--target", "journald:web.service"]), cwd=self.base,
+                           env=env, capture_output=True, text=True, timeout=45)
+        data = json.loads(p.stdout)
+        self.assertEqual((p.returncode, data["state"]), (0, "completed"), data)
+        self.assertIn("1 alerts", p.stderr)
+        self.assertEqual((self.base / "argv.txt").read_text().split(),
+                         ["--no-pager", "-o", "json", "-u", "web.service", "-n", "10000"])
+        (self.base / "argv.txt").unlink()
+        p, bad = self.call(["scan", "defense", "--target", "journald:-f"])       # オプション注入になるunitは実行前に拒否
+        self.assertEqual((p.returncode, bad["state"]), (2, "failed"))
+        self.assertFalse((self.base / "argv.txt").exists())
+
     def test_use_profile_expands_defaults_and_explicit_args_win(self):
         prof = {"lab": {"engagement_id": "lab1", "target": "X", "effort": "speed", "allow": ["a.example", "b.example"],
                         "scan_profile": "aggressive", "max_requests": 50, "tls_verify": True}}

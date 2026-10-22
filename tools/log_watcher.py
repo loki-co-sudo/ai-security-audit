@@ -10,6 +10,10 @@ import gzip
 import json
 import os
 import re
+import select
+import shutil
+import subprocess
+import tempfile
 import time
 import zlib
 from typing import Callable, Generator
@@ -19,6 +23,23 @@ _MAX_TEXT = 4000
 _MAX_DEPTH = 3
 MAX_ARCHIVE_BYTES = 256 * 1024 * 1024    # gzip展開後の読み取り上限(圧縮爆弾対策)
 _MAX_LINE_BYTES = 1024 * 1024            # 1行の上限(改行の無い巨大データでメモリを使い切らない)
+JOURNAL_PASS_LINES = 10000               # journaldの1回通しで読む直近の件数
+_JOURNAL_UNIT = re.compile(r"[A-Za-z0-9][A-Za-z0-9:_@.\-]{0,99}")
+
+
+def parse_journal_target(target: str) -> str | None:
+    """`journald` / `journald:UNIT` ならunit(全体は空文字)を返し、それ以外のパスはNone。unit不正はValueError。
+
+    unitは`journalctl -u`の引数になるため、先頭が英数字で長さ・文字種を限定する(`-`始まりのオプション注入を防ぐ)。
+    """
+    if target == "journald":
+        return ""
+    if target.startswith("journald:"):
+        unit = target[len("journald:"):]
+        if not _JOURNAL_UNIT.fullmatch(unit):
+            raise ValueError("journaldのunit名が不正です(英数字・: _ @ . -、100文字以内)")
+        return unit
+    return None
 
 
 def _flatten(obj, prefix: str, out: list[str], depth: int = 0) -> None:
@@ -49,6 +70,12 @@ def normalize_log_line(line: str) -> tuple[str, str]:
     if not isinstance(obj, dict):
         return s, "invalid_json"
     parts: list[str] = []
+    msg = obj.get("MESSAGE")
+    if isinstance(msg, list) and msg and all(isinstance(b, int) and 0 <= b < 256 for b in msg[:_MAX_TEXT]):
+        obj = {**obj, "MESSAGE": bytes(msg[:_MAX_TEXT]).decode("utf-8", errors="replace")}   # journaldの非UTF-8メッセージ
+    if isinstance(obj.get("MESSAGE"), str):
+        parts.append(f"MESSAGE={obj['MESSAGE']}")      # 本文を先頭へ(IP抽出・表示で他フィールドより優先)
+        obj = {k: v for k, v in obj.items() if k != "MESSAGE"}
     _flatten(obj, "", parts)
     ip = next((str(obj[k]) for k in _IP_KEYS if isinstance(obj.get(k), (str, int))), "")
     text = " ".join(([ip] if ip else []) + parts)
@@ -80,9 +107,10 @@ class LogWatcher:
 
     def __init__(self, path: str):
         self.path = path
-        self.archive = path.lower().endswith(".gz")
+        self.journal = parse_journal_target(path)          # None=通常ファイル / ""=全体 / unit名
+        self.archive = self.journal is None and path.lower().endswith(".gz")
         self.stats = {"lines": 0, "rotations": 0, "truncations": 0, "missing_polls": 0,
-                      "partial_flushed": 0, "partial_discarded": 0, "archive_truncated": 0, "archive_error": ""}
+                      "partial_flushed": 0, "partial_discarded": 0, "archive_truncated": 0, "archive_error": "", "journal_error": ""}
 
     def watch(
         self,
@@ -94,6 +122,9 @@ class LogWatcher:
         新着行をyieldするジェネレータ。
         stop_fn() が True を返すと終了する。
         """
+        if self.journal is not None:
+            yield from self._read_journal(follow=not single_pass, interval=interval, stop_fn=stop_fn)
+            return
         if not os.path.isfile(self.path):
             raise FileNotFoundError(f"Log file not found: {self.path}")
 
@@ -176,6 +207,65 @@ class LogWatcher:
             for line in f:
                 self.stats["lines"] += 1
                 yield line
+
+    def _read_journal(self, follow: bool, interval: float, stop_fn) -> Generator[str, None, None]:
+        """`journalctl -o json`の出力を行として返す。固定引数のsubprocess(shell無し)で、読み取り専用。
+
+        1回通しは直近JOURNAL_PASS_LINES件、追跡(follow)は開始後の新着のみ。journalctlが無い/権限不足/異常終了は
+        statsのjournal_errorに残して終了する(エラーを検出0件の成功にしない)。
+        """
+        exe = shutil.which("journalctl")
+        if not exe:
+            self.stats["journal_error"] = "journalctlが見つかりません"
+            return
+        cmd = [exe, "--no-pager", "-o", "json"] + (["-u", self.journal] if self.journal else [])
+        cmd += ["-f", "-n", "0"] if follow else ["-n", str(JOURNAL_PASS_LINES)]
+        with tempfile.TemporaryFile() as err:
+            try:
+                proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=err, stdin=subprocess.DEVNULL)
+            except OSError as e:
+                self.stats["journal_error"] = f"journalctlを起動できません({type(e).__name__})"
+                return
+            buf = b""
+            try:
+                fd = proc.stdout.fileno()
+                while True:
+                    if stop_fn and stop_fn():
+                        return
+                    ready, _, _ = select.select([fd], [], [], interval if follow else 1.0)
+                    if not ready:
+                        if proc.poll() is not None:
+                            break
+                        continue
+                    chunk = os.read(fd, 65536)
+                    if not chunk:
+                        break
+                    buf += chunk
+                    *lines, buf = buf.split(b"\n")
+                    for raw in lines:
+                        if len(raw) > _MAX_LINE_BYTES:
+                            self.stats["archive_truncated"] += 1
+                            continue
+                        yield from self._emit(raw + b"\n", stop_fn)
+                    if len(buf) > _MAX_LINE_BYTES:
+                        self.stats["archive_truncated"] += 1
+                        buf = b""
+            finally:
+                if proc.poll() is None:
+                    proc.terminate()
+                    try:
+                        proc.wait(2)
+                    except subprocess.TimeoutExpired:
+                        proc.kill()
+                        proc.wait()
+                proc.stdout.close()
+            if buf.strip():
+                yield from self._emit(buf + b"\n", stop_fn)
+            rc = proc.returncode
+            err.seek(0)
+            msg = err.read(400).decode("utf-8", errors="replace").strip().replace("\n", " ")
+            if (rc not in (0, None, -15)) or "insufficient permissions" in msg.lower():
+                self.stats["journal_error"] = (msg or f"終了コード{rc}")[:200]
 
     def _read_gzip(self) -> Generator[str, None, None]:
         """gzipアーカイブを1行ずつyieldする。上限超過・破損・途中切れは例外にせずstatsへ記録して終了する。"""
