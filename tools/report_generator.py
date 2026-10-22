@@ -210,6 +210,8 @@ def _render_finding(f: dict, lbl: dict) -> str:
     parts = []
     if "verification" in f:
         parts.append(f'<p>Verification: {html.escape(f["verification"])}</p>')
+        if f.get("ledger"):
+            parts.append(f'<p>Ledger: {html.escape(f["ledger"])}</p>')
         refs = " ".join(f'<a href="{path}">{eid}</a>' for eid, path in f["evidence_refs"])
         parts.append(f'<p>Evidence: {refs or "not saved / unavailable"}</p>')
     if f.get("snippet"):
@@ -249,12 +251,62 @@ def _findings_and_counts(mode: str, raw_text: str) -> tuple[list[dict], dict[str
     return findings, counts
 
 
+def _apply_ledger(result: dict) -> dict:
+    """result["ledger"](Ledger.report_view)があれば、抑制中の所見を除き台帳情報を所見へ付ける。
+
+    抑制は表示から外すだけで件数と理由は_ledger_summaryが必ず残す。引数は変更しない。
+    """
+    view = result.get("ledger")
+    if not view:
+        return result
+    rows = view.get("findings", [])
+    kept = []
+    for i, item in enumerate(result.get("findings", [])):
+        row = rows[i] if i < len(rows) else None
+        if row and row.get("suppressed"):
+            continue
+        item = dict(item)
+        if row:
+            state = next((d["state"] for d in (view.get("diff") or {}).get("items", [])
+                          if d["finding_id"] == row["finding_id"]), "")
+            item["_ledger_line"] = f"id={row['finding_id']} status={row['status']}" + (
+                f" diff={state}" if state else "")
+            item["_ledger_id"] = row["finding_id"]
+            item["_ledger_status"] = row["status"]
+            item["_ledger_diff"] = state
+        kept.append(item)
+    return {**result, "findings": kept}
+
+
+def _ledger_summary(result: dict) -> list[str]:
+    view = result.get("ledger")
+    if not view:
+        return ["Suppressed: 0 (no ledger applied)"]
+    sup = [r for r in view.get("findings", []) if r.get("suppressed")]
+    lines = [f"Ledger: engagement={view.get('engagement_id', '')}",
+             f"Suppressed: {len(sup)} (期限付き抑制。レポートの所見・件数から除外)"]
+    lines.extend(f"Suppressed finding: {r['finding_id']} | {r.get('suppression_reason', '')} | "
+                 f"expires {r.get('suppression_expires_at', '')}" for r in sup)
+    d = view.get("diff")
+    if d:
+        c = d["counts"]
+        lines.append(f"Diff vs {view.get('baseline_scan', '')}: " + " / ".join(f"{k} {c[k]}" for k in c))
+        lines.extend(f"Diff {r['state']}: {r['finding_id']} | {r['rule_id']} | {r['location']}"
+                     f"{' | ' + r['reason'] if r.get('reason') else ''}"
+                     for r in d["items"] if r["state"] in ("NOT_OBSERVED", "UNVERIFIED"))
+        lines.append("NOT_OBSERVEDは同じ検査単位が正常に再検査された場合だけ。UNVERIFIEDは不在を主張できない")
+    elif view.get("note"):
+        lines.append(f"Diff: なし ({view['note']})")
+    lines.extend(f"Ledger warning: {w}" for w in view.get("warnings", []))
+    return lines
+
+
 def _report_data(mode, target, raw_text, model, scan_result):
     """確定結果を優先し、旧マーカー入力は互換アダプターで読む。"""
     if scan_result is None:
         findings, counts = _findings_and_counts(mode, raw_text)
         return mode, target, "Evidence / coverage: unknown (legacy report)\n" + raw_text, model, findings, counts
-    result = scan_result.to_dict() if hasattr(scan_result, "to_dict") else scan_result
+    result = _apply_ledger(scan_result.to_dict() if hasattr(scan_result, "to_dict") else scan_result)
     findings = []
     scan_id = result.get("scan_id", "")
     for item in result.get("findings", []):
@@ -270,6 +322,7 @@ def _report_data(mode, target, raw_text, model, scan_result):
             "fix": item.get("remediation", ""),
             "snippet": item.get("snippet", ""), "attack": item.get("analysis", ""),
             "verification": item.get("verification_state", "observed"),
+            "ledger": item.get("_ledger_line", ""),
             "evidence_refs": refs,
             "confidence": ("ENSEMBLE_MINORITY" if
                            item.get("verifier_support", {}).get("ensemble_minority") else ""),
@@ -277,7 +330,7 @@ def _report_data(mode, target, raw_text, model, scan_result):
     counts = {sev: sum(f["severity"].upper() == sev for f in findings)
               for sev in ("CRITICAL", "HIGH", "MEDIUM", "LOW")}
     summary = [f"State: {result.get('state', 'unknown')}",
-               "Suppressed: 0 (suppression is not implemented)",
+               *_ledger_summary(result),
                "Evidence: excerpts may be masked or omitted; no references means not saved or unavailable."]
     summary.extend(f"Error: {e}" for e in result.get("errors", []))
     summary.extend(f"Coverage: {c.get('status')} | {c.get('target_ref')} | {c.get('reason', '')}"
@@ -442,7 +495,8 @@ def generate_markdown(
         lines.extend(["Evidence / coverage: unknown (legacy report)", ""])
     for f in findings:
         if "verification" in f:
-            lines.extend([f"Verification: {f['verification']}", "Evidence: " + (
+            lines.extend([f"Verification: {f['verification']}"] + (
+                [f"Ledger: {f['ledger']}"] if f.get("ledger") else []) + ["Evidence: " + (
                 " ".join(f"[{eid}]({path})" for eid, path in f["evidence_refs"])
                 or "not saved / unavailable"), ""])
         sev = (f.get("severity") or "LOW").upper()
@@ -512,11 +566,15 @@ def generate_json(
             } for f in findings],
         })
     else:
-        result = scan_result.to_dict() if hasattr(scan_result, "to_dict") else dict(scan_result)
+        result = _apply_ledger(scan_result.to_dict() if hasattr(scan_result, "to_dict") else dict(scan_result))
         _, _, _, _, shaped, counts = _report_data(mode, target, raw_text, model, result)
         out_findings = []
+        view = result.get("ledger") or {}
+        sup = [r for r in view.get("findings", []) if r.get("suppressed")]
         for raw, shaped_f in zip(result.get("findings", []), shaped):
             out_findings.append({
+                **({"ledger_finding_id": raw["_ledger_id"], "ledger_status": raw["_ledger_status"],
+                    "ledger_diff": raw["_ledger_diff"]} if "_ledger_id" in raw else {}),
                 "finding_id": raw.get("finding_id", ""), "rule_id": raw.get("rule_id", ""),
                 "severity": (raw.get("severity") or "LOW").upper(),
                 "location": raw.get("location", ""), "description": raw.get("description", ""),
@@ -533,9 +591,14 @@ def generate_json(
             "mode": result.get("mode", mode), "target": result.get("target", target),
             "model": result.get("model", model), "state": result.get("state", "unknown"),
             "started_at": result.get("started_at", ""), "errors": list(result.get("errors", [])),
-            "coverage": list(result.get("coverage", [])), "suppressed": 0,
+            "coverage": list(result.get("coverage", [])), "suppressed": len(sup),
+            "suppressed_findings": [{"finding_id": r["finding_id"], "reason": r.get("suppression_reason", ""),
+                                     "expires_at": r.get("suppression_expires_at", "")} for r in sup],
+            "ledger": ({"engagement_id": view.get("engagement_id", ""), "baseline_scan": view.get("baseline_scan", ""),
+                        "diff": view.get("diff"), "note": view.get("note", ""),
+                        "warnings": view.get("warnings", [])} if view else None),
             "counts": counts, "findings": out_findings,
-            "notes": ["suppression is not implemented",
+            "notes": ["suppression applies only when a ledger view is attached (ledger != null)",
                       "evidence excerpts may be masked or omitted; an empty evidence list means "
                       "not saved or unavailable"],
         })

@@ -258,6 +258,40 @@ class Ledger:
                                                      "suppression_expires_at": supp["expires_at"]} if supp else {})})
         return {"findings": out, "suppressed_count": suppressed, "warnings": warnings}
 
+    def report_view(self, result: dict) -> dict:
+        """レポート用の読み取り専用ビュー。台帳へは書き込まない。
+
+        findings[i]は result["findings"][i] と同じ並び。diffは、このscanが台帳に記録済みで、
+        同じ対象の直前scanがある場合だけ付く(無ければ理由をnoteに残す)。
+        """
+        events, warnings = self.read()
+        sid, target = str(result.get("scan_id") or ""), str(result.get("target", ""))
+        role = _coverage_summary(result.get("coverage") or [])[2]
+        items = []
+        for f in result.get("findings") or []:
+            fid = finding_id(self.engagement_id, target, f.get("rule_id", ""), f.get("location", ""), role)
+            status, supp = self._human(events, fid)
+            row = {"finding_id": fid, "status": status, "suppressed": bool(supp)}
+            if supp:
+                row.update(suppression_reason=supp["reason"], suppression_expires_at=supp["expires_at"])
+            items.append(row)
+        view = {"engagement_id": self.engagement_id, "findings": items, "diff": None, "baseline_scan": "",
+                "note": "", "warnings": warnings}
+        scans = [e for e in events if e["type"] == "scan_recorded" and e["target"] == target]
+        ids = [e["scan_id"] for e in scans]
+        if sid not in ids:
+            view["note"] = "このscanは台帳に未記録のため差分は出していません"
+        elif ids.index(sid) == 0:
+            view["note"] = "同じ対象の過去scanがないため差分はありません"
+        else:
+            base = ids[ids.index(sid) - 1]
+            view["baseline_scan"] = base
+            try:
+                view["diff"] = self.diff(base, sid, include_suppressed=True)
+            except LedgerError as e:
+                view["note"] = f"差分を計算できませんでした: {e}"
+        return view
+
     def diff(self, before_scan: str, after_scan: str, include_suppressed: bool = False) -> dict:
         events, warnings = self.read()
         scans = {e["scan_id"]: (i, e) for i, e in enumerate(events) if e["type"] == "scan_recorded"}

@@ -618,3 +618,9 @@ CLI `openapi FILE` / `scan fuzz --openapi ... --openapi-op ...`。副次修正: 
 ## 2026-10-22 DEFENSEシグネチャ改善(defense-2)
 `MonitorAgent._pattern_match`にURLデコード照合とSCANNERのUA限定、`ATTACK_PATTERNS`のBRUTE_FORCE/CMS_PROBE/SQL末尾`--`/`$()`を文脈限定。
 ベンチマーク全58判定: TP25・FP0・FN4(未見ケース由来)。修正前基準値は`defense_signatures.before-defense-2.json`。
+
+## 2026-10-22 P3.2(レポート連携)
+`Ledger.report_view(result)`(読み取り専用)を追加。`scan_result`に`ledger`キーとして渡すと、HTML/MD/PDF/JSONが共通の`_apply_ledger`で
+期限内の抑制所見を所見一覧・件数から除外し、抑制件数・理由・期限、直前scanとの差分(NEW/PERSISTING/REGRESSED/NOT_OBSERVED/UNVERIFIED)、
+所見ごとのfinding_idと対応statusを表示する。期限切れの抑制は表示に戻る。未記録scanや過去scanなしは差分を出さず理由を表示。`ledger`なしは従来どおり。
+試験: `tools/test_ledger_reports.py`(selftest 16x2)。GUI・CLIからのengagement_id指定は未配線(GUI目視も未実施)。

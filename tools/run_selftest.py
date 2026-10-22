@@ -3149,6 +3149,18 @@ def test_findings_ledger():
         _ng("FindingsLedger", str(result.errors + result.failures))
 
 
+def test_ledger_reports():
+    _section("16x2. LEDGER REPORT — 台帳ビューのHTML/MD/PDF/JSON反映(P3.2)")
+    import unittest
+    from tools import test_ledger_reports as t
+    result = unittest.TestResult()
+    unittest.defaultTestLoader.loadTestsFromTestCase(t.LedgerReportTest).run(result)
+    if result.wasSuccessful():
+        _ok("LedgerReports", f"{result.testsRun} tests: 抑制除外と理由の残置/期限切れ復帰/差分表示/未記録/台帳非書込/台帳なし互換")
+    else:
+        _ng("LedgerReports", str(result.errors + result.failures))
+
+
 def test_openapi_loader():
     _section("16y. OPENAPI — ローカルOpenAPI入力・明示選択・通信ゼロ(P4.1)")
     import unittest
@@ -3302,6 +3314,7 @@ def main():
     test_fuzz_resume()
     test_benchmark()
     test_findings_ledger()
+    test_ledger_reports()
     test_openapi_loader()
     test_log_watcher_realworld()
     test_code_index()

@@ -270,6 +270,8 @@ audit/defense/attackの`--targets-file`、`config.json`の`profiles`。
 
 受け入れ条件: 差分状態、認証/予算失敗による誤った修正判定の防止、抑制期限、同名別案件の分離、重複イベント、破損末尾、同時writerを非LLMで検証する。
 
+2026-10-22 実装済み(P3.2のレポート連携): `Ledger.report_view()`を`scan_result["ledger"]`に付けるとHTML/MD/PDF/JSONが抑制所見を除外(件数・理由・期限は必ず表示)し、直前scanとの差分と所見ごとのstatusを表示する(`tools/test_ledger_reports.py`、selftest 16x2)。GUI/CLIからの指定は未配線。
+
 2026-10-22 実装済み(P3.2の中核): `core/findings_ledger.py`、`tools/test_findings_ledger.py`(20試験・非LLM)、CLI
 `scan ... --engagement-id ID`(完了結果を`reports/engagements/<id>/events.jsonl`へ追記。案件設定の`engagement_id`でも有効)、
 `diff --before --after --engagement-id`、`mark FINDING_ID {open,fixed,accepted-risk} --reason`、

@@ -82,7 +82,7 @@ AI-Security-tool/
 │   ├── scope_guard.py           # バグバウンティ対応: 対象範囲(Scope)の機械的判定 in_scope()（許可リスト一致のみ・v1はdeny-list非対応）
 │   ├── http_transport.py        # P0.1/P0.2: WEB FUZZ全送信経路の唯一の送信口。normalize_origin()・HttpTransport（同一origin検査・共有予算・手動リダイレクト制御・RequestPolicyでレート/429リトライ/STOP中断/応答サイズ上限）。TLS設定・認証状態判定はtools/web_fuzzer.py側
 │   ├── engagement.py            # P3.1の一部: 案件設定の検証。現状はIDOR期待権限表 parse_idor_expectations()のみ（秘密値を含めない）
-│   ├── findings_ledger.py       # P3.2: 案件別の追記式所見台帳(JSONL)・差分(NEW/PERSISTING/NOT_OBSERVED/REGRESSED/UNVERIFIED)・対応status・期限付き抑制。不在は検査済みの証拠がある場合だけNOT_OBSERVED
+│   ├── findings_ledger.py       # P3.2: 案件別(report_view()でレポート用の読み取り専用ビュー)の追記式所見台帳(JSONL)・差分(NEW/PERSISTING/NOT_OBSERVED/REGRESSED/UNVERIFIED)・対応status・期限付き抑制。不在は検査済みの証拠がある場合だけNOT_OBSERVED
 │   ├── findings.py              # P1.1: 構造化所見・実行ライフサイクルのデータ契約。ScanResult/Finding/CoverageItem/ScanState/VerificationState/CoverageStatus（dataclass/Enum）
 │   ├── redaction.py             # P1.2: 証拠のマスキング。mask_headers()/mask_url()/mask_body()（既知の機密値の完全一致＋キー名ヒューリスティック）、mask_value()でsha256先頭12文字付与
 │   ├── evidence_store.py        # P1.2: reports/evidence/<scan_id>/へのHTTP証拠保存。EvidenceStore（件数/1件サイズ/総容量の上限、保存失敗はsave_errorsへ記録）
@@ -533,7 +533,7 @@ P0.1・P0.2・P1.1は完了済み。実装詳細・セルフテスト結果は
 - [ ] P2.1 CLI非依存の最小ベンチマーク（**WEB FUZZ・DEFENSEシグネチャのdetector固定モードは実装済み**＋認証期限切れ・共通ログイン画面の罠。未: 実LLM評価、AUDIT/ATTACKのベンチ、LLM使用量）
 - [ ] P2.2 IDOR/SSTI/XSSの既存検出品質改善（**検出器側は実装済み**: IDORのログイン画面/公開除外・期待権限表、SSTI別式確認、XSS content-type。未: 期待権限表のGUI入力・旧FuzzAgent経路への配線、同一origin認証確認URL、逆方向）
 - [ ] P3.1 CLI・案件プロファイル・除外優先・実行設定分離（**scan fuzz/audit/defense/attack、--engagement、除外優先、--targets-fileは実装済み**。未: config.jsonのprofiles、--format md、--effort auto、defenseの--duration、core/scan_runner.pyへの共通化）
-- [ ] P3.2 案件別JSONLイベント台帳・差分・期限付き抑制（**台帳・差分・mark/suppress/findings CLIは実装済み**。未: HTML/MD/PDF/JSONレポートへの抑制フィルター・差分表示）
+- [ ] P3.2 案件別JSONLイベント台帳・差分・期限付き抑制（**台帳・差分・mark/suppress/findings CLIは実装済み**。**レポート層(HTML/MD/PDF/JSON)は`Ledger.report_view()`を`scan_result["ledger"]`に付けると抑制除外・差分表示に対応済み**。未: GUI/CLIからのengagement_id指定と配線）
 - [ ] P4.1 OpenAPI入力（**初期版は実装済み**: ローカルJSON・明示選択のGET+query。未: YAML、複雑schema、認証scheme、GUI）
 - [ ] P4.2 Python複数ファイル監査（**標準エンジンの初期版は実装済み**。未: LangGraph版・GUI・証拠保存・実LLM評価）
 - [ ] P4.3 実ログ対応・ローテーション/縮小/部分行処理（**中核は実装済み**＋JSONL・MITRE ID確認。未: journald/syslog、gzip回転、長時間の実運用検証）
