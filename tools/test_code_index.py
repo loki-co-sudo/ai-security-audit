@@ -278,7 +278,12 @@ class AuditProjectTest(Base):
 
 @unittest.skipUnless(__import__("core.orchestrator", fromlist=["x"]).LANGGRAPH_AVAILABLE, "langgraph未導入")
 class AuditProjectEvidenceTest(Base):
-    """標準エンジンのプロジェクト監査: save_evidence有効時、LLMへ送った関数内のAST観測だけを相対パスの証拠として保存する。"""
+    """プロジェクト監査: save_evidence有効時、LLMへ送った関数内のAST観測だけを相対パスの証拠として保存する(標準エンジン)。"""
+
+    @staticmethod
+    def agent_class():
+        from agents.audit_agent import AuditAgent
+        return AuditAgent
 
     def audit(self, save_evidence: bool, cite: bool = True):
         import glob
@@ -298,12 +303,13 @@ class AuditProjectEvidenceTest(Base):
                         + "\nEVIDENCE_IDS: " + ids[0][0] + ", evidence_bogus_0000\nSNIPPET:\n```\nx\n```\nATTACK:\ny\nFIX:\n```\nz\n```\n---VULN_END---")
 
         llm = CitingLLM()
-        agent = AuditAgent(EventBus(), llm)
+        Agent = self.agent_class()
+        agent = Agent(EventBus(), llm)
         cwd = os.getcwd()
         os.chdir(self.d)                                       # reports/evidence/ を一時ディレクトリ内へ
         self.addCleanup(os.chdir, cwd)
-        with mock.patch.object(AuditAgent, "_save_investigation", lambda *a, **k: None), \
-             mock.patch.object(AuditAgent, "_record_telemetry", lambda *a, **k: None), \
+        with mock.patch.object(Agent, "_save_investigation", lambda *a, **k: None), \
+             mock.patch.object(Agent, "_record_telemetry", lambda *a, **k: None), \
              mock.patch.dict(config._cfg, {**config._DEFAULTS, "effort": "speed", "save_evidence": save_evidence}, clear=True):
             agent._safe_run(path=self.root)
         saved = []
@@ -336,9 +342,9 @@ class AuditProjectEvidenceTest(Base):
         # app/db.pyのget_user内(L3)だけ。同じファイルでも送っていない範囲(モジュール直下のexec)は証拠にしない
         self.assertEqual({(e["path"], e["line_start"], e["source"]) for e in saved}, {("app/db.py", 3, "ast_prescan")})
         self.assertNotIn("..", saved[0]["path"])
-        self.assertEqual(len(res.findings), 1)
-        cited = res.findings[0].evidence_ids
-        self.assertEqual(cited, [saved[0]["evidence_id"]])                      # 実在IDだけ採用する
+        self.assertGreaterEqual(len(res.findings), 1)
+        for f in res.findings:                                                  # 実在IDだけ採用する(LangGraph版は表層/深層で複数回引用しうる)
+            self.assertEqual(f.evidence_ids, [saved[0]["evidence_id"]])
         self.assertTrue(any("未知の証拠IDを除外" in e for e in res.errors), res.errors)
         self.assertFalse(any("証拠保存は未対応" in e for e in res.errors))
 
@@ -363,6 +369,15 @@ class AuditProjectEvidenceTest(Base):
                 return json.load(fh)
         paths = sorted(_load(f)["path"] for f in glob.glob(os.path.join(st.dir, "*.json")))
         self.assertEqual(paths, ["app/db.py", "passwd", "passwd"])              # 絶対パス/..は従来どおり相対化(ファイル名のみ)
+
+
+class LangGraphProjectEvidenceTest(AuditProjectEvidenceTest):
+    """LangGraph版も標準エンジンと同じ証拠保存(送った関数内のAST観測・相対パス・実在IDのみ採用・OFF時は不変)。"""
+
+    @staticmethod
+    def agent_class():
+        from agents.langgraph_audit_agent import LangGraphAuditAgent
+        return LangGraphAuditAgent
 
 
 class LangGraphProjectTest(AuditProjectTest):

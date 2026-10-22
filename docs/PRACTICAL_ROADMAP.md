@@ -70,7 +70,7 @@ P4内は用途に応じて一項目ずつ選択できる。保留事項を自動
 | P3.1 | ほぼ実装 | `scan fuzz/audit/defense/attack`・`--targets-file`・`--engagement`・除外優先・`--format md`・`--effort auto`・`defense --duration`・`--use-profile`・`core/scan_runner.py`(ATTACK/AUDIT/DEFENSE/WEB FUZZ・resumeの対象ごと実行)・`--min-verification`・`--rate-limit-rps`・profilesの`rate_limit_rps`/`scope_mode`(block のみ) | 案件プロファイルのGUI入力、予算(max_llm_calls等)のprofiles化 |
 | P3.2 | 中核+レポート連携 | 台帳・差分・mark/suppress/findings、レポート層の抑制除外と差分表示、CLI(`--engagement-id`)の出力への台帳ビュー付与・`--format md`の抑制除外/差分・`--fail-on`の期限内抑制除外、GUIの案件ID(設定の「📒 案件ID」)による台帳記録とレポート反映 | GUIでの抑制/状態変更(mark/suppress)操作・台帳の閲覧画面 |
 | P4.1 | 初期版 | ローカルJSON/YAML・明示選択のGET+query・サンプル値生成(parameter/schemaのexample・allOf/oneOf/anyOf・3.1型配列・array・format)・操作ごとの認証要件表示 | path param・body・POST等(境界として非対応のまま)、認証schemeの自動適用、GUI |
-| P4.2 | 初期版 | 標準エンジン・LangGraph版(モックLLM)の複数ファイル監査、標準エンジンの証拠保存(送った関数内のAST観測) | GUI、LangGraph版の証拠保存、実LLM評価 |
+| P4.2 | 初期版 | 標準エンジン・LangGraph版(モックLLM)の複数ファイル監査、標準エンジン・LangGraph版の証拠保存(送った関数内のAST観測) | GUI、実LLM評価(LangGraph版はモックのみ) |
 | P4.3 | 中核 | ローテーション/縮小/部分行/JSONL/MITRE確認・回転済みgzipアーカイブの1回通し読み・journaldアダプター(`journald[:UNIT]`) | syslog形式の構造化パース、長時間運用検証、journaldの実運用(権限・大量ログ)での確認 |
 | 共通 | 一部検証 | selftest 170 PASS / 0 FAIL / 5 SKIP(`SELFTEST_NON_LLM_ONLY=1`)。AUDITは実LLMで3回評価、証拠ID引用・effort autoは実LLMで各1回、DEFENSE・WEB FUZZは各3回の小規模測定(付録) | 実LLM系5件のselftest、AUDIT/DEFENSE/WEB FUZZ以外の実LLM評価、より大きな正解データでの複数回評価、GUIは仮想ディスプレイでの確認(4タブ・設定/認証ダイアログ・4パネルともGUI操作経路でモックLLMで実行し4形式出力まで。認証ダイアログのボタン切れを発見・修正)のみで、実LLMでのGUI実行・Windows/実画面(DPI・マルチモニタ)・ファイル選択ダイアログは未確認 |
 
@@ -350,8 +350,8 @@ CLI: `openapi FILE`(operation一覧。通信しない)、`scan fuzz --openapi FI
   上限や未解析があればcompletedにせずpartialにする。文脈には「見ていないコードを安全と見なさない」注記を入れる。
 - 優先順位は入口(route/get/post等のデコレータ)→認可らしい名前→DB操作→危険呼出し、入口から名前一致で辿れる関数(+1)。**呼出し解決は名前一致の近似で、
   優先付け専用**(到達可能性や脆弱性の主張には使わない)。機密名リテラルの値は送信前にマスク(行数不変)。
-**追補(2026-10-22・証拠保存)**: 標準エンジンのプロジェクト監査で、`save_evidence`有効時に**LLMへ送った関数の範囲内**のASTプリスキャン観測(危険な呼び出し)を`reports/evidence/<scan_id>/`へ保存し、IDを`## AST evidence IDs`節(`file:line 呼び出し`)としてLLMへ渡す。証拠のpathは**プロジェクト直下からの相対パス**(絶対パス・`..`は従来どおりファイル名のみへ縮める)で、同名ファイルを区別できる。引用は実在IDのみ採用し、未知IDは`errors`へ。送っていない関数・AST該当のない所見は証拠なし。`save_evidence`OFFでは従来どおり何も保存せず、IDの節も引用指示もプロンプトに出ない。LangGraph版のプロジェクト監査は未対応(証拠なし)。
-**未実装/限界**: GUIのディレクトリ選択(LangGraph版は追補で対応済み・モックLLM検証のみ)、CVE照合、LangGraph版のプロジェクト監査の証拠保存、
+**追補(2026-10-22・証拠保存)**: 標準エンジンのプロジェクト監査で、`save_evidence`有効時に**LLMへ送った関数の範囲内**のASTプリスキャン観測(危険な呼び出し)を`reports/evidence/<scan_id>/`へ保存し、IDを`## AST evidence IDs`節(`file:line 呼び出し`)としてLLMへ渡す。証拠のpathは**プロジェクト直下からの相対パス**(絶対パス・`..`は従来どおりファイル名のみへ縮める)で、同名ファイルを区別できる。引用は実在IDのみ採用し、未知IDは`errors`へ。送っていない関数・AST該当のない所見は証拠なし。`save_evidence`OFFでは従来どおり何も保存せず、IDの節も引用指示もプロンプトに出ない。LangGraph版のプロジェクト監査も同じ証拠保存に対応(`build_audit_graph`の`evidence_hook`経由。モックLLMでのみ検証)。
+**未実装/限界**: GUIのディレクトリ選択(LangGraph版は追補で対応済み・モックLLM検証のみ)、CVE照合、
 クラス継承・メソッド解決・動的ディスパッチ、Python以外、実LLMでの検出品質評価(ベンチマーク未作成)。
 
 ### P4.3 実ログとローテーション

@@ -716,3 +716,6 @@ AUDITの証拠ID引用、`--effort auto`、DEFENSEのMITRE ID、WEB FUZZのト�
 ## 2026-10-22 P3.2(追補): GUIの案件ID(所見台帳への記録とレポート反映)
 `core/config.py`: `engagement_id`(既定空=記録しない・検証は台帳と同じ規則)。`gui/ledger_util.py`の`attach_ledger()`: 設定時だけ、完了したスキャン結果(RESULT)を`reports/engagements/<id>/`(CLIと同じ台帳)へ記録し、`report_view`を付けて返す(入力は書き換えない・台帳の失敗はerrorsへ注記して結果は隠さない)。4パネルのRESULT受信時に1スキャンにつき1回呼ぶ。設定ダイアログに「📒 案件ID」欄(不正IDは欄の下に理由を表示して保存せず閉じない)。HTML/MD/PDF/JSONの出力は既存の台帳ビュー対応(抑制除外・差分)がそのまま効く。
 試験: `tools/test_gui_ledger.py`(Tk不要: 未設定で何も書かない・記録/差分/抑制/Markdown反映・台帳失敗の注記・IDの検証)、`tools/test_gui_layout.py`の`EngagementGuiTest`(設定ダイアログの検証と、4パネルが設定時だけ記録すること。xvfb-run必須)。仮想ディスプレイで目視(エラー表示)。**未実装**: GUIでのmark/suppress操作と台帳の閲覧画面(CLIの`mark`/`suppress`/`findings`を使う)。実画面・実スキャンでの確認は未実施。
+
+## 2026-10-22 P4.2(追補): LangGraph版プロジェクト監査の証拠保存
+`agents/langgraph_audit_agent.py`の`_run_project`が`evidence_hook`(save_evidence有効時のみ`save_project_ast_evidence`)をグラフへ渡し、実在IDのみ採用・未知IDと省略をerrorsへ。標準エンジンと同じ仕様。試験: `tools/test_code_index.py`の`LangGraphProjectEvidenceTest`(標準エンジンのテストを継承。LangGraphの変更を外すと落ちることを確認)。実LLMでの引用挙動は未確認。

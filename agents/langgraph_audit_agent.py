@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 from datetime import datetime
 from agents.base_agent import BaseAgent
-from agents.audit_agent import AuditAgent, ast_scan, save_ast_evidence, _EVIDENCE_INSTRUCTION
+from agents.audit_agent import AuditAgent, ast_scan, save_ast_evidence, save_project_ast_evidence, _EVIDENCE_INSTRUCTION
 import core.config as config
 from core.evidence_store import EvidenceStore
 from tools.report_generator import _findings_and_counts
@@ -113,14 +113,14 @@ class LangGraphAuditAgent(BaseAgent):
         """ディレクトリ入力(P4.2): 標準エンジンと同じ索引・優先付き文脈をグラフの入力にする。
 
         表層スキャンと深層解析が同じ本文を見るよう、文脈は深層解析の上限(8000字)に合わせて作る
-        (どちらのノードでもsmart_truncateが働かず、coverageと送信内容が一致する)。ASTプリスキャン・
-        証拠保存・CVE照合は未対応(標準エンジンのプロジェクト監査と同じ)。
+        (どちらのノードでもsmart_truncateが働かず、coverageと送信内容が一致する)。CVE照合は未対応。
+        証拠保存(save_evidence有効時)は標準エンジンのプロジェクト監査と同じ: LLMへ送った関数内のAST観測だけ。
         """
         from tools import code_index
         from core import redaction
         from core.orchestrator import _MAX_DEEP_CHARS
         self._current_mode, self._current_target = "AUDIT", path
-        self._begin_scan()
+        scan_id = self._begin_scan()
         self.bus.clear()
         self._status(f"[LangGraph] {os.path.basename(path.rstrip('/')) or path} を索引化中 ...")
         if not LANGGRAPH_AVAILABLE:
@@ -146,9 +146,20 @@ class LangGraphAuditAgent(BaseAgent):
         header = ("Multi-file Python project excerpt. Each block is labelled `file:start-end` and lines carry their "
                   "real line numbers (`NN| code`). Report LINES as `file:line`. Code that is not shown was NOT "
                   "analyzed — do not claim it is safe.\n\n")
+        known_evidence_ids: set[str] = set()
+        evidence_errors: list[str] = []
+
+        def _evidence_hook(_code: str) -> tuple[str, str]:
+            if not config.get("save_evidence", False):
+                return "", ""
+            ids, listing, errs = save_project_ast_evidence(EvidenceStore(scan_id), idx, ctx)
+            known_evidence_ids.update(ids)
+            evidence_errors.extend(errs)
+            return listing, (_EVIDENCE_INSTRUCTION if ids else "")
+
         try:
             graph = build_audit_graph(self.llm, self.bus, self.is_stopped,
-                                      source_loader=lambda _p: header + ctx.text)
+                                      source_loader=lambda _p: header + ctx.text, evidence_hook=_evidence_hook)
             final_state = graph.invoke({
                 "source_path": path, "source_code": "", "outputs": [],
                 "severity_counts": {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0},
@@ -159,9 +170,12 @@ class LangGraphAuditAgent(BaseAgent):
             return
         combined = "\n".join(final_state.get("outputs", []) or [])
         parsed, _counts = _findings_and_counts("CODE AUDIT", combined)
-        findings = self._findings_from_markers(parsed, corroborated=False)
+        rejected: list[str] = []
+        findings = self._findings_from_markers(parsed, corroborated=False,
+                                               known_evidence_ids=known_evidence_ids or None,
+                                               rejected_evidence_ids=rejected)
         state, errors = self._determine_state(final_state, combined)
-        errors = errors + AuditAgent._project_notes(ctx)
+        errors = errors + AuditAgent._project_notes(ctx) + evidence_errors + rejected
         if state == ScanState.COMPLETED.value and (ctx.omitted or idx.limit_hit or idx.skipped):
             state = ScanState.PARTIAL.value
         self._finalize(state=state, errors=errors, findings=findings, coverage=AuditAgent._project_coverage(ctx),
