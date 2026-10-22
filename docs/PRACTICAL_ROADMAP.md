@@ -72,7 +72,7 @@ P4内は用途に応じて一項目ずつ選択できる。保留事項を自動
 | P4.1 | 初期版 | ローカルJSON/YAML・明示選択のGET+query・サンプル値生成(parameter/schemaのexample・allOf/oneOf/anyOf・3.1型配列・array・format)・操作ごとの認証要件表示 | path param・body・POST等(境界として非対応のまま)、認証schemeの自動適用、GUI |
 | P4.2 | 初期版 | 標準エンジン・LangGraph版(モックLLM)の複数ファイル監査 | GUI、証拠保存、実LLM評価 |
 | P4.3 | 中核 | ローテーション/縮小/部分行/JSONL/MITRE確認・回転済みgzipアーカイブの1回通し読み・journaldアダプター(`journald[:UNIT]`) | syslog形式の構造化パース、長時間運用検証、journaldの実運用(権限・大量ログ)での確認 |
-| 共通 | 一部検証 | selftest 170 PASS / 0 FAIL / 5 SKIP(`SELFTEST_NON_LLM_ONLY=1`)。AUDITは実LLMで3回評価、証拠ID引用・effort autoは実LLMで各1回、DEFENSE・WEB FUZZは各3回の小規模測定(付録) | 実LLM系5件のselftest、AUDIT/DEFENSE/WEB FUZZ以外の実LLM評価、より大きな正解データでの複数回評価、GUIは仮想ディスプレイでの確認(4タブ・設定/認証ダイアログ・AUDIT/WEB FUZZ/DEFENSEをGUI操作経路でモックLLMで実行し4形式出力まで。認証ダイアログのボタン切れを発見・修正)のみで、ATTACKのGUI実行・実LLMでのGUI実行・Windows/実画面(DPI・マルチモニタ)・ファイル選択ダイアログは未確認 |
+| 共通 | 一部検証 | selftest 170 PASS / 0 FAIL / 5 SKIP(`SELFTEST_NON_LLM_ONLY=1`)。AUDITは実LLMで3回評価、証拠ID引用・effort autoは実LLMで各1回、DEFENSE・WEB FUZZは各3回の小規模測定(付録) | 実LLM系5件のselftest、AUDIT/DEFENSE/WEB FUZZ以外の実LLM評価、より大きな正解データでの複数回評価、GUIは仮想ディスプレイでの確認(4タブ・設定/認証ダイアログ・4パネルともGUI操作経路でモックLLMで実行し4形式出力まで。認証ダイアログのボタン切れを発見・修正)のみで、実LLMでのGUI実行・Windows/実画面(DPI・マルチモニタ)・ファイル選択ダイアログは未確認 |
 
 ## 4. P0: 通信・認証の境界
 
