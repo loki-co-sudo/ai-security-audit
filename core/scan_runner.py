@@ -1,4 +1,4 @@
-"""GUIに依存しないスキャン実行層(P3.1): ATTACK/AUDIT/DEFENSEの1回実行・入力検査・集約・結果のマスク。
+"""GUIに依存しないスキャン実行層(P3.1): ATTACK/AUDIT/DEFENSE/WEB FUZZの実行・入力検査・集約・結果のマスク。
 
 cli.pyの薄い実行部から使う。標準出力へは何も出さず(進捗はstderr)、設定の一時上書きはこのプロセス内だけでconfig.jsonへ保存しない。
 """
@@ -9,16 +9,22 @@ import ipaddress
 from pathlib import Path
 import re
 import sys
+import time
 from urllib.parse import urlsplit
 
 from agents.audit_agent import AuditAgent
+from agents.fuzz_capabilities import AutonomousFuzzAgent, auth_action_args
 from agents.monitor_agent import MonitorAgent
 from agents.recon_agent import ReconAgent
 from core import config, event_bus as ev, redaction
+from core.autonomy.actions import new_grant
 from core.llm_client import LLMClient
 from core.model_router import classify_effort
 from core.redaction import mask_source
 from core.scope_guard import extract_host, in_scope
+
+
+APPROVAL_TTL_SECONDS = 300
 
 
 class RunnerError(Exception):
@@ -159,3 +165,38 @@ def run_local(mode, target, effort, on_agent, was_interrupted, duration=None, ll
             agent.stop()
         agent._safe_run(path=target) if mode == "audit" else agent._safe_run(log_path=target, watch_mode=duration is not None, max_seconds=duration)
     return bus.result_payload or {"state": "failed", "errors": ["最終結果が通知されませんでした"], "findings": []}
+
+
+def run_fuzz_targets(targets, kw, command, allow, journal_root, auth, roles, secrets, effort, llm,
+                     on_agent, was_interrupted):
+    """WEB FUZZ(自律経路)を対象ごとに逐次実行する。(results, skipped)を返す。
+
+    kwは新規実行/再開で共通の設定。対象ごとにコピーして次の対象へ状態を持ち越さない。
+    resume時はkwに除外が無く、除外判定をしない(開始時のRunを再開するだけ)。
+    """
+    results, skipped = [], []
+    for i, target in enumerate(targets):
+        if was_interrupted():
+            skipped = targets[i:]
+            break
+        one = {**kw, "target": target}
+        if command != "resume" and target_excluded(target, one["excluded_targets"]):
+            results.append({"target": target, "state": "failed", "findings": [],
+                            "errors": ["除外対象のため実行しませんでした（除外は許可より優先）"]})
+            continue
+        one.update(allowed_targets=allow, journal_root=journal_root,
+                   auth=auth.get("a"), auth_b=auth.get("b"), approvals=[
+                       new_grant("web.authenticate", auth_action_args(target, r),
+                                 expires_at=time.time() + APPROVAL_TTL_SECONDS) for r in roles])
+        bus = ConsoleBus(secrets)
+        agent = AutonomousFuzzAgent(bus, llm)
+        on_agent(agent)
+        agent.set_effort_override(resolve_effort(effort, llm, f"WEB FUZZ of {target}"))
+        if was_interrupted():
+            agent.stop()
+        agent._safe_run(**one)
+        r = bus.result_payload or {"state": "failed", "errors": ["最終結果が通知されませんでした"], "findings": []}
+        r["run_id"] = agent.last_run_id
+        r.setdefault("target", target)
+        results.append(r)
+    return results, skipped

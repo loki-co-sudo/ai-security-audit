@@ -664,3 +664,6 @@ AUDITの証拠ID引用、`--effort auto`、DEFENSEのMITRE ID、WEB FUZZのト�
 ## 2026-10-22 P3.2(追補): CLIの出力へ台帳ビューを配線
 `cli.record_ledger`が記録後に`Ledger.report_view()`を各結果の`ledger`へ付ける(バッチは対象ごと)。`--format md`は抑制除外・差分表示、`exit_code`の`--fail-on`は`active_findings()`で期限内抑制を除く(JSONの`findings`は全件のまま。台帳記録失敗時はビューが無く全所見で判定)。
 試験: `tools/test_cli.py`の`test_scan_output_carries_ledger_view_and_fail_on_ignores_only_active_suppressions`(監査2ファイルのバッチ。一部抑制は失敗のまま、全件抑制で0、md出力、engagement無しは従来どおり)。cli.py変更を外すと落ちることを確認。GUIは未配線。
+
+## 2026-10-22 P3.1(追補): WEB FUZZの対象ごと実行を`core/scan_runner.py`へ移動
+`run_fuzz_targets()`(除外判定・認証承認grantの生成・AutonomousFuzzAgentの起動・結果収集・中断時のskipped)を`cli.main`から移した。挙動は不変(承認TTL300秒・除外優先・agentへのSIGINT伝播は`on_agent`/`was_interrupted`経由)。`cli.py`は入力検査・認証読込・案件設定・OpenAPI選択・LLM生成・status・台帳記録を担当。試験: `tools/test_cli.py` 29件が移動前後で同一結果。

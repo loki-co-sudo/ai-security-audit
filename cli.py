@@ -12,22 +12,19 @@ import sqlite3
 import stat
 import sys
 import tempfile
-import time
 
-from agents.fuzz_capabilities import AutonomousFuzzAgent, auth_action_args, load_profile
+from agents.fuzz_capabilities import AutonomousFuzzAgent, load_profile
 from core import config
 from core.engagement import EngagementError, parse_idor_expectations
 from core.findings_ledger import DEFAULT_ROOT as LEDGER_ROOT, STATUSES as LEDGER_STATUSES, Ledger, LedgerError
-from core.autonomy.actions import new_grant
 from core.autonomy.journal import JOURNAL_ROOT, replay, validate_run_id
 from core.autonomy.run_store import STATE_FILE
 from core.llm_client import LLMClient
-from core.scan_runner import (CLIError, ConsoleBus, aggregate, check_path, check_rules, check_target, masked,
-                              resolve_effort, run_attack as _run_attack, run_local as _run_local, target_excluded)
+from core.scan_runner import (CLIError, aggregate, check_path, check_rules, check_target, masked,
+                              run_attack as _run_attack, run_fuzz_targets, run_local as _run_local)
 from tools.openapi_loader import OpenApiError, list_operations, load_openapi, select_points
 from core.settings import DEFAULT_SCAN_PROFILE, SCAN_PROFILES
 
-APPROVAL_TTL_SECONDS = 300
 AUTH_FIELDS = frozenset(("cookie", "header_name", "header_value", "login_url", "post_url",
                         "user_field", "user_val", "pass_field", "pass_val", "confirm_url", "expect_text"))
 SEVERITIES = {"low": 1, "medium": 2, "high": 3, "critical": 4}
@@ -505,30 +502,9 @@ def main(argv=None):
                 config.load()
                 llm = LLMClient(base_url=config.get("llm_base_url"), api_key=config.get("llm_api_key"),
                                 model=config.get("llm_model"), timeout=config.get("llm_timeout"))
-                results, skipped = [], []
-                for i, target in enumerate(targets):
-                    if interrupted:
-                        skipped = targets[i:]
-                        break
-                    one = {**kw, "target": target}      # 対象ごとに設定をコピーし、次の対象へ状態を持ち越さない
-                    if args.command != "resume" and target_excluded(target, one["excluded_targets"]):
-                        results.append({"target": target, "state": "failed", "findings": [],
-                                        "errors": ["除外対象のため実行しませんでした（除外は許可より優先）"]})
-                        continue
-                    one.update(allowed_targets=args.allow, journal_root=args.journal_root,
-                               auth=auth.get("a"), auth_b=auth.get("b"), approvals=[
-                                   new_grant("web.authenticate", auth_action_args(target, r),
-                                             expires_at=time.time() + APPROVAL_TTL_SECONDS) for r in roles])
-                    bus = ConsoleBus(secrets)
-                    agent = AutonomousFuzzAgent(bus, llm)
-                    agent.set_effort_override(resolve_effort(args.effort, llm, f"WEB FUZZ of {target}"))
-                    if interrupted:
-                        agent.stop()
-                    agent._safe_run(**one)
-                    r = bus.result_payload or {"state": "failed", "errors": ["最終結果が通知されませんでした"], "findings": []}
-                    r["run_id"] = agent.last_run_id
-                    r.setdefault("target", target)
-                    results.append(r)
+                results, skipped = run_fuzz_targets(
+                    targets, kw, args.command, args.allow, args.journal_root, auth, roles, secrets, args.effort,
+                    llm, lambda a: set_agent(a), lambda: interrupted)
                 if len(results) == 1 and len(targets) == 1 and not getattr(args, "targets_file", None):
                     result = results[0]
                 else:
