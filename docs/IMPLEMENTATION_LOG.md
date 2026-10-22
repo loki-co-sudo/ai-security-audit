@@ -671,3 +671,7 @@ AUDITの証拠ID引用、`--effort auto`、DEFENSEのMITRE ID、WEB FUZZのト�
 ## 2026-10-22 P3.1(追補): rate_limit_rpsとprofilesのscope_mode
 `scan fuzz --rate-limit-rps R`(0<R<=1000)。`WebFuzzer(rate_limit_rps=)`はプロファイルの`path_rate_per_sec`との小さい方を採用し、緩める方向には働かない(無制限プロファイルには上限を足せる)。Runのプロファイル(`profile_json`)に保存して再開でも維持し、指定時だけ`profile_hash`に入れる(未指定のRunとの再開互換を保つ)。
 `config.json`のprofilesに`rate_limit_rps`(fuzzのみ)と`scope_mode`を追加。`scope_mode`は新規実行が常にblockのため`"block"`の明示だけ受理し、`warn`等は拒否する(安全境界を緩める設定を作らない)。試験: `tools/test_cli.py`(3件追加)。
+
+## 2026-10-22 P4.1(追補): サンプル値生成の拡張と認証要件の表示
+`tools/openapi_loader.py`: `_sample`をparameter側example/examples優先・allOf統合・oneOf/anyOf先頭・3.1の型配列・array要素・最小値・formatに拡張(再帰/循環は深さ制限と既存の$ref循環検出)。`Operation.auth`(scheme名・種類・in/schemeのみ)を追加し`openapi FILE`の出力に含める。送信境界(GET+queryのみ・path値生成なし・body/POSTなし・serversを使わない)は不変。
+試験: `tools/test_openapi_loader.py`に`SampleAndAuthTest`(3件)。ヘッダ名・説明・外部URLが出力に漏れないことも確認。

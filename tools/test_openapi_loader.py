@@ -113,6 +113,59 @@ class OperationTest(LoaderBase):
             ol.load_openapi(big)
 
 
+class SampleAndAuthTest(LoaderBase):
+    def ops(self, d):
+        return {o.operation_id: o for o in ol.list_operations(ol.load_openapi(self.write(d)))}
+
+    def sample(self, param, **extra):
+        ops = self.ops(doc({"/s": {"get": {"parameters": [param]}}}, **extra))
+        return ops["GET /s"].query_params[0]
+
+    def test_sample_priority_and_complex_schemas(self):
+        S = lambda **kw: q("v", **kw)      # noqa: E731
+        self.assertEqual(self.sample(S(example="px", schema={"example": "sx", "default": "d"})).sample, "px")  # parameter側が先
+        self.assertEqual(self.sample(S(examples={"a": {"value": "pv"}}, schema={"type": "string"})).sample, "pv")
+        self.assertEqual(self.sample(S(schema={"examples": ["e1", "e2"], "type": "string"})).sample, "e1")   # 3.1の配列
+        self.assertEqual(self.sample(S(schema={"enum": ["x", "y"]})).sample, "x")
+        self.assertEqual(self.sample(S(schema={"type": ["null", "integer"], "minimum": 5})).sample, "5")
+        self.assertEqual(self.sample(S(schema={"type": ["null", "integer"]})).type, "integer")
+        self.assertEqual(self.sample(S(schema={"type": "string", "format": "uuid"})).sample,
+                         "00000000-0000-4000-8000-000000000000")
+        self.assertEqual(self.sample(S(schema={"type": "array", "items": {"type": "integer", "default": 9}})).sample, "9")
+        self.assertEqual(self.sample(S(schema={"allOf": [{"type": "integer"}, {"default": 3}]})).sample, "3")
+        self.assertEqual(self.sample(S(schema={"oneOf": [{"type": "boolean"}, {"type": "string"}]})).sample, "true")
+        self.assertEqual(self.sample(S(schema={"anyOf": [{"$ref": "#/components/schemas/N"}]}),
+                                     components={"schemas": {"N": {"type": "number", "default": 2.5}}}).sample, "2.5")
+        self.assertEqual(self.sample(S(schema={"example": {"a": 1}, "type": "string"})).sample, "test")   # 構造体は使わない
+        self.assertEqual(self.sample(S()).sample, "test")
+
+    def test_recursive_or_cyclic_schemas_are_bounded(self):
+        rec = {"schemas": {"A": {"type": "array", "items": {"$ref": "#/components/schemas/A"}}}}
+        self.assertEqual(self.sample(q("v", schema={"$ref": "#/components/schemas/A"}), components=rec).type, "array")
+        cyc = {"schemas": {"A": {"allOf": [{"$ref": "#/components/schemas/A"}]}}}
+        self.sample(q("v", schema={"$ref": "#/components/schemas/A"}), components=cyc)     # 無限再帰しない(例外は循環$refの明示エラーのみ)
+
+    def test_auth_requirements_show_scheme_names_only(self):
+        d = doc({"/open": {"get": {"security": [], "parameters": [q("a")]}},
+                 "/key": {"get": {"parameters": [q("a")]}},
+                 "/oauth": {"get": {"security": [{"oauth": ["read"]}, {"bearer": []}], "parameters": [q("a")]}},
+                 "/unknown": {"get": {"security": [{"nope": []}], "parameters": [q("a")]}}},
+                security=[{"apiKey": []}],
+                components={"securitySchemes": {
+                    "apiKey": {"type": "apiKey", "in": "header", "name": "X-Api-Key", "description": "SECRET_SENTINEL"},
+                    "bearer": {"type": "http", "scheme": "bearer"},
+                    "oauth": {"type": "oauth2", "flows": {"implicit": {"authorizationUrl": "http://evil.example/auth"}}}}})
+        ops = self.ops(d)
+        self.assertEqual(ops["GET /open"].auth, [])                       # 空配列はglobalを打ち消す
+        self.assertEqual(ops["GET /key"].auth, [{"scheme": "apiKey", "type": "apiKey", "detail": "header"}])
+        self.assertEqual([(a["scheme"], a["type"]) for a in ops["GET /oauth"].auth], [("oauth", "oauth2"), ("bearer", "http")])
+        self.assertEqual(ops["GET /unknown"].auth, [{"scheme": "nope", "type": "unknown", "detail": ""}])
+        blob = json.dumps([o.to_dict() for o in ops.values()])
+        for leak in ("SECRET_SENTINEL", "X-Api-Key", "evil.example"):    # 名前・種類以外(ヘッダ名/URL/説明)は出さない
+            self.assertNotIn(leak, blob)
+        self.assertTrue(ops["GET /key"].selectable)                      # 認証要件は選択可否を変えない
+
+
 class YamlTest(LoaderBase):
     """YAML対応(仕様変更): 旧版は「openapi: 3.0.0\\npaths: {}」を非対応として拒否していたが、今は有効なYAMLとして読む。"""
     YAML = ("openapi: 3.0.3\ninfo: {title: t, version: '1'}\nservers:\n  - url: http://evil.example/v1\n"

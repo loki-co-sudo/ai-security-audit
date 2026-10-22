@@ -3,6 +3,7 @@
 通信は一切しない(ファイル読み取りのみ)。`servers` のURLもoperation一覧も送信許可ではない: 注入点の送信先は呼び出し側が
 与える対象URL(同一origin・許可対象の検査はWebFuzzer/Policy Gate側)で、本モジュールはserversを参照しない。
 自動探索の対象にしないもの: JSON body、path parameterの生成、GET以外(POST等)、path parameterを含むpath。
+securitySchemesは「この操作に認証が要る」という表示のためだけに読み、認証値は扱わない(認証は--auth-fileの役割別承認)。
 GETだけで非破壊とは限らないため、選択はユーザーが明示したoperationだけに限る。YAMLは非対応(明示エラー)。
 """
 from __future__ import annotations
@@ -41,11 +42,12 @@ class Operation:
     query_params: list[QueryParam] = field(default_factory=list)
     selectable: bool = False
     reason: str = ""           # selectableでない理由(自動探索の対象外)
+    auth: list = field(default_factory=list)   # 要求される認証(scheme名・種類のみ。値は持たない)
 
     def to_dict(self) -> dict:
         return {"operation_id": self.operation_id, "method": self.method, "path": self.path,
                 "summary": self.summary, "deprecated": self.deprecated, "selectable": self.selectable,
-                "reason": self.reason, "query_params": [vars(q) for q in self.query_params]}
+                "reason": self.reason, "auth": self.auth, "query_params": [vars(q) for q in self.query_params]}
 
 
 class _Resolver:
@@ -112,14 +114,92 @@ def load_openapi(path: str) -> dict:
     return doc
 
 
-def _sample(schema: dict, ptype: str) -> str:
-    if "example" in schema:
-        return str(schema["example"])
-    if "default" in schema:
-        return str(schema["default"])
-    if isinstance(schema.get("enum"), list) and schema["enum"]:
-        return str(schema["enum"][0])
-    return {"integer": "1", "number": "1", "boolean": "true"}.get(ptype, "test")
+_FORMAT_SAMPLES = {"uuid": "00000000-0000-4000-8000-000000000000", "date": "2026-01-01",
+                   "date-time": "2026-01-01T00:00:00Z", "email": "test@example.com", "uri": "http://example.com/"}
+
+
+def _first_example(res: _Resolver, holder: dict):
+    """example → examples(3.1の配列 / 3.0のmap。値はvalue) の順で最初の値を返す。無ければ(False, None)。"""
+    if "example" in holder:
+        return True, holder["example"]
+    ex = holder.get("examples")
+    if isinstance(ex, list) and ex:
+        return True, ex[0]
+    if isinstance(ex, dict) and ex:
+        first = res.deref(next(iter(ex.values())))
+        if isinstance(first, dict) and "value" in first:
+            return True, first["value"]
+    return False, None
+
+
+def _type_of(schema: dict) -> str:
+    t = schema.get("type", "string")
+    if isinstance(t, list):                       # 3.1: ["string", "null"]
+        t = next((x for x in t if x != "null"), "string")
+    return str(t)
+
+
+def _flatten(res: _Resolver, schema, depth: int = 0) -> dict:
+    """allOfは統合、oneOf/anyOfは先頭の分岐を採る(サンプル値を作るためだけの近似)。"""
+    schema = res.deref(schema)
+    if not isinstance(schema, dict) or depth > 8:
+        return {}
+    out = {k: v for k, v in schema.items() if k not in ("allOf", "oneOf", "anyOf")}
+    for key in ("allOf",):
+        for sub in schema.get(key) or []:
+            for k, v in _flatten(res, sub, depth + 1).items():
+                out.setdefault(k, v)
+    for key in ("oneOf", "anyOf"):
+        branches = schema.get(key)
+        if isinstance(branches, list) and branches:
+            for k, v in _flatten(res, branches[0], depth + 1).items():
+                out.setdefault(k, v)
+    return out
+
+
+def _sample(res: _Resolver, param: dict, schema, depth: int = 0) -> tuple[str, str]:
+    """(型, サンプル値)。parameter側のexampleを優先し、schemaのexample/default/enum/format/最小値の順に使う。"""
+    for holder in (param, _flatten(res, schema)):
+        ok, value = _first_example(res, holder)
+        if ok and not isinstance(value, (dict, list)):
+            return _type_of(_flatten(res, schema)), str(value)
+    flat = _flatten(res, schema)
+    ptype = _type_of(flat)
+    if "default" in flat and not isinstance(flat["default"], (dict, list)):
+        return ptype, str(flat["default"])
+    if isinstance(flat.get("enum"), list) and flat["enum"]:
+        return ptype, str(flat["enum"][0])
+    if ptype == "array" and depth < 4:
+        return ptype, _sample(res, {}, flat.get("items") or {}, depth + 1)[1]     # 要素1個だけのqueryにする
+    if ptype in ("integer", "number"):
+        lo = flat.get("minimum")
+        return ptype, str(lo) if isinstance(lo, (int, float)) and not isinstance(lo, bool) and lo > 1 else "1"
+    if ptype == "boolean":
+        return ptype, "true"
+    return ptype, _FORMAT_SAMPLES.get(str(flat.get("format")), "test")
+
+
+def _auth_requirements(res: _Resolver, op: dict) -> list[dict]:
+    """操作に適用されるsecurity要件をscheme名・種類だけで返す。op.securityが空配列なら認証不要(globalを打ち消す)。"""
+    req = op["security"] if "security" in op else res.doc.get("security")
+    if not isinstance(req, list):
+        return []
+    schemes = ((res.doc.get("components") or {}).get("securitySchemes") or {})
+    out, seen = [], set()
+    for alt in req:
+        for name in (alt.keys() if isinstance(alt, dict) else []):
+            if not isinstance(name, str) or name in seen:
+                continue
+            seen.add(name)
+            try:
+                sch = res.deref(schemes.get(name)) if name in schemes else None
+            except OpenApiError:
+                sch = None
+            sch = sch if isinstance(sch, dict) else {}
+            kind = str(sch.get("type", "unknown"))[:30]
+            detail = str(sch.get("scheme") or sch.get("in") or "")[:30]
+            out.append({"scheme": name[:60], "type": kind, "detail": detail})
+    return out
 
 
 def list_operations(doc: dict) -> list[Operation]:
@@ -160,10 +240,8 @@ def _to_operation(res: _Resolver, path: str, method: str, shared, op: dict) -> O
     for (loc, name), p in merged.items():
         if loc != "query":
             continue
-        schema = res.deref(p.get("schema") or {})
-        schema = schema if isinstance(schema, dict) else {}
-        ptype = str(schema.get("type", "string"))
-        query.append(QueryParam(name=name, required=bool(p.get("required")), type=ptype, sample=_sample(schema, ptype)))
+        ptype, sample = _sample(res, p, p.get("schema") or {})
+        query.append(QueryParam(name=name, required=bool(p.get("required")), type=ptype, sample=sample))
     oid = op.get("operationId") if isinstance(op.get("operationId"), str) and op["operationId"] else f"{method.upper()} {path}"
     reason = ""
     if method != "get":
@@ -175,7 +253,8 @@ def _to_operation(res: _Resolver, path: str, method: str, shared, op: dict) -> O
     elif not query:
         reason = "query parameterが無い"
     return Operation(operation_id=oid, method=method.upper(), path=path, summary=str(op.get("summary", ""))[:200],
-                     deprecated=bool(op.get("deprecated")), query_params=query, selectable=not reason, reason=reason)
+                     deprecated=bool(op.get("deprecated")), query_params=query, selectable=not reason, reason=reason,
+                     auth=_auth_requirements(res, op))
 
 
 def select_points(ops: list[Operation], selected: list[str], base_url: str, exclude: list[str] | None = None

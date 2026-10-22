@@ -69,7 +69,7 @@ P4内は用途に応じて一項目ずつ選択できる。保留事項を自動
 | P2.2 | 検出器側は実装 | IDOR(ログイン/公開除外・期待権限表)、SSTI別式確認、XSS content-type | 期待権限表のGUI入力・旧FuzzAgent配線、同一origin確認URL、逆方向 |
 | P3.1 | ほぼ実装 | `scan fuzz/audit/defense/attack`・`--targets-file`・`--engagement`・除外優先・`--format md`・`--effort auto`・`defense --duration`・`--use-profile`・`core/scan_runner.py`(ATTACK/AUDIT/DEFENSE/WEB FUZZ・resumeの対象ごと実行)・`--rate-limit-rps`・profilesの`rate_limit_rps`/`scope_mode`(block のみ) | 案件プロファイルのGUI入力、予算(max_llm_calls等)のprofiles化 |
 | P3.2 | 中核+レポート連携 | 台帳・差分・mark/suppress/findings、レポート層の抑制除外と差分表示、CLI(`--engagement-id`)の出力への台帳ビュー付与・`--format md`の抑制除外/差分・`--fail-on`の期限内抑制除外 | GUIからのengagement_id指定と配線 |
-| P4.1 | 初期版 | ローカルJSON/YAML・明示選択のGET+query | 複雑schema・path param・body・認証scheme・GUI |
+| P4.1 | 初期版 | ローカルJSON/YAML・明示選択のGET+query・サンプル値生成(parameter/schemaのexample・allOf/oneOf/anyOf・3.1型配列・array・format)・操作ごとの認証要件表示 | path param・body・POST等(境界として非対応のまま)、認証schemeの自動適用、GUI |
 | P4.2 | 初期版 | 標準エンジン・LangGraph版(モックLLM)の複数ファイル監査 | GUI、証拠保存、実LLM評価 |
 | P4.3 | 中核 | ローテーション/縮小/部分行/JSONL/MITRE確認 | journald/syslog、gzip回転、長時間運用検証 |
 | 共通 | 一部検証 | selftest 170 PASS / 0 FAIL / 5 SKIP(`SELFTEST_NON_LLM_ONLY=1`)。AUDITは実LLMで3回評価、証拠ID引用・effort autoは実LLMで各1回、DEFENSE・WEB FUZZは各3回の小規模測定(付録) | 実LLM系5件のselftest、AUDIT/DEFENSE/WEB FUZZ以外の実LLM評価、より大きな正解データでの複数回評価、GUIの目視確認は全体を通して未実施 |
@@ -328,8 +328,9 @@ CLI: `openapi FILE`(operation一覧。通信しない)、`scan fuzz --openapi FI
 送信先は`--target`のorigin固定で、OpenAPIの`servers`は使わない。選択した注入点は`WebFuzzer.seed_points`としてクロール結果へ合流し、
 重複はクロール側を優先、同一origin外は取り込まず`seed_rejected`→`errors`に残して`partial`にする。HTMLリンクの無いAPIも
 `WEB_FUZZ_*`のcoverageに現れる(CLI試験で確認)。再開用にseed_pointsはprofile_json/profile_hashへ含める。
-**未実装/限界**: `$ref`を含む複雑なschema(allOf/oneOf)からのサンプル生成、path parameter・JSON body・POST等、`--targets-file`との併用(拒否)、
-旧FuzzAgent(GUI)経路、認証が必要なAPIのsecurityScheme解釈。GETだけで非破壊とは限らないため、利用者が読み取り用と判断したものだけを選ぶこと。
+**追補(2026-10-22)**: サンプル値はparameterのexample/examples→schemaのexample/examples→default→enum→array要素→最小値/format の順で作る(allOfは統合、oneOf/anyOfは先頭の分岐、3.1の`type`配列は`null`以外の先頭。構造体のexampleは使わない)。`openapi FILE`の出力に各operationの`auth`(security要件のscheme名・種類・`in`/`scheme`のみ。`security: []`はglobalを打ち消す)を追加。認証値・ヘッダ名・URL・説明は出さず、選択可否も変えない。認証は従来どおり`--auth-file`と役割別承認で与える。
+**未実装/限界**: path parameter・JSON body・POST等(自動探索の境界として非対応のまま)、`--targets-file`との併用(拒否)、
+旧FuzzAgent(GUI)経路、securitySchemeの自動適用(表示のみ)。GETだけで非破壊とは限らないため、利用者が読み取り用と判断したものだけを選ぶこと。
 
 ### P4.2 Python複数ファイル監査
 
