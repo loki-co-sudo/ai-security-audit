@@ -723,3 +723,7 @@ AUDITの証拠ID引用、`--effort auto`、DEFENSEのMITRE ID、WEB FUZZのト�
 ## 2026-10-22 P4.3(追補): syslogの攻撃元IP抽出(集約の見逃し修正)
 再現: ホスト名がIPのsyslog行(`Oct 22 10:00:00 10.0.0.2 sshd[1]: Failed password for root from 203.0.113.9 ...`)で、別々の攻撃者2人のアラートが1件になる(ヘッダのホストIPが集約キー)。`tools/log_watcher.py`に`parse_syslog()`(RFC3164/5424)・`source_ip()`を追加、`MonitorAgent._extract_ip`が使う。本文の標識(from/rhost=/src=/SRC=/client等)の**最後**を優先、標識なしは本文の最初のIP、syslogでない行は従来どおり先頭のIP(標識を使うとURLのsrc=等で集約キーを操作されうるため)。シグネチャ検知・ベンチマークの対象(生の行)は不変。
 試験: `tools/test_log_watcher.py`の`SyslogTest`(4件: 形式の解析・接続元優先・最後の標識/非syslogは標識不使用・DEFENSEで2人とも検知。monitor_agentの変更を外すと落ちることを確認)。
+
+## 2026-10-22 P3.2(追補): GUIでの台帳の閲覧・対応status・期限付き抑制
+`gui/ledger_util.py`: `list_findings()`/`apply_status()`/`apply_suppress()`(Tk非依存。statusはopen/fixed/accepted-risk・理由必須・抑制は1〜365日の整数のみ=無期限は作れない・検証は台帳側と二重)。`gui/dialogs/ledger_dialog.py`: ヘッダーの「📒」から開く。所見を一覧(抑制中は期限と理由を表示)し、選んだ所見へ状態記録または期限付き抑制。操作欄を先にpackして小さい窓でも見える。台帳は追記式で、取り消しは新しい記録(CLIと同じ台帳・同じ検証)。抑制はレポートの表示から外すだけで件数・理由・期限は残る。
+試験: `tools/test_gui_ledger.py`の`LedgerOperationsTest`(3件)、`tools/test_gui_layout.py`の`LedgerDialogTest`(選択なし/理由なし/不正日数の拒否・記録・抑制行の表示・操作欄が窓内。xvfb-run必須)。`tools/gui_snapshot.py`に台帳ダイアログを追加し目視。**これでP3.2の実装範囲は一通り完了。完了扱い([x])は実画面でのGUI確認後。**

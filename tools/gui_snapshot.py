@@ -3,7 +3,7 @@
 
   python tools/gui_snapshot.py OUTDIR
 
-4タブ・設定ダイアログ・認証ダイアログ・期待権限表ダイアログのPNGをOUTDIRへ保存する(ImageMagickのimportが必要。xfwm4があればウィンドウマネージャ付き)。
+4タブ・設定ダイアログ・認証ダイアログ・期待権限表ダイアログ・所見台帳ダイアログのPNGをOUTDIRへ保存する(ImageMagickのimportが必要。xfwm4があればウィンドウマネージャ付き)。
 実スキャンは行わず、設定の保存もしない(ダイアログは開くだけ)。画像を人が/AIが見て確認するための補助で、自動判定はしない。
 レイアウトの回帰は tools/test_gui_layout.py が固定する。
 """
@@ -49,6 +49,25 @@ def _child(out: str) -> int:
     exp._save()                       # 不正行のエラー表示も撮る
     shot("expectations")
     exp.destroy()
+    # 所見台帳ダイアログ: 一時ディレクトリに台帳を作って撮る(リポジトリのreports/へは書かない。設定も保存しない)
+    import tempfile
+    from unittest import mock
+    from core import config
+    from gui.dialogs.ledger_dialog import LedgerDialog
+    from gui.ledger_util import apply_suppress, attach_ledger
+    from tools.test_findings_ledger import finding, scan, unit_cov
+    os.chdir(tempfile.mkdtemp())
+    with mock.patch.dict(config._cfg, {"engagement_id": "lab-demo"}):
+        r = scan("s1", [finding("/a q"), finding("/b id", "SQLI")], unit_cov("/a", "q") + unit_cov("/b", "id"))
+        for f in r["findings"]:
+            f.setdefault("description", "d")
+        fids = [x["finding_id"] for x in attach_ledger(r)["ledger"]["findings"]]
+        apply_suppress(fids[1], "調整中", "14")
+        led = LedgerDialog(app)
+        led._selected.set(fids[0])
+        led._do_status()                       # 理由なしの警告表示も撮る
+        shot("ledger")
+        led.destroy()
     app.destroy()
     return 0
 

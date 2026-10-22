@@ -6,6 +6,8 @@ import unittest
 from unittest import mock
 
 from core import config
+from core.findings_ledger import Ledger, LedgerError
+from gui import ledger_util
 from gui.ledger_util import attach_ledger
 from tools import report_generator as rg
 from tools.test_findings_ledger import TARGET, finding, scan, unit_cov
@@ -77,6 +79,54 @@ class AttachLedgerTest(unittest.TestCase):
         for bad in ("../x", "a/b", "a b", " lead", "x" * 65, "..", "a..b", 5):
             self.assertTrue(config.validate_config({"engagement_id": bad}), bad)
 
+
+
+class LedgerOperationsTest(unittest.TestCase):
+    """GUIの台帳操作(一覧・状態変更・期限付き抑制)のロジック。ダイアログは薄く、検証と記録はここと台帳側が担う。"""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        cwd = os.getcwd()
+        os.chdir(self.tmp.name)
+        self.addCleanup(os.chdir, cwd)
+        p = mock.patch.dict(config._cfg, {**config._DEFAULTS, "engagement_id": "lab-ops"}, clear=True)
+        p.start()
+        self.addCleanup(p.stop)
+        r = scan("s1", [finding("/a q"), finding("/b id", "SQLI")], unit_cov("/a", "q") + unit_cov("/b", "id"))
+        for f in r["findings"]:
+            f.setdefault("description", "d")
+        self.fids = [x["finding_id"] for x in attach_ledger(r)["ledger"]["findings"]]
+
+    def test_list_shows_status_and_suppression_and_requires_an_id(self):
+        res = ledger_util.list_findings()
+        self.assertEqual((res["engagement_id"], len(res["findings"])), ("lab-ops", 2))
+        self.assertTrue(all(f["status"] == "open" and not f["suppressed"] for f in res["findings"]))
+        with mock.patch.dict(config._cfg, {"engagement_id": ""}):
+            with self.assertRaises(LedgerError):
+                ledger_util.list_findings()
+
+    def test_status_requires_a_reason_and_a_known_status_and_finding(self):
+        fid = self.fids[0]
+        ledger_util.apply_status(fid, "fixed", "修正を確認")
+        self.assertEqual({f["finding_id"]: f["status"] for f in ledger_util.list_findings()["findings"]}[fid], "fixed")
+        for args in ((fid, "fixed", "  "), (fid, "wontfix", "x"), ("f_0123456789abcdef", "fixed", "x"), ("bogus", "fixed", "x")):
+            with self.assertRaises(LedgerError, msg=str(args)):
+                ledger_util.apply_status(*args)
+
+    def test_suppression_is_time_limited_and_visible_with_reason_and_expiry(self):
+        fid = self.fids[1]
+        until = ledger_util.apply_suppress(fid, "調整中", "30")
+        row = {f["finding_id"]: f for f in ledger_util.list_findings()["findings"]}[fid]
+        self.assertTrue(row["suppressed"])
+        self.assertEqual((row["suppression_reason"], row["suppression_expires_at"]), ("調整中", until))
+        for days in ("0", "-1", "366", "abc", "", None, "1.5"):
+            with self.assertRaises(LedgerError, msg=str(days)):
+                ledger_util.apply_suppress(self.fids[0], "x", days)                  # 無期限・極端な長期・不正値は作れない
+        with self.assertRaises(LedgerError):
+            ledger_util.apply_suppress(self.fids[0], " ", "7")                       # 理由必須
+        # 抑制はCLI(同じ台帳)の出力にも反映される
+        self.assertEqual(Ledger("lab-ops").findings()["suppressed_count"], 1)
 
 if __name__ == "__main__":
     unittest.main()

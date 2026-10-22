@@ -147,9 +147,10 @@ AI-Security-tool/
 │   │                             マルチモニタ環境での2画面またぎ起動を防止（_pick_monitor）
 │   ├── splash.py                # 起動スプラッシュ（tkinter製・重いモジュールロード前に高速表示）
 │   ├── export_util.py           # HTML/PDF/Markdownレポート出力の共通ヘルパー
-│   ├── ledger_util.py           # P3.2: config.engagement_id設定時だけ、GUIのRESULTを所見台帳へ記録しreport_viewを付ける(失敗はerrorsへ注記)
+│   ├── ledger_util.py           # P3.2: config.engagement_id設定時だけ、GUIのRESULTを所見台帳へ記録しreport_viewを付ける(失敗はerrorsへ注記)。台帳操作(list_findings/apply_status/apply_suppress・Tk非依存)も持つ
 │   ├── dialogs/
 │   │   ├── settings_dialog.py   # LLM設定モーダル（接続テスト・config.json保存・SCOPEセクション＝allowed_targets/scope_mode）。MODEL/FASTは検索式モデルピッカー共用（コスト階級・プロバイダ・知能指数フィルタ/ソート、適用先セレクタで切替）
+│   │   ├── ledger_dialog.py     # 所見台帳の閲覧・対応status記録・期限付き抑制(ヘッダーの📒。操作欄を先にpack)
 │   │   ├── expectations_dialog.py # IDOR期待権限表の入力(1行1ルール・保存時に行番号つきで検証・WEB FUZZの「📋 期待権限」)
 │   │   └── auth_dialog.py       # WEB FUZZ認証設定（title引数でヘッダー文言を差し替え可能・第2セッション/IDOR比較用にも流用）
 │   ├── widgets/
@@ -546,7 +547,7 @@ P0.1・P0.2・P1.1は完了済み。実装詳細・セルフテスト結果は
 - [ ] P2.1 CLI非依存の最小ベンチマーク（**WEB FUZZ・DEFENSEシグネチャ・ATTACK偵察(ポート/パス/ヘッダー/Cookie/技術。`benchmark.py attack`)のdetector固定モードは実装済み**＋認証期限切れ・共通ログイン画面の罠。**AUDITの実LLM評価(無料枠モデル・3回)は実施済み**。未: 他モデル・他モードの実LLM評価、ATTACKのLLM解釈部分のベンチ、トークン使用量）
 - [ ] P2.2 IDOR/SSTI/XSSの既存検出品質改善（**検出器側は実装済み**: IDORのログイン画面/公開除外・期待権限表、SSTI別式確認、XSS content-type。**期待権限表のGUI入力(WEB FUZZ「📋 期待権限」・1行1ルール)と旧FuzzAgent経路への配線も実装済み**。**逆方向(`a=deny b=allow`+VALUE明示の行だけ、B対照→Aで同一URLをGET)も実装済み**。未: 同一origin認証確認URLの検証強化）
 - [ ] P3.1 CLI・案件プロファイル・除外優先・実行設定分離（**scan fuzz/audit/defense/attack、--engagement、除外優先、--targets-fileは実装済み**。**`--format md`・`--effort auto`・`defense --duration`・`config.json`の`profiles`(`--use-profile`)も実装済み**。**audit/defense/attackの`--targets-file`も実装済み**。core/scan_runner.pyへの分離は実装済み(WEB FUZZ・resumeの対象ごと実行も`run_fuzz_targets`へ移動。入力検査・認証読込・status・台帳はcli.py)。**`--min-verification`(`--fail-on`の判定に含める最低の確認状態。既定observed)、`scan fuzz --rate-limit-rps`(プロファイルの上限より緩めない)と、profilesの`rate_limit_rps`/`scope_mode`(blockのみ受理・warnは拒否)も実装済み**）
-- [ ] P3.2 案件別JSONLイベント台帳・差分・期限付き抑制（**台帳・差分・mark/suppress/findings CLIは実装済み**。**レポート層(HTML/MD/PDF/JSON)は`Ledger.report_view()`を`scan_result["ledger"]`に付けると抑制除外・差分表示に対応済み**。**CLIの`--engagement-id`指定で出力に台帳ビュー・`--fail-on`が期限内抑制を除外・`--format md`が抑制除外/差分に対応済み**。**GUIの案件ID(設定ダイアログ「📒 案件ID」=`config.engagement_id`・空=記録しない)でGUIの完了スキャンを同じ台帳へ記録しレポートへ差分・抑制を反映する配線も実装済み**。未: GUIでの抑制/状態変更(mark/suppress)操作・台帳の閲覧画面）
+- [ ] P3.2 案件別JSONLイベント台帳・差分・期限付き抑制（**台帳・差分・mark/suppress/findings CLIは実装済み**。**レポート層(HTML/MD/PDF/JSON)は`Ledger.report_view()`を`scan_result["ledger"]`に付けると抑制除外・差分表示に対応済み**。**CLIの`--engagement-id`指定で出力に台帳ビュー・`--fail-on`が期限内抑制を除外・`--format md`が抑制除外/差分に対応済み**。**GUIの案件ID(設定ダイアログ「📒 案件ID」=`config.engagement_id`・空=記録しない)でGUIの完了スキャンを同じ台帳へ記録しレポートへ差分・抑制を反映する配線も実装済み**。**GUIの「📒」ボタン(ヘッダー)で台帳の閲覧・対応status記録・期限付き抑制(1〜365日・理由必須)も実装済み**。P3.2の実装範囲は一通り完了(完了扱いは実画面でのGUI確認後)）
 - [ ] P4.1 OpenAPI入力（**初期版は実装済み**: ローカルJSON・明示選択のGET+query。**YAML(safe_load・alias拒否)対応済み**。**サンプル値生成(example/allOf/oneOf/3.1型配列/array/format)と操作ごとの認証要件表示も対応済み**。未: path param・body・POST(境界として非対応)、認証schemeの自動適用、GUI）
 - [ ] P4.2 Python複数ファイル監査（**標準エンジン・LangGraph版(モックLLM検証のみ)の初期版は実装済み**。**標準エンジンのプロジェクト監査の証拠保存(送った関数内のAST観測・プロジェクト相対パス)も実装済み**。LangGraph版も同じ証拠保存に対応(モックLLMのみ検証)。未: GUI・実LLM評価）
 - [ ] P4.3 実ログ対応・ローテーション/縮小/部分行処理（**中核は実装済み**＋JSONL・MITRE ID確認。**回転済み`.gz`の1回通し読み(上限・破損検知つき)と`journald[:UNIT]`(固定引数のjournalctl・読み取り専用)も対応済み**。syslogの攻撃元IP抽出(parse_syslog/source_ip)も対応済み。未: 長時間の実運用検証）

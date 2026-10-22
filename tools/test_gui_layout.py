@@ -103,6 +103,77 @@ print(json.dumps(out, ensure_ascii=False))
 '''
 
 
+LEDGER_CHILD = r'''
+import sys, json, os, tempfile
+sys.path.insert(0, sys.argv[1])
+from unittest import mock
+import customtkinter as ctk
+from core import config
+from gui.ledger_util import attach_ledger
+from gui.dialogs.ledger_dialog import LedgerDialog
+from tools.test_findings_ledger import finding, scan, unit_cov
+os.chdir(tempfile.mkdtemp())
+out = {}
+root = ctk.CTk()
+with mock.patch.dict(config._cfg, {"engagement_id": ""}):
+    d = LedgerDialog(root)
+    d.update()
+    out["unset_info"] = d._info.cget("text")
+    d.destroy()
+with mock.patch.dict(config._cfg, {"engagement_id": "lab-dlg"}):
+    r = scan("s1", [finding("/a q"), finding("/b id", "SQLI")], unit_cov("/a", "q") + unit_cov("/b", "id"))
+    for f in r["findings"]:
+        f.setdefault("description", "d")
+    fids = [x["finding_id"] for x in attach_ledger(r)["ledger"]["findings"]]
+    d = LedgerDialog(root)
+    d.geometry("860x420+0+0")
+    for _ in range(6):
+        d.update_idletasks(); d.update()
+    a = d._action
+    out["action_visible"] = a.winfo_height() > 60 and a.winfo_rooty() + a.winfo_height() <= d.winfo_rooty() + d.winfo_height() + 1
+    out["rows"] = len(d._list.winfo_children())
+    d._do_status(); out["no_selection"] = d._msg.cget("text")
+    d._selected.set(fids[0]); d._status_var.set("fixed")
+    d._do_status(); out["no_reason"] = d._msg.cget("text")
+    d._reason.set("修正を確認"); d._do_status(); out["status_ok"] = d._msg.cget("text")
+    d._selected.set(fids[1]); d._reason.set("調整中"); d._days.set("0"); d._do_suppress(); out["bad_days"] = d._msg.cget("text")
+    d._days.set("14"); d._do_suppress(); out["suppress_ok"] = d._msg.cget("text")
+    for _ in range(3):
+        d.update_idletasks(); d.update()
+    out["suppressed_row_shown"] = any("抑制中" in w.cget("text") for w in d._list.winfo_children())
+    out["reason_cleared"] = d._reason.get()
+    d.destroy()
+    from core.findings_ledger import Ledger
+    L = Ledger("lab-dlg").findings(include_suppressed=True)["findings"]
+    out["ledger"] = {x["finding_id"]: (x["status"], x["suppressed"]) for x in L}
+    out["fids"] = fids
+root.destroy()
+print(json.dumps(out, ensure_ascii=False))
+'''
+
+
+@unittest.skipUnless(shutil.which("xvfb-run"), "xvfb-runが無いためGUIレイアウト試験を実行できない")
+class LedgerDialogTest(unittest.TestCase):
+    def test_dialog_requires_selection_and_reason_and_records_to_the_ledger(self):
+        import json
+        p = subprocess.run(["xvfb-run", "-a", "-s", "-screen 0 1600x1000x24", sys.executable, "-c", LEDGER_CHILD, ROOT],
+                           capture_output=True, text=True, timeout=90, cwd=ROOT)
+        self.assertEqual(p.returncode, 0, p.stderr[-1200:])
+        o = json.loads(p.stdout.strip().splitlines()[-1])
+        self.assertIn("案件ID", o["unset_info"])                                            # 未設定なら案内だけ
+        self.assertTrue(o["action_visible"], o)                                              # 小さい窓でも操作欄が見える
+        self.assertEqual(o["rows"], 2)
+        self.assertIn("選んで", o["no_selection"])
+        self.assertIn("理由", o["no_reason"])                                                # 理由なしは記録されない
+        self.assertTrue(o["status_ok"].startswith("✓"), o)
+        self.assertIn("1〜365", o["bad_days"])
+        self.assertTrue(o["suppress_ok"].startswith("✓"), o)
+        self.assertTrue(o["suppressed_row_shown"])
+        self.assertEqual(o["reason_cleared"], "")
+        self.assertEqual(o["ledger"][o["fids"][0]], ["fixed", False])
+        self.assertEqual(o["ledger"][o["fids"][1]], ["open", True])
+
+
 @unittest.skipUnless(shutil.which("xvfb-run"), "xvfb-runが無いためGUIレイアウト試験を実行できない")
 class EngagementGuiTest(unittest.TestCase):
     def test_settings_validate_the_id_and_all_four_panels_record_results_only_when_set(self):

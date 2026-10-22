@@ -68,7 +68,7 @@ P4内は用途に応じて一項目ずつ選択できる。保留事項を自動
 | P2.1 | 一部 | WEB FUZZ・DEFENSEシグネチャ・ATTACK偵察のdetector固定ベンチと基準値、AUDITの実LLM評価(無料枠モデル3回・`tools/live_eval.py`) | 他モデルでの実LLM評価、ATTACKの実LLM評価、WEB FUZZ/DEFENSEの大きな正解データでの実LLM評価(3回の小規模測定のみ)、ATTACKのLLM解釈部分のベンチ、トークン使用量(現状は文字数のみ) |
 | P2.2 | 検出器・GUI入力を実装 | IDOR(ログイン/公開除外・期待権限表・逆方向・GUIの「📋 期待権限」入力と旧FuzzAgent配線)、SSTI別式確認、XSS content-type | 同一origin確認URLの検証強化 |
 | P3.1 | ほぼ実装 | `scan fuzz/audit/defense/attack`・`--targets-file`・`--engagement`・除外優先・`--format md`・`--effort auto`・`defense --duration`・`--use-profile`・`core/scan_runner.py`(ATTACK/AUDIT/DEFENSE/WEB FUZZ・resumeの対象ごと実行)・`--min-verification`・`--rate-limit-rps`・profilesの`rate_limit_rps`/`scope_mode`(block のみ) | 案件プロファイルのGUI入力、予算(max_llm_calls等)のprofiles化 |
-| P3.2 | 中核+レポート連携 | 台帳・差分・mark/suppress/findings、レポート層の抑制除外と差分表示、CLI(`--engagement-id`)の出力への台帳ビュー付与・`--format md`の抑制除外/差分・`--fail-on`の期限内抑制除外、GUIの案件ID(設定の「📒 案件ID」)による台帳記録とレポート反映 | GUIでの抑制/状態変更(mark/suppress)操作・台帳の閲覧画面 |
+| P3.2 | 中核+レポート連携 | 台帳・差分・mark/suppress/findings、レポート層の抑制除外と差分表示、CLI(`--engagement-id`)の出力への台帳ビュー付与・`--format md`の抑制除外/差分・`--fail-on`の期限内抑制除外、GUIの案件ID(設定の「📒 案件ID」)による台帳記録とレポート反映、GUIの「📒」ボタンでの台帳閲覧・状態記録・期限付き抑制 | 実画面でのGUI確認 |
 | P4.1 | 初期版 | ローカルJSON/YAML・明示選択のGET+query・サンプル値生成(parameter/schemaのexample・allOf/oneOf/anyOf・3.1型配列・array・format)・操作ごとの認証要件表示 | path param・body・POST等(境界として非対応のまま)、認証schemeの自動適用、GUI |
 | P4.2 | 初期版 | 標準エンジン・LangGraph版(モックLLM)の複数ファイル監査、標準エンジン・LangGraph版の証拠保存(送った関数内のAST観測) | GUI、実LLM評価(LangGraph版はモックのみ) |
 | P4.3 | 中核 | ローテーション/縮小/部分行/JSONL/MITRE確認・回転済みgzipアーカイブの1回通し読み・journaldアダプター(`journald[:UNIT]`) | syslog形式の構造化パース、長時間運用検証、journaldの実運用(権限・大量ログ)での確認 |

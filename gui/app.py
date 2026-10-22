@@ -185,6 +185,14 @@ class App(ctk.CTk):
             command=self._open_settings,
         ).pack(side="right", padx=(0, 8))
 
+        ctk.CTkButton(
+            hbar, text="📒", width=34, height=34,
+            fg_color="transparent", hover_color=BG_WIDGET,
+            border_color=BORDER, border_width=1,
+            text_color=TEXT_DIM, font=ctk.CTkFont("Segoe UI", 14),
+            command=self._open_ledger,
+        ).pack(side="right", padx=(0, 6))
+
         self._engine_label = ctk.CTkLabel(
             hbar, text=self._engine_text(),
             font=ctk.CTkFont("Consolas", 10), text_color=TEXT_DIM,
@@ -255,6 +263,15 @@ class App(ctk.CTk):
         except Exception as exc:
             import traceback
             self._status_var.set(f"  [設定] エラー: {exc}")
+            traceback.print_exc()
+
+    def _open_ledger(self) -> None:
+        try:
+            from gui.dialogs.ledger_dialog import LedgerDialog
+            self._ledger_dialog = LedgerDialog(self)
+        except Exception as exc:
+            import traceback
+            self._status_var.set(f"  [台帳] エラー: {exc}")
             traceback.print_exc()
 
     # ── タブ切り替え ────────────────────────────────────────────
