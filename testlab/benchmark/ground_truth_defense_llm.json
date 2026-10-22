@@ -1,0 +1,39 @@
+{
+ "schema_version": "1",
+ "mode": "DEFENSE_LLM",
+ "note": "DEFENSEのLLM分析部分の評価用ログと正解。攻撃者と通常のIPは設計で決めた(LLMの出力を見て付けていない)。評価は、(1)攻撃者の網羅 (2)攻撃者でないIP(通常の閲覧者・ホスト自身)を攻撃元として挙げる誤帰属 (3)MITRE IDのうち収録済みIDの割合 (4)出力形式の遵守。説明の中身の正しさや重大度の妥当性は判定しない。",
+ "attackers": {
+  "203.0.113.9": "SQLインジェクション(UNION SELECT)とパストラバーサル+sqlmap",
+  "192.0.2.44": "XSS(script/document.cookie)",
+  "198.51.100.7": "SSH総当たり(syslog形式・ホスト10.0.0.2のsshd)"
+ },
+ "benign_ips": {
+  "198.51.100.200": "通常の閲覧とdeployユーザーの公開鍵ログイン",
+  "10.0.0.2": "サーバー自身(syslogのヘッダのホスト)"
+ },
+ "log_lines": [
+  "203.0.113.9 - - [22/Oct/2026:10:00:00 +0900] \"GET /item?id=1%27%20UNION%20SELECT%20user,pass%20FROM%20users-- HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+  "198.51.100.200 - - [22/Oct/2026:10:00:10 +0900] \"GET /index.html HTTP/1.1\" 200 1200 \"-\" \"Mozilla/5.0\"",
+  "203.0.113.9 - - [22/Oct/2026:10:00:01 +0900] \"GET /item?id=1%27%20UNION%20SELECT%20user,pass%20FROM%20users-- HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+  "198.51.100.200 - - [22/Oct/2026:10:00:11 +0900] \"GET /about HTTP/1.1\" 200 1200 \"-\" \"Mozilla/5.0\"",
+  "203.0.113.9 - - [22/Oct/2026:10:00:02 +0900] \"GET /item?id=1%27%20UNION%20SELECT%20user,pass%20FROM%20users-- HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+  "198.51.100.200 - - [22/Oct/2026:10:00:12 +0900] \"GET /static/app.js HTTP/1.1\" 200 1200 \"-\" \"Mozilla/5.0\"",
+  "203.0.113.9 - - [22/Oct/2026:10:00:03 +0900] \"GET /item?id=1%27%20UNION%20SELECT%20user,pass%20FROM%20users-- HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+  "198.51.100.200 - - [22/Oct/2026:10:00:13 +0900] \"GET /contact HTTP/1.1\" 200 1200 \"-\" \"Mozilla/5.0\"",
+  "203.0.113.9 - - [22/Oct/2026:10:00:04 +0900] \"GET /item?id=1%27%20UNION%20SELECT%20user,pass%20FROM%20users-- HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+  "198.51.100.200 - - [22/Oct/2026:10:00:14 +0900] \"GET /index.html HTTP/1.1\" 200 1200 \"-\" \"Mozilla/5.0\"",
+  "203.0.113.9 - - [22/Oct/2026:10:00:05 +0900] \"GET /item?id=1%27%20UNION%20SELECT%20user,pass%20FROM%20users-- HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+  "198.51.100.200 - - [22/Oct/2026:10:00:15 +0900] \"GET /api/products HTTP/1.1\" 200 1200 \"-\" \"Mozilla/5.0\"",
+  "203.0.113.9 - - [22/Oct/2026:10:00:08 +0900] \"GET /../../etc/passwd HTTP/1.1\" 404 10 \"-\" \"sqlmap/1.7.2\"",
+  "Oct 22 10:00:41 10.0.0.2 sshd[420]: Accepted publickey for deploy from 198.51.100.200 port 5122 ssh2",
+  "192.0.2.44 - - [22/Oct/2026:10:00:20 +0900] \"GET /search?q=<script>alert(document.cookie)</script> HTTP/1.1\" 200 300 \"-\" \"Mozilla/5.0\"",
+  "Oct 22 10:00:42 10.0.0.2 CRON[430]: (root) CMD (/usr/local/bin/backup.sh)",
+  "192.0.2.44 - - [22/Oct/2026:10:00:21 +0900] \"GET /search?q=<script>alert(document.cookie)</script> HTTP/1.1\" 200 300 \"-\" \"Mozilla/5.0\"",
+  "192.0.2.44 - - [22/Oct/2026:10:00:22 +0900] \"GET /search?q=<script>alert(document.cookie)</script> HTTP/1.1\" 200 300 \"-\" \"Mozilla/5.0\"",
+  "Oct 22 10:00:30 10.0.0.2 sshd[410]: Failed password for root from 198.51.100.7 port 4022 ssh2",
+  "Oct 22 10:00:31 10.0.0.2 sshd[411]: Failed password for root from 198.51.100.7 port 4023 ssh2",
+  "Oct 22 10:00:32 10.0.0.2 sshd[412]: Failed password for root from 198.51.100.7 port 4024 ssh2",
+  "Oct 22 10:00:33 10.0.0.2 sshd[413]: Failed password for root from 198.51.100.7 port 4025 ssh2",
+  "Oct 22 10:00:34 10.0.0.2 sshd[414]: Failed password for root from 198.51.100.7 port 4026 ssh2"
+ ]
+}

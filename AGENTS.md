@@ -58,6 +58,7 @@ AI-Security-tool/
 ├── 起動.command                 # macOSランチャー（Finderダブルクリック対応）
 ├── samples/
 │   ├── target_code.py           # CODE AUDIT 動作確認用のサンプル脆弱コード
+│   ├── target_code_v3.py        # 評価用の難しめサンプル(欠陥8＋対応する安全版decoy8。正解は ground_truth_audit_v3.json)
 │   └── target_code_v2.py        # 実LLM評価用の難しめサンプル(欠陥8＋安全だが危なそうに見えるdecoy6。正解は testlab/benchmark/ground_truth_audit_v2.json)
 ├── testlab/
 │   ├── fixtures/attack_benchmark.py # ATTACK偵察の評価用fixture(main/catchall(soft-404)/held の3台のHTTPとバナー付きTCP)。正解は benchmark/ground_truth_attack.json、基準値は baselines/attack_recon.json(改修前は attack_recon.before-fixes.json)
@@ -134,6 +135,8 @@ AI-Security-tool/
 │   ├── test_evidence_provenance.py # 証拠の由来情報(content_sha256/action_id/masking_version/truncated)とverify()の固定試験（selftest 16oに統合）
 │   ├── live_eval.py             # P2.1: 実LLM評価ハーネス(AUDIT)。ヒント除去・複数回・呼出し上限・config非変更。結果は参考値で本番品質ではない
 │   ├── test_live_eval.py        # 上記の非LLM部分の固定試験(selftest 16ab)。`--sample v2`のdecoy集計・無効回の扱いを含む
+│   ├── live_eval_modes.py       # P2.1: DEFENSE/WEB FUZZ/ATTACKのLLM解釈の実LLM評価(`live_eval.py defense|fuzz|attack`)。正解は testlab/benchmark/ground_truth_{defense_llm,attack_llm}.json。ATTACKはスキャナ・プローバーを固定し通信しない
+│   ├── test_live_eval_modes.py  # 上記の非LLM部分の固定試験(selftest 16af)
 │   ├── test_unparsed_output.py  # LLMが形式を守らず所見0件・成功に見える問題の固定試験(selftest 16ac)
 │   ├── benchmark.py             # P2.1 検出品質ベンチマーク(detector固定モード。`python tools/benchmark.py web-fuzz|defense|attack`)
 │   ├── gui_snapshot.py          # GUI目視確認用スナップショット(xvfb-runの仮想ディスプレイ・`python tools/gui_snapshot.py OUTDIR`)

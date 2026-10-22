@@ -1,4 +1,4 @@
-"""P2.1: 実LLM評価(AUDIT)。正解付きサンプルに対し、複数回実行した再現率・未ラベル所見・呼出し数・所要時間を記録する。
+"""P2.1: 実LLM評価(AUDIT。defense/fuzz/attackは tools/live_eval_modes.py)。正解付きサンプルに対し、複数回実行した再現率・未ラベル所見・呼出し数・所要時間を記録する。
 
 使い方: python tools/live_eval.py audit --model MODEL --runs 3 --max-calls 30 [--save FILE]
 config.jsonは書き換えない(モデル・エフォートはこのプロセス内だけで上書き)。送るのはヒントを除いたサンプルコード(秘密値なし)のみ。
@@ -27,7 +27,8 @@ from core.event_bus import EventBus  # noqa: E402
 from core.llm_client import LLMClient  # noqa: E402
 
 TRUTH = os.path.join(ROOT, "testlab", "benchmark", "ground_truth_audit.json")
-TRUTHS = {"v1": TRUTH, "v2": os.path.join(ROOT, "testlab", "benchmark", "ground_truth_audit_v2.json")}
+TRUTHS = {"v1": TRUTH, "v2": os.path.join(ROOT, "testlab", "benchmark", "ground_truth_audit_v2.json"),
+          "v3": os.path.join(ROOT, "testlab", "benchmark", "ground_truth_audit_v3.json")}
 
 
 class CallLimit(Exception):
@@ -217,17 +218,22 @@ def evaluate(model: str, runs: int, effort: str, max_calls: int, timeout: int = 
 
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("mode", choices=["audit"])
+    p.add_argument("mode", choices=["audit", "defense", "fuzz", "attack"],
+                   help="audit=ソース監査 / defense=ログ分析のLLM解釈 / fuzz=WEB FUZZのトリアージ / attack=偵察結果の解釈(tools/live_eval_modes.py)")
     p.add_argument("--model", required=True)
     p.add_argument("--runs", type=int, default=3)
     p.add_argument("--effort", choices=("speed", "balanced", "quality"), default="balanced")
     p.add_argument("--max-calls", type=int, default=30)
     p.add_argument("--timeout", type=int, default=0, help="1回のLLM呼出しのタイムアウト秒(0=config値)")
     p.add_argument("--sample", choices=sorted(TRUTHS), default="v1",
-                   help="v1=samples/target_code.py(8欠陥) / v2=samples/target_code_v2.py(8欠陥+6つのdecoy)")
+                   help="v1=samples/target_code.py(8欠陥) / v2=target_code_v2.py(8欠陥+6decoy) / v3=target_code_v3.py(8欠陥+対応する安全版8decoy)")
     p.add_argument("--save")
     a = p.parse_args(argv)
-    out = evaluate(a.model, a.runs, a.effort, a.max_calls, a.timeout, a.sample)
+    if a.mode != "audit":
+        from tools.live_eval_modes import evaluate_mode
+        out = evaluate_mode(a.mode, a.model, a.runs, a.max_calls, a.timeout)
+    else:
+        out = evaluate(a.model, a.runs, a.effort, a.max_calls, a.timeout, a.sample)
     text = json.dumps(out, ensure_ascii=False, indent=2)
     if a.save:
         with open(a.save, "w", encoding="utf-8") as f:

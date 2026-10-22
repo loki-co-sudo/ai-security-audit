@@ -96,8 +96,10 @@ class DecoySameClassTest(unittest.TestCase):
 
 
 class SampleV2Test(unittest.TestCase):
+    SAMPLE, N_DECOYS = "v2", 6
+
     def setUp(self):
-        with open(le.TRUTHS["v2"], encoding="utf-8") as f:
+        with open(le.TRUTHS[self.SAMPLE], encoding="utf-8") as f:
             self.truth = json.load(f)
         with open(le.os.path.join(le.ROOT, self.truth["source"]), encoding="utf-8") as f:
             self.src = f.read()
@@ -116,7 +118,7 @@ class SampleV2Test(unittest.TestCase):
         for (a0, a1), (b0, b1) in zip(spans, spans[1:]):
             self.assertLess(a1 + margin, b0 - margin, (a1, b0))                              # 余白を足しても隣の区画に届かない
         self.assertEqual(len(self.truth["vulnerabilities"]), 8)
-        self.assertEqual(len(self.truth["decoys"]), 6)
+        self.assertEqual(len(self.truth["decoys"]), self.N_DECOYS)
         for d in self.truth["decoys"]:
             self.assertTrue(d["class_cwes"] and d["class_keywords"], d["id"])                   # 同種の判定基準がある
 
@@ -129,6 +131,16 @@ class SampleV2Test(unittest.TestCase):
         names = {n.name: n.lineno for n in ast.parse(out).body if isinstance(n, ast.FunctionDef)}
         for v in self.truth["vulnerabilities"]:
             self.assertTrue(any(v["lines"][0] <= ln <= v["lines"][1] for ln in names.values()), v["id"])   # 各欠陥の区画に関数がある
+
+
+class SampleV3Test(SampleV2Test):
+    """v3(欠陥8+対応する安全版のdecoy8): マーカーと正解の一致・区画の分離・ヒント除去はv2と同じ検査。"""
+    SAMPLE, N_DECOYS = "v3", 8
+
+    def test_each_decoy_pairs_with_the_defect_it_is_the_safe_version_of(self):
+        vids = {v["id"][1:] for v in self.truth["vulnerabilities"]}
+        dids = {d["id"][1:] for d in self.truth["decoys"]}
+        self.assertEqual(vids, dids)                                                      # V1↔D1 …: 対応する安全版がある
 
 
 class InvalidRunTest(unittest.TestCase):

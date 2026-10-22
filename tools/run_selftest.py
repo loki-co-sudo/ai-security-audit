@@ -3169,12 +3169,26 @@ def test_live_eval_harness():
     result = unittest.TestResult()
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
                                for c in (t.StripHintsTest, t.MatchTest, t.CallLimitTest, t.DecoyTest, t.DecoySameClassTest,
-                                         t.SampleV2Test, t.InvalidRunTest))
+                                         t.SampleV2Test, t.SampleV3Test, t.InvalidRunTest))
     suite.run(result)
     if result.wasSuccessful():
         _ok("LiveEvalHarness", f"{result.testsRun} tests: ヒント除去で行番号不変/行照合と余白/呼出し上限(LLM呼出しなし)")
     else:
         _ng("LiveEvalHarness", str(result.errors + result.failures))
+
+
+def test_live_eval_modes():
+    _section("16af. LIVE EVAL MODES — DEFENSE/WEB FUZZ/ATTACKのLLM解釈評価の非LLM部分(P2.1)")
+    import unittest
+    from tools import test_live_eval_modes as t
+    result = unittest.TestResult()
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
+                               for c in (t.FixtureTest, t.ScorerTest, t.EndToEndTest))
+    suite.run(result)
+    if result.wasSuccessful():
+        _ok("LiveEvalModes", f"{result.testsRun} tests: 正解データ/スコアラー/スクリプトしたLLMでのパイプライン(ATTACKは通信しないことも確認)")
+    else:
+        _ng("LiveEvalModes", str(result.errors + result.failures))
 
 
 def test_unparsed_output():
@@ -3384,6 +3398,7 @@ def main():
     test_ledger_reports()
     test_live_eval_harness()
     test_unparsed_output()
+    test_live_eval_modes()
     test_gui_ledger_ops()
     test_gui_layout()
     test_openapi_loader()

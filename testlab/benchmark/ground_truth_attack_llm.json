@@ -1,0 +1,96 @@
+{
+ "schema_version": "1",
+ "mode": "ATTACK_LLM",
+ "note": "ATTACKのLLM解釈部分の評価用に、ポートスキャン・Webプローブの結果を固定した偵察事実(実在のサービスではない・通信しない)。LLMの仮説が事実に基づくか(観測されていないポートを観測したかのように述べていないか)と、観測したサービスを取り上げているかを見る。仮説の技術的な正しさ・CVEの実在は判定しない。 【追記】網羅(coverage)は、ポート番号に加えてサービス名(coverage_keywords)でも判定する(Webサービスは『80/tcp』ではなくnginx等の所見として扱われるため。最初の測定でポート番号だけでは過小評価と分かった後に足した、設計上のサービス名による後付けの定義)。捏造の判定(証拠欄に書かれたポート番号が観測済みか)は変えていない。",
+ "host": "lab.example.test",
+ "ip": "192.0.2.10",
+ "open_ports": [
+  {
+   "port": 22,
+   "service": "SSH",
+   "banner": "SSH-2.0-OpenSSH_8.4p1 Debian-5",
+   "coverage_keywords": [
+    "ssh"
+   ]
+  },
+  {
+   "port": 80,
+   "service": "HTTP",
+   "banner": "HTTP/1.1 200 OK Server: nginx/1.18.0",
+   "coverage_keywords": [
+    "nginx",
+    "80/tcp",
+    "port 80",
+    "ポート 80",
+    "ポート80"
+   ]
+  },
+  {
+   "port": 3306,
+   "service": "MySQL",
+   "banner": "5.7.30-log",
+   "coverage_keywords": [
+    "mysql"
+   ]
+  }
+ ],
+ "web": {
+  "status_code": 200,
+  "headers": {
+   "Server": "nginx/1.18.0",
+   "X-Frame-Options": "DENY"
+  },
+  "missing_headers": [
+   "Strict-Transport-Security",
+   "Content-Security-Policy",
+   "X-Content-Type-Options",
+   "Referrer-Policy",
+   "Permissions-Policy"
+  ],
+  "technologies": [
+   "Nginx"
+  ],
+  "found_paths": [
+   {
+    "path": "/admin",
+    "status": 200,
+    "size": 512,
+    "exposed": true
+   },
+   {
+    "path": "/.env",
+    "status": 200,
+    "size": 64,
+    "exposed": true
+   },
+   {
+    "path": "/robots.txt",
+    "status": 200,
+    "size": 40,
+    "exposed": true
+   }
+  ],
+  "cookies": [
+   {
+    "name": "sid",
+    "issues": [
+     "Missing Secure flag"
+    ]
+   }
+  ],
+  "ssl_info": null,
+  "forms_info": [],
+  "soft_404": null
+ },
+ "closed_but_tempting_ports": [
+  21,
+  23,
+  25,
+  445,
+  3389,
+  5432,
+  6379,
+  8080,
+  27017
+ ]
+}
