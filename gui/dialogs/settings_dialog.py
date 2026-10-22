@@ -286,6 +286,33 @@ class SettingsDialog(RobustToplevel):
         ).pack(side="left")
         self._update_scope_hint()
 
+        # ── 案件ID（所見台帳 — 任意・P3.2） ─────────────────
+        ctk.CTkLabel(
+            body, text="📒 案件ID（所見台帳 — 任意）",
+            font=ctk.CTkFont("Segoe UI", 10, "bold"), text_color=AMBER,
+        ).pack(anchor="w", pady=(10, 0))
+        eng_row = ctk.CTkFrame(body, fg_color="transparent")
+        eng_row.pack(fill="x", pady=5)
+        ctk.CTkLabel(eng_row, text="ID", width=80,
+                     font=ctk.CTkFont("Consolas", 10, "bold"), text_color=TEXT_DIM,
+                     anchor="w").pack(side="left")
+        self._engagement_var = tk.StringVar(self, value=config.get("engagement_id", ""))
+        ctk.CTkEntry(
+            eng_row, textvariable=self._engagement_var, width=200,
+            font=ctk.CTkFont("Consolas", 11), fg_color=BG_INPUT, border_color=BORDER,
+            border_width=1, text_color=TEXT_PRI, height=30,
+        ).pack(side="left", padx=(0, 8))
+        ctk.CTkLabel(
+            eng_row,
+            text="設定すると完了したスキャン結果を reports/engagements/<ID>/ へ記録し、レポートに前回との差分・"
+                 "抑制を反映します（CLIの --engagement-id と同じ台帳）。空欄=記録しない。英数字と . _ - の64文字以内",
+            font=ctk.CTkFont("Segoe UI", 9), text_color=TEXT_DIM,
+            anchor="w", justify="left", wraplength=400,
+        ).pack(side="left")
+        self._eng_error = ctk.CTkLabel(body, text="", font=ctk.CTkFont("Segoe UI", 10), text_color=RED_C,
+                                       anchor="w", justify="left", wraplength=580)
+        self._eng_error.pack(anchor="w")
+
         # ── TLS（WEB FUZZ証明書検証 — 任意・P0.2） ─────────
         ctk.CTkLabel(
             body, text="🔒 TLS（WEB FUZZ証明書検証 — 任意）",
@@ -734,6 +761,14 @@ class SettingsDialog(RobustToplevel):
         except ValueError:
             timeout = 180
 
+        eid = self._engagement_var.get().strip()
+        from core.config import validate_config
+        problems = validate_config({"engagement_id": eid})
+        if problems:           # 不正な案件IDは保存せず、ダイアログを閉じない
+            self._eng_error.configure(text=f"✗ 案件ID: {problems[0].split('] ', 1)[-1]}")
+            return
+        self._eng_error.configure(text="")
+
         data = {
             "llm_base_url": self._url_var.get().strip(),
             "llm_api_key":  self._key_var.get().strip() or "ollama",
@@ -749,6 +784,7 @@ class SettingsDialog(RobustToplevel):
                 if line.strip()
             ],
             "scope_mode": self._scope_mode_var.get(),
+            "engagement_id": eid,
             "tls_verify": bool(self._tls_verify_var.get()),
             "tls_ca_bundle": self._tls_ca_var.get().strip(),
         }

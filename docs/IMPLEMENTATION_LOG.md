@@ -712,3 +712,7 @@ AUDITの証拠ID引用、`--effort auto`、DEFENSEのMITRE ID、WEB FUZZのト�
 ## 2026-10-22 P2.2(追補): IDORの逆方向(B所有物をAで読む比較)
 `tools/web_fuzzer.py`: `_detect_idor_reverse()`を`_detect_idor`の末尾から呼ぶ。対象は期待権限表の`a=deny b=allow`で**value(Bの所有物のID)を明示した行だけ**。クロールで見つかった同path・paramのGET注入点を1つ使い、paramだけvalueへ置換した同一URLを、まず所有者B(対照)で取得し、成功した場合だけAで取得する(200・類似・ログイン画面でない場合に`direction="reverse"`・`basis="expectation"`の兆候)。IDの推測・列挙はせず、GETのみ・追加送信は1行あたり最大2リクエスト(予算に含む)。クロールされていないpathの行は対象外。表なし・value無しの行・順方向の行では動作不変(基準値`web_fuzz_detector(_expectations).json`との比較で差分なし)。
 試験: `tools/test_benchmark.py`(`/account?id=2`を検出・所有者以外403の`/profile`は検出しない・id=2への送信は対照とAの各1回・id=3等へ列挙しない・表なし/value無し/順方向行は無変化。旧実装では落ちることを確認)。ダイアログの説明に書き方を追記。実LLM・実環境は未確認。
+
+## 2026-10-22 P3.2(追補): GUIの案件ID(所見台帳への記録とレポート反映)
+`core/config.py`: `engagement_id`(既定空=記録しない・検証は台帳と同じ規則)。`gui/ledger_util.py`の`attach_ledger()`: 設定時だけ、完了したスキャン結果(RESULT)を`reports/engagements/<id>/`(CLIと同じ台帳)へ記録し、`report_view`を付けて返す(入力は書き換えない・台帳の失敗はerrorsへ注記して結果は隠さない)。4パネルのRESULT受信時に1スキャンにつき1回呼ぶ。設定ダイアログに「📒 案件ID」欄(不正IDは欄の下に理由を表示して保存せず閉じない)。HTML/MD/PDF/JSONの出力は既存の台帳ビュー対応(抑制除外・差分)がそのまま効く。
+試験: `tools/test_gui_ledger.py`(Tk不要: 未設定で何も書かない・記録/差分/抑制/Markdown反映・台帳失敗の注記・IDの検証)、`tools/test_gui_layout.py`の`EngagementGuiTest`(設定ダイアログの検証と、4パネルが設定時だけ記録すること。xvfb-run必須)。仮想ディスプレイで目視(エラー表示)。**未実装**: GUIでのmark/suppress操作と台帳の閲覧画面(CLIの`mark`/`suppress`/`findings`を使う)。実画面・実スキャンでの確認は未実施。

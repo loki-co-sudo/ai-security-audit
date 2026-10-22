@@ -61,6 +61,65 @@ print(json.dumps(out, ensure_ascii=False))
 '''
 
 
+ENG_CHILD = r'''
+import sys, json, os, tempfile
+sys.path.insert(0, sys.argv[1])
+from unittest import mock
+import customtkinter as ctk
+from core import config
+from core.llm_client import LLMClient
+from gui.dialogs.settings_dialog import SettingsDialog
+import gui.app as A
+from core import event_bus as ev
+out = {}
+root = ctk.CTk()
+saved = []
+llm = LLMClient(base_url="http://127.0.0.1:1/v1", api_key="x", model="m", timeout=1)
+with mock.patch.object(config, "save", lambda d: saved.append(d)):
+    d = SettingsDialog(root, llm, on_save=lambda m: None)
+    for _ in range(4):
+        d.update_idletasks(); d.update()
+    d._engagement_var.set("bad/id"); d._save(); d.update()
+    out["error"] = d._eng_error.cget("text"); out["saved_after_bad"] = len(saved); out["alive_after_bad"] = bool(d.winfo_exists())
+    d._engagement_var.set("lab-1"); d._save()
+    out["saved_id"] = saved[-1].get("engagement_id") if saved else None
+root.destroy()
+# パネル: engagement_id設定時だけRESULTが台帳へ記録される
+work = tempfile.mkdtemp(); os.chdir(work)
+app = A.App()
+res = {"scan_id": "scan_t1", "target": "http://127.0.0.1:8080/", "mode": "WEB FUZZ", "state": "completed", "findings": [],
+       "coverage": [], "errors": [], "started_at": "2026-10-22T00:00:00", "finished_at": "2026-10-22T00:00:01"}
+for key in ("audit", "attack", "fuzz", "defense"):
+    app._panels[key].dispatch(ev.Event(ev.RESULT, dict(res, mode=key.upper())))
+out["no_id_has_ledger"] = any("ledger" in (app._panels[k]._scan_result or {}) for k in app._panels)
+out["no_id_dir"] = os.path.exists("reports/engagements")
+with mock.patch.dict(config._cfg, {"engagement_id": "lab-gui"}):
+    for i, key in enumerate(("audit", "attack", "fuzz", "defense")):
+        app._panels[key].dispatch(ev.Event(ev.RESULT, dict(res, scan_id=f"scan_p{i}", mode=key.upper())))
+    out["has_ledger"] = {k: "ledger" in (app._panels[k]._scan_result or {}) for k in app._panels}
+    out["recorded"] = sum(1 for l in open("reports/engagements/lab-gui/events.jsonl", encoding="utf-8") if '"scan_recorded"' in l)
+app.destroy()
+print(json.dumps(out, ensure_ascii=False))
+'''
+
+
+@unittest.skipUnless(shutil.which("xvfb-run"), "xvfb-runが無いためGUIレイアウト試験を実行できない")
+class EngagementGuiTest(unittest.TestCase):
+    def test_settings_validate_the_id_and_all_four_panels_record_results_only_when_set(self):
+        import json
+        p = subprocess.run(["xvfb-run", "-a", "-s", "-screen 0 1600x1000x24", sys.executable, "-c", ENG_CHILD, ROOT],
+                           capture_output=True, text=True, timeout=90, cwd=ROOT)
+        self.assertEqual(p.returncode, 0, p.stderr[-1200:])
+        out = json.loads(p.stdout.strip().splitlines()[-1])
+        self.assertIn("案件ID", out["error"])
+        self.assertEqual((out["saved_after_bad"], out["alive_after_bad"]), (0, True))      # 不正IDは保存せず閉じない
+        self.assertEqual(out["saved_id"], "lab-1")
+        self.assertFalse(out["no_id_has_ledger"])                                          # 未設定=従来どおり何もしない
+        self.assertFalse(out["no_id_dir"])
+        self.assertTrue(all(out["has_ledger"].values()), out["has_ledger"])
+        self.assertEqual(out["recorded"], 4)                                               # 1スキャンにつき1回だけ記録
+
+
 @unittest.skipUnless(shutil.which("xvfb-run"), "xvfb-runが無いためGUIレイアウト試験を実行できない")
 class AuthDialogLayoutTest(unittest.TestCase):
     def test_action_buttons_stay_inside_the_window_even_when_the_window_is_short(self):

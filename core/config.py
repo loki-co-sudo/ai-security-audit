@@ -48,6 +48,9 @@ _DEFAULTS: dict = {
     "save_evidence": False,
     # CLIの案件プロファイル(cli.py --use-profile NAME)。{名前: {engagement_id,target,allow,exclude,scan_profile,effort,...}}。秘密値は置かない。
     "profiles": {},
+    # GUIの所見台帳(P3.2): 空=記録しない(既定・従来どおり)。設定するとGUIのスキャン結果を
+    # reports/engagements/<id>/ へ記録し、レポートに差分・抑制を反映する(CLIの--engagement-idと同じ台帳)。
+    "engagement_id": "",
 }
 
 # 設定キーの許容リスト（未知キー警告のため）
@@ -100,7 +103,18 @@ def _validate_save_evidence(v) -> str | None:
         return "save_evidence は true/false である必要があります"
     return None
 
+def _validate_engagement_id(v) -> str | None:
+    if v == "":
+        return None
+    from core.findings_ledger import validate_engagement_id, LedgerError
+    try:
+        validate_engagement_id(v)
+    except LedgerError as e:
+        return str(e)
+    return None
+
 _VALIDATORS = {
+    "engagement_id": _validate_engagement_id,
     "llm_timeout": _validate_timeout,
     "effort":      _validate_effort,
     "report_lang": _validate_report_lang,

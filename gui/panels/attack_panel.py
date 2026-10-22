@@ -338,7 +338,8 @@ class AttackPanel(ctk.CTkFrame):
     def dispatch(self, event: ev.Event) -> None:
         k, p = event.kind, event.payload
         if k == ev.RESULT:
-            self._scan_result = p
+            from gui.ledger_util import attach_ledger
+            self._scan_result = attach_ledger(p)
         elif k == ev.OUTPUT:
             self._out_box.append(p["text"], p.get("tag", ""))
         elif k == ev.STEP:
