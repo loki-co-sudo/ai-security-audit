@@ -5,8 +5,10 @@ tools/web_prober.py — HTTP/Webターゲット列挙
 """
 
 from __future__ import annotations
+import hashlib
 import re
 import random
+import uuid
 import time
 import concurrent.futures
 from typing import Callable
@@ -77,6 +79,7 @@ class WebProber:
             "missing_headers":  [],
             "technologies":     [],
             "found_paths":      [],
+            "soft_404":         None,     # 存在しないpathにも同じ応答を返すサーバーなら{status, note}
             "ssl_info":         None,
             "cookies":          [],
             "forms_info":       [],
@@ -117,7 +120,7 @@ class WebProber:
         # ステルスプロファイルでは探索パス数を絞ってノイズを抑える
         paths = SENSITIVE_PATHS if self.max_paths is None else SENSITIVE_PATHS[: self.max_paths]
         _log(f"Probing {len(paths)} sensitive paths ...")
-        result["found_paths"] = self._scan_paths(base_url, paths)
+        result["found_paths"], result["soft_404"] = self._scan_paths(base_url, paths)
         _log(f"Found {len(result['found_paths'])} accessible paths")
 
         # ── SSL情報 ────────────────────────────────────────
@@ -128,15 +131,36 @@ class WebProber:
 
     def _detect_technologies(self, headers: dict, body: str) -> list[str]:
         found = []
-        combined = str(headers) + body
+        combined = "\n".join(f"{k}: {v}" for k, v in headers.items()) + "\n" + body     # 'Server: nginx'形式でシグネチャに当てる
         for tech, patterns in TECH_SIGNATURES.items():
             if any(re.search(p, combined, re.I) for p in patterns):
                 found.append(tech)
         return found
 
-    def _scan_paths(self, base_url: str, paths: list[str]) -> list[dict]:
+    @staticmethod
+    def _fingerprint(status: int, content: bytes, path: str) -> tuple[int, str]:
+        """応答の指紋。要求pathを本文から除いて(pathを反映するエラーページ対策)ハッシュする。"""
+        return status, hashlib.sha256(content.replace(path.encode(), b"")).hexdigest()
+
+    def _scan_paths(self, base_url: str, paths: list[str]) -> tuple[list[dict], dict | None]:
+        """(見つかったpath, soft-404情報)。実在しないはずのpathを先に1回取得し、同じ応答を返すpathは実在の根拠にしない。
+
+        found_pathsの各要素のexposedは2xx(内容を返した)か。3xx/401/5xx等は存在の兆候として残すがexposed=False。
+        指紋はstatusと(path除去後の)本文ハッシュ。時刻など毎回変わる本文のcatch-allは見分けられず、報告側に残る。
+        """
         base = base_url.rstrip("/")
         found = []
+        soft: dict | None = None
+        fingerprint = None
+        canary = f"/{uuid.uuid4().hex}-nonexistent"
+        try:
+            r = self.session.get(base + canary, timeout=4, allow_redirects=False,
+                                 headers={"User-Agent": self._rotate_ua()})
+            if r.status_code not in (404, 400, 403):
+                fingerprint = self._fingerprint(r.status_code, r.content, canary)
+                soft = {"status": r.status_code, "note": "存在しないpathにも同じ応答を返すため、同一応答のpathは実在の根拠にしません"}
+        except Exception:
+            pass
 
         lo, hi = self.path_jitter
 
@@ -151,7 +175,10 @@ class WebProber:
                     headers={"User-Agent": self._rotate_ua()},
                 )
                 if r.status_code not in (404, 400, 403):
-                    return {"path": path, "status": r.status_code, "size": len(r.content)}
+                    if fingerprint and self._fingerprint(r.status_code, r.content, path) == fingerprint:
+                        return None
+                    return {"path": path, "status": r.status_code, "size": len(r.content),
+                            "exposed": 200 <= r.status_code < 300}
             except Exception:
                 pass
             return None
@@ -160,14 +187,14 @@ class WebProber:
             for result in ex.map(_check, paths):
                 if result:
                     found.append(result)
-        return found
+        return found, soft
 
     def _analyze_cookies(self, cookies) -> list[dict]:
         result = []
         for c in cookies:
             issues = []
             if not c.secure:    issues.append("Missing Secure flag")
-            if not c.has_nonstandard_attr("httponly") and "httponly" not in str(c).lower():
+            if not any(str(k).lower() == "httponly" for k in getattr(c, "_rest", {})):      # 属性名の大文字小文字は応答次第
                 issues.append("Missing HttpOnly flag")
             result.append({"name": c.name, "issues": issues})
         return result

@@ -682,3 +682,7 @@ AUDITの証拠ID引用、`--effort auto`、DEFENSEのMITRE ID、WEB FUZZのト�
 ## 2026-10-22 P4.3(追補): journaldアダプター
 `tools/log_watcher.py`: `parse_journal_target()`、`LogWatcher._read_journal()`(固定引数のsubprocess・select+os.readで停止に応答・1行1MiB上限)、`normalize_log_line()`でjournaldの`MESSAGE`先頭化とバイト配列復号。`core/scan_runner.run_local`はdefenseの`journald*`対象をファイル検査の代わりにunit検証する。`MonitorAgent`は`journal_error`でpartial+注記。
 試験: `tools/test_log_watcher.py`の`JournaldTest`(6件・偽のjournalctlで引数/エラー/追跡停止/検知を確認)、`tools/test_cli.py`にCLI経由1件(PATH上の偽journalctl、オプション注入unitは実行前に拒否)。実機のjournalctlは件数のみ確認(直近10000件を読め、不正行0・エラー無し)。権限不足環境・長時間追跡は未検証。
+
+## 2026-10-22 P2.1(追補): ATTACK偵察のdetector固定ベンチと3つの検出修正
+`testlab/fixtures/attack_benchmark.py`、`testlab/benchmark/ground_truth_attack.json`(122判定)、`tools/benchmark.py attack`、基準値`testlab/baselines/attack_recon.json`と改修前`attack_recon.before-fixes.json`、`tools/test_benchmark.py`の`AttackBenchmarkTest`(5件)。
+`tools/web_prober.py`: soft-404検出(canary pathの指紋・found_pathsに`exposed`・結果に`soft_404`)、HttpOnly判定の大文字小文字無視、技術検出のヘッダーを`Key: Value`形式化。改修前 TP24/FP60/FN3(held含む全122判定) → 改修後 TP27/FP2/FN0。残FP2は本文のキーワード言及(意図的に未修正)。詳細と限界は docs/PRACTICAL_ROADMAP.md §P2.1。

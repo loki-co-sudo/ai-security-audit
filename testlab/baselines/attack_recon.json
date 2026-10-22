@@ -1,0 +1,230 @@
+{
+ "created_at": "2026-10-22T21:17:30",
+ "detections": [
+  [
+   "COOKIE_FLAG",
+   "held b Missing HttpOnly flag"
+  ],
+  [
+   "COOKIE_FLAG",
+   "held b Missing Secure flag"
+  ],
+  [
+   "COOKIE_FLAG",
+   "main sid Missing Secure flag"
+  ],
+  [
+   "MISSING_HEADER",
+   "held Content-Security-Policy"
+  ],
+  [
+   "MISSING_HEADER",
+   "held Permissions-Policy"
+  ],
+  [
+   "MISSING_HEADER",
+   "held Referrer-Policy"
+  ],
+  [
+   "MISSING_HEADER",
+   "held Strict-Transport-Security"
+  ],
+  [
+   "MISSING_HEADER",
+   "held X-Content-Type-Options"
+  ],
+  [
+   "MISSING_HEADER",
+   "held X-Frame-Options"
+  ],
+  [
+   "MISSING_HEADER",
+   "held X-XSS-Protection"
+  ],
+  [
+   "MISSING_HEADER",
+   "main Content-Security-Policy"
+  ],
+  [
+   "MISSING_HEADER",
+   "main Permissions-Policy"
+  ],
+  [
+   "MISSING_HEADER",
+   "main Referrer-Policy"
+  ],
+  [
+   "MISSING_HEADER",
+   "main Strict-Transport-Security"
+  ],
+  [
+   "MISSING_HEADER",
+   "main X-XSS-Protection"
+  ],
+  [
+   "OPEN_PORT",
+   "tcp:ftp_banner"
+  ],
+  [
+   "OPEN_PORT",
+   "tcp:silent"
+  ],
+  [
+   "OPEN_PORT",
+   "tcp:ssh_banner"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /.env"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "main /.env"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "main /.git/HEAD"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "main /actuator/health"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "main /admin"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "main /robots.txt"
+  ],
+  [
+   "TECH",
+   "held Apache"
+  ],
+  [
+   "TECH",
+   "held Express.js"
+  ],
+  [
+   "TECH",
+   "main Drupal"
+  ],
+  [
+   "TECH",
+   "main Nginx"
+  ],
+  [
+   "TECH",
+   "main WordPress"
+  ]
+ ],
+ "elapsed_sec": [
+  4.099,
+  4.053,
+  5.001
+ ],
+ "fixture_sha256": "5c26944f785edc2d087d20dcf74c2a4ff3f360c5e44e302b1f94554ff11da980",
+ "git": {
+  "commit": "540d852c372dc8ae07fff93d8bc3fa93f95961f6",
+  "dirty": true
+ },
+ "http_requests": [
+  93,
+  93,
+  93
+ ],
+ "kind": "attack_recon",
+ "llm_usage": "n/a (detector mode)",
+ "metrics": {
+  "per_rule": {
+   "COOKIE_FLAG": {
+    "cases": 8,
+    "fn": 0,
+    "fn_unexamined": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "tn": 5,
+    "tp": 3,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   },
+   "MISSING_HEADER": {
+    "cases": 14,
+    "fn": 0,
+    "fn_unexamined": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "tn": 2,
+    "tp": 12,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   },
+   "OPEN_PORT": {
+    "cases": 5,
+    "fn": 0,
+    "fn_unexamined": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "tn": 2,
+    "tp": 3,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   },
+   "SENSITIVE_PATH": {
+    "cases": 87,
+    "fn": 0,
+    "fn_unexamined": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "tn": 81,
+    "tp": 6,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   },
+   "TECH": {
+    "cases": 8,
+    "fn": 0,
+    "fn_unexamined": 0,
+    "fp": 2,
+    "precision": 0.6,
+    "recall": 1.0,
+    "tn": 3,
+    "tp": 3,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   }
+  },
+  "total": {
+   "cases": 122,
+   "fn": 0,
+   "fn_unexamined": 0,
+   "fp": 2,
+   "precision": 0.931,
+   "recall": 1.0,
+   "tn": 93,
+   "tp": 27,
+   "unexamined": 0,
+   "unexamined_negative": 0,
+   "unexamined_rate": 0.0
+  }
+ },
+ "runs": 3,
+ "schema": "ai-security-audit-benchmark",
+ "schema_version": "1",
+ "stable": true,
+ "truth_sha256": "052d0fb692331537d08799db05c780d4b2f16aef523f75596a45db98767e5e21"
+}

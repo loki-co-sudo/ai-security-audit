@@ -231,6 +231,73 @@ class DefenseBenchmarkTest(unittest.TestCase):
         self.assertEqual((old["metrics"]["total"]["fp"], old["metrics"]["total"]["fn"]), (5, 5))
 
 
+class AttackBenchmarkTest(unittest.TestCase):
+    def test_truth_covers_every_sensitive_path_header_and_labels_traps(self):
+        from core.settings import SECURITY_HEADERS, SENSITIVE_PATHS
+        doc = bm.load_truth(bm.ATTACK_TRUTH_PATH)
+        loc = {(c["rule_id"], c["location"]): c["expected"] for c in doc["cases"]}
+        for label in ("main", "catchall", "held"):
+            for path in SENSITIVE_PATHS:
+                self.assertIn(("SENSITIVE_PATH", f"{label} {path}"), loc)
+        for label in ("main", "held"):
+            for h in SECURITY_HEADERS:
+                self.assertIn(("MISSING_HEADER", f"{label} {h}"), loc)
+        self.assertTrue(all(v == "not_vulnerable" for (r, l), v in loc.items() if l.startswith("catchall ")))
+        self.assertEqual({r for r, _ in loc}, {"OPEN_PORT", "SENSITIVE_PATH", "MISSING_HEADER", "COOKIE_FLAG", "TECH"})
+
+    def test_run_matches_the_saved_baseline_and_is_deterministic(self):
+        with open(bm.ATTACK_BASELINE_PATH, encoding="utf-8") as f:
+            saved = json.load(f)
+        cur = bm.benchmark_attack(runs=2)
+        self.assertTrue(cur["stable"])
+        self.assertEqual(bm.compare(saved, cur), {"per_rule": {}, "added_detections": [], "removed_detections": []},
+                         "ATTACK偵察の検出品質が基準値から変わりました。意図した変更なら差を記載して"
+                         "`python tools/benchmark.py attack --runs 3 --save-baseline testlab/baselines/attack_recon.json`で更新")
+        self.assertEqual(cur["metrics"]["total"]["unexamined"], 0)
+
+    def test_fixes_hold_on_heldout_cases_and_known_weakness_is_recorded(self):
+        with open(bm.ATTACK_BASELINE_PATH, encoding="utf-8") as f:
+            doc = json.load(f)
+        det = {tuple(d) for d in doc["detections"]}
+        for key in (("SENSITIVE_PATH", "held /.env"), ("TECH", "held Apache"), ("TECH", "held Express.js"),
+                    ("TECH", "main Nginx"), ("COOKIE_FLAG", "held b Missing Secure flag"),
+                    ("COOKIE_FLAG", "held b Missing HttpOnly flag"), ("COOKIE_FLAG", "main sid Missing Secure flag")):
+            self.assertIn(key, det)
+        for key in (("SENSITIVE_PATH", "held /admin"), ("SENSITIVE_PATH", "held /robots.txt"),
+                    ("SENSITIVE_PATH", "catchall /.env"), ("SENSITIVE_PATH", "main /api"),
+                    ("COOKIE_FLAG", "held a Missing HttpOnly flag"), ("COOKIE_FLAG", "held a Missing Secure flag"),
+                    ("COOKIE_FLAG", "main pref Missing HttpOnly flag"), ("OPEN_PORT", "tcp:closed_a")):
+            self.assertNotIn(key, det)
+        total = doc["metrics"]["total"]
+        self.assertEqual((total["fn"], total["fp"]), (0, 2))
+        # 残した弱点: 本文に「WordPress/Drupalは使っていない」とあるだけでも技術名の言及として拾う(キーワード照合)
+        self.assertIn(("TECH", "main WordPress"), det)
+        self.assertIn(("TECH", "main Drupal"), det)
+
+    def test_pre_fix_baseline_is_kept_as_history(self):
+        path = os.path.join(os.path.dirname(bm.ATTACK_BASELINE_PATH), "attack_recon.before-fixes.json")
+        with open(path, encoding="utf-8") as f:
+            old = json.load(f)
+        det = {tuple(d) for d in old["detections"]}
+        self.assertNotIn(("TECH", "main Nginx"), det)                  # ヘッダーをdict reprで照合していたため見逃し
+        self.assertIn(("SENSITIVE_PATH", "catchall /.env"), det)       # soft-404を実在として報告
+        self.assertIn(("COOKIE_FLAG", "main pref Missing HttpOnly flag"), det)   # HttpOnlyの大文字小文字
+        self.assertGreater(old["metrics"]["total"]["fp"], 50)
+
+    def test_prober_marks_exposure_by_status_and_reports_soft_404(self):
+        from testlab.fixtures.attack_benchmark import AttackLab
+        from tools.web_prober import WebProber
+        with AttackLab() as lab:
+            res = WebProber(profile="aggressive").probe(lab.main.base_url)
+            by = {f["path"]: f for f in res["found_paths"]}
+            self.assertTrue(by["/.env"]["exposed"])
+            self.assertEqual((by["/api"]["status"], by["/api"]["exposed"]), (301, False))
+            self.assertIsNone(res["soft_404"])
+            res = WebProber(profile="aggressive").probe(lab.catchall.base_url)
+            self.assertEqual(res["found_paths"], [])
+            self.assertEqual(res["soft_404"]["status"], 200)
+
+
 class CompareTest(unittest.TestCase):
     def test_compare_reports_changes_without_judging(self):
         with open(bm.BASELINE_PATH, encoding="utf-8") as f:

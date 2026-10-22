@@ -65,7 +65,7 @@ P4内は用途に応じて一項目ずつ選択できる。保留事項を自動
 | ID | 進捗 | 実装済み | 残り・未検証 |
 |---|---|---|---|
 | P1.2 | ほぼ実装・未完了扱い | 証拠保存・マスキング・全4モードの配線・HTML/MD/PDF/JSON、AUDITで実LLMの証拠ID引用を1回確認 | GUI目視、他モードの実LLM引用、ATTACK画面ログの未マスク |
-| P2.1 | 一部 | WEB FUZZ・DEFENSEシグネチャのdetector固定ベンチと基準値、AUDITの実LLM評価(無料枠モデル3回・`tools/live_eval.py`) | 他モデルでの実LLM評価、ATTACKの実LLM評価、WEB FUZZ/DEFENSEの大きな正解データでの実LLM評価(3回の小規模測定のみ)、ATTACKのベンチ、トークン使用量(現状は文字数のみ) |
+| P2.1 | 一部 | WEB FUZZ・DEFENSEシグネチャ・ATTACK偵察のdetector固定ベンチと基準値、AUDITの実LLM評価(無料枠モデル3回・`tools/live_eval.py`) | 他モデルでの実LLM評価、ATTACKの実LLM評価、WEB FUZZ/DEFENSEの大きな正解データでの実LLM評価(3回の小規模測定のみ)、ATTACKのLLM解釈部分のベンチ、トークン使用量(現状は文字数のみ) |
 | P2.2 | 検出器側は実装 | IDOR(ログイン/公開除外・期待権限表)、SSTI別式確認、XSS content-type | 期待権限表のGUI入力・旧FuzzAgent配線、同一origin確認URL、逆方向 |
 | P3.1 | ほぼ実装 | `scan fuzz/audit/defense/attack`・`--targets-file`・`--engagement`・除外優先・`--format md`・`--effort auto`・`defense --duration`・`--use-profile`・`core/scan_runner.py`(ATTACK/AUDIT/DEFENSE/WEB FUZZ・resumeの対象ごと実行)・`--rate-limit-rps`・profilesの`rate_limit_rps`/`scope_mode`(block のみ) | 案件プロファイルのGUI入力、予算(max_llm_calls等)のprofiles化 |
 | P3.2 | 中核+レポート連携 | 台帳・差分・mark/suppress/findings、レポート層の抑制除外と差分表示、CLI(`--engagement-id`)の出力への台帳ビュー付与・`--format md`の抑制除外/差分・`--fail-on`の期限内抑制除外 | GUIからのengagement_id指定と配線 |
@@ -178,8 +178,13 @@ FUZZのIDOR証拠も保存対応済み。FUZZの入力マスキングも実装�
 2026-10-22 進捗: WEB FUZZの**detector固定モード**のみ実装（`tools/benchmark.py`、`testlab/fixtures/web_benchmark.py`、
 `testlab/benchmark/ground_truth_web_fuzz.json`、基準値 `testlab/baselines/web_fuzz_detector.json`、`tools/test_benchmark.py`）。
 SQLi/XSS/SSTI/TRAVERSAL/IDORの脆弱例と罠（静的エラー文言・text/plain反射・偶然の49・公開/閲覧者別ページ）を含む。
-**P2.1全体は未完了**: 実LLM評価モード、AUDIT/ATTACKのベンチ、LLM使用量の取得、
+**P2.1全体は未完了**: 他モデル・他モードの実LLM評価、AUDIT/ATTACK(LLM解釈部分)のベンチ、LLM使用量の取得、
 複数回実行での分散の報告（実LLM時）は未実装。基準値はdetectorの現状であり、実世界の精度の主張ではない。
+
+2026-10-22追記(ATTACK偵察のdetector固定ベンチ): `python tools/benchmark.py attack`。ATTACKの決定的な部分(NetworkScanner・WebProber)をローカルlab(`testlab/fixtures/attack_benchmark.py`: main・soft-404のcatchall・改修後に足したheld)へ当て、`testlab/benchmark/ground_truth_attack.json`(122判定)と照合する。ルール: OPEN_PORT/SENSITIVE_PATH/MISSING_HEADER/COOKIE_FLAG/TECH。SENSITIVE_PATHの定義は「認証なしGETで内容(2xx)が返る」で、3xx/401/5xxは存在の兆候として残すが露出としては数えない。
+改修前の基準値(`attack_recon.before-fixes.json`、F=偽陽性): SENSITIVE_PATH FP 56(catch-allサーバーの全path)、COOKIE_FLAG FP 2(HttpOnlyの大文字小文字)、TECH FN 3(ヘッダーを辞書のreprで照合し`Server: nginx`等に一致せず)。
+改修: ①`WebProber._scan_paths`が存在しないpathを先に1回取得し同じ応答(status+path除去後の本文ハッシュ)のpathを実在の根拠にしない(`soft_404`を結果に出す。**対象へ1リクエスト増える**)、found_pathsに`exposed`(2xx)を追加、②Cookie属性を大文字小文字無視で判定、③技術検出のヘッダーを`Key: Value`形式にして照合。改修後(`attack_recon.json`): TP27/FP2/FN0。heldサーバー(pathをエコーするsoft-404・小文字の属性・Server/X-Powered-By)は改修後に追加した未見のケースで、改修前のproberでは落ち改修後は通る。
+**残した弱点**: 本文に「WordPress/Drupalは使っていない」とあるだけで技術名として拾う(キーワード照合)=FP2。罠への過剰適合を避けるため直していない。毎回変わる本文(時刻入り)のcatch-allは指紋で見分けられない。fixtureの2回のバグ(Serverヘッダーの2重化)は検出器ではなくfixture側の誤りで、正解データを変えずfixtureを直した。tuned/heldの結果は実世界の精度の主張ではない。
 2026-10-22追記: 認証期限切れ(`/inbox`・bobのみログイン画面)と共通ログイン画面(`/gate`)の罠を追加。現行detectorは
 期限切れを正しく無視(TN)、共通ログイン画面はIDOR候補にして誤検出(FP)。IDORのFPは5→6、基準値を更新。
 2026-10-22 P2.2(IDOR一部): `_detect_idor`に、A/Bどちらかの応答がログイン画面(`type=password`)なら根拠にしない、

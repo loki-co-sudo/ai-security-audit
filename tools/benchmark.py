@@ -34,6 +34,8 @@ TRUTH_PATH = os.path.join(ROOT, "testlab", "benchmark", "ground_truth_web_fuzz.j
 BASELINE_PATH = os.path.join(ROOT, "testlab", "baselines", "web_fuzz_detector.json")
 DEFENSE_TRUTH_PATH = os.path.join(ROOT, "testlab", "benchmark", "ground_truth_defense.json")
 DEFENSE_BASELINE_PATH = os.path.join(ROOT, "testlab", "baselines", "defense_signatures.json")
+ATTACK_TRUTH_PATH = os.path.join(ROOT, "testlab", "benchmark", "ground_truth_attack.json")
+ATTACK_BASELINE_PATH = os.path.join(ROOT, "testlab", "baselines", "attack_recon.json")
 SCHEMA = "ai-security-audit-benchmark"
 SCHEMA_VERSION = "1"
 NA = "N/A"
@@ -150,6 +152,58 @@ def run_defense_detector(truth: dict | None = None) -> dict:
             "lines": len(lines)}
 
 
+def run_attack_detector() -> dict:
+    """ATTACKの決定的な偵察部分(NetworkScanner・WebProber)をローカルlabへ直接当てる。LLM・外部通信なし。"""
+    from testlab.fixtures.attack_benchmark import AttackLab
+    from tools.network_scanner import NetworkScanner
+    from tools.web_prober import WebProber
+
+    truth = load_truth(ATTACK_TRUTH_PATH)
+    t0 = time.time()
+    with AttackLab() as lab:
+        role_of = {port: role for role, port in lab.ports.items()}
+        scanner = NetworkScanner(timeout=0.5, max_threads=8, ports=sorted(role_of))
+        open_ports = scanner.scan("127.0.0.1")
+        detections = {("OPEN_PORT", f"tcp:{role_of.get(p['port'], 'unknown')}") for p in open_ports}
+        examined = {("OPEN_PORT", f"tcp:{r}") for r in role_of.values()}
+        for label, srv in lab.servers.items():
+            res = WebProber(profile="aggressive").probe(srv.base_url)
+            for f in (f for f in res["found_paths"] if f.get("exposed", 200 <= f["status"] < 300)):     # 3xx/401/5xxは存在の兆候で、露出の判定対象ではない
+                detections.add(("SENSITIVE_PATH", f"{label} {f['path']}"))
+            examined |= {(c["rule_id"], c["location"]) for c in truth["cases"]
+                         if c["rule_id"] == "SENSITIVE_PATH" and c["location"].startswith(label + " ")}
+            if label == "catchall":
+                continue
+            fetched = res["status_code"] is not None      # 主ページを取得できなければヘッダー等は未検査
+            detections |= {("MISSING_HEADER", f"{label} {h}") for h in res["missing_headers"]}
+            detections |= {("COOKIE_FLAG", f"{label} {c['name']} {i}") for c in res["cookies"] for i in c["issues"]}
+            detections |= {("TECH", f"{label} {t}") for t in res["technologies"]}
+            if fetched:
+                examined |= {(c["rule_id"], c["location"]) for c in truth["cases"]
+                             if c["rule_id"] in ("MISSING_HEADER", "COOKIE_FLAG", "TECH")
+                             and c["location"].startswith(label + " ")}
+        requests_sent = lab.request_count
+    return {"detections": detections, "examined": examined, "requests": requests_sent,
+            "elapsed_sec": round(time.time() - t0, 3)}
+
+
+def benchmark_attack(runs: int = 1) -> dict:
+    truth = load_truth(ATTACK_TRUTH_PATH)
+    outs = [run_attack_detector() for _ in range(max(1, runs))]
+    stable = all(o["detections"] == outs[0]["detections"] and o["examined"] == outs[0]["examined"] for o in outs)
+    first = outs[0]
+    return {
+        "schema": SCHEMA, "schema_version": SCHEMA_VERSION, "kind": "attack_recon",
+        "created_at": datetime.now().isoformat(timespec="seconds"), "git": _git(),
+        "fixture_sha256": _sha256(os.path.join(ROOT, "testlab", "fixtures", "attack_benchmark.py")),
+        "truth_sha256": _sha256(ATTACK_TRUTH_PATH), "runs": len(outs), "stable": stable,
+        "http_requests": [o["requests"] for o in outs], "elapsed_sec": [o["elapsed_sec"] for o in outs],
+        "llm_usage": "n/a (detector mode)",
+        "metrics": evaluate(truth["cases"], first["detections"], first["examined"]),
+        "detections": sorted([list(d) for d in first["detections"]]),
+    }
+
+
 def benchmark_defense(runs: int = 1) -> dict:
     truth = load_truth(DEFENSE_TRUTH_PATH)
     outs = [run_defense_detector(truth) for _ in range(max(1, runs))]
@@ -252,8 +306,16 @@ def main(argv=None) -> int:
     d.add_argument("--save-baseline", metavar="PATH")
     d.add_argument("--compare", metavar="PATH", nargs="?", const=DEFENSE_BASELINE_PATH)
     d.add_argument("--json", action="store_true")
+    a = sub.add_parser("attack", help="ATTACKの決定的な偵察部分(ポート・パス・ヘッダー・Cookie・技術)の固定評価")
+    a.add_argument("--runs", type=int, default=1)
+    a.add_argument("--save-baseline", metavar="PATH")
+    a.add_argument("--compare", metavar="PATH", nargs="?", const=ATTACK_BASELINE_PATH)
+    a.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
-    if args.cmd == "defense":
+    if args.cmd == "attack":
+        report = benchmark_attack(args.runs)
+        args.with_expectations = False
+    elif args.cmd == "defense":
         report = benchmark_defense(args.runs)
         args.with_expectations = False
     else:

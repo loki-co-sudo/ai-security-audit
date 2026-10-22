@@ -1,0 +1,450 @@
+{
+ "created_at": "2026-10-22T21:17:17",
+ "detections": [
+  [
+   "COOKIE_FLAG",
+   "held b Missing HttpOnly flag"
+  ],
+  [
+   "COOKIE_FLAG",
+   "held b Missing Secure flag"
+  ],
+  [
+   "COOKIE_FLAG",
+   "main pref Missing HttpOnly flag"
+  ],
+  [
+   "COOKIE_FLAG",
+   "main sid Missing HttpOnly flag"
+  ],
+  [
+   "COOKIE_FLAG",
+   "main sid Missing Secure flag"
+  ],
+  [
+   "MISSING_HEADER",
+   "held Content-Security-Policy"
+  ],
+  [
+   "MISSING_HEADER",
+   "held Permissions-Policy"
+  ],
+  [
+   "MISSING_HEADER",
+   "held Referrer-Policy"
+  ],
+  [
+   "MISSING_HEADER",
+   "held Strict-Transport-Security"
+  ],
+  [
+   "MISSING_HEADER",
+   "held X-Content-Type-Options"
+  ],
+  [
+   "MISSING_HEADER",
+   "held X-Frame-Options"
+  ],
+  [
+   "MISSING_HEADER",
+   "held X-XSS-Protection"
+  ],
+  [
+   "MISSING_HEADER",
+   "main Content-Security-Policy"
+  ],
+  [
+   "MISSING_HEADER",
+   "main Permissions-Policy"
+  ],
+  [
+   "MISSING_HEADER",
+   "main Referrer-Policy"
+  ],
+  [
+   "MISSING_HEADER",
+   "main Strict-Transport-Security"
+  ],
+  [
+   "MISSING_HEADER",
+   "main X-XSS-Protection"
+  ],
+  [
+   "OPEN_PORT",
+   "tcp:ftp_banner"
+  ],
+  [
+   "OPEN_PORT",
+   "tcp:silent"
+  ],
+  [
+   "OPEN_PORT",
+   "tcp:ssh_banner"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /.env"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /.env.local"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /.env.production"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /.git/HEAD"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /.htaccess"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /actuator"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /actuator/env"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /actuator/health"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /admin"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /admin/"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /administrator"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /api"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /api/docs"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /api/v1"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /backup"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /backup.tar.gz"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /backup.zip"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /info.php"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /openapi.json"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /phpinfo.php"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /robots.txt"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /server-info"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /server-status"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /sitemap.xml"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /swagger"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /swagger-ui.html"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /web.config"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /wp-admin"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "catchall /wp-login.php"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /.env"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /.env.local"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /.env.production"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /.git/HEAD"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /.htaccess"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /actuator"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /actuator/env"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /actuator/health"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /admin/"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /administrator"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /api"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /api/docs"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /api/v1"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /backup"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /backup.tar.gz"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /backup.zip"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /info.php"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /openapi.json"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /phpinfo.php"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /robots.txt"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /server-info"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /server-status"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /sitemap.xml"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /swagger"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /swagger-ui.html"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /web.config"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /wp-admin"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "held /wp-login.php"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "main /.env"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "main /.git/HEAD"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "main /actuator/health"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "main /admin"
+  ],
+  [
+   "SENSITIVE_PATH",
+   "main /robots.txt"
+  ],
+  [
+   "TECH",
+   "main Drupal"
+  ],
+  [
+   "TECH",
+   "main WordPress"
+  ]
+ ],
+ "elapsed_sec": [
+  4.09,
+  4.384,
+  4.07
+ ],
+ "fixture_sha256": "5c26944f785edc2d087d20dcf74c2a4ff3f360c5e44e302b1f94554ff11da980",
+ "git": {
+  "commit": "540d852c372dc8ae07fff93d8bc3fa93f95961f6",
+  "dirty": true
+ },
+ "http_requests": [
+  90,
+  90,
+  90
+ ],
+ "kind": "attack_recon",
+ "llm_usage": "n/a (detector mode)",
+ "metrics": {
+  "per_rule": {
+   "COOKIE_FLAG": {
+    "cases": 8,
+    "fn": 0,
+    "fn_unexamined": 0,
+    "fp": 2,
+    "precision": 0.6,
+    "recall": 1.0,
+    "tn": 3,
+    "tp": 3,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   },
+   "MISSING_HEADER": {
+    "cases": 14,
+    "fn": 0,
+    "fn_unexamined": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "tn": 2,
+    "tp": 12,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   },
+   "OPEN_PORT": {
+    "cases": 5,
+    "fn": 0,
+    "fn_unexamined": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "tn": 2,
+    "tp": 3,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   },
+   "SENSITIVE_PATH": {
+    "cases": 87,
+    "fn": 0,
+    "fn_unexamined": 0,
+    "fp": 56,
+    "precision": 0.0968,
+    "recall": 1.0,
+    "tn": 25,
+    "tp": 6,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   },
+   "TECH": {
+    "cases": 8,
+    "fn": 3,
+    "fn_unexamined": 0,
+    "fp": 2,
+    "precision": 0.0,
+    "recall": 0.0,
+    "tn": 3,
+    "tp": 0,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   }
+  },
+  "total": {
+   "cases": 122,
+   "fn": 3,
+   "fn_unexamined": 0,
+   "fp": 60,
+   "precision": 0.2857,
+   "recall": 0.8889,
+   "tn": 35,
+   "tp": 24,
+   "unexamined": 0,
+   "unexamined_negative": 0,
+   "unexamined_rate": 0.0
+  }
+ },
+ "runs": 3,
+ "schema": "ai-security-audit-benchmark",
+ "schema_version": "1",
+ "stable": true,
+ "truth_sha256": "052d0fb692331537d08799db05c780d4b2f16aef523f75596a45db98767e5e21"
+}

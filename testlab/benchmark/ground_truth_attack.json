@@ -1,0 +1,904 @@
+{
+ "schema_version": "1",
+ "mode": "attack_recon",
+ "note": "ATTACK MODEの決定的な偵察部分(NetworkScanner・WebProber)の正解。ラベルはfixture(testlab/fixtures/attack_benchmark.py)の設計で付け、検出器の出力に合わせていない。vulnerable=偵察結果として報告されるべき事実。照合キーは (rule_id, location)。SENSITIVE_PATHの定義: 認証なしGETで内容(2xx)が返るもの。3xx/4xx/5xxや、全pathに同じ200を返すサーバー(catchall)上の応答は実在の証拠ではない。LLMの解釈・仮説生成は対象外。 heldout=true のケースはDEFENSEと同じ運用で、検出器の改修(soft-404・Cookie属性・ヘッダー技術検出)の**後**に追加した未見のケース(fixtureのheldサーバー)。改修がfixtureの罠だけに合わせたものでないかの確認用。",
+ "cases": [
+  {
+   "case_id": "OPEN_PORT:tcp:ssh_banner",
+   "rule_id": "OPEN_PORT",
+   "location": "tcp:ssh_banner",
+   "expected": "vulnerable",
+   "note": "listenしている(バナー有無は問わず開放として報告されるべき)"
+  },
+  {
+   "case_id": "OPEN_PORT:tcp:ftp_banner",
+   "rule_id": "OPEN_PORT",
+   "location": "tcp:ftp_banner",
+   "expected": "vulnerable",
+   "note": "listenしている(バナー有無は問わず開放として報告されるべき)"
+  },
+  {
+   "case_id": "OPEN_PORT:tcp:silent",
+   "rule_id": "OPEN_PORT",
+   "location": "tcp:silent",
+   "expected": "vulnerable",
+   "note": "listenしている(バナー有無は問わず開放として報告されるべき)"
+  },
+  {
+   "case_id": "OPEN_PORT:tcp:closed_a",
+   "rule_id": "OPEN_PORT",
+   "location": "tcp:closed_a",
+   "expected": "not_vulnerable",
+   "note": "listenしていない(開放と報告したら誤り)"
+  },
+  {
+   "case_id": "OPEN_PORT:tcp:closed_b",
+   "rule_id": "OPEN_PORT",
+   "location": "tcp:closed_b",
+   "expected": "not_vulnerable",
+   "note": "listenしていない(開放と報告したら誤り)"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /robots.txt",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /robots.txt",
+   "expected": "vulnerable",
+   "note": "200(情報提供)"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /sitemap.xml",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /sitemap.xml",
+   "expected": "not_vulnerable",
+   "note": "404"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /.git/HEAD",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /.git/HEAD",
+   "expected": "vulnerable",
+   "note": "VCSメタデータが200で読める"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /.env",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /.env",
+   "expected": "vulnerable",
+   "note": "秘密を含む設定が200で読める"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /.env.production",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /.env.production",
+   "expected": "not_vulnerable",
+   "note": "404"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /.env.local",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /.env.local",
+   "expected": "not_vulnerable",
+   "note": "404"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /admin",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /admin",
+   "expected": "vulnerable",
+   "note": "管理画面が認証前に200"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /admin/",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /admin/",
+   "expected": "not_vulnerable",
+   "note": "404"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /administrator",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /administrator",
+   "expected": "not_vulnerable",
+   "note": "404"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /wp-admin",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /wp-admin",
+   "expected": "not_vulnerable",
+   "note": "404"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /wp-login.php",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /wp-login.php",
+   "expected": "not_vulnerable",
+   "note": "404"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /phpinfo.php",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /phpinfo.php",
+   "expected": "not_vulnerable",
+   "note": "404"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /info.php",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /info.php",
+   "expected": "not_vulnerable",
+   "note": "404"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /backup",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /backup",
+   "expected": "not_vulnerable",
+   "note": "404"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /backup.zip",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /backup.zip",
+   "expected": "not_vulnerable",
+   "note": "403(内容を返さない)"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /backup.tar.gz",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /backup.tar.gz",
+   "expected": "not_vulnerable",
+   "note": "404"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /api",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /api",
+   "expected": "not_vulnerable",
+   "note": "301転送(内容ではない)"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /api/v1",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /api/v1",
+   "expected": "not_vulnerable",
+   "note": "404"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /api/docs",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /api/docs",
+   "expected": "not_vulnerable",
+   "note": "404"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /swagger",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /swagger",
+   "expected": "not_vulnerable",
+   "note": "500(サーバーエラー)"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /swagger-ui.html",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /swagger-ui.html",
+   "expected": "not_vulnerable",
+   "note": "404"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /openapi.json",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /openapi.json",
+   "expected": "not_vulnerable",
+   "note": "404"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /actuator",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /actuator",
+   "expected": "not_vulnerable",
+   "note": "404"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /actuator/env",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /actuator/env",
+   "expected": "not_vulnerable",
+   "note": "404"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /actuator/health",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /actuator/health",
+   "expected": "vulnerable",
+   "note": "監視endpointが200"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /.htaccess",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /.htaccess",
+   "expected": "not_vulnerable",
+   "note": "404"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /web.config",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /web.config",
+   "expected": "not_vulnerable",
+   "note": "404"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /server-status",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /server-status",
+   "expected": "not_vulnerable",
+   "note": "404"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:main /server-info",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "main /server-info",
+   "expected": "not_vulnerable",
+   "note": "404"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /robots.txt",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /robots.txt",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /sitemap.xml",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /sitemap.xml",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /.git/HEAD",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /.git/HEAD",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /.env",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /.env",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /.env.production",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /.env.production",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /.env.local",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /.env.local",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /admin",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /admin",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /admin/",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /admin/",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /administrator",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /administrator",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /wp-admin",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /wp-admin",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /wp-login.php",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /wp-login.php",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /phpinfo.php",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /phpinfo.php",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /info.php",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /info.php",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /backup",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /backup",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /backup.zip",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /backup.zip",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /backup.tar.gz",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /backup.tar.gz",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /api",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /api",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /api/v1",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /api/v1",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /api/docs",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /api/docs",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /swagger",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /swagger",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /swagger-ui.html",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /swagger-ui.html",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /openapi.json",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /openapi.json",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /actuator",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /actuator",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /actuator/env",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /actuator/env",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /actuator/health",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /actuator/health",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /.htaccess",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /.htaccess",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /web.config",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /web.config",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /server-status",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /server-status",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:catchall /server-info",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "catchall /server-info",
+   "expected": "not_vulnerable",
+   "note": "soft-404: 全pathが同じ200を返すだけで、実在しない"
+  },
+  {
+   "case_id": "MISSING_HEADER:main Strict-Transport-Security",
+   "rule_id": "MISSING_HEADER",
+   "location": "main Strict-Transport-Security",
+   "expected": "vulnerable",
+   "note": "応答に存在しない"
+  },
+  {
+   "case_id": "MISSING_HEADER:main Content-Security-Policy",
+   "rule_id": "MISSING_HEADER",
+   "location": "main Content-Security-Policy",
+   "expected": "vulnerable",
+   "note": "応答に存在しない"
+  },
+  {
+   "case_id": "MISSING_HEADER:main X-Content-Type-Options",
+   "rule_id": "MISSING_HEADER",
+   "location": "main X-Content-Type-Options",
+   "expected": "not_vulnerable",
+   "note": "応答に存在する"
+  },
+  {
+   "case_id": "MISSING_HEADER:main X-Frame-Options",
+   "rule_id": "MISSING_HEADER",
+   "location": "main X-Frame-Options",
+   "expected": "not_vulnerable",
+   "note": "応答に存在する"
+  },
+  {
+   "case_id": "MISSING_HEADER:main X-XSS-Protection",
+   "rule_id": "MISSING_HEADER",
+   "location": "main X-XSS-Protection",
+   "expected": "vulnerable",
+   "note": "応答に存在しない"
+  },
+  {
+   "case_id": "MISSING_HEADER:main Referrer-Policy",
+   "rule_id": "MISSING_HEADER",
+   "location": "main Referrer-Policy",
+   "expected": "vulnerable",
+   "note": "応答に存在しない"
+  },
+  {
+   "case_id": "MISSING_HEADER:main Permissions-Policy",
+   "rule_id": "MISSING_HEADER",
+   "location": "main Permissions-Policy",
+   "expected": "vulnerable",
+   "note": "応答に存在しない"
+  },
+  {
+   "case_id": "COOKIE_FLAG:main sid Missing Secure flag",
+   "rule_id": "COOKIE_FLAG",
+   "location": "main sid Missing Secure flag",
+   "expected": "vulnerable",
+   "note": "sidはSecure無し"
+  },
+  {
+   "case_id": "COOKIE_FLAG:main sid Missing HttpOnly flag",
+   "rule_id": "COOKIE_FLAG",
+   "location": "main sid Missing HttpOnly flag",
+   "expected": "not_vulnerable",
+   "note": "sidはHttpOnlyあり"
+  },
+  {
+   "case_id": "COOKIE_FLAG:main pref Missing Secure flag",
+   "rule_id": "COOKIE_FLAG",
+   "location": "main pref Missing Secure flag",
+   "expected": "not_vulnerable",
+   "note": "prefはSecureあり"
+  },
+  {
+   "case_id": "COOKIE_FLAG:main pref Missing HttpOnly flag",
+   "rule_id": "COOKIE_FLAG",
+   "location": "main pref Missing HttpOnly flag",
+   "expected": "not_vulnerable",
+   "note": "prefはHttpOnlyあり"
+  },
+  {
+   "case_id": "TECH:main Nginx",
+   "rule_id": "TECH",
+   "location": "main Nginx",
+   "expected": "vulnerable",
+   "note": "Server: nginx/1.18.0 ヘッダーがある"
+  },
+  {
+   "case_id": "TECH:main Apache",
+   "rule_id": "TECH",
+   "location": "main Apache",
+   "expected": "not_vulnerable",
+   "note": "ヘッダー・本文に根拠なし"
+  },
+  {
+   "case_id": "TECH:main WordPress",
+   "rule_id": "TECH",
+   "location": "main WordPress",
+   "expected": "not_vulnerable",
+   "note": "本文は「WordPressは使っていない」と書いている(単語の言及であり技術の証拠ではない)"
+  },
+  {
+   "case_id": "TECH:main Drupal",
+   "rule_id": "TECH",
+   "location": "main Drupal",
+   "expected": "not_vulnerable",
+   "note": "同上"
+  },
+  {
+   "case_id": "TECH:main Cloudflare",
+   "rule_id": "TECH",
+   "location": "main Cloudflare",
+   "expected": "not_vulnerable",
+   "note": "根拠なし"
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /robots.txt",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /robots.txt",
+   "expected": "not_vulnerable",
+   "note": "pathをエコーするsoft-404(実在しない)",
+   "heldout": true
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /sitemap.xml",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /sitemap.xml",
+   "expected": "not_vulnerable",
+   "note": "pathをエコーするsoft-404(実在しない)",
+   "heldout": true
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /.git/HEAD",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /.git/HEAD",
+   "expected": "not_vulnerable",
+   "note": "pathをエコーするsoft-404(実在しない)",
+   "heldout": true
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /.env",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /.env",
+   "expected": "vulnerable",
+   "note": "catch-all(pathをエコーする200)の中の実在: 本文が異なる",
+   "heldout": true
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /.env.production",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /.env.production",
+   "expected": "not_vulnerable",
+   "note": "pathをエコーするsoft-404(実在しない)",
+   "heldout": true
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /.env.local",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /.env.local",
+   "expected": "not_vulnerable",
+   "note": "pathをエコーするsoft-404(実在しない)",
+   "heldout": true
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /admin",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /admin",
+   "expected": "not_vulnerable",
+   "note": "302転送(内容ではない)",
+   "heldout": true
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /admin/",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /admin/",
+   "expected": "not_vulnerable",
+   "note": "pathをエコーするsoft-404(実在しない)",
+   "heldout": true
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /administrator",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /administrator",
+   "expected": "not_vulnerable",
+   "note": "pathをエコーするsoft-404(実在しない)",
+   "heldout": true
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /wp-admin",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /wp-admin",
+   "expected": "not_vulnerable",
+   "note": "pathをエコーするsoft-404(実在しない)",
+   "heldout": true
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /wp-login.php",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /wp-login.php",
+   "expected": "not_vulnerable",
+   "note": "pathをエコーするsoft-404(実在しない)",
+   "heldout": true
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /phpinfo.php",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /phpinfo.php",
+   "expected": "not_vulnerable",
+   "note": "pathをエコーするsoft-404(実在しない)",
+   "heldout": true
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /info.php",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /info.php",
+   "expected": "not_vulnerable",
+   "note": "pathをエコーするsoft-404(実在しない)",
+   "heldout": true
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /backup",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /backup",
+   "expected": "not_vulnerable",
+   "note": "pathをエコーするsoft-404(実在しない)",
+   "heldout": true
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /backup.zip",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /backup.zip",
+   "expected": "not_vulnerable",
+   "note": "pathをエコーするsoft-404(実在しない)",
+   "heldout": true
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /backup.tar.gz",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /backup.tar.gz",
+   "expected": "not_vulnerable",
+   "note": "pathをエコーするsoft-404(実在しない)",
+   "heldout": true
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /api",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /api",
+   "expected": "not_vulnerable",
+   "note": "pathをエコーするsoft-404(実在しない)",
+   "heldout": true
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /api/v1",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /api/v1",
+   "expected": "not_vulnerable",
+   "note": "pathをエコーするsoft-404(実在しない)",
+   "heldout": true
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /api/docs",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /api/docs",
+   "expected": "not_vulnerable",
+   "note": "pathをエコーするsoft-404(実在しない)",
+   "heldout": true
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /swagger",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /swagger",
+   "expected": "not_vulnerable",
+   "note": "pathをエコーするsoft-404(実在しない)",
+   "heldout": true
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /swagger-ui.html",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /swagger-ui.html",
+   "expected": "not_vulnerable",
+   "note": "pathをエコーするsoft-404(実在しない)",
+   "heldout": true
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /openapi.json",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /openapi.json",
+   "expected": "not_vulnerable",
+   "note": "pathをエコーするsoft-404(実在しない)",
+   "heldout": true
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /actuator",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /actuator",
+   "expected": "not_vulnerable",
+   "note": "pathをエコーするsoft-404(実在しない)",
+   "heldout": true
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /actuator/env",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /actuator/env",
+   "expected": "not_vulnerable",
+   "note": "pathをエコーするsoft-404(実在しない)",
+   "heldout": true
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /actuator/health",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /actuator/health",
+   "expected": "not_vulnerable",
+   "note": "pathをエコーするsoft-404(実在しない)",
+   "heldout": true
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /.htaccess",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /.htaccess",
+   "expected": "not_vulnerable",
+   "note": "pathをエコーするsoft-404(実在しない)",
+   "heldout": true
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /web.config",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /web.config",
+   "expected": "not_vulnerable",
+   "note": "pathをエコーするsoft-404(実在しない)",
+   "heldout": true
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /server-status",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /server-status",
+   "expected": "not_vulnerable",
+   "note": "pathをエコーするsoft-404(実在しない)",
+   "heldout": true
+  },
+  {
+   "case_id": "SENSITIVE_PATH:held /server-info",
+   "rule_id": "SENSITIVE_PATH",
+   "location": "held /server-info",
+   "expected": "not_vulnerable",
+   "note": "pathをエコーするsoft-404(実在しない)",
+   "heldout": true
+  },
+  {
+   "case_id": "MISSING_HEADER:held Strict-Transport-Security",
+   "rule_id": "MISSING_HEADER",
+   "location": "held Strict-Transport-Security",
+   "expected": "vulnerable",
+   "note": "応答に存在しない",
+   "heldout": true
+  },
+  {
+   "case_id": "MISSING_HEADER:held Content-Security-Policy",
+   "rule_id": "MISSING_HEADER",
+   "location": "held Content-Security-Policy",
+   "expected": "vulnerable",
+   "note": "応答に存在しない",
+   "heldout": true
+  },
+  {
+   "case_id": "MISSING_HEADER:held X-Content-Type-Options",
+   "rule_id": "MISSING_HEADER",
+   "location": "held X-Content-Type-Options",
+   "expected": "vulnerable",
+   "note": "応答に存在しない",
+   "heldout": true
+  },
+  {
+   "case_id": "MISSING_HEADER:held X-Frame-Options",
+   "rule_id": "MISSING_HEADER",
+   "location": "held X-Frame-Options",
+   "expected": "vulnerable",
+   "note": "応答に存在しない",
+   "heldout": true
+  },
+  {
+   "case_id": "MISSING_HEADER:held X-XSS-Protection",
+   "rule_id": "MISSING_HEADER",
+   "location": "held X-XSS-Protection",
+   "expected": "vulnerable",
+   "note": "応答に存在しない",
+   "heldout": true
+  },
+  {
+   "case_id": "MISSING_HEADER:held Referrer-Policy",
+   "rule_id": "MISSING_HEADER",
+   "location": "held Referrer-Policy",
+   "expected": "vulnerable",
+   "note": "応答に存在しない",
+   "heldout": true
+  },
+  {
+   "case_id": "MISSING_HEADER:held Permissions-Policy",
+   "rule_id": "MISSING_HEADER",
+   "location": "held Permissions-Policy",
+   "expected": "vulnerable",
+   "note": "応答に存在しない",
+   "heldout": true
+  },
+  {
+   "case_id": "COOKIE_FLAG:held a Missing Secure flag",
+   "rule_id": "COOKIE_FLAG",
+   "location": "held a Missing Secure flag",
+   "expected": "not_vulnerable",
+   "note": "小文字のsecure属性あり",
+   "heldout": true
+  },
+  {
+   "case_id": "COOKIE_FLAG:held a Missing HttpOnly flag",
+   "rule_id": "COOKIE_FLAG",
+   "location": "held a Missing HttpOnly flag",
+   "expected": "not_vulnerable",
+   "note": "小文字のhttponly属性あり",
+   "heldout": true
+  },
+  {
+   "case_id": "COOKIE_FLAG:held b Missing Secure flag",
+   "rule_id": "COOKIE_FLAG",
+   "location": "held b Missing Secure flag",
+   "expected": "vulnerable",
+   "note": "属性なし",
+   "heldout": true
+  },
+  {
+   "case_id": "COOKIE_FLAG:held b Missing HttpOnly flag",
+   "rule_id": "COOKIE_FLAG",
+   "location": "held b Missing HttpOnly flag",
+   "expected": "vulnerable",
+   "note": "属性なし",
+   "heldout": true
+  },
+  {
+   "case_id": "TECH:held Apache",
+   "rule_id": "TECH",
+   "location": "held Apache",
+   "expected": "vulnerable",
+   "note": "Server: Apache/2.4.41 ヘッダーがある",
+   "heldout": true
+  },
+  {
+   "case_id": "TECH:held Express.js",
+   "rule_id": "TECH",
+   "location": "held Express.js",
+   "expected": "vulnerable",
+   "note": "X-Powered-By: Express ヘッダーがある",
+   "heldout": true
+  },
+  {
+   "case_id": "TECH:held Nginx",
+   "rule_id": "TECH",
+   "location": "held Nginx",
+   "expected": "not_vulnerable",
+   "note": "根拠なし",
+   "heldout": true
+  }
+ ]
+}
