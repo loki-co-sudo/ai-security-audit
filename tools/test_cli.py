@@ -485,6 +485,39 @@ class CLITest(unittest.TestCase):
                                          self.engagement_file({"engagement_id": "b"}, "mismatch.json")))
             self.assertEqual(p.returncode, 2)
 
+    def test_scan_output_carries_ledger_view_and_fail_on_ignores_only_active_suppressions(self):
+        files = [self.base / "a.py", self.base / "b.py"]
+        for f in files:
+            f.write_text("import os\ndef run(x):\n    os.system(x)\n")
+        tf = self.base / "two.txt"
+        tf.write_text("\n".join(map(str, files)) + "\n")
+        led = ["--engagement-id", "lab2", "--ledger-root", str(self.base / "ledger2")]
+        scan = ["scan", "audit", "--targets-file", str(tf), *led, "--fail-on", "high"]
+        until = ["--until", "2999-01-01T00:00:00+00:00"]
+        p, first = self.call(scan)
+        self.assertEqual((p.returncode, first["state"]), (1, "completed"), first)
+        ids = [r["ledger"]["findings"][0]["finding_id"] for r in first["results"]]
+        self.assertEqual([len(r["ledger"]["findings"]) for r in first["results"]], [1, 1])
+        self.assertEqual(len(set(ids)), 2, ids)
+        self.assertFalse(any(r["ledger"]["findings"][0]["suppressed"] for r in first["results"]))
+        _, s_ = self.call(["suppress", ids[0], "--reason", "調整中", *until, *led])
+        self.assertEqual(s_["state"], "completed", s_)
+        p, second = self.call(scan)
+        self.assertEqual(p.returncode, 1, second)                          # 一部だけ抑制 → 残りの所見で失敗する
+        self.assertEqual(len(second["findings"]), 2)                       # JSONの所見は落とさない
+        self.assertEqual([r["ledger"]["findings"][0]["suppressed"] for r in second["results"]], [True, False])
+        self.call(["suppress", ids[1], "--reason", "調整中", *until, *led])
+        p, third = self.call(scan)
+        self.assertEqual((p.returncode, third["state"]), (0, "completed"), third)   # 全件が期限内の抑制
+        self.assertEqual(len(third["findings"]), 2)
+        p = subprocess.run(self.command([*scan[:-2], "--format", "md"]), cwd=self.base, env=self.env(),
+                           capture_output=True, text=True, timeout=45)
+        self.assertEqual(p.stdout.count("Suppressed: 1 "), 2, p.stdout)
+        self.assertIn("Ledger: engagement=lab2", p.stdout)
+        p, plain = self.call(["scan", "audit", "--targets-file", str(tf), "--fail-on", "high"])
+        self.assertEqual(p.returncode, 1)                                  # engagement無しは従来どおり全所見で判定
+        self.assertTrue(all("ledger" not in r for r in plain["results"]))
+
     def test_openapi_adds_unlinked_get_endpoints_to_coverage_without_trusting_servers(self):
         import http.server
         import threading

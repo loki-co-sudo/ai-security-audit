@@ -660,3 +660,7 @@ AUDITの証拠ID引用、`--effort auto`、DEFENSEのMITRE ID、WEB FUZZのト�
 
 ## 2026-10-22 実LLM測定(WEB FUZZ・DEFENSE 各3回)
 無料枠モデル・effort=speedで各3回。WEB FUZZは3回とも同じ2所見(重大度のみ揺れ)、DEFENSEは所見の切り分けと重大度が回ごとに変動し、3回目で未収録MITRE IDの「未確認」表示が実LLM出力で発火。結果と限界は docs/PRACTICAL_ROADMAP.md 付録。コード変更なし。
+
+## 2026-10-22 P3.2(追補): CLIの出力へ台帳ビューを配線
+`cli.record_ledger`が記録後に`Ledger.report_view()`を各結果の`ledger`へ付ける(バッチは対象ごと)。`--format md`は抑制除外・差分表示、`exit_code`の`--fail-on`は`active_findings()`で期限内抑制を除く(JSONの`findings`は全件のまま。台帳記録失敗時はビューが無く全所見で判定)。
+試験: `tools/test_cli.py`の`test_scan_output_carries_ledger_view_and_fail_on_ignores_only_active_suppressions`(監査2ファイルのバッチ。一部抑制は失敗のまま、全件抑制で0、md出力、engagement無しは従来どおり)。cli.py変更を外すと落ちることを確認。GUIは未配線。

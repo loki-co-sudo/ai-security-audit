@@ -272,9 +272,18 @@ def exit_code(result, fail_on="none"):
     if state != "completed":
         return 2
     if fail_on != "none" and any(SEVERITIES.get(f.get("severity", "").lower(), 0) >= SEVERITIES[fail_on]
-                                 for f in result.get("findings", [])):
+                                 for f in active_findings(result)):
         return 1
     return 0
+
+
+def active_findings(result):
+    """期限内の抑制(台帳のreport_view)を除いた所見。台帳が無い/記録に失敗した場合は全所見(安全側)。"""
+    out = []
+    for r in result["results"] if result.get("batch") else [result]:
+        rows = (r.get("ledger") or {}).get("findings", [])
+        out.extend(f for i, f in enumerate(r.get("findings", [])) if not (i < len(rows) and rows[i].get("suppressed")))
+    return out
 
 
 def save_json(path, result):
@@ -347,7 +356,7 @@ def ledger_command(args):
 
 
 def record_ledger(args, engagement, result):
-    """engagement_idが指定された場合だけ、完了した各scan結果を所見台帳へ追記する。台帳の失敗はscan結果を隠さない。"""
+    """engagement_idが指定された場合だけ、完了した各scan結果を所見台帳へ追記し、レポート用の台帳ビューを付ける。台帳の失敗はscan結果を隠さない。"""
     eid = getattr(args, "engagement_id", None) or (engagement or {}).get("engagement_id")
     if not eid or args.command != "scan":
         return
@@ -357,6 +366,7 @@ def record_ledger(args, engagement, result):
         for r in (result["results"] if result.get("batch") else [result]):
             if r.get("scan_id"):
                 led.record_scan(r)
+                r["ledger"] = led.report_view(r)
     except LedgerError as e:
         result.setdefault("errors", []).append(f"所見台帳への記録に失敗しました: {e}")
         result["ledger_error"] = True

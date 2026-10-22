@@ -536,7 +536,7 @@ P0.1・P0.2・P1.1は完了済み。実装詳細・セルフテスト結果は
 - [ ] P2.1 CLI非依存の最小ベンチマーク（**WEB FUZZ・DEFENSEシグネチャのdetector固定モードは実装済み**＋認証期限切れ・共通ログイン画面の罠。**AUDITの実LLM評価(無料枠モデル・3回)は実施済み**。未: 他モデル・他モードの実LLM評価、ATTACKのベンチ、トークン使用量）
 - [ ] P2.2 IDOR/SSTI/XSSの既存検出品質改善（**検出器側は実装済み**: IDORのログイン画面/公開除外・期待権限表、SSTI別式確認、XSS content-type。未: 期待権限表のGUI入力・旧FuzzAgent経路への配線、同一origin認証確認URL、逆方向）
 - [ ] P3.1 CLI・案件プロファイル・除外優先・実行設定分離（**scan fuzz/audit/defense/attack、--engagement、除外優先、--targets-fileは実装済み**。**`--format md`・`--effort auto`・`defense --duration`・`config.json`の`profiles`(`--use-profile`)も実装済み**。**audit/defense/attackの`--targets-file`も実装済み**。core/scan_runner.pyへの分離は実装済み(WEB FUZZ経路はcli.pyに残る)。未: profilesのrate_limit_rps/scope_mode）
-- [ ] P3.2 案件別JSONLイベント台帳・差分・期限付き抑制（**台帳・差分・mark/suppress/findings CLIは実装済み**。**レポート層(HTML/MD/PDF/JSON)は`Ledger.report_view()`を`scan_result["ledger"]`に付けると抑制除外・差分表示に対応済み**。未: GUI/CLIからのengagement_id指定と配線）
+- [ ] P3.2 案件別JSONLイベント台帳・差分・期限付き抑制（**台帳・差分・mark/suppress/findings CLIは実装済み**。**レポート層(HTML/MD/PDF/JSON)は`Ledger.report_view()`を`scan_result["ledger"]`に付けると抑制除外・差分表示に対応済み**。**CLIの`--engagement-id`指定で出力に台帳ビュー・`--fail-on`が期限内抑制を除外・`--format md`が抑制除外/差分に対応済み**。未: GUIからのengagement_id指定と配線）
 - [ ] P4.1 OpenAPI入力（**初期版は実装済み**: ローカルJSON・明示選択のGET+query。**YAML(safe_load・alias拒否)対応済み**。未: 複雑schema、認証scheme、GUI）
 - [ ] P4.2 Python複数ファイル監査（**標準エンジン・LangGraph版(モックLLM検証のみ)の初期版は実装済み**。未: GUI・証拠保存・実LLM評価）
 - [ ] P4.3 実ログ対応・ローテーション/縮小/部分行処理（**中核は実装済み**＋JSONL・MITRE ID確認。未: journald/syslog、gzip回転、長時間の実運用検証）

@@ -68,7 +68,7 @@ P4内は用途に応じて一項目ずつ選択できる。保留事項を自動
 | P2.1 | 一部 | WEB FUZZ・DEFENSEシグネチャのdetector固定ベンチと基準値、AUDITの実LLM評価(無料枠モデル3回・`tools/live_eval.py`) | 他モデルでの実LLM評価、ATTACKの実LLM評価、WEB FUZZ/DEFENSEの大きな正解データでの実LLM評価(3回の小規模測定のみ)、ATTACKのベンチ、トークン使用量(現状は文字数のみ) |
 | P2.2 | 検出器側は実装 | IDOR(ログイン/公開除外・期待権限表)、SSTI別式確認、XSS content-type | 期待権限表のGUI入力・旧FuzzAgent配線、同一origin確認URL、逆方向 |
 | P3.1 | ほぼ実装 | `scan fuzz/audit/defense/attack`・`--targets-file`・`--engagement`・除外優先・`--format md`・`--effort auto`・`defense --duration`・`--use-profile`・`core/scan_runner.py`(ATTACK/AUDIT/DEFENSE) | WEB FUZZ経路のscan_runner移動、profilesのrate_limit_rps/scope_mode、実LLMでのauto分類 |
-| P3.2 | 中核+レポート連携 | 台帳・差分・mark/suppress/findings、レポート層の抑制除外と差分表示 | GUI/CLIからのengagement_id指定→レポート配線 |
+| P3.2 | 中核+レポート連携 | 台帳・差分・mark/suppress/findings、レポート層の抑制除外と差分表示、CLI(`--engagement-id`)の出力への台帳ビュー付与・`--format md`の抑制除外/差分・`--fail-on`の期限内抑制除外 | GUIからのengagement_id指定と配線 |
 | P4.1 | 初期版 | ローカルJSON/YAML・明示選択のGET+query | 複雑schema・path param・body・認証scheme・GUI |
 | P4.2 | 初期版 | 標準エンジン・LangGraph版(モックLLM)の複数ファイル監査 | GUI、証拠保存、実LLM評価 |
 | P4.3 | 中核 | ローテーション/縮小/部分行/JSONL/MITRE確認 | journald/syslog、gzip回転、長時間運用検証 |
@@ -293,7 +293,9 @@ python cli.py status FINDING_ID accepted-risk --reason "対応判断を記録" -
 
 受け入れ条件: 差分状態、認証/予算失敗による誤った修正判定の防止、抑制期限、同名別案件の分離、重複イベント、破損末尾、同時writerを非LLMで検証する。
 
-2026-10-22 実装済み(P3.2のレポート連携): `Ledger.report_view()`を`scan_result["ledger"]`に付けるとHTML/MD/PDF/JSONが抑制所見を除外(件数・理由・期限は必ず表示)し、直前scanとの差分と所見ごとのstatusを表示する(`tools/test_ledger_reports.py`、selftest 16x2)。GUI/CLIからの指定は未配線。
+2026-10-22 実装済み(P3.2のレポート連携): `Ledger.report_view()`を`scan_result["ledger"]`に付けるとHTML/MD/PDF/JSONが抑制所見を除外(件数・理由・期限は必ず表示)し、直前scanとの差分と所見ごとのstatusを表示する(`tools/test_ledger_reports.py`、selftest 16x2)。CLIからの指定は2026-10-22に配線(下記)。GUIは未配線。
+
+2026-10-22 実装済み(P3.2のCLI配線): `scan`に`--engagement-id`(または案件設定のID)を指定すると、記録後に各結果へ`ledger`(report_view)を付ける。`--format md`は抑制除外・差分表示になり、`--fail-on`の判定は期限内の抑制を除いた所見で行う(JSONの`findings`は落とさない。台帳に記録できなかった場合は全所見で判定=安全側)。抑制は理由と期限が必須で、件数・理由・期限は出力に残る。試験: `tools/test_cli.py`。
 
 2026-10-22 実装済み(P3.2の中核): `core/findings_ledger.py`、`tools/test_findings_ledger.py`(20試験・非LLM)、CLI
 `scan ... --engagement-id ID`(完了結果を`reports/engagements/<id>/events.jsonl`へ追記。案件設定の`engagement_id`でも有効)、
