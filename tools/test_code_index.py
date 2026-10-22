@@ -1,5 +1,6 @@
 """tools/code_index.py(P4.2)の固定試験。対象コードの実行・root外参照・上限・循環を一時ディレクトリで検証する。"""
 import os
+import re
 import shutil
 import tempfile
 import textwrap
@@ -276,6 +277,94 @@ class AuditProjectTest(Base):
         self.assertEqual(res.state, "failed")
 
 @unittest.skipUnless(__import__("core.orchestrator", fromlist=["x"]).LANGGRAPH_AVAILABLE, "langgraph未導入")
+class AuditProjectEvidenceTest(Base):
+    """標準エンジンのプロジェクト監査: save_evidence有効時、LLMへ送った関数内のAST観測だけを相対パスの証拠として保存する。"""
+
+    def audit(self, save_evidence: bool, cite: bool = True):
+        import glob
+        import json
+        from unittest import mock
+        from agents.audit_agent import AuditAgent
+        from core import config
+        from core.event_bus import EventBus
+        from tools.fuzz_characterization import MockLLM
+
+        class CitingLLM(MockLLM):
+            def reply_for(self, prompt):
+                ids = re.findall(r"evidence_id=(\S+) app/db\.py:(\d+)", prompt)
+                if not (cite and ids):
+                    return super().reply_for(prompt)
+                return ("---VULN_START---\nNAME: SQL built by concatenation\nSEVERITY: HIGH\nCWE: CWE-89\nLINES: app/db.py:" + ids[0][1]
+                        + "\nEVIDENCE_IDS: " + ids[0][0] + ", evidence_bogus_0000\nSNIPPET:\n```\nx\n```\nATTACK:\ny\nFIX:\n```\nz\n```\n---VULN_END---")
+
+        llm = CitingLLM()
+        agent = AuditAgent(EventBus(), llm)
+        cwd = os.getcwd()
+        os.chdir(self.d)                                       # reports/evidence/ を一時ディレクトリ内へ
+        self.addCleanup(os.chdir, cwd)
+        with mock.patch.object(AuditAgent, "_save_investigation", lambda *a, **k: None), \
+             mock.patch.object(AuditAgent, "_record_telemetry", lambda *a, **k: None), \
+             mock.patch.dict(config._cfg, {**config._DEFAULTS, "effort": "speed", "save_evidence": save_evidence}, clear=True):
+            agent._safe_run(path=self.root)
+        saved = []
+        for f in glob.glob(os.path.join(self.d, "reports", "evidence", "*", "*.json")):
+            with open(f, encoding="utf-8") as fh:
+                saved.append(json.load(fh))
+        return agent._last_scan_result, llm, saved
+
+    def setUp(self):
+        super().setUp()
+        w(self.root, "app/views.py", """
+            from app import db
+            @app.route("/user/<uid>")
+            def show_user(uid):
+                return db.get_user(uid)
+        """)
+        w(self.root, "app/db.py", """
+            def get_user(uid):
+                return cur.execute("SELECT * FROM users WHERE id = " + uid)
+            exec("1")
+        """)
+        w(self.root, "app/util.py", "def unrelated():\n    return 1\n")
+
+    def test_evidence_is_saved_with_project_relative_paths_only_for_sent_functions(self):
+        res, llm, saved = self.audit(True)
+        prompt = llm.stream_prompts[0]
+        self.assertIn("## AST evidence IDs", prompt)
+        self.assertIn("EVIDENCE_IDS", prompt)                                  # 引用指示はIDがある時だけ付く
+        self.assertNotIn("app/util.py", prompt.split("## AST evidence IDs", 1)[1])   # 送っていないファイルの観測は証拠にしない
+        # app/db.pyのget_user内(L3)だけ。同じファイルでも送っていない範囲(モジュール直下のexec)は証拠にしない
+        self.assertEqual({(e["path"], e["line_start"], e["source"]) for e in saved}, {("app/db.py", 3, "ast_prescan")})
+        self.assertNotIn("..", saved[0]["path"])
+        self.assertEqual(len(res.findings), 1)
+        cited = res.findings[0].evidence_ids
+        self.assertEqual(cited, [saved[0]["evidence_id"]])                      # 実在IDだけ採用する
+        self.assertTrue(any("未知の証拠IDを除外" in e for e in res.errors), res.errors)
+        self.assertFalse(any("証拠保存は未対応" in e for e in res.errors))
+
+    def test_nothing_is_saved_or_asked_when_save_evidence_is_off(self):
+        res, llm, saved = self.audit(False)
+        self.assertNotIn("AST evidence IDs", llm.stream_prompts[0])
+        self.assertNotIn("EVIDENCE_IDS", llm.stream_prompts[0])
+        self.assertEqual(saved, [])
+        self.assertFalse(os.path.exists(os.path.join(self.d, "reports", "evidence")))
+
+    def test_save_code_evidence_keeps_only_safe_project_relative_paths(self):
+        from core.evidence_store import EvidenceStore
+        self.addCleanup(os.chdir, os.getcwd())          # 先に現在地を控える(chdirの後では一時ディレクトリを控えてしまう)
+        os.chdir(self.d)
+        st = EvidenceStore("scan_unit")
+        for given, shown in (("app/db.py", "app/db.py"), ("../etc/passwd", "passwd"), ("/etc/passwd", "passwd")):
+            st.save_code_evidence(path=given, line_start=1, line_end=1, excerpt="x", source="ast_prescan", project_relative=True)
+        import glob, json
+
+        def _load(f):
+            with open(f, encoding="utf-8") as fh:
+                return json.load(fh)
+        paths = sorted(_load(f)["path"] for f in glob.glob(os.path.join(st.dir, "*.json")))
+        self.assertEqual(paths, ["app/db.py", "passwd", "passwd"])              # 絶対パス/..は従来どおり相対化(ファイル名のみ)
+
+
 class LangGraphProjectTest(AuditProjectTest):
     """LangGraph版も標準エンジンと同じ索引・マスク・非実行・正直なcoverageでディレクトリを扱う(モックLLM)。"""
 

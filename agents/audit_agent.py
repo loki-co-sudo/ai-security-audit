@@ -264,6 +264,38 @@ def save_ast_evidence(store: EvidenceStore, path: str, source: str,
     return known, listing, errors
 
 
+def save_project_ast_evidence(store: EvidenceStore, idx, ctx) -> tuple[set[str], str, list[str]]:
+    """プロジェクト監査のASTプリスキャン観測(危険な呼び出し)を、LLMへ送った関数の範囲内だけ証拠保存する。
+
+    `idx.sources`はマスク済みであること。証拠のpathはプロジェクト直下からの相対パス。LLMが見ていない
+    関数の観測は証拠IDにしない(引用できず、文脈外の根拠になるため)。
+    """
+    ranges: dict[str, list[tuple[int, int]]] = {}
+    for file, _qual, start, end in ctx.included:
+        ranges.setdefault(file, []).append((start, end))
+    known: set[str] = set()
+    entries: list[str] = []
+    for rel in sorted(ranges):
+        src = idx.sources.get(rel)
+        if src is None:
+            continue
+        lines, seen = src.splitlines(), set()
+        for hit in ast_scan(src)["findings"]:
+            ln = hit["line"]
+            if (ln, hit["call"]) in seen or not any(a <= ln <= b for a, b in ranges[rel]):
+                continue
+            seen.add((ln, hit["call"]))
+            eid = store.save_code_evidence(path=rel, line_start=ln, line_end=ln, project_relative=True,
+                                           excerpt=lines[ln - 1] if 0 < ln <= len(lines) else "", source="ast_prescan")
+            if eid:
+                known.add(eid)
+                entries.append(f"- evidence_id={eid} {rel}:{ln} {hit['call']}")
+    listing = ("\n## AST evidence IDs\n" + "\n".join(entries) + "\n") if entries else ""
+    errors = [f"証拠保存エラー: {e}" for e in store.save_errors]
+    errors += [f"証拠保存を省略: {o}" for o in store.omissions]
+    return known, listing, errors
+
+
 class AuditAgent(BaseAgent):
 
     def run(self, path: str) -> None:
@@ -439,7 +471,8 @@ class AuditAgent(BaseAgent):
     def _run_project(self, path: str, t0: float) -> None:
         """ディレクトリを索引化(AST・実行/importなし)し、入口→認可→DB操作に関係する関数を優先してLLMへ渡す。
 
-        単一ファイル経路との差: ASTプリスキャン・証拠保存・CVE照合は未対応(所見は証拠なし扱い)。
+        単一ファイル経路との差: CVE照合は未対応。ASTプリスキャンの観測は、LLMへ送った関数の範囲内だけ証拠保存する
+        (save_evidence有効時のみ。範囲外・AST該当なしの所見は証拠なし)。
         上限で入らなかった関数・解析できなかったファイル・動的importは、coverageとerrorsに明示する。
         """
         from tools import code_index
@@ -461,6 +494,13 @@ class AuditAgent(BaseAgent):
         # LLM送信前に機密名リテラルの値をマスクする(行数は不変なので行番号は元のまま)
         idx.sources = {rel: redaction.mask_source(src) for rel, src in idx.sources.items()}
         ctx = code_index.render_context(idx, 12000)
+        known_evidence_ids: set[str] = set()
+        evidence_listing, evidence_errors = "", []
+        if config.get("save_evidence", False):
+            known_evidence_ids, evidence_listing, evidence_errors = save_project_ast_evidence(
+                EvidenceStore(self._scan_id), idx, ctx)
+            if evidence_errors:
+                self._log(f"evidence: {len(evidence_errors)}件の保存エラー/省略")
         self._log(f"Indexed {len(idx.files)} files, {len(idx.functions)} functions; "
                   f"{len(ctx.included)} included, {len(ctx.omitted)} omitted")
         self._step(0, "done")
@@ -479,13 +519,13 @@ class AuditAgent(BaseAgent):
         self._step(3, "running")
         self._status(f"AI が {os.path.basename(path.rstrip('/')) or path} を解析中 ...")
         full = self._stream_llm([
-            self.llm.system(SYSTEM_PROMPT),
+            self.llm.system(SYSTEM_PROMPT + (_EVIDENCE_INSTRUCTION if known_evidence_ids else "")),
             self.llm.user(
                 "Analyze this multi-file Python project excerpt for unknown and logic-based security vulnerabilities. "
                 "Each block is labelled `file:start-end` and lines carry their real line numbers (`NN| code`). "
                 "Look for missing authorization between entry points and data access, IDOR, injection and unsafe calls "
                 "across file boundaries. Report LINES as `file:line`. Code that is not shown was NOT analyzed — do not "
-                "claim it is safe.\n\n```python\n" + ctx.text + "\n```"),
+                "claim it is safe.\n\n```python\n" + ctx.text + "\n```" + evidence_listing),
         ], live_stats=True)
         self._step(3, "done")
         self._step(2, "done")
@@ -508,10 +548,13 @@ class AuditAgent(BaseAgent):
         self._out("\n\n" + "═" * 56 + "\n", "sep")
         self._out(f"  SCAN COMPLETE  |  {total} vulnerabilities detected\n", "green")
         self._out("═" * 56 + "\n", "sep")
-        findings = self._findings_from_markers(parsed_findings, corroborated=bool(effort.get("verify_pass")))
+        rejected: list[str] = []
+        findings = self._findings_from_markers(
+            parsed_findings, corroborated=bool(effort.get("verify_pass")),
+            known_evidence_ids=known_evidence_ids or None, rejected_evidence_ids=rejected)
         coverage = self._project_coverage(ctx)
         state, errors = self._determine_state(triage_text=full)
-        errors = errors + self._project_notes(ctx)
+        errors = errors + self._project_notes(ctx) + evidence_errors + rejected
         if state == ScanState.COMPLETED.value and (ctx.omitted or idx.limit_hit or idx.skipped):
             state = ScanState.PARTIAL.value        # 文脈・ファイル上限で見ていない箇所があるためcompletedにしない
         self._finalize(state=state, errors=errors, findings=findings, coverage=coverage, mode="AUDIT", target=path)
@@ -537,8 +580,6 @@ class AuditAgent(BaseAgent):
     @staticmethod
     def _project_notes(ctx) -> list[str]:
         idx, notes = ctx.index, []
-        if config.get("save_evidence", False):
-            notes.append("プロジェクト監査では証拠保存は未対応です(所見は証拠なし)")
         if idx.limit_hit:
             notes.append("ファイル数/サイズの上限に達し、一部のファイルは解析対象外です")
         if idx.dynamic_files:

@@ -704,3 +704,7 @@ AUDITの証拠ID引用、`--effort auto`、DEFENSEのMITRE ID、WEB FUZZのト�
 
 ## 2026-10-22 実LLM測定(AUDIT quality・1回)
 無料枠モデルでeffort=quality(検証パスあり)を1回。再現率0.875・27所見・3呼出し・約1186秒。speed(3回で1.0/1.0/0.375)との優劣は1回では言えない。結果JSONを`testlab/baselines/`へ保存。詳細と限界は docs/PRACTICAL_ROADMAP.md 付録。コード変更なし。
+
+## 2026-10-22 P4.2(追補): プロジェクト監査の証拠保存(標準エンジン)
+`agents/audit_agent.py`: `save_project_ast_evidence()`(LLMへ送った関数の範囲内のAST観測だけを保存・`## AST evidence IDs`節・実在IDのみ採用・未知IDと上限省略はerrors)。`core/evidence_store.py`: `save_code_evidence(project_relative=True)`でプロジェクト相対パスを保持(絶対パス/`..`は従来の相対化へフォールバック)。「証拠保存は未対応」の注記は削除。OFF時は不変。
+試験: `tools/test_code_index.py`の`AuditProjectEvidenceTest`(3件: 送った関数内のみ保存・同ファイルの範囲外は保存しない・相対パス・実在ID採用/未知ID除外・OFFで何も保存しない・パスの安全なフォールバック)。実LLMでの引用挙動、LangGraph版は未対応。

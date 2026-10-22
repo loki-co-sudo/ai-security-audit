@@ -212,19 +212,23 @@ class EvidenceStore:
     def save_code_evidence(self, *, path: str, line_start: int, line_end: int,
                            excerpt: str, source: str,
                            known_secrets: set[str] | None = None,
-                           action_id: str = "") -> str | None:
+                           action_id: str = "", project_relative: bool = False) -> str | None:
         """コード証拠（相対パス・行範囲・マスク済み抜粋）を保存し evidence_id を返す。
 
         `source`には証拠の由来（"ast_prescan"等の決定的観測）を渡す。LLMが報告した
         行番号から後付けで作った抜粋は、所見の裏付けにならない（LLMの主張の言い換えに
         過ぎない）ため、この関数の呼び出し元は決定的観測のみを渡すこと。
+        `project_relative=True`はプロジェクト監査用: `path`がプロジェクト直下からの相対パス(絶対パス・`..`なし)なら
+        そのまま残す(cwd基準の相対化では同名ファイルが区別できなくなるため)。条件を満たさなければ従来どおり相対化する。
         """
+        if project_relative and (os.path.isabs(path) or ".." in path.replace("\\", "/").split("/") or "\x00" in path):
+            project_relative = False
         if self._count >= self.max_items:
             self._omit(f"件数上限({self.max_items}件)に達したため証拠を保存しなかった")
             return None
         eid = new_id("evidence")
         ev = CodeEvidence(
-            evidence_id=eid, path=relativize_path(path),
+            evidence_id=eid, path=path.replace("\\", "/") if project_relative else relativize_path(path),
             line_start=line_start, line_end=line_end,
             excerpt=redaction.mask_source(excerpt, known_secrets, max_len=self.max_item_bytes),
             source=source, timestamp=time.strftime("%Y-%m-%dT%H:%M:%S"),
