@@ -50,6 +50,9 @@ def positive_rate(value):
     return n
 
 
+VERIFICATION_RANK = {"observed": 0, "corroborated": 1, "manually_confirmed": 2}
+MIN_VERIFICATION_HELP = ("--fail-onの判定に含める所見の最低の確認状態(既定observed=全て)。corroborated=複数根拠/検証パスの裏付けあり、"
+                         "manually_confirmed=人間が確認済み(CLIの実行だけでは付かない)。確認状態の無い所見はobservedとして扱う")
 EFFORT_CHOICES = ("speed", "balanced", "quality", "auto")
 
 
@@ -142,6 +145,7 @@ def parser():
     for sub in (audit, defense, attack):
         sub.add_argument("--out", help="結果JSONの追加保存先")
         sub.add_argument("--fail-on", choices=["none", *SEVERITIES], default="none")
+        sub.add_argument("--min-verification", choices=list(VERIFICATION_RANK), default="observed", help=MIN_VERIFICATION_HELP)
         sub.add_argument("--effort", choices=EFFORT_CHOICES)
     for sub in (fuzz, audit, defense, attack):
         sub.add_argument("--use-profile", metavar="NAME", help="config.jsonのprofilesの設定を既定値として使う(明示引数が優先)")
@@ -178,6 +182,7 @@ def parser():
         sub.add_argument("--journal-root", default=JOURNAL_ROOT)
         sub.add_argument("--out", help="結果JSONの追加保存先")
         sub.add_argument("--fail-on", choices=["none", *SEVERITIES], default="none")
+        sub.add_argument("--min-verification", choices=list(VERIFICATION_RANK), default="observed", help=MIN_VERIFICATION_HELP)
     for sub in (fuzz, resume):
         sub.add_argument("--auth-file", help='0600のJSON: {"a": {...}, "b": {...}}')
         sub.add_argument("--approve-auth", default="", help="今回だけ認証を承認する役割: a または a,b（5分有効）")
@@ -276,13 +281,15 @@ def read_engagement(path):
     return data
 
 
-def exit_code(result, fail_on="none"):
+def exit_code(result, fail_on="none", min_verification="observed"):
     state = result.get("state")
     if state == "cancelled":
         return 130
     if state != "completed":
         return 2
+    floor = VERIFICATION_RANK[min_verification]
     if fail_on != "none" and any(SEVERITIES.get(f.get("severity", "").lower(), 0) >= SEVERITIES[fail_on]
+                                 and VERIFICATION_RANK.get(f.get("verification_state", "observed"), 0) >= floor
                                  for f in active_findings(result)):
         return 1
     return 0
@@ -464,8 +471,8 @@ def main(argv=None):
                 result = aggregate(results, skipped)
         elif args.command == "status":
             result = status_result(args.run_id, args.journal_root, args.allow)
-            if args.fail_on != "none":
-                raise CLIError("statusは所見を再評価しません。--fail-onはscan/resumeで指定してください")
+            if args.fail_on != "none" or args.min_verification != "observed":
+                raise CLIError("statusは所見を再評価しません。--fail-on/--min-verificationはscan/resumeで指定してください")
         else:
             auth = read_auth(args.auth_file)
             secrets = AutonomousFuzzAgent._known_secrets(auth.get("a"), auth.get("b"))
@@ -555,7 +562,8 @@ def main(argv=None):
                       else json.dumps(result, ensure_ascii=False, allow_nan=False))
         finally:
             signal.signal(signal.SIGINT, previous)
-    return exit_code(result, getattr(args, "fail_on", "none") if args else "none")
+    return exit_code(result, getattr(args, "fail_on", "none") if args else "none",
+                     getattr(args, "min_verification", "observed") if args else "observed")
 
 
 if __name__ == "__main__":

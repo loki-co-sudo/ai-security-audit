@@ -686,3 +686,6 @@ AUDITの証拠ID引用、`--effort auto`、DEFENSEのMITRE ID、WEB FUZZのト�
 ## 2026-10-22 P2.1(追補): ATTACK偵察のdetector固定ベンチと3つの検出修正
 `testlab/fixtures/attack_benchmark.py`、`testlab/benchmark/ground_truth_attack.json`(122判定)、`tools/benchmark.py attack`、基準値`testlab/baselines/attack_recon.json`と改修前`attack_recon.before-fixes.json`、`tools/test_benchmark.py`の`AttackBenchmarkTest`(5件)。
 `tools/web_prober.py`: soft-404検出(canary pathの指紋・found_pathsに`exposed`・結果に`soft_404`)、HttpOnly判定の大文字小文字無視、技術検出のヘッダーを`Key: Value`形式化。改修前 TP24/FP60/FN3(held含む全122判定) → 改修後 TP27/FP2/FN0。残FP2は本文のキーワード言及(意図的に未修正)。詳細と限界は docs/PRACTICAL_ROADMAP.md §P2.1。
+
+## 2026-10-22 P3.1(追補): --min-verification
+`scan`/`resume`に`--min-verification {observed,corroborated,manually_confirmed}`(既定observed=従来どおり全所見)。`--fail-on`の判定対象を、severityに加えて確認状態が指定以上の所見に限る(期限内の抑制の除外とは独立に併用)。出力の所見は減らさない。確認状態の無い所見はobservedとして扱う。`manually_confirmed`は人間の確認でのみ付くため、CLIの実行結果だけでは付かない(指定すると通常は閾値超過にならない)。`status`では`--fail-on`同様に拒否。試験: `tools/test_cli.py`。

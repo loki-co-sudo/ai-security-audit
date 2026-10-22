@@ -106,6 +106,30 @@ class CLITest(unittest.TestCase):
             p, data = self.call(self.scan(srv, "--fail-on", "critical"))
             self.assertEqual(p.returncode, 0, data)
 
+    def test_min_verification_filters_fail_on_but_never_hides_findings(self):
+        mk = lambda sev, ver: {"severity": sev, **({"verification_state": ver} if ver else {})}      # noqa: E731
+        res = {"state": "completed", "findings": [mk("high", "observed"), mk("critical", None)]}
+        self.assertEqual(cli.exit_code(res, "high"), 1)
+        self.assertEqual(cli.exit_code(res, "high", "observed"), 1)
+        self.assertEqual(cli.exit_code(res, "high", "corroborated"), 0)          # observedのみ → 閾値の対象外
+        res["findings"].append(mk("medium", "corroborated"))
+        self.assertEqual(cli.exit_code(res, "medium", "corroborated"), 1)
+        self.assertEqual(cli.exit_code(res, "high", "corroborated"), 0)          # 確認状態とseverityの両方を満たすものだけ
+        self.assertEqual(cli.exit_code(res, "low", "manually_confirmed"), 0)
+        self.assertEqual(cli.exit_code({**res, "state": "partial"}, "none", "corroborated"), 2)   # 状態の優先順位は不変
+        src = self.base / "app.py"
+        src.write_text("import os\ndef run(x):\n    os.system(x)\n")
+        p, data = self.call(["scan", "audit", "--target", str(src), "--fail-on", "high"])
+        self.assertEqual(p.returncode, 1, data)
+        states = {f["verification_state"] for f in data["findings"]}
+        p, data2 = self.call(["scan", "audit", "--target", str(src), "--fail-on", "high", "--min-verification", "manually_confirmed"])
+        self.assertEqual(p.returncode, 0, (states, data2))                        # CLI実行だけではmanually_confirmedにならない
+        self.assertEqual(len(data2["findings"]), len(data["findings"]))           # 出力の所見は減らさない
+        p, bad = self.call(["scan", "audit", "--target", str(src), "--min-verification", "bogus"])
+        self.assertEqual(p.returncode, 2)
+        p, bad = self.call(["status", "run_x", "--allow", "127.0.0.1", "--min-verification", "corroborated"])
+        self.assertEqual((p.returncode, bad["state"]), (2, "failed"))
+
     def test_exit_priority(self):
         for state, expected in (("completed", 1), ("partial", 2), ("failed", 2), ("cancelled", 130)):
             with self.subTest(state=state):
