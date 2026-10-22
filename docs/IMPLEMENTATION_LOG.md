@@ -731,3 +731,6 @@ AUDITの証拠ID引用、`--effort auto`、DEFENSEのMITRE ID、WEB FUZZのト�
 ## 2026-10-22 実LLM評価の無料枠モデルが提供終了(ATTACKのLLM解釈部分のベンチは未着手)
 ATTACKのLLM解釈部分の評価(ローカルlabの観測に対する仮説の根拠・捏造の有無)を1回試した際、OpenRouterが`minimax/minimax-m3.1-flash:free`に404を返した(無料提供期間が同日終了・有料版`minimax/minimax-m3.1-flash`は入力$0.15/M・出力$0.60/M)。承認範囲は無料枠のみのため有料モデルは使わず中断した(この試行でLLMの応答は得ていない)。付録に注意書きを追記。他モデル・有料モデルでの再測定と、ATTACKのLLM解釈部分のベンチは、費用の承認後。
 併せて確認: ATTACKの確認用スクリプトでCOMMON_PORTSを差し替えてもrecon_agent側のimportには効かず、利用者のローカルで待受中のポート(5432)が検出された(外部への通信はなし)。
+
+## 2026-10-22 実LLM測定(AUDIT・有料モデル2種・各3回)
+承認された予算($1)内で`z-ai/glm-5.3-flash`と`minimax/minimax-m3.1-flash`をeffort=speedで各3回。再現率は6回とも1.0(天井効果でモデル差は判別できない)、glmは約25秒/回・minimaxは約470秒/回。6回の実費は$0.054(OpenRouterのキー使用量の差分)。結果JSONを`testlab/baselines/`へ保存。コード変更なし。詳細と限界は docs/PRACTICAL_ROADMAP.md 付録。

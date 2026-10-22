@@ -1,0 +1,165 @@
+{
+ "mode": "AUDIT",
+ "model": "z-ai/glm-5.3-flash",
+ "effort": "speed",
+ "runs_requested": 3,
+ "runs_done": 3,
+ "runs_with_findings": 3,
+ "per_vuln_hits": {
+  "V1-sqli-token": 3,
+  "V2-toctou-session": 3,
+  "V3-idor": 3,
+  "V4-negative-amount": 3,
+  "V5-path-traversal": 3,
+  "V6-password-reset": 3,
+  "V7-trusted-role": 3,
+  "V8-type-validation": 3
+ },
+ "recall_per_run": [
+  1.0,
+  1.0,
+  1.0
+ ],
+ "total_llm_calls": 3,
+ "hint_stripped": true,
+ "results": [
+  {
+   "state": "completed",
+   "errors": [],
+   "n_findings": 10,
+   "hit": {
+    "V1-sqli-token": [
+     "認証クエリSQLインジェクションによる認証バイパス",
+     "時刻ベース予測可能なMD5セッショントークンとセッション固定"
+    ],
+    "V2-toctou-session": [
+     "時刻ベース予測可能なMD5セッショントークンとセッション固定",
+     "create_session のTOCTOU競合によるセッション多重生成",
+     "get_user_profile のIDOR（所有権・権限チェック欠如）"
+    ],
+    "V3-idor": [
+     "送金機能の負額・自己送金ロジック欠陥と残高二重チェック競合（TOCTOU）",
+     "get_user_profile のIDOR（所有権・権限チェック欠如）"
+    ],
+    "V4-negative-amount": [
+     "送金機能の負額・自己送金ロジック欠陥と残高二重チェック競合（TOCTOU）"
+    ],
+    "V7-trusted-role": [
+     "is_admin / admin_required の呼び出し元信頼による権限昇格"
+    ],
+    "V6-password-reset": [
+     "パスワードリセットトークンの予測可能性と有効期限未検証"
+    ],
+    "V5-path-traversal": [
+     "read_user_file のパストラバーサル"
+    ],
+    "V8-type-validation": [
+     "process_payment_request の認可欠如とペイロード信頼（なりすまし送金）"
+    ]
+   },
+   "unlabeled": [
+    {
+     "location": "26-36",
+     "description": "平文パスワード保存とハードコードされたデフォルトadmin認証情報",
+     "severity": "HIGH"
+    }
+   ],
+   "llm_calls": 1,
+   "chars_in": 7457,
+   "chars_out": 8362,
+   "elapsed_s": 28.0
+  },
+  {
+   "state": "completed",
+   "errors": [],
+   "n_findings": 11,
+   "hit": {
+    "V1-sqli-token": [
+     "SQLインジェクションによる認証突破",
+     "予測可能なMD5セッショントークンと認証回避"
+    ],
+    "V2-toctou-session": [
+     "セッション作成時のTOCTOU競合状態",
+     "IDOR — 他ユーザー情報への無認可アクセス",
+     "セッションの無期限化と排他制御の欠如（グローバル状態）"
+    ],
+    "V3-idor": [
+     "IDOR — 他ユーザー情報への無認可アクセス",
+     "送金ロジックの負額・自己送金・競合チェック迂回"
+    ],
+    "V4-negative-amount": [
+     "送金ロジックの負額・自己送金・競合チェック迂回"
+    ],
+    "V6-password-reset": [
+     "パスワードリセットトークンの予測可能性と盗難耐性の欠如"
+    ],
+    "V5-path-traversal": [
+     "パストラバーサルによる任意ファイル読み取り"
+    ],
+    "V7-trusted-role": [
+     "クライアント供給の user_data 辞書による権限昇格"
+    ],
+    "V8-type-validation": [
+     "支払い要求キューの入力検証欠如（負額・自己送金・ID不在確認）"
+    ]
+   },
+   "unlabeled": [
+    {
+     "location": "29-36",
+     "description": "平文パスワード保存とハードコードされた管理者初期認証情報",
+     "severity": "HIGH"
+    }
+   ],
+   "llm_calls": 1,
+   "chars_in": 7457,
+   "chars_out": 7761,
+   "elapsed_s": 26.1
+  },
+  {
+   "state": "completed",
+   "errors": [],
+   "n_findings": 11,
+   "hit": {
+    "V1-sqli-token": [
+     "SQLインジェクションによる認証バイパス",
+     "MD5+タイムスタンプによる予測可能なセッショントークン（セッションハイジャック）"
+    ],
+    "V2-toctou-session": [
+     "トークン未検証のセッション作成とセッションフィクシェーション／TOCTOU競合",
+     "認可欠如による水平方向権限昇格（IDOR）"
+    ],
+    "V3-idor": [
+     "認可欠如による水平方向権限昇格（IDOR）"
+    ],
+    "V4-negative-amount": [
+     "負の金額による送金（残高奪取）とTOCTOU残高チェック競合"
+    ],
+    "V6-password-reset": [
+     "パスワードリセットトークンの予測可能性と平文パスワード保存",
+     "リセットトークンのグローバル辞書による未認証操作・メモリリーク"
+    ],
+    "V7-trusted-role": [
+     "クライアント供給データによる権限判断（認可制御の信用違反）"
+    ],
+    "V5-path-traversal": [
+     "パストラバーサルによる任意ファイル読み取り"
+    ],
+    "V8-type-validation": [
+     "送金リクエストの入力検証欠如（負値／自己送金／認可なしでキュー投入）"
+    ]
+   },
+   "unlabeled": [
+    {
+     "location": "33-34",
+     "description": "ハードコードされた初期管理者クレデンシャル",
+     "severity": "HIGH"
+    }
+   ],
+   "llm_calls": 1,
+   "chars_in": 7457,
+   "chars_out": 7705,
+   "elapsed_s": 22.7
+  }
+ ],
+ "note": "モデルと日付に依存する参考値。未ラベル所見は誤検知と断定しない。 3回を2回の実行(1回+2回)に分けて測定し結果をまとめた。OpenRouter有料モデル(2026-10-22・承認済みの予算内)。"
+}

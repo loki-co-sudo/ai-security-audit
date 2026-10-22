@@ -1,0 +1,193 @@
+{
+ "mode": "AUDIT",
+ "model": "minimax/minimax-m3.1-flash",
+ "effort": "speed",
+ "runs_requested": 3,
+ "runs_done": 3,
+ "runs_with_findings": 3,
+ "per_vuln_hits": {
+  "V1-sqli-token": 3,
+  "V2-toctou-session": 3,
+  "V3-idor": 3,
+  "V4-negative-amount": 3,
+  "V5-path-traversal": 3,
+  "V6-password-reset": 3,
+  "V7-trusted-role": 3,
+  "V8-type-validation": 3
+ },
+ "recall_per_run": [
+  1.0,
+  1.0,
+  1.0
+ ],
+ "total_llm_calls": 3,
+ "hint_stripped": true,
+ "results": [
+  {
+   "state": "completed",
+   "errors": [],
+   "n_findings": 16,
+   "hit": {
+    "V1-sqli-token": [
+     "`authenticate()` の username SQL injection による認証・管理者権限バイパス",
+     "時刻とユーザー名から生成される予測可能なセッショントークン"
+    ],
+    "V6-password-reset": [
+     "パスワードの平文保存",
+     "セッショandexpires 判定と user lifecycle に基づく revocation の欠如",
+     "所有者確認を省略し reset token を直接返すパスワードリセット",
+     "ユーザー名から決定論的に生成されるパスワードリセットトークン"
+    ],
+    "V2-toctou-session": [
+     "認証済み ticket を要求しない任意ユーザー向けセッション発行",
+     "セッショandexpires 判定と user lifecycle に基づく revocation の欠如",
+     "セッション管理における check-then-act race condition"
+    ],
+    "V3-idor": [
+     "セッショandexpires 判定と user lifecycle に基づく revocation の欠如",
+     "セッション管理における check-then-act race condition",
+     "`get_user_profile()` における Ignored Authorizer による BOLA/IDOR"
+    ],
+    "V7-trusted-role": [
+     "`admin_required` が検証済みセッションではなく caller-supplied `role` を信頼する"
+    ],
+    "V4-negative-amount": [
+     "送金元 user ID のクライアント制御による任意資金移動",
+     "負額・非有限値を許す資金移動反転",
+     "残高確認と debit の間の TOCTOU による overdraft",
+     "存在しない送金先による送信元資金の消去"
+    ],
+    "V8-type-validation": [
+     "送金元 user ID のクライアント制御による任意資金移動",
+     "負額・非有限値を許す資金移動反転"
+    ],
+    "V5-path-traversal": [
+     "username/filename の双重 Path Traversal による任意ファイル読み取り"
+    ]
+   },
+   "unlabeled": [
+    {
+     "location": "L23-L43",
+     "description": "管理者を含む固定デフォルト認証情報の永続化",
+     "severity": "CRITICAL"
+    }
+   ],
+   "llm_calls": 1,
+   "chars_in": 7457,
+   "chars_out": 29849,
+   "elapsed_s": 447.8
+  },
+  {
+   "state": "completed",
+   "errors": [],
+   "n_findings": 20,
+   "hit": {
+    "V1-sqli-token": [
+     "authenticate の動的 SQL 構築と password 未使用による認証バイパス",
+     "username と現在時刻から構成される予測可能なセッショントークン"
+    ],
+    "V6-password-reset": [
+     "パスワードの平文保存",
+     "パスワード更新時の強度検証欠如",
+     "Session の有効期限および失効処理の欠如",
+     "予測可能かつ requester に直接返される password reset token",
+     "Password reset token の expiry が検証されない",
+     "Password reset token の単回使用処理が非原子",
+     "重要操作が audit_log に記録されない"
+    ],
+    "V2-toctou-session": [
+     "create_session の check-then-act race condition",
+     "Session の有効期限および失効処理の欠如"
+    ],
+    "V7-trusted-role": [
+     "caller supplied role に依存する admin authorization"
+    ],
+    "V3-idor": [
+     "get_user_profile の requesting_user_id 未使用による IDOR"
+    ],
+    "V4-negative-amount": [
+     "transfer_funds に送金元所有者の authorization が存在しない",
+     "負数 amount による资金の逆送",
+     "入金先の存在確認欠如による送信元資金の消失",
+     "transfer_funds の残高確認と更新を分離した TOCTOU race condition",
+     "重要操作が audit_log に記録されない"
+    ],
+    "V5-path-traversal": [
+     "username と filename による path traversal 任意ファイル読み取り"
+    ],
+    "V8-type-validation": [
+     "Payment request boundary における認証・金額検証の欠如",
+     "Payment request に idempotency がなく同一支払を重複処理できる"
+    ]
+   },
+   "unlabeled": [
+    {
+     "location": "L25-L30",
+     "description": "管理者を含む固定の初期アカウントと公開パスワード",
+     "severity": "HIGH"
+    }
+   ],
+   "llm_calls": 1,
+   "chars_in": 7457,
+   "chars_out": 28842,
+   "elapsed_s": 471.3
+  },
+  {
+   "state": "completed",
+   "errors": [],
+   "n_findings": 19,
+   "hit": {
+    "V1-sqli-token": [
+     "認証SQL injectionによる管理者権限の乗っ取り",
+     "時刻とユーザー名から予測可能なSession token"
+    ],
+    "V6-password-reset": [
+     "Password resetによるcleartext保存と空パスワード許可",
+     "Sessionの有効期限・失効・アカウント状態変更の連携不足",
+     "ユーザー名から決定される予測可能なPassword reset token",
+     "Reset tokenのexpiry未検証とone-time invariantの非atomic処理",
+     "作成されたaudit_logが更新操作で一度も使用されない監査証跡欠落"
+    ],
+    "V2-toctou-session": [
+     "Caller制御のuser_idとtokenによるSession fixationおよび任意IDoral mapping",
+     "create_sessionのcheck-to-use raceによるsession上書き",
+     "Sessionの有効期限・失効・アカウント状態変更の連携不足"
+    ],
+    "V3-idor": [
+     "Caller制御のuser_idとtokenによるSession fixationおよび任意IDoral mapping",
+     "Sessionの有効期限・失効・アカウント状態変更の連携不足",
+     "requesting_user_idを無視するプロフィールIDOR"
+    ],
+    "V7-trusted-role": [
+     "Caller提供のroleを信頼するAdmin authorization bypass"
+    ],
+    "V4-negative-amount": [
+     "送金元IDの認証欠落による任意口座からの資金窃取",
+     "Negative amountによる支払方向の反転と资金窃取",
+     "残高確認とdebitの間のTOCTOUによる overdraft・double spend",
+     "存在しない受取人への送金による資金消失",
+     "REAL型残高による金融金額の丸めと台帳不整合",
+     "作成されたaudit_logが更新操作で一度も使用されない監査証跡欠落"
+    ],
+    "V5-path-traversal": [
+     "Absolute path・Path traversalによる任意ファイル読み取り"
+    ],
+    "V8-type-validation": [
+     "Payment queue境界における認証・金額検証・idempotencyの欠落"
+    ]
+   },
+   "unlabeled": [
+    {
+     "location": "L40-L44",
+     "description": "ハードコードされたデフォルト管理者認証情報",
+     "severity": "CRITICAL"
+    }
+   ],
+   "llm_calls": 1,
+   "chars_in": 7457,
+   "chars_out": 28534,
+   "elapsed_s": 483.9
+  }
+ ],
+ "note": "モデルと日付に依存する参考値。未ラベル所見は誤検知と断定しない。 3回を2回の実行(1回+2回)に分けて測定し結果をまとめた。OpenRouter有料モデル(2026-10-22・承認済みの予算内)。"
+}
