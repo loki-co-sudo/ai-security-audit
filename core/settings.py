@@ -56,7 +56,7 @@ APP_TITLE   = "AI Security Audit System  ·  Autonomous Penetration Testing & De
 APP_VERSION = "2.6.0"
 
 # 検出ロジックを変えたら該当モードの版を上げる。所見台帳(P3.2)は版が異なる再検査を「不在の根拠」にしない。
-DETECTOR_VERSIONS = {"WEB FUZZ": "webfuzz-2", "AUDIT": "audit-1", "ATTACK": "attack-1", "DEFENSE": "defense-1"}
+DETECTOR_VERSIONS = {"WEB FUZZ": "webfuzz-2", "AUDIT": "audit-1", "ATTACK": "attack-1", "DEFENSE": "defense-2"}
 
 # ─── カラーテーマ ───────────────────────────────────────────
 BG_ROOT    = "#070C14"
@@ -232,16 +232,19 @@ LOG_MAX_CONTEXT    = 100   # AI送信最大行数
 # コマンドインジェクション・wp-admin・xmlrpc.php の6件が、旧パターンのどれにも
 # マッチせず _pattern_match() の時点で無視されていた（LLM分析に渡る前の構造的な漏れ）。
 ATTACK_PATTERNS = {
-    "SQL_INJECTION":    r"(?i)(union\s+select|or\s+1=1|'\s*or\s+'|--\s*$|;\s*drop\s+table|xp_cmdshell)",
+    # 末尾の `--` はSQLコメントとして使われる文脈(直前が引用符・括弧・数字)に限る。アプリログが `--` で終わるだけの行は対象外。
+    "SQL_INJECTION":    r"(?i)(union\s+select|or\s+1=1|'\s*or\s+'|['\")\d]\s*--\s*$|;\s*drop\s+table|xp_cmdshell)",
     "XSS":              r"(?i)(<script|javascript:|onerror=|onload=|alert\s*\(|document\.cookie)",
     "LFI_RFI":          r"(?i)(\.\.\/|\.\.\\\\|%2e%2e%2f|file://|php://|expect://|data://)",
-    "CMD_INJECTION":    r"(?i)(;\s*(ls|cat|id|whoami|pwd|wget|curl)\b|`[^`]+`|\$\([^)]+\)|"
+    "CMD_INJECTION":    r"(?i)(;\s*(ls|cat|id|whoami|pwd|wget|curl)\b|`[^`]+`|"
+                        r"\$\(\s*(?:id|whoami|cat|ls|uname|pwd|curl|wget|nc|bash|sh|echo|sleep|ping)\b[^)]*\)|"
                         r"[?&]cmd=(?:cat|whoami|id|ls|wget|curl|nc|bash|sh)\b)",
-    "BRUTE_FORCE":      r"(failed login|authentication failure|invalid (password|credentials))",
+    "BRUTE_FORCE":      r"(?i)(failed login|authentication failure|invalid (password|credentials))",
     "SCANNER":          r"(?i)(nikto|sqlmap|nmap|masscan|nessus|openvas|burpsuite|zap)",
     "PATH_TRAVERSAL":   r"(?i)(\.\./|\.\.\\\\|%252e%252e|%c0%ae|%c1%9c)",
     "SENSITIVE_FILE_PROBE": r"(?i)(\.env\b|\.git/(?:head|config)|\.htpasswd|config\.php|"
                             r"id_rsa|\.aws/credentials)",
-    "CMS_PROBE":        r"(?i)(wp-admin|wp-login\.php|xmlrpc\.php|phpmyadmin)",
+    # 英数字・ハイフンに隣接しない場合のみ(記事slugの `how-to-secure-wp-admin-panel` 等を除く)
+    "CMS_PROBE":        r"(?i)(?<![\w-])(wp-admin|wp-login\.php|xmlrpc\.php|phpmyadmin)(?![\w-])",
     "SSRF":             r"(?i)(http://localhost|http://127\.|http://169\.254|file://|dict://|gopher://)",
 }

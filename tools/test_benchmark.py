@@ -196,20 +196,28 @@ class DefenseBenchmarkTest(unittest.TestCase):
                          "`python tools/benchmark.py defense --runs 3 --save-baseline testlab/baselines/defense_signatures.json`で更新")
         self.assertEqual(cur["metrics"]["total"]["unexamined"], 0)
 
-    def test_baseline_documents_the_known_blind_spots_and_false_positives(self):
-        """基準値は現行シグネチャの限界(エンコード・大文字小文字の見逃し、部分一致の誤検知)を隠さない。"""
+    def test_baseline_documents_remaining_blind_spots_found_by_heldout_cases(self):
+        """調整後に追加した未見ケースで残った見逃しを、基準値は隠さない(調整済みケースだけの満点を実力としない)。"""
         with open(bm.DEFENSE_BASELINE_PATH, encoding="utf-8") as f:
             doc = json.load(f)
         det = {tuple(d) for d in doc["detections"]}
-        m = doc["metrics"]["per_rule"]
-        self.assertNotIn(("SQL_INJECTION", "sqli-union-urlencoded"), det)          # URLエンコードの攻撃を見逃す
-        self.assertNotIn(("BRUTE_FORCE", "bf-failed-login-capital"), det)          # 大文字小文字の違いを見逃す
-        self.assertNotIn(("SSRF", "ssrf-urlencoded"), det)
-        self.assertIn(("SCANNER", "scanner-benign-zapier"), det)                   # 記事slugのzapを誤検知
-        self.assertIn(("CMS_PROBE", "cms-benign-article"), det)
-        self.assertGreater(m["SQL_INJECTION"]["fn"], 0)
-        self.assertEqual(doc["metrics"]["total"]["fp"] + doc["metrics"]["total"]["tp"], len(det))
+        for rule, lid in (("SQL_INJECTION", "heldout-sqli-union-all"), ("CMD_INJECTION", "heldout-cmd-pipe-nc"),
+                          ("BRUTE_FORCE", "heldout-bf-sshd-failed-password"), ("SSRF", "heldout-ssrf-ipv6-loopback")):
+            self.assertNotIn((rule, lid), det)                                     # 既知の見逃し(FN)
+        self.assertEqual(doc["metrics"]["total"]["fn"], 4)
+        self.assertEqual(doc["metrics"]["total"]["fp"], 0)
+        self.assertLess(doc["metrics"]["total"]["recall"], 1.0)
         self.assertEqual(doc["llm_usage"], "n/a (signature mode)")
+
+    def test_pre_change_baseline_is_kept_as_history(self):
+        """defense-2(URLデコード照合・文脈限定)の前の基準値: 同じ検出器で エンコード回避を見逃し、部分一致の誤検知があった。"""
+        path = os.path.join(os.path.dirname(bm.DEFENSE_BASELINE_PATH), "defense_signatures.before-defense-2.json")
+        with open(path, encoding="utf-8") as f:
+            old = json.load(f)
+        det = {tuple(d) for d in old["detections"]}
+        self.assertNotIn(("SQL_INJECTION", "sqli-union-urlencoded"), det)
+        self.assertIn(("SCANNER", "scanner-benign-zapier"), det)
+        self.assertEqual((old["metrics"]["total"]["fp"], old["metrics"]["total"]["fn"]), (5, 5))
 
 
 class CompareTest(unittest.TestCase):

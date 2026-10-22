@@ -7,6 +7,7 @@ agents/monitor_agent.py — リアルタイム防御監視エージェント
 
 from __future__ import annotations
 import re
+from urllib.parse import unquote_plus
 import time
 from datetime import datetime
 from collections import deque
@@ -59,6 +60,17 @@ An evidence_id only shows that a signature matched that log line; it does not pr
 # パターン集約フィルタ設定
 _AGGREGATION_WINDOW  = 300   # 5分間の集約ウィンドウ（秒）
 _IP_PATTERN          = re.compile(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}')
+
+
+_ACCESS_LOG_UA = re.compile(r'"[A-Z]+ [^"]*" \d{3} \S+ "[^"]*" "(?P<ua>[^"]*)"\s*$')
+
+
+def _decoded_variants(line: str, max_len: int = 8000) -> list[str]:
+    """生の行と、URLデコード(+を空白扱い)1回・2回後の行(重複除去)。巨大行は先頭だけをデコードする。"""
+    raw = line[:max_len]
+    once = unquote_plus(raw)
+    twice = unquote_plus(once)
+    return list(dict.fromkeys([line, once, twice]))
 
 
 def _extract_ip(line: str) -> str:
@@ -277,10 +289,17 @@ class MonitorAgent(BaseAgent):
         return ScanState.COMPLETED.value, errors
 
     def _pattern_match(self, line: str) -> list[str]:
-        """ログ行に攻撃パターンが含まれるか検査。一致したパターン名を返す。"""
+        """ログ行に攻撃パターンが含まれるか検査。一致したパターン名を返す。
+
+        生の行に加え、URLデコード(1回・2回)後の行でも照合する(`%27%20OR%201%3D1` 等のエンコード回避を見逃さない)。
+        SCANNERはアクセスログ形式(combined)ならUser-Agent欄だけを見る(記事slugや資料名の `zap`/`nmap` を誤検知しない)。
+        """
+        variants = _decoded_variants(line)
+        ua = _ACCESS_LOG_UA.search(line)
         matched = []
         for name, pattern in ATTACK_PATTERNS.items():
-            if re.search(pattern, line):
+            subject = [ua.group("ua")] if (name == "SCANNER" and ua) else variants
+            if any(re.search(pattern, v) for v in subject):
                 matched.append(name)
         return matched
 

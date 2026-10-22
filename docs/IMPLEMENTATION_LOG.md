@@ -614,3 +614,7 @@ CLI `openapi FILE` / `scan fuzz --openapi ... --openapi-op ...`。副次修正: 
 ## 2026-10-22 P2.1(DEFENSE detector固定モード)
 `tools/benchmark.py defense`、`testlab/benchmark/ground_truth_defense.json`(43判定)、基準値`testlab/baselines/defense_signatures.json`。
 検知器は無変更。`tools/test_benchmark.py`に`DefenseBenchmarkTest`を追加(selftest 16w)。
+
+## 2026-10-22 DEFENSEシグネチャ改善(defense-2)
+`MonitorAgent._pattern_match`にURLデコード照合とSCANNERのUA限定、`ATTACK_PATTERNS`のBRUTE_FORCE/CMS_PROBE/SQL末尾`--`/`$()`を文脈限定。
+ベンチマーク全58判定: TP25・FP0・FN4(未見ケース由来)。修正前基準値は`defense_signatures.before-defense-2.json`。

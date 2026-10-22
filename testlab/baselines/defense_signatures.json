@@ -1,6 +1,10 @@
 {
- "created_at": "2026-10-22T03:13:18",
+ "created_at": "2026-10-22T09:16:26",
  "detections": [
+  [
+   "BRUTE_FORCE",
+   "bf-failed-login-capital"
+  ],
   [
    "BRUTE_FORCE",
    "bf-failed-login-lower"
@@ -11,23 +15,31 @@
   ],
   [
    "CMD_INJECTION",
-   "cmd-benign-price-label"
-  ],
-  [
-   "CMD_INJECTION",
    "cmd-semicolon-cat"
   ],
   [
-   "CMS_PROBE",
-   "cms-benign-article"
+   "CMD_INJECTION",
+   "heldout-cmd-subshell-curl"
   ],
   [
    "CMS_PROBE",
    "cms-wp-login"
   ],
   [
+   "CMS_PROBE",
+   "heldout-cms-xmlrpc"
+  ],
+  [
+   "LFI_RFI",
+   "heldout-lfi-php-filter"
+  ],
+  [
    "LFI_RFI",
    "lfi-dotdot"
+  ],
+  [
+   "LFI_RFI",
+   "lfi-double-encoded"
   ],
   [
    "PATH_TRAVERSAL",
@@ -39,15 +51,15 @@
   ],
   [
    "SCANNER",
-   "scanner-benign-nmap-doc"
-  ],
-  [
-   "SCANNER",
-   "scanner-benign-zapier"
+   "heldout-scanner-nikto-ua"
   ],
   [
    "SCANNER",
    "scanner-sqlmap-ua"
+  ],
+  [
+   "SENSITIVE_FILE_PROBE",
+   "heldout-sensitive-htpasswd"
   ],
   [
    "SENSITIVE_FILE_PROBE",
@@ -59,29 +71,45 @@
   ],
   [
    "SQL_INJECTION",
-   "sqli-benign-trailing-dashes"
+   "sqli-or-urlencoded"
   ],
   [
    "SQL_INJECTION",
    "sqli-union"
   ],
   [
+   "SQL_INJECTION",
+   "sqli-union-urlencoded"
+  ],
+  [
    "SSRF",
    "ssrf-metadata"
   ],
   [
+   "SSRF",
+   "ssrf-urlencoded"
+  ],
+  [
+   "XSS",
+   "heldout-xss-img-onerror"
+  ],
+  [
    "XSS",
    "xss-script"
+  ],
+  [
+   "XSS",
+   "xss-svg-urlencoded"
   ]
  ],
  "elapsed_sec": [
-  0.001,
-  0.001,
-  0.001
+  0.003,
+  0.002,
+  0.002
  ],
  "fixture_sha256": "n/a (正解データ内の行を直接評価)",
  "git": {
-  "commit": "b62dfed4b205de874c601f103ec1f17514504179",
+  "commit": "610f8cc5198ee11868ce32b6a800419d77a2dcfe",
   "dirty": true
  },
  "http_requests": [
@@ -94,56 +122,56 @@
  "metrics": {
   "per_rule": {
    "BRUTE_FORCE": {
-    "cases": 4,
+    "cases": 5,
     "fn": 1,
     "fn_unexamined": 0,
     "fp": 0,
     "precision": 1.0,
-    "recall": 0.5,
+    "recall": 0.6667,
     "tn": 2,
-    "tp": 1,
-    "unexamined": 0,
-    "unexamined_negative": 0,
-    "unexamined_rate": 0.0,
-    "unlisted": []
-   },
-   "CMD_INJECTION": {
-    "cases": 6,
-    "fn": 0,
-    "fn_unexamined": 0,
-    "fp": 1,
-    "precision": 0.6667,
-    "recall": 1.0,
-    "tn": 3,
     "tp": 2,
     "unexamined": 0,
     "unexamined_negative": 0,
     "unexamined_rate": 0.0,
     "unlisted": []
    },
-   "CMS_PROBE": {
-    "cases": 3,
-    "fn": 0,
+   "CMD_INJECTION": {
+    "cases": 8,
+    "fn": 1,
     "fn_unexamined": 0,
-    "fp": 1,
-    "precision": 0.5,
-    "recall": 1.0,
-    "tn": 1,
-    "tp": 1,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 0.75,
+    "tn": 4,
+    "tp": 3,
     "unexamined": 0,
     "unexamined_negative": 0,
     "unexamined_rate": 0.0,
     "unlisted": []
    },
-   "LFI_RFI": {
-    "cases": 3,
+   "CMS_PROBE": {
+    "cases": 4,
     "fn": 0,
     "fn_unexamined": 0,
     "fp": 0,
     "precision": 1.0,
     "recall": 1.0,
     "tn": 2,
-    "tp": 1,
+    "tp": 2,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   },
+   "LFI_RFI": {
+    "cases": 5,
+    "fn": 0,
+    "fn_unexamined": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "tn": 2,
+    "tp": 3,
     "unexamined": 0,
     "unexamined_negative": 0,
     "unexamined_rate": 0.0,
@@ -164,70 +192,70 @@
     "unlisted": []
    },
    "SCANNER": {
-    "cases": 4,
-    "fn": 0,
-    "fn_unexamined": 0,
-    "fp": 2,
-    "precision": 0.3333,
-    "recall": 1.0,
-    "tn": 1,
-    "tp": 1,
-    "unexamined": 0,
-    "unexamined_negative": 0,
-    "unexamined_rate": 0.0,
-    "unlisted": []
-   },
-   "SENSITIVE_FILE_PROBE": {
-    "cases": 4,
+    "cases": 6,
     "fn": 0,
     "fn_unexamined": 0,
     "fp": 0,
     "precision": 1.0,
     "recall": 1.0,
-    "tn": 2,
+    "tn": 4,
     "tp": 2,
     "unexamined": 0,
     "unexamined_negative": 0,
     "unexamined_rate": 0.0,
     "unlisted": []
    },
-   "SQL_INJECTION": {
-    "cases": 6,
-    "fn": 2,
+   "SENSITIVE_FILE_PROBE": {
+    "cases": 5,
+    "fn": 0,
     "fn_unexamined": 0,
-    "fp": 1,
-    "precision": 0.5,
-    "recall": 0.3333,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 1.0,
     "tn": 2,
-    "tp": 1,
+    "tp": 3,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   },
+   "SQL_INJECTION": {
+    "cases": 8,
+    "fn": 1,
+    "fn_unexamined": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 0.75,
+    "tn": 4,
+    "tp": 3,
     "unexamined": 0,
     "unexamined_negative": 0,
     "unexamined_rate": 0.0,
     "unlisted": []
    },
    "SSRF": {
-    "cases": 4,
+    "cases": 6,
     "fn": 1,
     "fn_unexamined": 0,
     "fp": 0,
     "precision": 1.0,
-    "recall": 0.5,
-    "tn": 2,
-    "tp": 1,
+    "recall": 0.6667,
+    "tn": 3,
+    "tp": 2,
     "unexamined": 0,
     "unexamined_negative": 0,
     "unexamined_rate": 0.0,
     "unlisted": []
    },
    "XSS": {
-    "cases": 5,
-    "fn": 1,
+    "cases": 7,
+    "fn": 0,
     "fn_unexamined": 0,
     "fp": 0,
     "precision": 1.0,
-    "recall": 0.5,
-    "tn": 3,
-    "tp": 1,
+    "recall": 1.0,
+    "tn": 4,
+    "tp": 3,
     "unexamined": 0,
     "unexamined_negative": 0,
     "unexamined_rate": 0.0,
@@ -235,14 +263,14 @@
    }
   },
   "total": {
-   "cases": 43,
-   "fn": 5,
+   "cases": 58,
+   "fn": 4,
    "fn_unexamined": 0,
-   "fp": 5,
-   "precision": 0.7222,
-   "recall": 0.7222,
-   "tn": 20,
-   "tp": 13,
+   "fp": 0,
+   "precision": 1.0,
+   "recall": 0.8621,
+   "tn": 29,
+   "tp": 25,
    "unexamined": 0,
    "unexamined_negative": 0,
    "unexamined_rate": 0.0
@@ -252,5 +280,5 @@
  "schema": "ai-security-audit-benchmark",
  "schema_version": "1",
  "stable": true,
- "truth_sha256": "1178f34a2a6d4c7d2a2a51c6ad1dd97f5eedcc030fb8e8be1a4341315097ddbc"
+ "truth_sha256": "f242b5bf00e911c5eb14b5f206015f05bbcb92279b12a3cc17befd49da839f38"
 }

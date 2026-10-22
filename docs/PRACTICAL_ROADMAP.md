@@ -185,8 +185,13 @@ SQLi/XSS/SSTI/TRAVERSAL/IDORの脆弱例と罠（静的エラー文言・text/pl
 基準値`testlab/baselines/defense_signatures.json`)。`ATTACK_PATTERNS`の実コードパス(`MonitorAgent._pattern_match`)を、攻撃行と正常な罠の行
 (記事slug・静的ファイル名・表示ラベル等)へ当てる。ラベルは行の意味で付け、検知器の出力に合わせていない。基準値(43判定): TP13・FP5・FN5・TN20、
 precision/recallとも約0.72。**見えている限界**: URLエンコードされたSQLi/XSS/SSRFの見逃し、BRUTE_FORCEの大文字小文字(`Failed login`)の見逃し、
-`zap`/`nmap`/`wp-admin`/`$(…)`/末尾`--`の部分一致による誤検知。検出器はまだ変更していない(改善は別作業で基準値との比較で行う)。
-LLM分析の品質は対象外(MonitorAgentのLLM部分は未評価)。
+`zap`/`nmap`/`wp-admin`/`$(…)`/末尾`--`の部分一致による誤検知。LLM分析の品質は対象外(MonitorAgentのLLM部分は未評価)。
+2026-10-22 追記(DEFENSE検知の改善 `defense-2`): URLデコード(1回・2回)後の行でも照合、BRUTE_FORCEの大文字小文字無視、SCANNERはcombined形式ならUser-Agent欄のみ、
+CMS_PROBEは英数字・ハイフン非隣接、末尾`--`は直前が引用符/括弧/数字、`$(…)`は既知コマンドのみ。修正前の基準値は`defense_signatures.before-defense-2.json`に保存。
+調整対象の43判定ではFP5→0・FN5→0(**過学習のため実力とは見なさない**。うち`lfi-double-encoded`にLFI_RFIのラベルを足したのは結果を見た後の整合修正)。
+そこで**調整後に結果を見ずに意味でラベルを付けた未見ケース14行(15判定)を追加**した全58判定の基準値: TP25・FP0・FN4・TN29、recall約0.86。
+**残る見逃し(FN)**: `UNION ALL SELECT`、パイプ+`nc`のコマンド連結、実際のsshdの`Failed password for invalid user`、IPv6ループバック`http://[::1]`のSSRF。未修正のまま基準値に残している。
+検出器版は`DETECTOR_VERSIONS["DEFENSE"]="defense-2"`(台帳の再検査判定は版違いを不在の根拠にしない)。
 
 ### P2.2 IDOR・SSTI・XSS
 
