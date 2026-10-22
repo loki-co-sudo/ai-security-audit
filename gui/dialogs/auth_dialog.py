@@ -28,8 +28,8 @@ class AuthDialog(RobustToplevel):
 
         self.title("WEB FUZZ 認証設定")
         self.configure(fg_color=BG_PANEL)
-        self.geometry("620x660")
-        self.minsize(620, 660)
+        self.geometry("620x720")
+        self.minsize(620, 480)
 
         # 各フィールドの変数（master=self でデフォルトルート非依存）
         self._v = {
@@ -70,8 +70,30 @@ class AuthDialog(RobustToplevel):
                      font=ctk.CTkFont("Segoe UI", 14, "bold"),
                      text_color=AMBER).pack(side="left", padx=16, pady=12)
 
-        body = ctk.CTkFrame(self, fg_color="transparent")
-        body.pack(fill="both", expand=True, padx=20, pady=10)
+        btn_row = self._btn_row = ctk.CTkFrame(self, fg_color=BG_WIDGET, corner_radius=0, height=56)
+        btn_row.pack(fill="x", side="bottom")
+        btn_row.pack_propagate(False)
+        ctk.CTkButton(
+            btn_row, text="キャンセル", width=110, height=36,
+            fg_color="#152030", hover_color="#1E3040",
+            border_color=BORDER, border_width=1, text_color=TEXT_DIM,
+            font=ctk.CTkFont("Segoe UI", 11), command=self.destroy,
+        ).pack(side="right", padx=12, pady=10)
+        ctk.CTkButton(
+            btn_row, text="保存", width=110, height=36,
+            fg_color=CYAN, hover_color="#00B5DD", text_color=BG_PANEL,
+            font=ctk.CTkFont("Segoe UI", 12, "bold"), command=self._save,
+        ).pack(side="right", padx=(0, 6), pady=10)
+        ctk.CTkButton(
+            btn_row, text="クリア", width=100, height=36,
+            fg_color="#2A1A00", hover_color="#3A2400",
+            border_color=AMBER, border_width=1, text_color=AMBER,
+            font=ctk.CTkFont("Segoe UI", 11), command=self._clear,
+        ).pack(side="left", padx=12, pady=10)
+
+        # 項目が増えても保存/キャンセルが窓外へ切れないよう、本体はスクロール可能にし、ボタン行は先にpackする
+        body = ctk.CTkScrollableFrame(self, fg_color="transparent")
+        body.pack(fill="both", expand=True, padx=12, pady=10)
 
         ctk.CTkLabel(
             body, text="使う方式の欄だけ入力してください（併用可）。空欄は無視されます。",
@@ -102,27 +124,6 @@ class AuthDialog(RobustToplevel):
             anchor="w", justify="left", wraplength=560).pack(fill="x", anchor="w", pady=(0, 4))
         self._entry(body, "確認URL", "confirm_url", "http://127.0.0.1:8000/account")
         self._entry(body, "期待する文字列", "expect_text", "ログイン後だけ表示される文言")
-
-        btn_row = ctk.CTkFrame(self, fg_color=BG_WIDGET, corner_radius=0, height=56)
-        btn_row.pack(fill="x", side="bottom")
-        btn_row.pack_propagate(False)
-        ctk.CTkButton(
-            btn_row, text="キャンセル", width=110, height=36,
-            fg_color="#152030", hover_color="#1E3040",
-            border_color=BORDER, border_width=1, text_color=TEXT_DIM,
-            font=ctk.CTkFont("Segoe UI", 11), command=self.destroy,
-        ).pack(side="right", padx=12, pady=10)
-        ctk.CTkButton(
-            btn_row, text="保存", width=110, height=36,
-            fg_color=CYAN, hover_color="#00B5DD", text_color=BG_PANEL,
-            font=ctk.CTkFont("Segoe UI", 12, "bold"), command=self._save,
-        ).pack(side="right", padx=(0, 6), pady=10)
-        ctk.CTkButton(
-            btn_row, text="クリア", width=100, height=36,
-            fg_color="#2A1A00", hover_color="#3A2400",
-            border_color=AMBER, border_width=1, text_color=AMBER,
-            font=ctk.CTkFont("Segoe UI", 11), command=self._clear,
-        ).pack(side="left", padx=12, pady=10)
 
     def _save(self):
         data = {k: v.get().strip() for k, v in self._v.items() if v.get().strip()}

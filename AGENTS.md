@@ -134,6 +134,8 @@ AI-Security-tool/
 │   ├── live_eval.py             # P2.1: 実LLM評価ハーネス(AUDIT)。ヒント除去・複数回・呼出し上限・config非変更。結果は参考値で本番品質ではない
 │   ├── test_live_eval.py        # 上記の非LLM部分の固定試験(selftest 16ab)
 │   ├── benchmark.py             # P2.1 検出品質ベンチマーク(detector固定モード。`python tools/benchmark.py web-fuzz|defense|attack`)
+│   ├── gui_snapshot.py          # GUI目視確認用スナップショット(xvfb-runの仮想ディスプレイ・`python tools/gui_snapshot.py OUTDIR`)
+│   ├── test_gui_layout.py       # 認証ダイアログのボタンが窓内に収まる回帰試験(xvfb-run無しならSKIP。selftest未統合)
 │   ├── test_benchmark.py        # 集計器(手計算)・正解データ・基準値との一致の固定試験（selftest 16wに統合）
 │   ├── test_cli.py              # CLIプロセス試験（JSON・認証・再開・SIGINT。selftest 16v）
 │   ├── run_selftest.py          # 全機能セルフテスト（GUI以外をEventBus経由でE2E検証）
@@ -271,6 +273,10 @@ fix: fix ALERT event not firing in DEFENSE MODE
 - **ATTACK MODE のスキャン挙動は `core/settings.SCAN_PROFILES` で一元管理する**。スキャナのタイミング・並列度・ランダム化をエージェントやUIにハードコードしない（intensity の直値分岐を `NetworkScanner.from_profile()` / `WebProber(profile=...)` に置換済み。新プロファイルは settings に追加するだけで全体へ波及させる）。
 - **`WebProber` は自己申告UA（"Security Audit Tool" 等）を使わない**。ステルス前提のため `STEALTH_USER_AGENTS` の実在ブラウザUAをローテーションする。
 - **WEB FUZZ は「検出のみ・非エクスプロイト」を厳守する**。`web_fuzzer.py` はレスポンス異常（反射・DBエラー署名・テンプレ評価・既知ファイル署名）の観測に留め、データ窃取・RCE実行・認証回避は実装しない。総リクエスト数の上限（`max_requests`）・同一オリジン限定・ジッター/低並列でDoSを回避する。これらの安全境界を緩めない。
+- **ダイアログ/パネルに入力項目を足したら、小さい窓でも保存・キャンセル等のボタンが見えるか確認する**。
+  `AuthDialog`はP2.2で項目を足した結果、`side="bottom"`のボタン行を本体より後にpackしていたため
+  保存ボタンが窓外へ切れていた(2026-10-22、仮想ディスプレイのスクリーンショットで発覚)。ボタン行を先にpackし、
+  本体は`CTkScrollableFrame`にする。確認は`python tools/gui_snapshot.py OUTDIR`、固定は`tools/test_gui_layout.py`。
 - **レポート出力は `gui/export_util.py` 経由に統一する**。各パネルで `report_generator` を直接叩く重複実装をしない（HTML/PDF両対応のため一元化済み）。PDFは `tools/pdf_writer.py`（Pillowのみ）で日本語をラスタ描画する — 標準14フォントはCJK非対応のため。
 - **後方互換のためデフォルトを無効にする新しい安全機構は、UIに常時警告を表示する**。
   スコープガード（`allowed_targets` 空リスト＝無効）は既存インストールとの後方互換のため

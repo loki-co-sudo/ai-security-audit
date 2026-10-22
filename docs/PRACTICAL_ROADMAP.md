@@ -64,7 +64,7 @@ P4内は用途に応じて一項目ずつ選択できる。保留事項を自動
 
 | ID | 進捗 | 実装済み | 残り・未検証 |
 |---|---|---|---|
-| P1.2 | ほぼ実装・未完了扱い | 証拠保存・マスキング・全4モードの配線・HTML/MD/PDF/JSON、AUDITで実LLMの証拠ID引用を1回確認 | GUI目視、他モードの実LLM引用、ATTACK画面ログの未マスク |
+| P1.2 | ほぼ実装・未完了扱い | 証拠保存・マスキング・全4モードの配線・HTML/MD/PDF/JSON、AUDITで実LLMの証拠ID引用を1回確認 | 実画面でのGUI目視(仮想ディスプレイでの4タブ・JSON出力ボタン・結果注入後の4形式出力は確認済み)、他モードの実LLM引用、ATTACK画面ログの未マスク |
 | P2.1 | 一部 | WEB FUZZ・DEFENSEシグネチャ・ATTACK偵察のdetector固定ベンチと基準値、AUDITの実LLM評価(無料枠モデル3回・`tools/live_eval.py`) | 他モデルでの実LLM評価、ATTACKの実LLM評価、WEB FUZZ/DEFENSEの大きな正解データでの実LLM評価(3回の小規模測定のみ)、ATTACKのLLM解釈部分のベンチ、トークン使用量(現状は文字数のみ) |
 | P2.2 | 検出器側は実装 | IDOR(ログイン/公開除外・期待権限表)、SSTI別式確認、XSS content-type | 期待権限表のGUI入力・旧FuzzAgent配線、同一origin確認URL、逆方向 |
 | P3.1 | ほぼ実装 | `scan fuzz/audit/defense/attack`・`--targets-file`・`--engagement`・除外優先・`--format md`・`--effort auto`・`defense --duration`・`--use-profile`・`core/scan_runner.py`(ATTACK/AUDIT/DEFENSE/WEB FUZZ・resumeの対象ごと実行)・`--min-verification`・`--rate-limit-rps`・profilesの`rate_limit_rps`/`scope_mode`(block のみ) | 案件プロファイルのGUI入力、予算(max_llm_calls等)のprofiles化 |
@@ -72,7 +72,7 @@ P4内は用途に応じて一項目ずつ選択できる。保留事項を自動
 | P4.1 | 初期版 | ローカルJSON/YAML・明示選択のGET+query・サンプル値生成(parameter/schemaのexample・allOf/oneOf/anyOf・3.1型配列・array・format)・操作ごとの認証要件表示 | path param・body・POST等(境界として非対応のまま)、認証schemeの自動適用、GUI |
 | P4.2 | 初期版 | 標準エンジン・LangGraph版(モックLLM)の複数ファイル監査 | GUI、証拠保存、実LLM評価 |
 | P4.3 | 中核 | ローテーション/縮小/部分行/JSONL/MITRE確認・回転済みgzipアーカイブの1回通し読み・journaldアダプター(`journald[:UNIT]`) | syslog形式の構造化パース、長時間運用検証、journaldの実運用(権限・大量ログ)での確認 |
-| 共通 | 一部検証 | selftest 170 PASS / 0 FAIL / 5 SKIP(`SELFTEST_NON_LLM_ONLY=1`)。AUDITは実LLMで3回評価、証拠ID引用・effort autoは実LLMで各1回、DEFENSE・WEB FUZZは各3回の小規模測定(付録) | 実LLM系5件のselftest、AUDIT/DEFENSE/WEB FUZZ以外の実LLM評価、より大きな正解データでの複数回評価、GUIの目視確認は全体を通して未実施 |
+| 共通 | 一部検証 | selftest 170 PASS / 0 FAIL / 5 SKIP(`SELFTEST_NON_LLM_ONLY=1`)。AUDITは実LLMで3回評価、証拠ID引用・effort autoは実LLMで各1回、DEFENSE・WEB FUZZは各3回の小規模測定(付録) | 実LLM系5件のselftest、AUDIT/DEFENSE/WEB FUZZ以外の実LLM評価、より大きな正解データでの複数回評価、GUIは仮想ディスプレイでの目視(4タブ・設定/認証ダイアログ・4形式出力。認証ダイアログのボタン切れを発見・修正)のみで、実スキャンをGUIから走らせた確認・Windows/実画面(DPI・マルチモニタ)・ファイル選択ダイアログは未確認 |
 
 ## 4. P0: 通信・認証の境界
 
@@ -143,7 +143,7 @@ P4内は用途に応じて一項目ずつ選択できる。保留事項を自動
 一致行）の証拠保存、LLM送信前のソース/ログマスキング、未知ID/上限省略/保存失敗のerrors記録を
 実装。ATTACKはCTFフラグの中身・取得経路のレポート化まで実装（LLM所見の証拠保存は未対応）。
 FUZZのIDOR証拠も保存対応済み。FUZZの入力マスキングも実装済み。JSON出力、ATTACKの偵察観測、LangGraph版の証拠保存も実装済み。実装範囲は一通り完了。
-完了扱いにする前の未了事項: GUI目視、実LLMでの引用挙動確認、ATTACK画面表示ログの未マスク。
+完了扱いにする前の未了事項: 実画面でのGUI目視(仮想ディスプレイでの確認は2026-10-22実施)、実LLMでの引用挙動確認、ATTACK画面表示ログの未マスク。
 本項目は未完了。証拠ファイルを後から移動・削除した場合のリンク切れは検査しない。
 
 対象: 新規 `core/evidence_store.py`、`core/redaction.py`、`tools/report_generator.py`、`gui/export_util.py`、各agent/送信層。
