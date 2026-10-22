@@ -158,7 +158,8 @@ class AutonomousFuzzAgent(FuzzAgent):
             approvals: list | None = None, permit_t2: bool = False,
             resume_run_id: str | None = None, retry_unknown: list[str] | None = None,
             additional_requests: int = 0, idor_expectations: list | None = None,
-            excluded_targets: list[str] | None = None, seed_points: list[dict] | None = None) -> None:
+            excluded_targets: list[str] | None = None, seed_points: list[dict] | None = None,
+            rate_limit_rps: float | None = None) -> None:
         """新規実行、または `resume_run_id` を指定した中断からの再開(docs/AUTONOMOUS_PHASE_B_DESIGN.md)。
 
         再開では、開始時と同じプロファイルを要求し(許可対象・予算・計画が違えば拒否)、完了済みタスクは再実行せず
@@ -199,7 +200,8 @@ class AutonomousFuzzAgent(FuzzAgent):
             # 表が無い場合はキー自体を入れない(表導入前のRunのハッシュと再開互換を保つ)
             **({"idor_expectations": idor_expectations} if idor_expectations else {}),
             **({"excluded_targets": sorted(excluded_targets)} if excluded_targets else {}),
-            **({"seed_points": seed_points} if seed_points else {})})
+            **({"seed_points": seed_points} if seed_points else {}),
+            **({"rate_limit_rps": rate_limit_rps} if rate_limit_rps else {})})
 
         journal = store = None
         resuming = resume_run_id is not None
@@ -217,7 +219,8 @@ class AutonomousFuzzAgent(FuzzAgent):
                     "has_auth": bool(auth), "has_auth_b": bool(auth_b),
                     "tls_verify": tls_verify, "tls_ca_bundle": tls_ca_bundle,
                     "idor_expectations": idor_expectations,
-                    "excluded_targets": sorted(excluded_targets or []), "seed_points": seed_points}, sort_keys=True))
+                    "excluded_targets": sorted(excluded_targets or []), "seed_points": seed_points,
+                    "rate_limit_rps": rate_limit_rps}, sort_keys=True))
             if resuming:
                 if store.get_meta("profile_hash") != phash:
                     raise ResumeError("プロファイル(対象・許可・予算・計画など)が開始時と異なるため再開しません")
@@ -242,6 +245,7 @@ class AutonomousFuzzAgent(FuzzAgent):
             profile=profile, max_pages=max_pages, max_requests=max(0, total_cap - prior),
             log=lambda m: self._log(mask(m)), auth=auth, auth_b=auth_b, target=base_url,
             stop_event=self._stop_event, tls_verify=tls_verify, tls_ca_bundle=tls_ca_bundle,
+            rate_limit_rps=rate_limit_rps,
         )
         fuzzer.idor_expectations = idor_expectations
         fuzzer.seed_points = seed_points

@@ -667,3 +667,7 @@ AUDITの証拠ID引用、`--effort auto`、DEFENSEのMITRE ID、WEB FUZZのト�
 
 ## 2026-10-22 P3.1(追補): WEB FUZZの対象ごと実行を`core/scan_runner.py`へ移動
 `run_fuzz_targets()`(除外判定・認証承認grantの生成・AutonomousFuzzAgentの起動・結果収集・中断時のskipped)を`cli.main`から移した。挙動は不変(承認TTL300秒・除外優先・agentへのSIGINT伝播は`on_agent`/`was_interrupted`経由)。`cli.py`は入力検査・認証読込・案件設定・OpenAPI選択・LLM生成・status・台帳記録を担当。試験: `tools/test_cli.py` 29件が移動前後で同一結果。
+
+## 2026-10-22 P3.1(追補): rate_limit_rpsとprofilesのscope_mode
+`scan fuzz --rate-limit-rps R`(0<R<=1000)。`WebFuzzer(rate_limit_rps=)`はプロファイルの`path_rate_per_sec`との小さい方を採用し、緩める方向には働かない(無制限プロファイルには上限を足せる)。Runのプロファイル(`profile_json`)に保存して再開でも維持し、指定時だけ`profile_hash`に入れる(未指定のRunとの再開互換を保つ)。
+`config.json`のprofilesに`rate_limit_rps`(fuzzのみ)と`scope_mode`を追加。`scope_mode`は新規実行が常にblockのため`"block"`の明示だけ受理し、`warn`等は拒否する(安全境界を緩める設定を作らない)。試験: `tools/test_cli.py`(3件追加)。

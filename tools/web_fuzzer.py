@@ -89,6 +89,7 @@ class WebFuzzer:
         stop_event: threading.Event | None = None,
         tls_verify: bool | None = None,
         tls_ca_bundle: str | None = None,
+        rate_limit_rps: float | None = None,
     ):
         prof = SCAN_PROFILES.get(profile, SCAN_PROFILES[DEFAULT_SCAN_PROFILE])
         self.threads      = prof["path_threads"]
@@ -104,8 +105,11 @@ class WebFuzzer:
         # 手動リダイレクト制御）。A/Bセッションはこのインスタンスを共有する
         # （P0.1/P0.2: PRACTICAL_ROADMAP.md §4）。レート上限はプロファイル値を使う
         # （settings.pyに集約。aggressiveはNone=無制限で既存の速度を維持）。
-        policy = RequestPolicy(max_requests=max_requests, timeout=timeout,
-                               rate_per_sec=prof.get("path_rate_per_sec"))
+        # rate_limit_rpsは案件側の追加上限。プロファイルの上限より緩める方向には働かない(minを取る)。
+        rate = prof.get("path_rate_per_sec")
+        if rate_limit_rps and rate_limit_rps > 0:
+            rate = min(rate, rate_limit_rps) if rate else rate_limit_rps
+        policy = RequestPolicy(max_requests=max_requests, timeout=timeout, rate_per_sec=rate)
         self.transport = HttpTransport(policy=policy, stop_event=stop_event)
         if target:
             self.bind_target(target)

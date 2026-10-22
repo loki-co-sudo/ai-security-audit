@@ -357,6 +357,39 @@ class CLITest(unittest.TestCase):
                 cli.expand_profile(["scan", "fuzz", "--use-profile", "lab"], bad)
             self.assertNotIn("SECRET_X", str(cm.exception))
 
+    def test_profile_scope_mode_only_accepts_block_and_rate_limit_is_fuzz_only(self):
+        ok = cli.expand_profile(["scan", "fuzz", "--use-profile", "p"],
+                                {"p": {"scope_mode": "block", "rate_limit_rps": 2.5, "target": "X"}})
+        self.assertEqual(ok[ok.index("--rate-limit-rps") + 1], "2.5")
+        self.assertNotIn("block", ok)                                       # フラグにはならない(検証のみ)
+        for mode in ("warn", "", None, True):
+            with self.assertRaises(cli.CLIError, msg=mode):
+                cli.expand_profile(["scan", "fuzz", "--use-profile", "p"], {"p": {"scope_mode": mode}})
+        with self.assertRaises(cli.CLIError):                               # 他モードでもwarnは受け付けない
+            cli.expand_profile(["scan", "attack", "--use-profile", "p"], {"p": {"scope_mode": "warn"}})
+        a = cli.expand_profile(["scan", "audit", "--use-profile", "p"], {"p": {"rate_limit_rps": 2, "target": "X"}})
+        self.assertNotIn("--rate-limit-rps", a)                             # fuzz以外には渡さない
+
+    def test_rate_limit_rps_is_validated_and_persisted_for_resume(self):
+        with FixtureServer(post_form=False) as srv:
+            for bad in ("0", "-1", "abc", "1001", "nan"):
+                p, data = self.call(self.scan(srv, "--rate-limit-rps", bad))
+                self.assertEqual(p.returncode, 2, (bad, data))
+            self.assertEqual(srv.count(), 0)
+            p, data = self.call(self.scan(srv, "--rate-limit-rps", "50"))
+            self.assertEqual(data["state"], "completed", data)
+            from agents.fuzz_capabilities import load_profile
+            self.assertEqual(load_profile(data["run_id"], str(self.runs))["rate_limit_rps"], 50.0)
+
+    def test_webfuzzer_rate_limit_only_tightens_the_profile_rate(self):
+        from tools.web_fuzzer import WebFuzzer
+        rate = lambda profile, cap: WebFuzzer(profile=profile, rate_limit_rps=cap).transport.policy.rate_per_sec  # noqa: E731
+        self.assertEqual(rate("stealth", 2), 2)               # プロファイル5/秒より厳しく
+        self.assertEqual(rate("stealth", 50), 5)              # 緩める方向には働かない
+        self.assertEqual(rate("aggressive", 3), 3)            # 無制限のプロファイルには上限を足せる
+        self.assertIsNone(rate("aggressive", None))
+        self.assertEqual(rate("stealth", None), 5)
+
     def test_use_profile_end_to_end_and_unknown_profile_fails(self):
         src = self.base / "app.py"
         src.write_text("def f():\n    return 1\n")

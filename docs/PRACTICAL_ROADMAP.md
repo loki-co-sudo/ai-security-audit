@@ -67,7 +67,7 @@ P4内は用途に応じて一項目ずつ選択できる。保留事項を自動
 | P1.2 | ほぼ実装・未完了扱い | 証拠保存・マスキング・全4モードの配線・HTML/MD/PDF/JSON、AUDITで実LLMの証拠ID引用を1回確認 | GUI目視、他モードの実LLM引用、ATTACK画面ログの未マスク |
 | P2.1 | 一部 | WEB FUZZ・DEFENSEシグネチャのdetector固定ベンチと基準値、AUDITの実LLM評価(無料枠モデル3回・`tools/live_eval.py`) | 他モデルでの実LLM評価、ATTACKの実LLM評価、WEB FUZZ/DEFENSEの大きな正解データでの実LLM評価(3回の小規模測定のみ)、ATTACKのベンチ、トークン使用量(現状は文字数のみ) |
 | P2.2 | 検出器側は実装 | IDOR(ログイン/公開除外・期待権限表)、SSTI別式確認、XSS content-type | 期待権限表のGUI入力・旧FuzzAgent配線、同一origin確認URL、逆方向 |
-| P3.1 | ほぼ実装 | `scan fuzz/audit/defense/attack`・`--targets-file`・`--engagement`・除外優先・`--format md`・`--effort auto`・`defense --duration`・`--use-profile`・`core/scan_runner.py`(ATTACK/AUDIT/DEFENSE/WEB FUZZ・resumeの対象ごと実行) | profilesのrate_limit_rps/scope_mode |
+| P3.1 | ほぼ実装 | `scan fuzz/audit/defense/attack`・`--targets-file`・`--engagement`・除外優先・`--format md`・`--effort auto`・`defense --duration`・`--use-profile`・`core/scan_runner.py`(ATTACK/AUDIT/DEFENSE/WEB FUZZ・resumeの対象ごと実行)・`--rate-limit-rps`・profilesの`rate_limit_rps`/`scope_mode`(block のみ) | 案件プロファイルのGUI入力、予算(max_llm_calls等)のprofiles化 |
 | P3.2 | 中核+レポート連携 | 台帳・差分・mark/suppress/findings、レポート層の抑制除外と差分表示、CLI(`--engagement-id`)の出力への台帳ビュー付与・`--format md`の抑制除外/差分・`--fail-on`の期限内抑制除外 | GUIからのengagement_id指定と配線 |
 | P4.1 | 初期版 | ローカルJSON/YAML・明示選択のGET+query | 複雑schema・path param・body・認証scheme・GUI |
 | P4.2 | 初期版 | 標準エンジン・LangGraph版(モックLLM)の複数ファイル監査 | GUI、証拠保存、実LLM評価 |
@@ -270,7 +270,7 @@ python cli.py status FINDING_ID accepted-risk --reason "対応判断を記録" -
    固定しconfig.jsonへ保存しない・除外優先・CTF能動機能とexploit生成は公開しない。偵察のみ)。
 実装済み(追補): audit/defense/attackの`--targets-file`(1〜50件・逐次・重複除去・失敗は他対象の結果を消さず、全completedでなければ全体はpartial/failed)、`--format md`(stdoutにMarkdown。既定json)、`--effort auto`(classify_effortを1コール使用。config.jsonへ保存しない。auditはマスク済み先頭4000字を送る)、
 `--use-profile NAME`(config.json `profiles`を既定値として展開、明示引数が優先、秘密値・未知キーは拒否)。
-未実装: GUI(設定ダイアログ/fuzz panel)と旧FuzzAgent経路への期待権限表の配線、profilesのrate_limit_rps/scope_mode、core/scan_runner.py: ATTACK/AUDIT/DEFENSE/WEB FUZZ(`run_fuzz_targets`、resumeも同じ経路)の実行層は分離済み(認証ファイル読込・案件設定・OpenAPI選択・status・台帳記録はcli.pyに残る)。
+未実装: GUI(設定ダイアログ/fuzz panel)と旧FuzzAgent経路への期待権限表の配線、core/scan_runner.py: ATTACK/AUDIT/DEFENSE/WEB FUZZ(`run_fuzz_targets`、resumeも同じ経路)の実行層は分離済み(認証ファイル読込・案件設定・OpenAPI選択・status・台帳記録はcli.pyに残る)。
 
 受け入れ条件: GUIをimportせず全モードのモック実行、終了コード、stdoutのJSON単独解析、設定優先順位と非永続性、除外優先、バッチ設定分離、SIGINT後の最終結果保存を検証する。
 

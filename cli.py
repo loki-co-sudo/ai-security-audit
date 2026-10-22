@@ -43,6 +43,13 @@ def nonnegative(value):
     return n
 
 
+def positive_rate(value):
+    n = float(value)
+    if not 0 < n <= 1000:
+        raise argparse.ArgumentTypeError("0より大きく1000以下の秒あたりリクエスト数を指定してください")
+    return n
+
+
 EFFORT_CHOICES = ("speed", "balanced", "quality", "auto")
 
 
@@ -58,6 +65,7 @@ PROFILE_KEYS = {
     "engagement_id": ("--engagement-id", None), "target": ("--target", None), "effort": ("--effort", None),
     "allow": ("--allow", ("fuzz", "attack")), "exclude": ("--exclude", ("fuzz", "attack")),
     "scan_profile": ("--profile", ("fuzz", "attack")),
+    "rate_limit_rps": ("--rate-limit-rps", ("fuzz",)), "scope_mode": (None, None),
     "max_requests": ("--max-requests", ("fuzz",)), "max_pages": ("--max-pages", ("fuzz",)),
     "tls_verify": ("--tls-verify", ("fuzz",)), "tls_ca_bundle": ("--tls-ca-bundle", ("fuzz",)),
 }
@@ -83,6 +91,10 @@ def expand_profile(argv, profiles):
         if key not in PROFILE_KEYS:
             raise CLIError(f"profilesに未対応のキーがあります: {key}（秘密値は置けません）")
         flag, modes = PROFILE_KEYS[key]
+        if key == "scope_mode":     # 新規実行は常にblock。緩める値は受け付けず、blockの明示だけ許す
+            if value != "block":
+                raise CLIError("profilesのscope_modeにはblockだけ指定できます（warnへは緩められません）")
+            continue
         if modes is not None and mode not in modes:
             continue
         if any(a == flag or a.startswith(flag + "=") or (key == "tls_verify" and a == "--no-tls-verify")
@@ -95,7 +107,7 @@ def expand_profile(argv, profiles):
         elif isinstance(value, list):
             for v in value:
                 argv.extend([flag, str(v)])
-        elif isinstance(value, (str, int)) and not isinstance(value, bool):
+        elif isinstance(value, (str, int, float)) and not isinstance(value, bool):
             argv.extend([flag, str(value)])
         else:
             raise CLIError(f"profilesの{key}の値の型が不正です")
@@ -182,6 +194,8 @@ def parser():
     fuzz.add_argument("--profile", choices=list(SCAN_PROFILES), default=DEFAULT_SCAN_PROFILE)
     fuzz.add_argument("--max-requests", type=nonnegative, default=200)
     fuzz.add_argument("--max-pages", type=nonnegative, default=20)
+    fuzz.add_argument("--rate-limit-rps", type=positive_rate, default=None,
+                      help="案件側の送信レート上限(秒あたり)。プロファイルの上限より緩めることはできない")
     fuzz.add_argument("--max-llm-calls", type=nonnegative)
     fuzz.add_argument("--permit-t2", action="store_true")
     fuzz.add_argument("--tls-verify", action=argparse.BooleanOptionalAction, default=None)
@@ -473,7 +487,7 @@ def main(argv=None):
             else:
                 kw = {k: getattr(args, k) for k in (
                     "profile", "max_requests", "max_pages", "max_llm_calls", "permit_t2",
-                    "tls_verify", "tls_ca_bundle")}
+                    "tls_verify", "tls_ca_bundle", "rate_limit_rps")}
                 engagement = read_engagement(args.engagement)
                 if args.engagement_id and engagement.get("engagement_id") not in (None, args.engagement_id):
                     raise CLIError("--engagement-idと案件設定のengagement_idが一致しません")
