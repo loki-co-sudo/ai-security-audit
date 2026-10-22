@@ -1,0 +1,241 @@
+{
+  "mode": "AUDIT",
+  "model": "google/gemma-3-27b-it",
+  "effort": "speed",
+  "sample": "v2",
+  "runs_requested": 3,
+  "runs_done": 3,
+  "runs_with_findings": 3,
+  "per_vuln_hits": {
+    "V1": 2,
+    "V2": 0,
+    "V3": 2,
+    "V4": 3,
+    "V5": 0,
+    "V6": 2,
+    "V7": 0,
+    "V8": 1
+  },
+  "decoy_false_positives_per_run": [
+    [
+      "D2",
+      "D4",
+      "D5",
+      "D6"
+    ],
+    [
+      "D4"
+    ],
+    [
+      "D4",
+      "D5",
+      "D6"
+    ]
+  ],
+  "decoy_same_class_per_run": [
+    [
+      "D4",
+      "D6"
+    ],
+    [
+      "D4"
+    ],
+    [
+      "D4",
+      "D5"
+    ]
+  ],
+  "per_decoy_hits": {
+    "D1": 0,
+    "D2": 1,
+    "D3": 0,
+    "D4": 3,
+    "D5": 2,
+    "D6": 2
+  },
+  "per_decoy_same_class_hits": {
+    "D1": 0,
+    "D2": 0,
+    "D3": 0,
+    "D4": 3,
+    "D5": 1,
+    "D6": 1
+  },
+  "recall_per_run": [
+    0.375,
+    0.5,
+    0.375
+  ],
+  "runs_invalid": 0,
+  "total_llm_calls": 3,
+  "hint_stripped": true,
+  "results": [
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 5,
+      "hit": {
+        "V3": [
+          "Time-of-Check-Time-of-Use (TOCTOU) in Coupon Redemption"
+        ],
+        "V4": [
+          "Time-of-Check-Time-of-Use (TOCTOU) in Coupon Redemption"
+        ],
+        "V6": [
+          "Deserialization Vulnerability in Import Settings"
+        ]
+      },
+      "unlabeled": [],
+      "decoy_hits": {
+        "D2": [
+          "Unauthenticated Report Generation via Format Bypass"
+        ],
+        "D4": [
+          "Path Traversal in Uploaded File Storage"
+        ],
+        "D5": [
+          "Weak Session Token Handling - Predictable Tokens"
+        ],
+        "D6": [
+          "Weak Session Token Handling - Predictable Tokens"
+        ]
+      },
+      "decoy_same_class_hits": {
+        "D4": [
+          "Path Traversal in Uploaded File Storage"
+        ],
+        "D6": [
+          "Weak Session Token Handling - Predictable Tokens"
+        ]
+      },
+      "decoy_findings": [
+        {
+          "decoy": "D2",
+          "rule_id": "Novel — No CVE/CWE Match",
+          "description": "Unauthenticated Report Generation via Format Bypass"
+        },
+        {
+          "decoy": "D4",
+          "rule_id": "CWE-22 (Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal'))",
+          "description": "Path Traversal in Uploaded File Storage"
+        },
+        {
+          "decoy": "D5",
+          "rule_id": "Novel — No CVE/CWE Match",
+          "description": "Weak Session Token Handling - Predictable Tokens"
+        },
+        {
+          "decoy": "D6",
+          "rule_id": "Novel — No CVE/CWE Match",
+          "description": "Weak Session Token Handling - Predictable Tokens"
+        }
+      ],
+      "llm_calls": 1,
+      "chars_in": 6479,
+      "chars_out": 8634,
+      "elapsed_s": 110.7,
+      "invalid": false
+    },
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 5,
+      "hit": {
+        "V4": [
+          "Time-of-Check to Time-of-Use (TOCTOU) in `redeem_coupon`"
+        ],
+        "V6": [
+          "Unsafe Deserialization in `import_settings`"
+        ],
+        "V3": [
+          "Insecure Direct Object Reference (IDOR) in `order_detail`"
+        ],
+        "V1": [
+          "SSRF in `fetch_url`"
+        ]
+      },
+      "unlabeled": [],
+      "decoy_hits": {
+        "D4": [
+          "Path Traversal in `save_upload` - Incorrect Common Path Check"
+        ]
+      },
+      "decoy_same_class_hits": {
+        "D4": [
+          "Path Traversal in `save_upload` - Incorrect Common Path Check"
+        ]
+      },
+      "decoy_findings": [
+        {
+          "decoy": "D4",
+          "rule_id": "CWE-78 – Improper Neutralization of Special Elements used in an OS Command ('Command Injection')",
+          "description": "Path Traversal in `save_upload` - Incorrect Common Path Check"
+        }
+      ],
+      "llm_calls": 1,
+      "chars_in": 6479,
+      "chars_out": 7536,
+      "elapsed_s": 73.5,
+      "invalid": false
+    },
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 5,
+      "hit": {
+        "V1": [
+          "Server-Side Request Forgery (SSRF) in `register_webhook` & `fetch_url`"
+        ],
+        "V4": [
+          "Race Condition in `redeem_coupon`"
+        ],
+        "V8": [
+          "Insecure Token Validation in `check_download_token`"
+        ]
+      },
+      "unlabeled": [],
+      "decoy_hits": {
+        "D4": [
+          "Unrestricted File Upload and Path Traversal in `save_upload`"
+        ],
+        "D5": [
+          "Code Execution via `parse_filter` using `ast.literal_eval`"
+        ],
+        "D6": [
+          "Code Execution via `parse_filter` using `ast.literal_eval`"
+        ]
+      },
+      "decoy_same_class_hits": {
+        "D4": [
+          "Unrestricted File Upload and Path Traversal in `save_upload`"
+        ],
+        "D5": [
+          "Code Execution via `parse_filter` using `ast.literal_eval`"
+        ]
+      },
+      "decoy_findings": [
+        {
+          "decoy": "D4",
+          "rule_id": "CWE-22 (Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal'))",
+          "description": "Unrestricted File Upload and Path Traversal in `save_upload`"
+        },
+        {
+          "decoy": "D5",
+          "rule_id": "CWE-94 (Improper Control of Generation of Code ('Code Injection'))",
+          "description": "Code Execution via `parse_filter` using `ast.literal_eval`"
+        },
+        {
+          "decoy": "D6",
+          "rule_id": "CWE-94 (Improper Control of Generation of Code ('Code Injection'))",
+          "description": "Code Execution via `parse_filter` using `ast.literal_eval`"
+        }
+      ],
+      "llm_calls": 1,
+      "chars_in": 6479,
+      "chars_out": 11278,
+      "elapsed_s": 183.8,
+      "invalid": false
+    }
+  ],
+  "note": "モデルと日付に依存する参考値。未ラベル所見は誤検知と断定しない。応答が空の回(invalid)は測定不成立でrecall_per_runはnull。"
+}

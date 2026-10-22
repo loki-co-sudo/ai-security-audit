@@ -1,0 +1,268 @@
+{
+ "mode": "AUDIT",
+ "model": "z-ai/glm-5.3-flash",
+ "effort": "speed",
+ "sample": "v2",
+ "runs_requested": 3,
+ "runs_done": 3,
+ "runs_with_findings": 3,
+ "per_vuln_hits": {
+  "V1": 3,
+  "V2": 3,
+  "V3": 3,
+  "V4": 3,
+  "V5": 3,
+  "V6": 3,
+  "V7": 3,
+  "V8": 3
+ },
+ "decoy_false_positives_per_run": [
+  [
+   "D2",
+   "D3",
+   "D4",
+   "D5"
+  ],
+  [
+   "D2",
+   "D3",
+   "D4",
+   "D5"
+  ],
+  []
+ ],
+ "decoy_same_class_per_run": [
+  [
+   "D3"
+  ],
+  [
+   "D3"
+  ],
+  []
+ ],
+ "per_decoy_hits": {
+  "D1": 0,
+  "D2": 2,
+  "D3": 2,
+  "D4": 2,
+  "D5": 2,
+  "D6": 0
+ },
+ "per_decoy_same_class_hits": {
+  "D1": 0,
+  "D2": 0,
+  "D3": 2,
+  "D4": 0,
+  "D5": 0,
+  "D6": 0
+ },
+ "recall_per_run": [
+  1.0,
+  1.0,
+  1.0
+ ],
+ "total_llm_calls": 3,
+ "hint_stripped": true,
+ "results": [
+  {
+   "state": "completed",
+   "errors": [],
+   "n_findings": 12,
+   "hit": {
+    "V2": [
+     "update_profile の Mass Assignment + SET句SQLインジェクション（任意カラム改ざんによる権限昇格）"
+    ],
+    "V6": [
+     "import_settings の unsafe Loader（yaml.Loader）による任意コード実行"
+    ],
+    "V1": [
+     "register_webhook の「プレフィックス一致」検証バイパスによる反射型SSRF（クラウド認証情報持ち出し可能）"
+    ],
+    "V7": [
+     "send_phone_code が OTP を平文でAPI応答に返却（+ verify側のレート制限・有効期限・使い捨てなし）→ 電話番号認証の完全バイパス"
+    ],
+    "V4": [
+     "redeem_coupon のチェック/使用分離による TOCTOU（クーポン回数制限の無効化）",
+     "order_detail の所有権検証欠落（IDOR: 他人の注文内容・配送先住所の閲覧）"
+    ],
+    "V3": [
+     "order_detail の所有権検証欠落（IDOR: 他人の注文内容・配送先住所の閲覧）"
+    ],
+    "V5": [
+     "login_redirect のプロトコル相対URL（`//`）バイパスによるオープンリダイレクト"
+    ],
+    "V8": [
+     "ダウンロードトークンの設計欠陥: 発行時認可なし・有効期限なし・非定数時間比較"
+    ]
+   },
+   "unlabeled": [],
+   "decoy_hits": {
+    "D4": [
+     "save_upload の realpath 検査と open の間のシンボリックリンク競合（TOCTOU）"
+    ],
+    "D3": [
+     "cache_key の MD5 使用 + ユーザースコープ不在によるキャッシュ混線（クロスユーザーキャッシュ汚染）"
+    ],
+    "D5": [
+     "parse_filter の literal_eval によるリソース枯渇（DoS）とネスト構造の型混在"
+    ],
+    "D2": [
+     "render_report の report_id 所有権検証欠落"
+    ]
+   },
+   "decoy_same_class_hits": {
+    "D3": [
+     "cache_key の MD5 使用 + ユーザースコープ不在によるキャッシュ混線（クロスユーザーキャッシュ汚染）"
+    ]
+   },
+   "decoy_findings": [
+    {
+     "decoy": "D4",
+     "rule_id": "CWE-367 / CWE-59",
+     "description": "save_upload の realpath 検査と open の間のシンボリックリンク競合（TOCTOU）"
+    },
+    {
+     "decoy": "D3",
+     "rule_id": "CWE-328 / Novel（選択コリジョンを利用したキャッシュポイズニング）",
+     "description": "cache_key の MD5 使用 + ユーザースコープ不在によるキャッシュ混線（クロスユーザーキャッシュ汚染）"
+    },
+    {
+     "decoy": "D5",
+     "rule_id": "CWE-400",
+     "description": "parse_filter の literal_eval によるリソース枯渇（DoS）とネスト構造の型混在"
+    },
+    {
+     "decoy": "D2",
+     "rule_id": "CWE-862",
+     "description": "render_report の report_id 所有権検証欠落"
+    }
+   ],
+   "llm_calls": 1,
+   "chars_in": 6479,
+   "chars_out": 17014,
+   "elapsed_s": 299.4
+  },
+  {
+   "state": "completed",
+   "errors": [],
+   "n_findings": 12,
+   "hit": {
+    "V2": [
+     "プロフィール更新APIにおける Mass Assignment による権限昇格（任意カラム書き換え + SQL識別子インジェクション）",
+     "注文詳細APIの所有者チェック欠如（BOLA/IDOR）による他ユーザー住所・注文情報の大量漏洩"
+    ],
+    "V5": [
+     "yaml.Loader（フルローダー）による任意コード実行（unsafe deserialization RCE）",
+     "ログインリダイレクトの startswith(\"/\") チェックをプロトコル相対URLで突破するオープンリダイレクト"
+    ],
+    "V6": [
+     "yaml.Loader（フルローダー）による任意コード実行（unsafe deserialization RCE）"
+    ],
+    "V1": [
+     "Webhook URL検証のプレフィックス一致バイパスによる SSRF + 内部レスポンス持ち出し"
+    ],
+    "V3": [
+     "注文詳細APIの所有者チェック欠如（BOLA/IDOR）による他ユーザー住所・注文情報の大量漏洩"
+    ],
+    "V4": [
+     "クーポン引き換えの TOCTOU 競合 + 同一ユーザー重複利用チェック欠如（残数無視で無限割引）",
+     "ログインリダイレクトの startswith(\"/\") チェックをプロトコル相対URLで突破するオープンリダイレクト"
+    ],
+    "V7": [
+     "電話番号認証OTPがAPIレスポンスに返却される認証バイパス（+ 予測可能な4桁コード・試行制限なし・使い捨てでない）"
+    ],
+    "V8": [
+     "ダウンロード署名トークンの非定数時間比較（用意済みの tokens_equal を使っていない）+ 無期限トークン + 任意パス署名プリミティブ"
+    ]
+   },
+   "unlabeled": [],
+   "decoy_hits": {
+    "D2": [
+     "レポート生成の report_id 所有権チェック欠如（IDOR）+ 共有ルートへの予測可能ファイル名出力による横断アクセス・上書き"
+    ],
+    "D4": [
+     "アップロードの realpath 検証と open の間の symlink 競合（TOCTOU任意ファイル書き込み）+ 拡張子・内容無制限による蓄積XSS"
+    ],
+    "D3": [
+     "MD5キャッシュキーによる選択接頭辞衝突を悪用したキャッシュポイズニング"
+    ],
+    "D5": [
+     "ast.literal_eval のリソース爆増評価によるメモリ枯渇DoS（Code Exec ではなく Resource Exhaustion が実脅威）"
+    ]
+   },
+   "decoy_same_class_hits": {
+    "D3": [
+     "MD5キャッシュキーによる選択接頭辞衝突を悪用したキャッシュポイズニング"
+    ]
+   },
+   "decoy_findings": [
+    {
+     "decoy": "D2",
+     "rule_id": "CWE-639 (Authorization Bypass Through User-Controlled Key)",
+     "description": "レポート生成の report_id 所有権チェック欠如（IDOR）+ 共有ルートへの予測可能ファイル名出力による横断アクセス・上書き"
+    },
+    {
+     "decoy": "D4",
+     "rule_id": "CWE-59 (Link Following) / CWE-434 (Unrestricted Upload of File with Dangerous Type)",
+     "description": "アップロードの realpath 検証と open の間の symlink 競合（TOCTOU任意ファイル書き込み）+ 拡張子・内容無制限による蓄積XSS"
+    },
+    {
+     "decoy": "D3",
+     "rule_id": "CWE-328 (Use of Weak Hash)",
+     "description": "MD5キャッシュキーによる選択接頭辞衝突を悪用したキャッシュポイズニング"
+    },
+    {
+     "decoy": "D5",
+     "rule_id": "CWE-400 (Uncontrolled Resource Consumption)",
+     "description": "ast.literal_eval のリソース爆増評価によるメモリ枯渇DoS（Code Exec ではなく Resource Exhaustion が実脅威）"
+    }
+   ],
+   "llm_calls": 1,
+   "chars_in": 6479,
+   "chars_out": 20938,
+   "elapsed_s": 398.7
+  },
+  {
+   "state": "completed",
+   "errors": [],
+   "n_findings": 9,
+   "hit": {
+    "V6": [
+     "YAML Unsafe Deserialization → Remote Code Execution (RCE)"
+    ],
+    "V2": [
+     "Mass Assignment + SQL Column Name Injection → Privilege Escalation"
+    ],
+    "V1": [
+     "SSRF via Prefix Bypass (URL Userinfo Trick) with Response Disclosure"
+    ],
+    "V3": [
+     "Insecure Direct Object Reference (IDOR) — Order Access Without Ownership Check"
+    ],
+    "V4": [
+     "TOCTOU Race Condition in Coupon Redemption — Unlimited Coupon Abuse",
+     "Open Redirect via Protocol-Relative URL"
+    ],
+    "V7": [
+     "Predictable OTP + Code Leakage in API Response",
+     "OTP Verification Without Rate Limiting — Brute Force in Seconds"
+    ],
+    "V5": [
+     "Open Redirect via Protocol-Relative URL"
+    ],
+    "V8": [
+     "Download Token Without User Binding — Token Hijacking & Cross-User Access"
+    ]
+   },
+   "unlabeled": [],
+   "decoy_hits": {},
+   "decoy_same_class_hits": {},
+   "decoy_findings": [],
+   "llm_calls": 1,
+   "chars_in": 6479,
+   "chars_out": 15035,
+   "elapsed_s": 337.8
+  }
+ ],
+ "note": "モデルと日付に依存する参考値。未ラベル所見は誤検知と断定しない。 【再採点】decoyの同種判定の基準(CWEとタイトルの単語境界一致)を直した後に、保存済みのdecoy_findingsからLLMを呼ばずに再採点した。測定自体(所見・再現率)は再採点前と同じ。"
+}

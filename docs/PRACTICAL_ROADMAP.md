@@ -72,7 +72,7 @@ P4内は用途に応じて一項目ずつ選択できる。保留事項を自動
 | P4.1 | 初期版 | ローカルJSON/YAML・明示選択のGET+query・サンプル値生成(parameter/schemaのexample・allOf/oneOf/anyOf・3.1型配列・array・format)・操作ごとの認証要件表示 | path param・body・POST等(境界として非対応のまま)、認証schemeの自動適用、GUI |
 | P4.2 | 初期版 | 標準エンジン・LangGraph版(モックLLM)の複数ファイル監査、標準エンジン・LangGraph版の証拠保存(送った関数内のAST観測) | GUI、実LLM評価(LangGraph版はモックのみ) |
 | P4.3 | 中核 | ローテーション/縮小/部分行/JSONL/MITRE確認・回転済みgzipアーカイブの1回通し読み・journaldアダプター(`journald[:UNIT]`) | syslog形式の構造化パース、長時間運用検証、journaldの実運用(権限・大量ログ)での確認 |
-| 共通 | 一部検証 | selftest 170 PASS / 0 FAIL / 5 SKIP(`SELFTEST_NON_LLM_ONLY=1`)。AUDITは実LLMで3回評価、証拠ID引用・effort autoは実LLMで各1回、DEFENSE・WEB FUZZは各3回の小規模測定(付録) | 実LLM系5件のselftest、AUDIT/DEFENSE/WEB FUZZ以外の実LLM評価、より大きな正解データでの複数回評価、GUIは仮想ディスプレイでの確認(4タブ・設定/認証ダイアログ・4パネルともGUI操作経路でモックLLMで実行し4形式出力まで。認証ダイアログのボタン切れを発見・修正)のみで、実LLMでのGUI実行・Windows/実画面(DPI・マルチモニタ)・ファイル選択ダイアログは未確認 |
+| 共通 | 一部検証 | selftest 173 PASS / 0 FAIL / 5 SKIP(`SELFTEST_NON_LLM_ONLY=1`・登録漏れだったテストを2026-10-23に全て登録)。AUDITは有料の安価モデル5種で難しめサンプル(v2)も含め各3回測定、証拠ID引用・effort autoは実LLMで各1回、DEFENSE・WEB FUZZは各3回の小規模測定(付録) | 実LLM系5件のselftest、ATTACKのLLM解釈部分・DEFENSE/WEB FUZZの再測定(有料モデル)、強いモデル同士を見分けられるさらに難しいサンプル、GUIは仮想ディスプレイでの確認(4タブ・設定/認証ダイアログ・4パネルともGUI操作経路でモックLLMで実行し4形式出力まで。認証ダイアログのボタン切れを発見・修正)のみで、実LLMでのGUI実行・Windows/実画面(DPI・マルチモニタ)・ファイル選択ダイアログは未確認 |
 
 ## 4. P0: 通信・認証の境界
 
@@ -432,6 +432,22 @@ JSONL平坦化`normalize_log_line()`、`core/mitre.py`、`agents/monitor_agent.p
 - 所要: glm 約23〜28秒/回(所見10〜11件・出力約8千文字)、minimax 約450〜480秒/回(所見16〜20件・出力約2.9万文字)。**minimaxは約18倍遅く、出力も約3.6倍**(推論が重い)。
 - **費用**: OpenRouterのキー使用量の差分で、**6回の合計 $0.054**(glmの1回は約$0.0009、残りの大半はminimax)。承認の上限$1の約5%。
 - **解釈の限界**: このサンプルは両モデルとも全件検出で、**上限に張り付いており(天井効果)モデル間の優劣を判別できない**。無料版で見られた変動(1.0/1.0/0.375)は有料の2モデルでは出なかったが、各3回で分散の推定にはならない。所見数や所要時間の差は、質の差を意味しない。正解外の難しいサンプル(未見・held-out)を用意しないと比較に使えない。モデル名・日付に依存する参考値で、本番の品質ではない。
+
+### 2026-10-23 AUDIT 難しめサンプル`target_code_v2.py`(欠陥8＋安全なdecoy6)・5モデル・各3回(effort=speed)
+`samples/target_code_v2.py`(見つけにくい欠陥: SSRFの接頭辞比較・一括代入・関数をまたぐ認可漏れ・クーポンの競合・オープンリダイレクト・`yaml.Loader`・4桁コード・署名の`==`比較/期限なし。**危なそうに見えるが安全なdecoy**: 許可集合からのテーブル名・`shell=False`の固定引数・キャッシュ用md5・realpath確認つきの保存・`literal_eval`・`secrets`/`compare_digest`)。正解は`# [Vn start]`マーカーから機械的に作成(`ground_truth_audit_v2.json`)。`python tools/live_eval.py audit --sample v2 --model M --runs 3 --effort speed`。結果は`testlab/baselines/live_audit_*_v2_2026-10-23.json`。
+
+| モデル | 再現率(3回) | decoyの同種誤検知 | 所要/回 | メモ |
+|---|---|---|---|---|
+| `z-ai/glm-5.3-flash` | 1.0 / 1.0 / 1.0 | D3(md5のキャッシュキー)が2/3回 | 300〜400秒 | 出力1.5〜2万文字 |
+| `deepseek/deepseek-v4-flash-0731` | 1.0 / 1.0 / 0.875 | 0 | 120〜250秒 | V8(署名)を1回見逃し |
+| `google/gemma-3-27b-it` | 0.375 / 0.5 / 0.375 | D4・D5・D6など毎回 | 75〜185秒 | V2・V5・V7はほぼ未検出 |
+| `mistralai/ministral-8b-2512` | 所見0件(下記) | – | 40〜60秒 | 出力形式を守らず取り込めず |
+| `google/gemma-4-26b-a4b-it:free` | **測定不成立** | – | – | 3回とも上流429(レート制限) |
+
+- **このサンプルは弱いモデルを見分けられる**(v1は天井で見分けられなかった)。ただし強い2モデルは依然として全件に近く、強いモデル同士の優劣は判別できない。各3回で分散の推定にならない。
+- **decoyの限界**: 当初は行範囲の重なりだけで数えたため、decoy誤検知(4/6)を過大に数えていた。所見を読むと、decoyの別の観点の指摘(例: `render_report`の所有権未検証、`save_upload`の内容検証・シンボリックリンク競合、`literal_eval`の深いネストDoS)で、**正当にも見える**。そこで「decoyが似せている種類(CWEとタイトルの単語)の指摘だけ」を同種の誤検知と数える基準を、decoyの設計コメントから作って**最初の測定の後に**足した(後付けの定義)。さらに、基準自体の不具合(`literal_eval`に`eval`、`Resource`に`rce`、本文の否定文に一致)を見つけて直した(結果を良く見せるための調整ではなく、保存済みの結果を再採点して確認。回帰試験つき)。D3(MD5のキャッシュキー)も「衝突によるキャッシュ汚染」という理屈の指摘で、decoyが完全に安全とは言い切れない。
+- **ministral-8bの0件は『見つけられなかった』ではない**: 出力は約1.2万文字で、クーポンの競合・YAMLのデシリアライズなど正しい指摘を含む一方、`literal_eval`のRCE・MD5・SSRFなど誤った指摘もあった。ただし指定された`---VULN_START---`形式を守らず、パーサーが0件と判断して画面に「0 vulnerabilities detected」・completedと出ていた(下記の修正)。
+- **費用**: 2026-10-23朝からの累計(OpenRouterのキー使用量の差分)で約$0.15(2026-10-22の6回$0.054を含む)。承認されたペースの範囲内。モデル名・日付に依存する参考値で、本番の品質ではない。
 
 ### 2026-10-22 AUDIT effort=quality(検証パスあり・同モデル・1回)
 結果(`testlab/baselines/live_audit_minimax-m3.1-flash-free_quality_2026-10-22.json`): 再現率 **0.875**(8件中7件。`V8-type-validation`のみ未検出)。所見27件(speedは8〜17件)、LLM呼出し3回(speedは1回)、所要約1186秒(speedの約2.4倍)、入力約7.3万文字・出力約7.5万文字(トークン数ではなく文字数)。未ラベル所見は2件で、いずれもspeedの3回と同じ「`init_db`の既定admin資格情報」(CRITICALとHIGHで2件に分かれて報告)。

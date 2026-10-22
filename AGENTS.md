@@ -133,7 +133,8 @@ AI-Security-tool/
 │   ├── test_policy_gate.py      # 上記autonomy型・Gate・予算・タスク状態の固定試験（selftest 16pに統合）
 │   ├── test_evidence_provenance.py # 証拠の由来情報(content_sha256/action_id/masking_version/truncated)とverify()の固定試験（selftest 16oに統合）
 │   ├── live_eval.py             # P2.1: 実LLM評価ハーネス(AUDIT)。ヒント除去・複数回・呼出し上限・config非変更。結果は参考値で本番品質ではない
-│   ├── test_live_eval.py        # 上記の非LLM部分の固定試験(selftest 16ab)
+│   ├── test_live_eval.py        # 上記の非LLM部分の固定試験(selftest 16ab)。`--sample v2`のdecoy集計・無効回の扱いを含む
+│   ├── test_unparsed_output.py  # LLMが形式を守らず所見0件・成功に見える問題の固定試験(selftest 16ac)
 │   ├── benchmark.py             # P2.1 検出品質ベンチマーク(detector固定モード。`python tools/benchmark.py web-fuzz|defense|attack`)
 │   ├── gui_snapshot.py          # GUI目視確認用スナップショット(xvfb-runの仮想ディスプレイ・`python tools/gui_snapshot.py OUTDIR`)
 │   ├── test_gui_layout.py       # 認証/期待権限ダイアログのボタンが窓内に収まる・案件ID設定/4パネルの台帳記録の回帰試験(xvfb-run無しならSKIP。selftest未統合)
@@ -282,6 +283,13 @@ fix: fix ALERT event not firing in DEFENSE MODE
   `AuthDialog`はP2.2で項目を足した結果、`side="bottom"`のボタン行を本体より後にpackしていたため
   保存ボタンが窓外へ切れていた(2026-10-22、仮想ディスプレイのスクリーンショットで発覚)。ボタン行を先にpackし、
   本体は`CTkScrollableFrame`にする。確認は`python tools/gui_snapshot.py OUTDIR`、固定は`tools/test_gui_layout.py`。
+- **LLMが所見マーカーを守らない出力を「検出0件の成功」にしない**。形式を守れないモデルでは、1.2万文字の実質的な
+  分析があっても`---VULN_START---`が無く、0件・completedに見えた(2026-10-23、ministral-8bで発覚)。長い出力でマーカーが
+  1つも無ければ`agents.base_agent.unparsed_output_note()`でpartial+注記にする(DEFENSEはシグネチャが主なので注記のみ)。
+  新しいエージェント/モデルを足すときは状態判定でこの注記を使う。
+- **テストクラスを足したら`tools/run_selftest.py`の登録も確認する**。selftestはクラスを個別に列挙するため、登録を
+  忘れると「全件PASS」の報告にそのテストが入らない(2026-10-23、十数クラスの登録漏れを発見)。確認用:
+  各`tools/test_*.py`のTestCaseクラスがrun_selftest.pyに出てくるか検索する。
 - **レポート出力は `gui/export_util.py` 経由に統一する**。各パネルで `report_generator` を直接叩く重複実装をしない（HTML/PDF両対応のため一元化済み）。PDFは `tools/pdf_writer.py`（Pillowのみ）で日本語をラスタ描画する — 標準14フォントはCJK非対応のため。
 - **後方互換のためデフォルトを無効にする新しい安全機構は、UIに常時警告を表示する**。
   スコープガード（`allowed_targets` 空リスト＝無効）は既存インストールとの後方互換のため

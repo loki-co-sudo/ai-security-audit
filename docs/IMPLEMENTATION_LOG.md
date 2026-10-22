@@ -734,3 +734,8 @@ ATTACKのLLM解釈部分の評価(ローカルlabの観測に対する仮説の�
 
 ## 2026-10-22 実LLM測定(AUDIT・有料モデル2種・各3回)
 承認された予算($1)内で`z-ai/glm-5.3-flash`と`minimax/minimax-m3.1-flash`をeffort=speedで各3回。再現率は6回とも1.0(天井効果でモデル差は判別できない)、glmは約25秒/回・minimaxは約470秒/回。6回の実費は$0.054(OpenRouterのキー使用量の差分)。結果JSONを`testlab/baselines/`へ保存。コード変更なし。詳細と限界は docs/PRACTICAL_ROADMAP.md 付録。
+
+## 2026-10-23 AUDIT難しめサンプル(v2)・decoy集計・形式不遵守の取り扱い・selftest登録漏れの修正
+- `samples/target_code_v2.py`・`testlab/benchmark/ground_truth_audit_v2.json`・`tools/live_eval.py --sample v2`(decoyの集計。同種判定はCWEとタイトルの単語境界一致のみ・応答が空の回は`invalid`でrecallはnull)。5モデルの測定結果は docs/PRACTICAL_ROADMAP.md 付録。
+- **不具合(形式不遵守)**: LLMが`---VULN_START---`形式を守らないと、実質のある出力があっても所見0件・completedになっていた(ministral-8bで確認)。`agents/base_agent.py`の`unparsed_output_note()`(400文字以上でマーカー無し)を追加し、AUDIT(標準・プロジェクト・LangGraph)・WEB FUZZ(異常の兆候がある時だけ)・ATTACKの状態判定でpartial+注記にした。DEFENSEは主な検知がシグネチャのため注記のみで状態は変えない。短い「問題なし」は影響なし。試験: `tools/test_unparsed_output.py`(旧実装では落ちることを確認)。
+- **selftestの登録漏れ**: これまで「selftest 170 PASS」に、後から追加したテストクラス(AttackBenchmarkTest・SampleAndAuthTest・GzipArchiveTest/JournaldTest/SyslogTest・AuditProjectEvidenceTest(両エンジン)・live_evalの新クラス)が**含まれていなかった**(クラスを個別に列挙する形式のため)。全て登録し、GUI系2モジュール(`test_gui_ledger`、`test_gui_layout`=xvfb-run無しはSKIP)と`test_unparsed_output`を新項目(16ac/16ad/16ae)として追加。`SELFTEST_NON_LLM_ONLY=1`で173 PASS / 0 FAIL / 5 SKIP。登録漏れだった既存分も全て通った。

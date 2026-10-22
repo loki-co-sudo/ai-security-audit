@@ -1,0 +1,101 @@
+{
+  "mode": "AUDIT",
+  "model": "mistralai/ministral-8b-2512",
+  "effort": "speed",
+  "sample": "v2",
+  "runs_requested": 3,
+  "runs_done": 3,
+  "runs_with_findings": 0,
+  "per_vuln_hits": {
+    "V1": 0,
+    "V2": 0,
+    "V3": 0,
+    "V4": 0,
+    "V5": 0,
+    "V6": 0,
+    "V7": 0,
+    "V8": 0
+  },
+  "decoy_false_positives_per_run": [
+    [],
+    [],
+    []
+  ],
+  "decoy_same_class_per_run": [
+    [],
+    [],
+    []
+  ],
+  "per_decoy_hits": {
+    "D1": 0,
+    "D2": 0,
+    "D3": 0,
+    "D4": 0,
+    "D5": 0,
+    "D6": 0
+  },
+  "per_decoy_same_class_hits": {
+    "D1": 0,
+    "D2": 0,
+    "D3": 0,
+    "D4": 0,
+    "D5": 0,
+    "D6": 0
+  },
+  "recall_per_run": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "runs_invalid": 0,
+  "total_llm_calls": 3,
+  "hint_stripped": true,
+  "results": [
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 0,
+      "hit": {},
+      "unlabeled": [],
+      "decoy_hits": {},
+      "decoy_same_class_hits": {},
+      "decoy_findings": [],
+      "llm_calls": 1,
+      "chars_in": 6479,
+      "chars_out": 12549,
+      "elapsed_s": 63.2,
+      "invalid": false
+    },
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 0,
+      "hit": {},
+      "unlabeled": [],
+      "decoy_hits": {},
+      "decoy_same_class_hits": {},
+      "decoy_findings": [],
+      "llm_calls": 1,
+      "chars_in": 6479,
+      "chars_out": 9675,
+      "elapsed_s": 42.5,
+      "invalid": false
+    },
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 0,
+      "hit": {},
+      "unlabeled": [],
+      "decoy_hits": {},
+      "decoy_same_class_hits": {},
+      "decoy_findings": [],
+      "llm_calls": 1,
+      "chars_in": 6479,
+      "chars_out": 12658,
+      "elapsed_s": 47.5,
+      "invalid": false
+    }
+  ],
+  "note": "モデルと日付に依存する参考値。未ラベル所見は誤検知と断定しない。応答が空の回(invalid)は測定不成立でrecall_per_runはnull。"
+}

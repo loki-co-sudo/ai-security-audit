@@ -3123,11 +3123,12 @@ def test_cli():
 def test_benchmark():
     _section("16w. BENCHMARK — WEB FUZZ 検出品質(P2.1 detector固定モード)")
     import unittest
-    from tools.test_benchmark import EvaluateTest, TruthTest, RealRunTest, CompareTest, ExpectationTest, DefenseBenchmarkTest
+    from tools.test_benchmark import (EvaluateTest, TruthTest, RealRunTest, CompareTest, ExpectationTest, DefenseBenchmarkTest,
+                                      AttackBenchmarkTest)
     result = unittest.TestResult()
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
                                for c in (EvaluateTest, TruthTest, RealRunTest, CompareTest, ExpectationTest,
-                                         DefenseBenchmarkTest))
+                                         DefenseBenchmarkTest, AttackBenchmarkTest))
     suite.run(result)
     if result.wasSuccessful():
         _ok("Benchmark", f"{result.testsRun} tests: 集計器(手計算)/正解データ/基準値との一致と決定性/未検査の扱い")
@@ -3167,12 +3168,61 @@ def test_live_eval_harness():
     from tools import test_live_eval as t
     result = unittest.TestResult()
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
-                               for c in (t.StripHintsTest, t.MatchTest, t.CallLimitTest))
+                               for c in (t.StripHintsTest, t.MatchTest, t.CallLimitTest, t.DecoyTest, t.DecoySameClassTest,
+                                         t.SampleV2Test, t.InvalidRunTest))
     suite.run(result)
     if result.wasSuccessful():
         _ok("LiveEvalHarness", f"{result.testsRun} tests: ヒント除去で行番号不変/行照合と余白/呼出し上限(LLM呼出しなし)")
     else:
         _ng("LiveEvalHarness", str(result.errors + result.failures))
+
+
+def test_unparsed_output():
+    _section("16ac. UNPARSED OUTPUT — LLMが形式を守らず所見0件・成功に見える問題(全エージェント)")
+    import unittest
+    from tools import test_unparsed_output as t
+    result = unittest.TestResult()
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
+                               for c in (t.HelperTest, t.AuditTest, t.OtherAgentsTest))
+    suite.run(result)
+    if result.wasSuccessful():
+        _ok("UnparsedOutput", f"{result.testsRun} tests: 長い出力でマーカー無し=partial(標準/LangGraph/FUZZ/ATTACK)・DEFENSEは注記のみ・短い問題なしは影響なし")
+    else:
+        _ng("UnparsedOutput", str(result.errors + result.failures))
+
+
+def test_gui_ledger_ops():
+    _section("16ad. GUI LEDGER — 案件ID→所見台帳の記録・状態/抑制の操作(Tk不要・P3.2)")
+    import unittest
+    from tools import test_gui_ledger as t
+    result = unittest.TestResult()
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
+                               for c in (t.AttachLedgerTest, t.LedgerOperationsTest))
+    suite.run(result)
+    if result.wasSuccessful():
+        _ok("GuiLedger", f"{result.testsRun} tests: 未設定で何も書かない/記録・差分・抑制/台帳失敗の注記/日数の上限")
+    else:
+        _ng("GuiLedger", str(result.errors + result.failures))
+
+
+def test_gui_layout():
+    _section("16ae. GUI LAYOUT — ダイアログのボタンが窓内・案件ID/台帳/期待権限の操作(xvfb-run必須・無ければSKIP)")
+    import shutil
+    import unittest
+    if not shutil.which("xvfb-run"):
+        _SKIP.append("GUI LAYOUT")
+        print("  [SKIP] xvfb-runが無いため未実行(仮想ディスプレイが必要)")
+        return
+    from tools import test_gui_layout as t
+    result = unittest.TestResult()
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
+                               for c in (t.AuthDialogLayoutTest, t.ExpectationsDialogTest, t.EngagementGuiTest,
+                                         t.LedgerDialogTest))
+    suite.run(result)
+    if result.wasSuccessful():
+        _ok("GuiLayout", f"{result.testsRun} tests(仮想ディスプレイ): 認証/期待権限/台帳ダイアログの操作欄が窓内・案件IDと4パネルの台帳記録")
+    else:
+        _ng("GuiLayout", str(result.errors + result.failures))
 
 
 def test_openapi_loader():
@@ -3181,7 +3231,8 @@ def test_openapi_loader():
     from tools import test_openapi_loader as t
     result = unittest.TestResult()
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
-                               for c in (t.NoNetworkTest, t.OperationTest, t.YamlTest, t.SelectionTest, t.FuzzerSeedTest))
+                               for c in (t.NoNetworkTest, t.OperationTest, t.YamlTest, t.SelectionTest, t.FuzzerSeedTest,
+                                         t.SampleAndAuthTest))
     suite.run(result)
     if result.wasSuccessful():
         _ok("OpenApiLoader", f"{result.testsRun} tests: 外部servers/$ref通信ゼロ/選択不可の明示エラー/循環・上限/seed合流")
@@ -3195,7 +3246,8 @@ def test_log_watcher_realworld():
     from tools import test_log_watcher as t
     result = unittest.TestResult()
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
-                               for c in (t.WatcherTest, t.NormalizeTest, t.MitreTest, t.MonitorIntegrationTest))
+                               for c in (t.WatcherTest, t.NormalizeTest, t.MitreTest, t.MonitorIntegrationTest,
+                                         t.GzipArchiveTest, t.JournaldTest, t.SyslogTest))
     suite.run(result)
     if result.wasSuccessful():
         _ok("LogWatcher", f"{result.testsRun} tests: rename-create/copytruncate/部分行/一時不在/STOP/JSONL/不明MITRE IDを確定タグにしない")
@@ -3209,7 +3261,8 @@ def test_code_index():
     from tools import test_code_index as t
     result = unittest.TestResult()
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
-                               for c in (t.SplitProjectTest, t.SafetyTest, t.LimitsAndGapsTest, t.AuditProjectTest, t.LangGraphProjectTest))
+                               for c in (t.SplitProjectTest, t.SafetyTest, t.LimitsAndGapsTest, t.AuditProjectTest, t.LangGraphProjectTest,
+                                         t.AuditProjectEvidenceTest, t.LangGraphProjectEvidenceTest))
     suite.run(result)
     if result.wasSuccessful():
         _ok("CodeIndex", f"{result.testsRun} tests: 非実行/root外symlink/秘密除外/上限/循環/動的import/正直なcoverage")
@@ -3330,6 +3383,9 @@ def main():
     test_findings_ledger()
     test_ledger_reports()
     test_live_eval_harness()
+    test_unparsed_output()
+    test_gui_ledger_ops()
+    test_gui_layout()
     test_openapi_loader()
     test_log_watcher_realworld()
     test_code_index()

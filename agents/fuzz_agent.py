@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import re
 import time
-from agents.base_agent import BaseAgent
+from agents.base_agent import BaseAgent, unparsed_output_note
 from tools.web_fuzzer import WebFuzzer, DEFAULT_PROBES
 from tools.report_generator import _findings_and_counts
 import core.config as config
@@ -386,6 +386,9 @@ class FuzzAgent(BaseAgent):
             errors.append("リクエスト予算切れのため一部の検査が未実施の可能性があります")
         if triage_ran and had_signals and not triage_text.strip():
             errors.append("AIトリアージが空応答でした（LLM呼び出し失敗の可能性）")
+            return ScanState.PARTIAL.value, errors
+        if triage_ran and had_signals and (note := unparsed_output_note(triage_text)):
+            errors.append(note)             # 異常の兆候があったのに、トリアージ出力が所見として取り込めていない
             return ScanState.PARTIAL.value, errors
         if budget_exhausted:
             return ScanState.PARTIAL.value, errors

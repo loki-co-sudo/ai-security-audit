@@ -14,7 +14,7 @@ import os
 import re
 import time
 import requests
-from agents.base_agent import BaseAgent
+from agents.base_agent import BaseAgent, unparsed_output_note
 from tools.network_scanner import NetworkScanner, passive_os_fingerprint
 from tools.web_prober import WebProber
 from tools import subdomain_enum
@@ -780,6 +780,9 @@ class ReconAgent(BaseAgent):
             return ScanState.PARTIAL.value, errors
         if not triage_text.strip():
             errors.append("AI攻撃仮説が空応答でした（LLM呼び出し失敗の可能性）")
+            return ScanState.PARTIAL.value, errors
+        if note := unparsed_output_note(triage_text):
+            errors.append(note)
             return ScanState.PARTIAL.value, errors
         return ScanState.COMPLETED.value, errors
 

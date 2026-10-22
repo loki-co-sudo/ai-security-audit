@@ -11,7 +11,7 @@ from urllib.parse import unquote_plus
 import time
 from datetime import datetime
 from collections import deque
-from agents.base_agent import BaseAgent
+from agents.base_agent import BaseAgent, unparsed_output_note
 from tools.log_watcher import LogWatcher, normalize_log_line, source_ip
 from tools.report_generator import _findings_and_counts
 import core.config as config
@@ -302,6 +302,11 @@ class MonitorAgent(BaseAgent):
         if analyses and not non_empty:
             errors.append("AI脅威分析がすべて空応答でした（LLM呼び出し失敗の可能性）")
             return ScanState.PARTIAL.value, errors
+        if any(unparsed_output_note(a) for a in non_empty):
+            # 主な検知はシグネチャのアラート(LLMの分析は補助)なので、状態はpartialにせず注記だけ残す。
+            # 「問題なし」と説明しただけの出力でも付きうるため、状態を変えるとノイズが大きい。
+            errors.append("AI脅威分析の一部が脅威マーカー(---THREAT_START---)を含まず、脅威として取り込めませんでした"
+                          "(モデルが出力形式を守っていない可能性。シグネチャのアラートは別に出ています。画面の出力を確認してください)")
         return ScanState.COMPLETED.value, errors
 
     def _pattern_match(self, line: str) -> list[str]:

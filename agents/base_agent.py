@@ -51,6 +51,24 @@ def _count_severities(text: str) -> dict:
 # マーカー単位（NAME/TITLE + LINES の組）の過半数一致で採用する所見を決める。
 _MARKER_RE = re.compile(r"---(VULN|FINDING)_START---(.*?)---\1_END---", re.S)
 
+# LLM出力がこの長さ以上なのに所見マーカーが1つも無ければ、形式を守れず所見として取り込めなかった疑いがある
+_UNPARSED_MIN_CHARS = 400
+_FINDING_MARKERS = ("---VULN_START---", "---FINDING_START---", "---THREAT_START---")
+
+
+def unparsed_output_note(text: str) -> str:
+    """出力が十分に長いのに所見マーカーが1つも無い場合の注記を返す(問題なければ空文字)。
+
+    形式を守らないモデルでは、実質のある分析が出ていても所見0件・成功に見えてしまう(2026-10-23、小型モデルで確認)。
+    本当に「問題なし」と答えた長い出力もこの注記の対象になりうるが、その場合も取り込めた所見が無いことを
+    明示する方が安全なため、partialにして注記する(検出0件の成功とは区別する)。
+    """
+    t = (text or "").strip()
+    if len(t) < _UNPARSED_MIN_CHARS or any(m in t for m in _FINDING_MARKERS):
+        return ""
+    return (f"AI出力({len(t)}文字)に所見マーカー(---VULN_START---等)が無く、所見として取り込めませんでした。"
+            "モデルが出力形式を守っていない可能性があります(検出0件の成功ではありません。画面の出力を確認してください)")
+
 
 def _parse_marker_findings(text: str) -> list[tuple[str, str]]:
     """マーカー形式の所見を (signature, 完全なブロック文字列) のリストとして抽出する。

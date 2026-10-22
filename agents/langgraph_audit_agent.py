@@ -8,7 +8,7 @@ CRITICAL 発見時に自動的に深層解析ループを実行する。
 from __future__ import annotations
 import os
 from datetime import datetime
-from agents.base_agent import BaseAgent
+from agents.base_agent import BaseAgent, unparsed_output_note
 from agents.audit_agent import AuditAgent, ast_scan, save_ast_evidence, save_project_ast_evidence, _EVIDENCE_INSTRUCTION
 import core.config as config
 from core.evidence_store import EvidenceStore
@@ -201,5 +201,8 @@ class LangGraphAuditAgent(BaseAgent):
             return ScanState.CANCELLED.value, errors
         if not combined_text.strip():
             errors.append("AI推論が空応答でした（LLM呼び出し失敗の可能性）")
+            return ScanState.PARTIAL.value, errors
+        if note := unparsed_output_note(combined_text):
+            errors.append(note)
             return ScanState.PARTIAL.value, errors
         return ScanState.COMPLETED.value, errors
