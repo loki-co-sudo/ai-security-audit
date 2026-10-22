@@ -637,3 +637,7 @@ CLI `openapi FILE` / `scan fuzz --openapi ... --openapi-op ...`。副次修正: 
 ## 2026-10-22 P3.1(追補): audit/defense/attackの--targets-file
 `cli.py`: `--target`と排他の`--targets-file`(auditはパス、attackはhost/URL、defenseはログパス)。逐次実行し`aggregate()`で集約、台帳は各結果を記録。
 SIGINT後の残りは「中断のため未実行」。試験: `tools/test_cli.py`(27件)。
+
+## 2026-10-22 P4.1(追補): OpenAPI YAML対応
+`openapi_loader._load_yaml`: JSONで読めない場合のみPyYAMLの`SafeLoader`で読む。alias/anchorは展開膨張を避けるため拒否、`!!python`等のタグ・不正・深い入れ子はOpenApiError。
+通信しない・serversを使わない点はJSONと同じ。`requirements.txt`にPyYAMLを明示。仕様変更に伴い、旧試験の「YAMLは拒否」ケースを削除し有効YAMLの試験へ移した。

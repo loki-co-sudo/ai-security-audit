@@ -3167,7 +3167,7 @@ def test_openapi_loader():
     from tools import test_openapi_loader as t
     result = unittest.TestResult()
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
-                               for c in (t.NoNetworkTest, t.OperationTest, t.SelectionTest, t.FuzzerSeedTest))
+                               for c in (t.NoNetworkTest, t.OperationTest, t.YamlTest, t.SelectionTest, t.FuzzerSeedTest))
     suite.run(result)
     if result.wasSuccessful():
         _ok("OpenApiLoader", f"{result.testsRun} tests: 外部servers/$ref通信ゼロ/選択不可の明示エラー/循環・上限/seed合流")

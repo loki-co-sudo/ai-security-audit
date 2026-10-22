@@ -301,14 +301,14 @@ GUI、複数案件をまたぐ集計、台帳のローテーション/圧縮、�
 初期版はユーザーが選択した読み取り用GETとquery parameterを既存fuzzerへ渡す。JSON body、path parameterの生成、破壊的GET、POST等は自動探索対象にしない。GETだけで非破壊を保証できるとは説明しない。
 テスト: 外部servers/$refへの通信ゼロ、operation除外、循環参照、上限、HTMLリンクのない許可APIがcoverageへ現れること。
 
-2026-10-22 実装済み(P4.1初期版): `tools/openapi_loader.py`(ローカルJSONのOpenAPI 3.0/3.1・YAML非対応・2MB/500 operation/50 parameter上限・
+2026-10-22 実装済み(P4.1初期版): `tools/openapi_loader.py`(ローカルJSON(追補でYAMLも可: safe_load・alias拒否)のOpenAPI 3.0/3.1・2MB/500 operation/50 parameter上限・
 ローカル$refは深さ16/循環検出、外部$refと不正は明示エラー)、`tools/test_openapi_loader.py`(selftest 16y)。
 CLI: `openapi FILE`(operation一覧。通信しない)、`scan fuzz --openapi FILE --openapi-op ID...[--openapi-exclude ID]`。
 **operationは明示選択のみ**(全自動選択なし)。選択可能なのはGET・query parameterあり・path parameterなし・requestBodyなしのもの。
 送信先は`--target`のorigin固定で、OpenAPIの`servers`は使わない。選択した注入点は`WebFuzzer.seed_points`としてクロール結果へ合流し、
 重複はクロール側を優先、同一origin外は取り込まず`seed_rejected`→`errors`に残して`partial`にする。HTMLリンクの無いAPIも
 `WEB_FUZZ_*`のcoverageに現れる(CLI試験で確認)。再開用にseed_pointsはprofile_json/profile_hashへ含める。
-**未実装/限界**: YAML、`$ref`を含む複雑なschema(allOf/oneOf)からのサンプル生成、path parameter・JSON body・POST等、`--targets-file`との併用(拒否)、
+**未実装/限界**: `$ref`を含む複雑なschema(allOf/oneOf)からのサンプル生成、path parameter・JSON body・POST等、`--targets-file`との併用(拒否)、
 旧FuzzAgent(GUI)経路、認証が必要なAPIのsecurityScheme解釈。GETだけで非破壊とは限らないため、利用者が読み取り用と判断したものだけを選ぶこと。
 
 ### P4.2 Python複数ファイル監査

@@ -108,7 +108,7 @@ AI-Security-tool/
 │   ├── network_scanner.py       # socket-basedポートスキャナ、SSL証明書取得
 │   ├── web_prober.py            # HTTP探査、技術スタック指紋、センシティブパス列挙
 │   ├── code_index.py            # P4.2: Pythonプロジェクトの索引(AST・非実行)・循環import検出・優先付き文脈生成。symlink非追跡・秘密除外・上限つき。呼出し解決は名前一致の近似
-│   ├── openapi_loader.py        # P4.1: ローカルOpenAPI 3.x JSON→選択可能operation一覧・明示選択したGET+queryの注入点。通信しない・serversを使わない
+│   ├── openapi_loader.py        # P4.1: ローカルOpenAPI 3.x(JSON/YAML)→選択可能operation一覧・明示選択したGET+queryの注入点。通信しない・serversを使わない
 │   ├── web_fuzzer.py            # Webスマートファザー（クロール・注入点検出・異常観測／検出のみ）。第2セッション(session_b)によるIDOR比較はGET限定。全送信はcore/http_transport.HttpTransport経由（P0.1）
 │   ├── subdomain_enum.py        # バグバウンティ対応: crt.shへの受動的サブドメイン列挙（単発GETのみ・サイレント失敗）
 │   ├── log_watcher.py           # tailf式ログ追跡（P4.3: inode/サイズ追跡・部分行保持・ローテーション/copytruncate補正・stats）、JSONL平坦化normalize_log_line()、サンプルログ生成
@@ -534,7 +534,7 @@ P0.1・P0.2・P1.1は完了済み。実装詳細・セルフテスト結果は
 - [ ] P2.2 IDOR/SSTI/XSSの既存検出品質改善（**検出器側は実装済み**: IDORのログイン画面/公開除外・期待権限表、SSTI別式確認、XSS content-type。未: 期待権限表のGUI入力・旧FuzzAgent経路への配線、同一origin認証確認URL、逆方向）
 - [ ] P3.1 CLI・案件プロファイル・除外優先・実行設定分離（**scan fuzz/audit/defense/attack、--engagement、除外優先、--targets-fileは実装済み**。**`--format md`・`--effort auto`・`defense --duration`・`config.json`の`profiles`(`--use-profile`)も実装済み**。**audit/defense/attackの`--targets-file`も実装済み**。未: core/scan_runner.pyへの共通化、profilesのrate_limit_rps/scope_mode）
 - [ ] P3.2 案件別JSONLイベント台帳・差分・期限付き抑制（**台帳・差分・mark/suppress/findings CLIは実装済み**。**レポート層(HTML/MD/PDF/JSON)は`Ledger.report_view()`を`scan_result["ledger"]`に付けると抑制除外・差分表示に対応済み**。未: GUI/CLIからのengagement_id指定と配線）
-- [ ] P4.1 OpenAPI入力（**初期版は実装済み**: ローカルJSON・明示選択のGET+query。未: YAML、複雑schema、認証scheme、GUI）
+- [ ] P4.1 OpenAPI入力（**初期版は実装済み**: ローカルJSON・明示選択のGET+query。**YAML(safe_load・alias拒否)対応済み**。未: 複雑schema、認証scheme、GUI）
 - [ ] P4.2 Python複数ファイル監査（**標準エンジンの初期版は実装済み**。未: LangGraph版・GUI・証拠保存・実LLM評価）
 - [ ] P4.3 実ログ対応・ローテーション/縮小/部分行処理（**中核は実装済み**＋JSONL・MITRE ID確認。未: journald/syslog、gzip回転、長時間の実運用検証）
 

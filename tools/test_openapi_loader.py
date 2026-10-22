@@ -102,7 +102,7 @@ class OperationTest(LoaderBase):
             self.ops(doc({"/x": {"get": {"parameters": [q(f"p{i}") for i in range(ol.MAX_PARAMS_PER_OPERATION + 1)]}}}))
         with self.assertRaises(ol.OpenApiError):
             self.ops(doc({"/x": {"get": {"operationId": "d"}, "post": {"operationId": "d"}}}))      # id重複
-        for raw in ("not json", "openapi: 3.0.0\npaths: {}", json.dumps({"swagger": "2.0", "paths": {}}),
+        for raw in ("not json", json.dumps({"swagger": "2.0", "paths": {}}),
                     json.dumps({"openapi": "3.0.0"}), json.dumps(["x"])):
             with self.assertRaises(ol.OpenApiError, msg=raw):
                 ol.load_openapi(self.write(None, raw=raw))
@@ -111,6 +111,32 @@ class OperationTest(LoaderBase):
         big = self.write(None, raw=json.dumps(doc({})) + " " * (ol.MAX_BYTES + 1))
         with self.assertRaises(ol.OpenApiError):
             ol.load_openapi(big)
+
+
+class YamlTest(LoaderBase):
+    """YAML対応(仕様変更): 旧版は「openapi: 3.0.0\\npaths: {}」を非対応として拒否していたが、今は有効なYAMLとして読む。"""
+    YAML = ("openapi: 3.0.3\ninfo: {title: t, version: '1'}\nservers:\n  - url: http://evil.example/v1\n"
+            "paths:\n  /a:\n    get:\n      operationId: a\n      parameters:\n"
+            "        - {name: x, in: query, schema: {type: integer}, example: 2020-01-01}\n")
+
+    def test_yaml_is_read_and_behaves_like_json_without_network(self):
+        with mock.patch.object(socket, "socket", side_effect=AssertionError("network used")), \
+             mock.patch.object(socket, "getaddrinfo", side_effect=AssertionError("dns used")):
+            loaded = ol.load_openapi(self.write(None, "api.yaml", raw=self.YAML))
+            ops = ol.list_operations(loaded)
+        self.assertEqual([o.operation_id for o in ops], ["a"])
+        self.assertEqual(ol.load_openapi(self.write(None, "m.yaml", raw="openapi: 3.0.0\npaths: {}"))["paths"], {})
+
+    def test_yaml_aliases_python_tags_and_garbage_are_rejected(self):
+        bomb = "openapi: 3.0.0\nx: &a [1,2,3]\ny: [*a, *a, *a]\npaths: {}\n"
+        for raw in (bomb, "openapi: 3.0.0\npaths: !!python/object/apply:os.system ['id']\n",
+                    "openapi: [unclosed\n", "\t- bad: : :"):
+            with self.assertRaises(ol.OpenApiError, msg=raw):
+                ol.load_openapi(self.write(None, "bad.yaml", raw=raw))
+
+    def test_deeply_nested_yaml_is_an_error_not_a_crash(self):
+        with self.assertRaises(ol.OpenApiError):
+            ol.load_openapi(self.write(None, "deep.yaml", raw="openapi: 3.0.0\npaths: {}\nz: " + "[" * 5000 + "]" * 5000))
 
 
 class SelectionTest(LoaderBase):

@@ -74,6 +74,24 @@ class _Resolver:
         return node
 
 
+def _load_yaml(raw: bytes) -> dict:
+    """JSONで読めなかった場合のYAML。safe_loadのみ・alias/anchorは拒否(展開による膨張を防ぐ)・ローカル文字列のみ。"""
+    try:
+        import yaml
+    except ImportError:
+        raise OpenApiError("JSONとして読めません(YAMLにはPyYAMLが必要です)")
+    try:
+        text = raw.decode("utf-8")
+        if any(isinstance(e, yaml.AliasEvent) for e in yaml.parse(text, Loader=yaml.SafeLoader)):
+            raise OpenApiError("YAMLのalias(*)は使えません。展開済みのYAMLかJSONにしてください")
+        doc = yaml.load(text, Loader=yaml.SafeLoader)
+    except OpenApiError:
+        raise
+    except (yaml.YAMLError, UnicodeDecodeError, RecursionError):
+        raise OpenApiError("JSONまたはYAMLとして読めません")
+    return doc
+
+
 def load_openapi(path: str) -> dict:
     """ローカルのJSONを読み、OpenAPI 3.0/3.1であることを確認して返す(リンク先は読まない)。"""
     try:
@@ -86,7 +104,7 @@ def load_openapi(path: str) -> dict:
     try:
         doc = json.loads(raw.decode("utf-8"))
     except (ValueError, UnicodeDecodeError):
-        raise OpenApiError("JSONとして読めません(YAMLは非対応。JSONへ変換してください)")
+        doc = _load_yaml(raw)
     if not isinstance(doc, dict) or not str(doc.get("openapi", "")).startswith(("3.0", "3.1")):
         raise OpenApiError("OpenAPI 3.0/3.1のドキュメントではありません")
     if not isinstance(doc.get("paths"), dict):
