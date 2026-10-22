@@ -64,7 +64,7 @@ P4内は用途に応じて一項目ずつ選択できる。保留事項を自動
 
 | ID | 進捗 | 実装済み | 残り・未検証 |
 |---|---|---|---|
-| P1.2 | ほぼ実装・未完了扱い | 証拠保存・マスキング・全4モードの配線・HTML/MD/PDF/JSON | GUI目視、実LLMの証拠ID引用、ATTACK画面ログの未マスク |
+| P1.2 | ほぼ実装・未完了扱い | 証拠保存・マスキング・全4モードの配線・HTML/MD/PDF/JSON、AUDITで実LLMの証拠ID引用を1回確認 | GUI目視、他モードの実LLM引用、ATTACK画面ログの未マスク |
 | P2.1 | 一部 | WEB FUZZ・DEFENSEシグネチャのdetector固定ベンチと基準値、AUDITの実LLM評価(無料枠モデル3回・`tools/live_eval.py`) | 他モデルでの実LLM評価、WEB FUZZ/DEFENSE/ATTACKの実LLM評価、ATTACKのベンチ、トークン使用量(現状は文字数のみ) |
 | P2.2 | 検出器側は実装 | IDOR(ログイン/公開除外・期待権限表)、SSTI別式確認、XSS content-type | 期待権限表のGUI入力・旧FuzzAgent配線、同一origin確認URL、逆方向 |
 | P3.1 | ほぼ実装 | `scan fuzz/audit/defense/attack`・`--targets-file`・`--engagement`・除外優先・`--format md`・`--effort auto`・`defense --duration`・`--use-profile`・`core/scan_runner.py`(ATTACK/AUDIT/DEFENSE) | WEB FUZZ経路のscan_runner移動、profilesのrate_limit_rps/scope_mode、実LLMでのauto分類 |
@@ -72,7 +72,7 @@ P4内は用途に応じて一項目ずつ選択できる。保留事項を自動
 | P4.1 | 初期版 | ローカルJSON/YAML・明示選択のGET+query | 複雑schema・path param・body・認証scheme・GUI |
 | P4.2 | 初期版 | 標準エンジン・LangGraph版(モックLLM)の複数ファイル監査 | GUI、証拠保存、実LLM評価 |
 | P4.3 | 中核 | ローテーション/縮小/部分行/JSONL/MITRE確認 | journald/syslog、gzip回転、長時間運用検証 |
-| 共通 | 一部検証 | selftest 169 PASS / 0 FAIL / 5 SKIP(`SELFTEST_NON_LLM_ONLY=1`)。AUDITのみ実LLMで3回評価 | 実LLM系5件のselftest、AUDIT以外の実LLM評価、GUIの目視確認は全体を通して未実施 |
+| 共通 | 一部検証 | selftest 170 PASS / 0 FAIL / 5 SKIP(`SELFTEST_NON_LLM_ONLY=1`)。AUDITは実LLMで3回評価、証拠ID引用・effort auto・DEFENSE・WEB FUZZは実LLMで各1回の動作確認(付録) | 実LLM系5件のselftest、AUDIT以外の評価(複数回)、GUIの目視確認は全体を通して未実施 |
 
 ## 4. P0: 通信・認証の境界
 
@@ -411,3 +411,10 @@ JSONL平坦化`normalize_log_line()`、`core/mitre.py`、`agents/monitor_agent.p
 - 未ラベル所見は各1件: `init_db`のSQLに埋め込まれた管理者の既定資格情報。ラベルに入れていなかった実在の問題で、誤検知とは断定しない。
 - 限界: 行範囲の重なりで照合するため、複数行にまたがる所見は複数の正解に当たりうる(再現率は上振れしうる)。出力に韓国語の断片が混ざる等、モデル由来の揺れがある。
   verify_pass(quality)・STRONGモデル・トークン数は未評価。無料枠の提供側が入力を学習に使う可能性があるため、送ったのはサンプルコード(秘密値なし)のみ。
+
+### 2026-10-22 実LLMでの動作確認(同モデル・各1回の小規模確認。評価ではなく「動いた」ことの確認)
+- **証拠ID引用(P1.2)**: `save_evidence`ON・2関数の小ファイルでAUDIT。モデルは2所見に実在する証拠IDを引用し(`pickle.loads`行・`os.system`行・`import pickle`行)、未知IDの除外は0件。引用の意味的な正しさは今回は目視で一致を確認しただけで、保証ではない。
+- **`--effort auto`(P3.1)**: 自明なprint文は`speed`、複数の欠陥を匂わせる認証コードは`quality`に分類。各1.5秒。
+- **DEFENSE(P4.3)**: 攻撃ログ8行(UNION SELECT、トラバーサル+sqlmap UA、wp-login)の1回走査。3所見、うち2件に実在のMITRE ID `T1190`、1件は`UNSPECIFIED`(IDを付けなかった)。未収録IDの「未確認」表示は今回は発火していない。
+- **WEB FUZZ(P2.1)**: ラボのfixtureに対し`scan fuzz`を実行。SQLi(`/item?id`)とXSS(`/search?q`)の2件をobservedで報告し、エスケープ済み/安全ページは報告なし。約15秒。
+いずれも1回のみでぶれ幅は未測定。AUDITのように3回で再現率が1.0〜0.375とぶれた例があるため、これらを品質の保証として扱わない。

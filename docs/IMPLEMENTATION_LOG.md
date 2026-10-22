@@ -654,3 +654,6 @@ ASTプリスキャン・証拠保存・CVE照合は未対応。試験: `tools/te
 ## 2026-10-22 P2.1(追補): 実LLM評価ハーネスとAUDITの初回実測
 `tools/live_eval.py`(config.json非変更・呼出し上限・タイムアウト指定)、`testlab/benchmark/ground_truth_audit.json`、`tools/test_live_eval.py`(selftest 16ab)。
 無料枠モデルでの3回: 再現率1.0/1.0/0.375。詳細と限界は docs/PRACTICAL_ROADMAP.md 付録。
+
+## 2026-10-22 実LLM動作確認(無料枠モデル・各1回)
+AUDITの証拠ID引用、`--effort auto`、DEFENSEのMITRE ID、WEB FUZZのトリアージを確認。結果と限界は docs/PRACTICAL_ROADMAP.md 付録。コード変更なし。
