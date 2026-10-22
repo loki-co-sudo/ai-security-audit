@@ -130,13 +130,19 @@ def parser():
     scan = commands.add_parser("scan").add_subparsers(dest="mode", required=True)
     fuzz = scan.add_parser("fuzz")
     audit = scan.add_parser("audit")
-    audit.add_argument("--target", required=True, help="監査するPythonソースのパス（ローカルのファイルまたはディレクトリ）")
+    audit_t = audit.add_mutually_exclusive_group(required=True)
+    audit_t.add_argument("--target", help="監査するPythonソースのパス（ローカルのファイルまたはディレクトリ）")
+    audit_t.add_argument("--targets-file", help="1行1パス(#でコメント、最大50件)。逐次実行")
     defense = scan.add_parser("defense")
-    defense.add_argument("--target", required=True, help="解析するアクセスログのパス（ローカルファイル・1回だけ走査）")
+    defense_t = defense.add_mutually_exclusive_group(required=True)
+    defense_t.add_argument("--target", help="解析するアクセスログのパス（ローカルファイル・既定は1回だけ走査）")
+    defense_t.add_argument("--targets-file", help="1行1パス(#でコメント、最大50件)。逐次実行")
     defense.add_argument("--duration", type=float, metavar="SECONDS",
                          help="指定すると1回走査ではなく有限時間(1〜86400秒)だけログを監視する。追記行も対象")
     attack = scan.add_parser("attack")
-    attack.add_argument("--target", required=True, help="偵察対象のhost/IP/URL。--allowで明示した範囲内のみ実行")
+    attack_t = attack.add_mutually_exclusive_group(required=True)
+    attack_t.add_argument("--target", help="偵察対象のhost/IP/URL。--allowで明示した範囲内のみ実行")
+    attack_t.add_argument("--targets-file", help="1行1対象(#でコメント、最大50件)。逐次実行。各対象に--allow/--excludeを適用")
     attack.add_argument("--allow", action="append", required=True, help="許可host/IP/CIDR。複数は繰り返す")
     attack.add_argument("--exclude", action="append", default=[], help="除外host/IP/CIDR。許可より優先")
     attack.add_argument("--profile", choices=list(SCAN_PROFILES), default=DEFAULT_SCAN_PROFILE)
@@ -256,7 +262,7 @@ def check_target(target):
     return url
 
 
-def read_targets(path):
+def read_targets(path, validate=None):
     p = Path(path)
     if not p.is_file() or p.stat().st_size > 262144:
         raise CLIError("対象ファイルが見つからないか大きすぎます")
@@ -268,8 +274,13 @@ def read_targets(path):
     if not targets or len(targets) > 50:
         raise CLIError("対象ファイルには1〜50件のURLを指定してください")
     for t in targets:
-        check_target(t)
+        (validate or check_target)(t)
     return targets
+
+
+def check_path(value):
+    if not value or len(value) > 4096 or "\x00" in value or any(ord(c) < 32 for c in value):
+        raise CLIError("対象パスが不正です")
 
 
 def target_excluded(target, excluded):
@@ -532,11 +543,29 @@ def main(argv=None):
             result = openapi_list(args.file)
         elif is_ledger:
             result = ledger_command(args)
-        elif is_audit and args.mode == "attack":
-            result = run_attack(args, lambda a: set_agent(a), lambda: interrupted)
         elif is_audit:
-            result = run_local(args.mode, args.target, args.effort, lambda a: set_agent(a), lambda: interrupted,
-                               getattr(args, "duration", None))
+            def one(target):
+                if args.mode == "attack":
+                    return run_attack(argparse.Namespace(**{**vars(args), "target": target}),
+                                      lambda a: set_agent(a), lambda: interrupted)
+                return run_local(args.mode, target, args.effort, lambda a: set_agent(a), lambda: interrupted,
+                                 getattr(args, "duration", None))
+            if not args.targets_file:
+                result = one(args.target)
+            else:
+                targets = read_targets(args.targets_file, check_target if args.mode == "attack" else check_path)
+                results, skipped = [], []
+                for t in targets:
+                    if interrupted:
+                        skipped.append(t)
+                        continue
+                    try:
+                        r = one(t)
+                    except CLIError as e:
+                        r = {"state": "failed", "errors": [str(e)], "findings": []}
+                    r["target"] = t
+                    results.append(r)
+                result = aggregate(results, skipped)
         elif args.command == "status":
             result = status_result(args.run_id, args.journal_root, args.allow)
             if args.fail_on != "none":

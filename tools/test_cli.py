@@ -383,6 +383,44 @@ class CLITest(unittest.TestCase):
         p, data = self.call(["scan", "defense", "--target", str(log), "--duration", "0"])
         self.assertEqual((p.returncode, data["state"]), (2, "failed"))
 
+    def test_targets_file_for_audit_defense_and_attack(self):
+        a, b = self.base / "a.py", self.base / "b.py"
+        a.write_text("import os\ndef run(x):\n    os.system(x)\n")
+        b.write_text("def f():\n    return 1\n")
+        tf = self.base / "targets.txt"
+        tf.write_text(f"# comment\n{a}\n{b}\n{self.base / 'missing.py'}\n")
+        p, data = self.call(["scan", "audit", "--targets-file", str(tf), "--fail-on", "high"])
+        self.assertTrue(data["batch"], data)
+        self.assertEqual([r["target"] for r in data["results"]], [str(a), str(b), str(self.base / "missing.py")])
+        self.assertEqual([r["state"] for r in data["results"]][2], "failed")       # 失敗は他対象の結果を消さない
+        self.assertEqual(data["state"], "partial")
+        self.assertEqual(p.returncode, 2, data)                                   # completedでなければ所見より優先して2
+        two = self.base / "two.txt"
+        two.write_text(f"{a}\n{b}\n")
+        p, data = self.call(["scan", "audit", "--targets-file", str(two), "--fail-on", "high"])
+        self.assertEqual((data["state"], p.returncode, len(data["findings"])), ("completed", 1, 2), data)
+        log = self.base / "x.log"
+        log.write_text('10.0.0.6 - - [22/Oct/2026:01:00:01 +0900] "GET /index.html HTTP/1.1" 200 5 "-" "x"\n')
+        tf2 = self.base / "logs.txt"
+        tf2.write_text(f"{log}\n{log}\n")                                          # 重複は1件
+        p, data = self.call(["scan", "defense", "--targets-file", str(tf2)])
+        self.assertEqual((len(data["results"]), data["state"]), (1, "completed"), data)
+        p, data = self.call(["scan", "audit", "--target", str(a), "--targets-file", str(tf)])
+        self.assertEqual(p.returncode, 2)                                           # 排他
+        empty = self.base / "empty.txt"
+        empty.write_text("# nothing\n")
+        p, data = self.call(["scan", "audit", "--targets-file", str(empty)])
+        self.assertEqual((p.returncode, data["state"]), (2, "failed"))
+        with FixtureServer(post_form=False) as srv:
+            host = srv.base_url.split("//")[1].split("/")[0]
+            tf3 = self.base / "hosts.txt"
+            tf3.write_text(f"{host}\n192.0.2.1\n")
+            p, data = self.call(["scan", "attack", "--targets-file", str(tf3), "--allow", "127.0.0.1", "--no-web",
+                                 "--profile", "aggressive"])
+            states = {r["target"]: r["state"] for r in data["results"]}
+            self.assertEqual(states["192.0.2.1"], "failed", data)                   # 許可外は送らず失敗
+            self.assertIn(states[host], ("completed", "partial"), data)
+
     def test_scan_attack_is_scoped_and_exclude_wins(self):
         with FixtureServer(post_form=False) as srv:
             host = srv.base_url.split("//")[1].split("/")[0]

@@ -633,3 +633,7 @@ CLI `openapi FILE` / `scan fuzz --openapi ... --openapi-op ...`。副次修正: 
 ## 2026-10-22 DEFENSEシグネチャ改善(defense-3)
 `ATTACK_PATTERNS`: UNION ALL SELECT、`|`+nc/bash/sh、`Failed password for`、IPv6ループバックSSRFを追加。未見8判定を追加し66判定でTP33・FP0・FN0。
 修正前基準値は`defense_signatures.before-defense-3.json`。`DETECTOR_VERSIONS["DEFENSE"]="defense-3"`。
+
+## 2026-10-22 P3.1(追補): audit/defense/attackの--targets-file
+`cli.py`: `--target`と排他の`--targets-file`(auditはパス、attackはhost/URL、defenseはログパス)。逐次実行し`aggregate()`で集約、台帳は各結果を記録。
+SIGINT後の残りは「中断のため未実行」。試験: `tools/test_cli.py`(27件)。
