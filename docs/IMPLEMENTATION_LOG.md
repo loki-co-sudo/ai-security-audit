@@ -693,4 +693,5 @@ AUDITの証拠ID引用、`--effort auto`、DEFENSEのMITRE ID、WEB FUZZのト�
 ## 2026-10-22 GUIの目視確認(仮想ディスプレイ)と認証ダイアログのレイアウト修正
 `xvfb-run`の仮想ディスプレイ(利用者の画面には出さない)でGUIを起動し、`import`でスクリーンショットを撮って確認した。対象: 4タブ(各タブに`{ } JSON`ボタンがあり配置崩れなし)、設定ダイアログ(FAST/SCOPE節・保存/キャンセルが見える)、認証ダイアログ。WEB FUZZパネルへ実際のCLI結果(RESULTイベント)を流し込み、HTML/PDF/MD/JSONの4つの出力ボタンを実行して、4ファイルが生成され、JSONは`ai-security-audit-report`スキーマ・PDFは`%PDF`ヘッダーであることを確認した(確認後に削除)。
 **発見した不具合**: `AuthDialog`は本体(`expand=True`)を先にpackし、P2.2で④認証状態の確認(確認URL等)を足したあと660pxの窓に収まらず、保存/キャンセル/クリアが窓外へ切れていた(AGENTS.mdのGUIパックオーダー規則違反)。ボタン行を先にpackし、本体を`CTkScrollableFrame`にして修正(高さ720・最小480)。`tools/test_gui_layout.py`(xvfb-run必須・無ければSKIP。旧レイアウトでは落ちることを確認)で固定。
+追加確認: DEFENSEパネルをGUI操作経路(`_start`→EventBus→30msポーリング→`dispatch`)で実際に実行(LLMはモック・ログ5行・ウィンドウマネージャ付き)。アラートカウンター(HIGH 2・MEDIUM 2)・ALERT TIMELINE・AI出力・SYSTEM LOG・ステータスバー「完了」が更新され、完了後に4形式の出力ボタンが動作した(JSONは`ai-security-audit-report`・completed)。他のパネル(AUDIT/ATTACK/WEB FUZZ)のGUI実行は未確認。
 `tools/gui_snapshot.py`: 同じ手順の再実行用(`python tools/gui_snapshot.py OUTDIR`)。**未確認**: 実画面(Windows/DPI/マルチモニタ)、ファイル選択ダイアログ、実スキャンをGUIから走らせた挙動、期待権限表のGUI入力(未実装)。
