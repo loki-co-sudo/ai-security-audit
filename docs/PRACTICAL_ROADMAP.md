@@ -192,6 +192,10 @@ CMS_PROBEは英数字・ハイフン非隣接、末尾`--`は直前が引用符/
 そこで**調整後に結果を見ずに意味でラベルを付けた未見ケース14行(15判定)を追加**した全58判定の基準値: TP25・FP0・FN4・TN29、recall約0.86。
 **残る見逃し(FN)**: `UNION ALL SELECT`、パイプ+`nc`のコマンド連結、実際のsshdの`Failed password for invalid user`、IPv6ループバック`http://[::1]`のSSRF。未修正のまま基準値に残している。
 検出器版は`DETECTOR_VERSIONS["DEFENSE"]="defense-2"`(台帳の再検査判定は版違いを不在の根拠にしない)。
+2026-10-22 追記(`defense-3`): defense-2で残った4件を修正 — `UNION ALL SELECT`、`|`直後の`nc/ncat/netcat/bash/sh`、`Failed password for`(sshd)、IPv6ループバック(`[::1]`・`[0:0:0:0:0:0:0:1]`)のSSRF。
+修正後に、結果を見る前に書いた未見の8判定(攻撃4・正常4: 大小混在UNION ALL、unionとselectを含む記事slug、`|bash`、パイプ区切りタグ、sshd root失敗、成功ログイン、IPv6完全表記、公開IPv6)を追加。
+66判定でTP33・FP0・FN0・TN33(新8判定は初回で全て正解)。ただし**元の4件はこの修正のために合わせたケース**で、満点は実力の証明ではない。
+sshdの`Failed password`は単発では「失敗1回」にすぎず、ブルートフォースの判断は既存の集約フィルタ(IP×種別)に依る。修正前の基準値は`defense_signatures.before-defense-3.json`。検出器版は`defense-3`。
 
 ### P2.2 IDOR・SSTI・XSS
 

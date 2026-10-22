@@ -629,3 +629,7 @@ CLI `openapi FILE` / `scan fuzz --openapi ... --openapi-op ...`。副次修正: 
 `cli.py`: `--format md`(`render_markdown`)、`--effort auto`(`resolve_effort`→`classify_effort`)、`scan defense --duration`
 (`MonitorAgent.run(max_seconds=)`。期限終了はcompletedで`errors`に注記)、`--use-profile`(`expand_profile`、`config.json`の`profiles`・`PROFILE_KEYS`の許可キーのみ)。
 試験: `tools/test_cli.py`(26件)。実LLMでのautoの分類は未検証(MockLLMでは既定へフォールバック)。
+
+## 2026-10-22 DEFENSEシグネチャ改善(defense-3)
+`ATTACK_PATTERNS`: UNION ALL SELECT、`|`+nc/bash/sh、`Failed password for`、IPv6ループバックSSRFを追加。未見8判定を追加し66判定でTP33・FP0・FN0。
+修正前基準値は`defense_signatures.before-defense-3.json`。`DETECTOR_VERSIONS["DEFENSE"]="defense-3"`。

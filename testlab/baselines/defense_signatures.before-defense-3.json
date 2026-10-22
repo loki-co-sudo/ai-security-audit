@@ -1,0 +1,284 @@
+{
+ "created_at": "2026-10-22T09:16:26",
+ "detections": [
+  [
+   "BRUTE_FORCE",
+   "bf-failed-login-capital"
+  ],
+  [
+   "BRUTE_FORCE",
+   "bf-failed-login-lower"
+  ],
+  [
+   "CMD_INJECTION",
+   "cmd-backtick"
+  ],
+  [
+   "CMD_INJECTION",
+   "cmd-semicolon-cat"
+  ],
+  [
+   "CMD_INJECTION",
+   "heldout-cmd-subshell-curl"
+  ],
+  [
+   "CMS_PROBE",
+   "cms-wp-login"
+  ],
+  [
+   "CMS_PROBE",
+   "heldout-cms-xmlrpc"
+  ],
+  [
+   "LFI_RFI",
+   "heldout-lfi-php-filter"
+  ],
+  [
+   "LFI_RFI",
+   "lfi-dotdot"
+  ],
+  [
+   "LFI_RFI",
+   "lfi-double-encoded"
+  ],
+  [
+   "PATH_TRAVERSAL",
+   "lfi-dotdot"
+  ],
+  [
+   "PATH_TRAVERSAL",
+   "lfi-double-encoded"
+  ],
+  [
+   "SCANNER",
+   "heldout-scanner-nikto-ua"
+  ],
+  [
+   "SCANNER",
+   "scanner-sqlmap-ua"
+  ],
+  [
+   "SENSITIVE_FILE_PROBE",
+   "heldout-sensitive-htpasswd"
+  ],
+  [
+   "SENSITIVE_FILE_PROBE",
+   "sensitive-env"
+  ],
+  [
+   "SENSITIVE_FILE_PROBE",
+   "sensitive-git-config"
+  ],
+  [
+   "SQL_INJECTION",
+   "sqli-or-urlencoded"
+  ],
+  [
+   "SQL_INJECTION",
+   "sqli-union"
+  ],
+  [
+   "SQL_INJECTION",
+   "sqli-union-urlencoded"
+  ],
+  [
+   "SSRF",
+   "ssrf-metadata"
+  ],
+  [
+   "SSRF",
+   "ssrf-urlencoded"
+  ],
+  [
+   "XSS",
+   "heldout-xss-img-onerror"
+  ],
+  [
+   "XSS",
+   "xss-script"
+  ],
+  [
+   "XSS",
+   "xss-svg-urlencoded"
+  ]
+ ],
+ "elapsed_sec": [
+  0.003,
+  0.002,
+  0.002
+ ],
+ "fixture_sha256": "n/a (正解データ内の行を直接評価)",
+ "git": {
+  "commit": "610f8cc5198ee11868ce32b6a800419d77a2dcfe",
+  "dirty": true
+ },
+ "http_requests": [
+  0,
+  0,
+  0
+ ],
+ "kind": "defense_signatures",
+ "llm_usage": "n/a (signature mode)",
+ "metrics": {
+  "per_rule": {
+   "BRUTE_FORCE": {
+    "cases": 5,
+    "fn": 1,
+    "fn_unexamined": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 0.6667,
+    "tn": 2,
+    "tp": 2,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   },
+   "CMD_INJECTION": {
+    "cases": 8,
+    "fn": 1,
+    "fn_unexamined": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 0.75,
+    "tn": 4,
+    "tp": 3,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   },
+   "CMS_PROBE": {
+    "cases": 4,
+    "fn": 0,
+    "fn_unexamined": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "tn": 2,
+    "tp": 2,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   },
+   "LFI_RFI": {
+    "cases": 5,
+    "fn": 0,
+    "fn_unexamined": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "tn": 2,
+    "tp": 3,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   },
+   "PATH_TRAVERSAL": {
+    "cases": 4,
+    "fn": 0,
+    "fn_unexamined": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "tn": 2,
+    "tp": 2,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   },
+   "SCANNER": {
+    "cases": 6,
+    "fn": 0,
+    "fn_unexamined": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "tn": 4,
+    "tp": 2,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   },
+   "SENSITIVE_FILE_PROBE": {
+    "cases": 5,
+    "fn": 0,
+    "fn_unexamined": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "tn": 2,
+    "tp": 3,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   },
+   "SQL_INJECTION": {
+    "cases": 8,
+    "fn": 1,
+    "fn_unexamined": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 0.75,
+    "tn": 4,
+    "tp": 3,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   },
+   "SSRF": {
+    "cases": 6,
+    "fn": 1,
+    "fn_unexamined": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 0.6667,
+    "tn": 3,
+    "tp": 2,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   },
+   "XSS": {
+    "cases": 7,
+    "fn": 0,
+    "fn_unexamined": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "tn": 4,
+    "tp": 3,
+    "unexamined": 0,
+    "unexamined_negative": 0,
+    "unexamined_rate": 0.0,
+    "unlisted": []
+   }
+  },
+  "total": {
+   "cases": 58,
+   "fn": 4,
+   "fn_unexamined": 0,
+   "fp": 0,
+   "precision": 1.0,
+   "recall": 0.8621,
+   "tn": 29,
+   "tp": 25,
+   "unexamined": 0,
+   "unexamined_negative": 0,
+   "unexamined_rate": 0.0
+  }
+ },
+ "runs": 3,
+ "schema": "ai-security-audit-benchmark",
+ "schema_version": "1",
+ "stable": true,
+ "truth_sha256": "f242b5bf00e911c5eb14b5f206015f05bbcb92279b12a3cc17befd49da839f38"
+}

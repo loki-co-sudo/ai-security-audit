@@ -196,18 +196,29 @@ class DefenseBenchmarkTest(unittest.TestCase):
                          "`python tools/benchmark.py defense --runs 3 --save-baseline testlab/baselines/defense_signatures.json`で更新")
         self.assertEqual(cur["metrics"]["total"]["unexamined"], 0)
 
-    def test_baseline_documents_remaining_blind_spots_found_by_heldout_cases(self):
-        """調整後に追加した未見ケースで残った見逃しを、基準値は隠さない(調整済みケースだけの満点を実力としない)。"""
+    def test_baseline_fixes_defense2_blind_spots_and_new_heldout_cases_pass(self):
+        """defense-2で残った4件の見逃しを直した。その後に追加した未見ケース(heldout3-*)も基準値で検出/非検出が正しい。"""
         with open(bm.DEFENSE_BASELINE_PATH, encoding="utf-8") as f:
             doc = json.load(f)
         det = {tuple(d) for d in doc["detections"]}
         for rule, lid in (("SQL_INJECTION", "heldout-sqli-union-all"), ("CMD_INJECTION", "heldout-cmd-pipe-nc"),
-                          ("BRUTE_FORCE", "heldout-bf-sshd-failed-password"), ("SSRF", "heldout-ssrf-ipv6-loopback")):
-            self.assertNotIn((rule, lid), det)                                     # 既知の見逃し(FN)
-        self.assertEqual(doc["metrics"]["total"]["fn"], 4)
-        self.assertEqual(doc["metrics"]["total"]["fp"], 0)
-        self.assertLess(doc["metrics"]["total"]["recall"], 1.0)
+                          ("BRUTE_FORCE", "heldout-bf-sshd-failed-password"), ("SSRF", "heldout-ssrf-ipv6-loopback"),
+                          ("SQL_INJECTION", "heldout3-sqli-union-all-mixedcase"), ("CMD_INJECTION", "heldout3-cmd-pipe-bash"),
+                          ("BRUTE_FORCE", "heldout3-bf-sshd-root"), ("SSRF", "heldout3-ssrf-ipv6-long")):
+            self.assertIn((rule, lid), det)
+        for rule, lid in (("SQL_INJECTION", "heldout3-sqli-benign-union-word"), ("CMD_INJECTION", "heldout3-cmd-benign-pipe"),
+                          ("BRUTE_FORCE", "heldout3-bf-benign-accepted"), ("SSRF", "heldout3-ssrf-benign-ipv6-public")):
+            self.assertNotIn((rule, lid), det)
+        self.assertEqual((doc["metrics"]["total"]["fn"], doc["metrics"]["total"]["fp"]), (0, 0))
         self.assertEqual(doc["llm_usage"], "n/a (signature mode)")
+
+    def test_defense2_baseline_is_kept_as_history(self):
+        """defense-2時点: 58判定でFN4(後続の修正前)。同じ検出器版では見逃していた。"""
+        path = os.path.join(os.path.dirname(bm.DEFENSE_BASELINE_PATH), "defense_signatures.before-defense-3.json")
+        with open(path, encoding="utf-8") as f:
+            old = json.load(f)
+        self.assertEqual((old["metrics"]["total"]["fp"], old["metrics"]["total"]["fn"]), (0, 4))
+        self.assertNotIn(("SSRF", "heldout-ssrf-ipv6-loopback"), {tuple(d) for d in old["detections"]})
 
     def test_pre_change_baseline_is_kept_as_history(self):
         """defense-2(URLデコード照合・文脈限定)の前の基準値: 同じ検出器で エンコード回避を見逃し、部分一致の誤検知があった。"""
