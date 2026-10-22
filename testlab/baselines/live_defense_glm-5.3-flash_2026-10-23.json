@@ -1,0 +1,82 @@
+{
+  "mode": "DEFENSE",
+  "model": "z-ai/glm-5.3-flash",
+  "effort": "speed",
+  "runs_requested": 3,
+  "runs_done": 3,
+  "runs_invalid": 0,
+  "total_llm_calls": 6,
+  "results": [
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 2,
+      "llm_calls": 2,
+      "chars_in": 5786,
+      "chars_out": 2752,
+      "elapsed_s": 16.2,
+      "invalid": false,
+      "attackers_found": [
+        "192.0.2.44",
+        "198.51.100.7",
+        "203.0.113.9"
+      ],
+      "attacker_recall": 1.0,
+      "false_attributions": [],
+      "mitre_known": 2,
+      "mitre_unverified": 0,
+      "format_note": false
+    },
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 4,
+      "llm_calls": 2,
+      "chars_in": 5786,
+      "chars_out": 3974,
+      "elapsed_s": 20.5,
+      "invalid": false,
+      "attackers_found": [
+        "192.0.2.44",
+        "198.51.100.7",
+        "203.0.113.9"
+      ],
+      "attacker_recall": 1.0,
+      "false_attributions": [],
+      "mitre_known": 3,
+      "mitre_unverified": 1,
+      "format_note": false
+    },
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 2,
+      "llm_calls": 2,
+      "chars_in": 5786,
+      "chars_out": 2562,
+      "elapsed_s": 13.8,
+      "invalid": false,
+      "attackers_found": [
+        "192.0.2.44",
+        "198.51.100.7",
+        "203.0.113.9"
+      ],
+      "attacker_recall": 1.0,
+      "false_attributions": [],
+      "mitre_known": 2,
+      "mitre_unverified": 0,
+      "format_note": false
+    }
+  ],
+  "note": "モデルと日付に依存する参考値。判定は文字列/IP/ポート番号の照合で、説明の正しさは判定しない。応答が空の回(invalid)は測定不成立。",
+  "attacker_recall_per_run": [
+    1.0,
+    1.0,
+    1.0
+  ],
+  "false_attributions_per_run": [
+    [],
+    [],
+    []
+  ]
+}

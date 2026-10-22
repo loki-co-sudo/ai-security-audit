@@ -1,0 +1,64 @@
+{
+ "model": "qwen3.5:4b",
+ "sample": "v2",
+ "parsed_ok": true,
+ "n_findings": 7,
+ "recall": 0.5,
+ "hit": [
+  "V1",
+  "V2",
+  "V4",
+  "V6"
+ ],
+ "decoy_overlap": [
+  "D1",
+  "D4",
+  "D5"
+ ],
+ "decoy_same_class": [
+  "D1",
+  "D4",
+  "D5"
+ ],
+ "unlabeled": 3,
+ "elapsed_s": 173,
+ "prompt_tokens": 1917,
+ "out_tokens": 1044,
+ "findings_brief": [
+  {
+   "lines": "84-87",
+   "name": "Unsafe YAML Deserialization",
+   "cwe": "CWE-502: Deserialization of Untrusted Data"
+  },
+  {
+   "lines": "44-48",
+   "name": "SQL Injection in Profile Update",
+   "cwe": "CWE-89: Improper Neutralization of Special Elements used in an OS Command (OS Command Injection) / CWE-402: SQL Injection"
+  },
+  {
+   "lines": "120-123",
+   "name": "SQL Injection in Record Listing",
+   "cwe": "CWE-89: Improper Neutralization of Special Elements used in an OS Command (OS Command Injection) / CWE-402: SQL Injection"
+  },
+  {
+   "lines": "158-162",
+   "name": "Arbitrary Code Execution via AST",
+   "cwe": "CWE-20: Improper Input Validation"
+  },
+  {
+   "lines": "145-153",
+   "name": "Path Traversal / Directory Escape",
+   "cwe": "CWE-22: Improper Limitation of a Pathname to a Restricted Directory (File Inclusion)"
+  },
+  {
+   "lines": "64-71",
+   "name": "Insecure Direct Object Reference (IDOR) in Coupon Redemption",
+   "cwe": "CWE-287: Improper Validation of Server-Side Generated References"
+  },
+  {
+   "lines": "31-32",
+   "name": "Information Disclosure via Error Messages",
+   "cwe": "CWE-209: Excessive Information Disclosure"
+  }
+ ]
+}

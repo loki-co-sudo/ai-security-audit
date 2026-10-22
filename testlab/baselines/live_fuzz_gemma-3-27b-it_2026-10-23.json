@@ -1,0 +1,136 @@
+{
+  "mode": "FUZZ",
+  "model": "google/gemma-3-27b-it",
+  "effort": "speed",
+  "runs_requested": 3,
+  "runs_done": 3,
+  "runs_invalid": 0,
+  "total_llm_calls": 6,
+  "results": [
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 4,
+      "llm_calls": 2,
+      "chars_in": 4289,
+      "chars_out": 2310,
+      "elapsed_s": 48.0,
+      "invalid": false,
+      "findings_brief": [
+        {
+          "location": "http://127.0.0.1:45687/search?q=",
+          "description": "Cross-Site Scripting (XSS) - search q parameter"
+        },
+        {
+          "location": "http://127.0.0.1:45687/item?id=",
+          "description": "SQL Injection - item id parameter"
+        },
+        {
+          "location": "http://127.0.0.1:45687/greet?name=",
+          "description": "Server-Side Template Injection (SSTI) - greet name parameter"
+        },
+        {
+          "location": "http://127.0.0.1:45687/download?file=",
+          "description": "Path Traversal - download file parameter"
+        }
+      ],
+      "tp": [
+        "SQLI /item id",
+        "SSTI /greet name",
+        "TRAVERSAL /download file",
+        "XSS /search q"
+      ],
+      "fn": [],
+      "fp": [],
+      "unlisted": [],
+      "recall": 1.0
+    },
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 4,
+      "llm_calls": 2,
+      "chars_in": 4291,
+      "chars_out": 2516,
+      "elapsed_s": 17.0,
+      "invalid": false,
+      "findings_brief": [
+        {
+          "location": "http://127.0.0.1:42861/search?q=<svg/onload=alert('fzx9q7')>",
+          "description": "Cross-Site Scripting (XSS) - Search Query"
+        },
+        {
+          "location": "http://127.0.0.1:42861/item?id=1'",
+          "description": "SQL Injection - Item ID"
+        },
+        {
+          "location": "http://127.0.0.1:42861/greet?name=${{7*7}}",
+          "description": "Server-Side Template Injection (SSTI) - Greet Name"
+        },
+        {
+          "location": "http://127.0.0.1:42861/download?file=../",
+          "description": "Path Traversal - Download File"
+        }
+      ],
+      "tp": [
+        "SQLI /item id",
+        "SSTI /greet name",
+        "TRAVERSAL /download file",
+        "XSS /search q"
+      ],
+      "fn": [],
+      "fp": [],
+      "unlisted": [],
+      "recall": 1.0
+    },
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 4,
+      "llm_calls": 2,
+      "chars_in": 4289,
+      "chars_out": 3895,
+      "elapsed_s": 41.2,
+      "invalid": false,
+      "findings_brief": [
+        {
+          "location": "http://127.0.0.1:35891/search?q=<svg/onload=alert('fzx9q7')>",
+          "description": "Cross-Site Scripting (XSS) - /search q parameter"
+        },
+        {
+          "location": "http://127.0.0.1:35891/item?id=1'",
+          "description": "SQL Injection - /item id parameter"
+        },
+        {
+          "location": "http://127.0.0.1:35891/greet?name=${7*7}",
+          "description": "Server-Side Template Injection (SSTI) - /greet name parameter"
+        },
+        {
+          "location": "http://127.0.0.1:35891/download?file=../",
+          "description": "Path Traversal - /download file parameter"
+        }
+      ],
+      "tp": [
+        "SQLI /item id",
+        "SSTI /greet name",
+        "TRAVERSAL /download file",
+        "XSS /search q"
+      ],
+      "fn": [],
+      "fp": [],
+      "unlisted": [],
+      "recall": 1.0
+    }
+  ],
+  "note": "モデルと日付に依存する参考値。判定は文字列/IP/ポート番号の照合で、説明の正しさは判定しない。応答が空の回(invalid)は測定不成立。",
+  "recall_per_run": [
+    1.0,
+    1.0,
+    1.0
+  ],
+  "false_positive_pages_per_run": [
+    [],
+    [],
+    []
+  ]
+}

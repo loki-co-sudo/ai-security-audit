@@ -1,0 +1,195 @@
+{
+  "mode": "ATTACK",
+  "model": "deepseek/deepseek-v4-flash-0731",
+  "effort": "speed",
+  "runs_requested": 3,
+  "runs_done": 3,
+  "runs_invalid": 0,
+  "total_llm_calls": 3,
+  "results": [
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 8,
+      "llm_calls": 1,
+      "chars_in": 2245,
+      "chars_out": 7125,
+      "elapsed_s": 81.9,
+      "invalid": false,
+      "findings_brief": [
+        {
+          "location": "- 3306/tcp で `MySQL 5.7.30-log` が LISTEN している。",
+          "description": "MySQL 5.7.30 のインターネット直接公開"
+        },
+        {
+          "location": "- センシティブパススキャンで `/.env` が HTTP 200 で応答。",
+          "description": "公開された /.env による機密情報漏えい"
+        },
+        {
+          "location": "- センシティブパススキャンで `/admin` が HTTP 200 を返す。",
+          "description": "/admin パネルが外部からアクセス可能"
+        },
+        {
+          "location": "- 22/tcp で `SSH-2.0-OpenSSH_8.4p1 Debian-5` が稼働。",
+          "description": "OpenSSH 8.4p1 の旧バージョンリスクおよびスキャナ検出の整合性確認"
+        },
+        {
+          "location": "- HTTP レスポンスヘッダに `Server: nginx/1.18.0`。",
+          "description": "nginx 1.18.0 の旧バージョンと HTTP/2 関連脆弱性の可能性"
+        },
+        {
+          "location": "- HTTP レスポンスヘッダは `X-Frame-Options: DENY` のみ。",
+          "description": "セキュリティヘッダ欠如と平文 HTTP 通信"
+        },
+        {
+          "location": "- センシティブパススキャンで `/robots.txt` が HTTP 200 を返す。",
+          "description": "robots.txt による情報露出"
+        },
+        {
+          "location": "- `/.env` が HTTP 200、MySQL 3306 が公開、`/admin` が HTTP 200 という 3 要素が同時に存在する。",
+          "description": "総合攻撃チェーン：/.env → MySQL → /admin → RCE → 横展開"
+        }
+      ],
+      "claimed_ports_in_evidence": [
+        22,
+        3306
+      ],
+      "fabricated_ports": [],
+      "covered_ports": [
+        22,
+        80,
+        3306
+      ],
+      "port_coverage": 1.0
+    },
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 8,
+      "llm_calls": 1,
+      "chars_in": 2245,
+      "chars_out": 11429,
+      "elapsed_s": 142.7,
+      "invalid": false,
+      "findings_brief": [
+        {
+          "location": "`GET /.env` が `HTTP/1.1 200 OK` を返す（スキャン結果: `[200] /.env`）。nginx はドットファイルへのアクセスを明示的に拒否する設定（`location ~ /\\.`）が無い場合、Webルート直下の .env をそのまま配信し得る。他のセキュリティヘッダ欠如と合わせて、ア",
+          "description": "環境変数ファイル /.env の公開"
+        },
+        {
+          "location": "3306/tcp が OPEN。バナーは `MySQL 5.7.30-log`。データベースが攻撃者から直接到達可能な状態にあり、`.env` 開示と組み合わせると認証情報1つでDB全体が窃取可能になる。5.7系は2023年10月にサポート終了済みで、5.7.30 は特に多数のセキュリティ修正が欠落している。",
+          "description": "MySQL 5.7.30 のインターネット露出 (3306/tcp)"
+        },
+        {
+          "location": "`GET /admin` が `HTTP/1.1 200 OK` を返す（スキャン結果: `[200] /admin`）。`robots.txt` も200で応答しており、管理領域や非公開パスの手掛かりを含む可能性がある。管理パネルが認証なし・デフォルト認証・SQLiで突破できる場合、アプリケーション全体を制御できる。",
+          "description": "管理パネル /admin の公開"
+        },
+        {
+          "location": "22/tcp が OPEN。バナーは `SSH-2.0-OpenSSH_8.4p1 Debian-5`。スキャナは CVE-2024-6387 (RegreSSHion, 影響範囲 8.5p1〜9.7p1) と CVE-2018-15473 (ユーザー列挙, 7.7で修正) を検出したが、8.4p1 はいずれも影響範囲",
+          "description": "OpenSSH 8.4p1 のCVE誤検知と実効SSH攻撃面"
+        },
+        {
+          "location": "`Server: nginx/1.18.0`。80/tcp のみで TLS は確認されていない。スキャナは CVE-2021-3618 (ALPACA) を報告するが、本対象は同一証明書を共有する他プロトコルが無く非適用と判断する。実際に確認すべきは nginx 1.18.0 が影響範囲に含まれる CVE-2021-2",
+          "description": "nginx 1.18.0 の既知CVE適用性評価と設定不備"
+        },
+        {
+          "location": "レスポンスヘッダは `Server: nginx/1.18.0` と `X-Frame-Options: DENY` のみ。Strict-Transport-Security, Content-Security-Policy, X-Content-Type-Options, Referrer-Policy, Permi",
+          "description": "HTTP セキュリティヘッダ欠如"
+        },
+        {
+          "location": "`GET /robots.txt` が `HTTP/1.1 200 OK` を返す。内容は未取得だが、管理領域・バックアップ・非公開ディレクトリの手掛かりを含む可能性が高い。",
+          "description": "robots.txt による追加ルート情報収集の可能性"
+        },
+        {
+          "location": "`/.env` 開示、MySQL 3306 外部公開、`/admin` 応答、SSH 22 公開が単一IPに集中しており、「1つの認証情報が全サービスに波及する」構造になっている。`.env` の取得が成功すれば、DB・Web・SSH すべてへの足掛かりとなる。",
+          "description": "統合攻撃チェーン（優先順位付き）"
+        }
+      ],
+      "claimed_ports_in_evidence": [
+        22,
+        80,
+        3306
+      ],
+      "fabricated_ports": [],
+      "covered_ports": [
+        22,
+        80,
+        3306
+      ],
+      "port_coverage": 1.0
+    },
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 10,
+      "llm_calls": 1,
+      "chars_in": 2245,
+      "chars_out": 6895,
+      "elapsed_s": 50.4,
+      "invalid": false,
+      "findings_brief": [
+        {
+          "location": "HTTP GET http://192.0.2.10/.env が 200 OK を返した。nginx/1.18.0 が配信しており、ドットファイルをブロックしていない。",
+          "description": ".env ファイルの外部公開による機密情報漏えい"
+        },
+        {
+          "location": "3306/tcp に MySQL 5.7.30-log が公開。さらに /.env が公開されており、DB接続情報が漏えいしている可能性が高い。",
+          "description": "MySQL (3306) のインターネット公開と資格情報の組み合わせ"
+        },
+        {
+          "location": "HTTP GET http://192.0.2.10/admin が 200 OK を返した。管理画面が一般公開されている。",
+          "description": "/admin 管理パネルの露出"
+        },
+        {
+          "location": "SSH バナーは `SSH-2.0-OpenSSH_8.4p1 Debian-5`。スキャナで CVE-2024-6387 がマッチしたが、この CVE の影響範囲は OpenSSH 8.5p1～9.7p1（および一部古いバージョン）であり、8.4p1 は通常影響を受けない。",
+          "description": "CVE-2024-6387 (RegreSSHion) の誤検知・影響範囲外バージョン"
+        },
+        {
+          "location": "OpenSSH_8.4p1。CVE-2018-15473 は OpenSSH < 7.7 に影響するため、8.4p1 ではより安全性が高い。ただし、ユーザー列挙の可能性そのものが無くなるわけではない。",
+          "description": "OpenSSH ユーザー列挙 (CVE-2018-15473) に関する再評価"
+        },
+        {
+          "location": "HTTP ヘッダーは `Server: nginx/1.18.0`。CVE-2021-3618 は nginx 1.20.1 以前の HTTP/2 モジュールに対して報告されている。HTTP/2 が有効かどうかは要確認。",
+          "description": "nginx 1.18.0 の HTTP/2 脆弱性 (CVE-2021-3618) の可能性"
+        },
+        {
+          "location": "HTTP レスポンスヘッダーには `Server: nginx/1.18.0` と `X-Frame-Options: DENY` のみ。`Strict-Transport-Security`・`Content-Security-Policy`・`X-Content-Type-Options`・`Referrer-Po",
+          "description": "セキュリティヘッダー欠如による攻撃面の拡大"
+        },
+        {
+          "location": "HTTP GET http://192.0.2.10/robots.txt が 200 OK を返した。",
+          "description": "/robots.txt からのクロール範囲情報の取得"
+        },
+        {
+          "location": ".env が公開され、3306 ポートに MySQL が公開、/admin が公開、古い nginx / OpenSSH が動作している。この組み合わせは複数段階の攻撃を許す。",
+          "description": "総合攻撃チェーン: .env 漏えい → MySQL / Admin / RCE"
+        },
+        {
+          "location": ".env が公開されており、これは Laravel 系 PHP アプリの典型的な置き方。nginx 1.18.0 と MySQL 5.7.30-log が古い。特定のフレームワークバージョンが不明のため、未知のロジック脆弱性や 0-day 候補を調査する価値がある。",
+          "description": "未知脆弱性の仮説: Laravel + nginx + MySQL 構成の複合的攻撃面"
+        }
+      ],
+      "claimed_ports_in_evidence": [
+        3306
+      ],
+      "fabricated_ports": [],
+      "covered_ports": [
+        22,
+        80,
+        3306
+      ],
+      "port_coverage": 1.0
+    }
+  ],
+  "note": "モデルと日付に依存する参考値。判定は文字列/IP/ポート番号の照合で、説明の正しさは判定しない。応答が空の回(invalid)は測定不成立。",
+  "port_coverage_per_run": [
+    1.0,
+    1.0,
+    1.0
+  ],
+  "fabricated_ports_per_run": [
+    [],
+    [],
+    []
+  ]
+}

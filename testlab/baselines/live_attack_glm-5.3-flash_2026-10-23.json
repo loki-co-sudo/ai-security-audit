@@ -1,0 +1,155 @@
+{
+  "mode": "ATTACK",
+  "model": "z-ai/glm-5.3-flash",
+  "effort": "speed",
+  "runs_requested": 3,
+  "runs_done": 3,
+  "runs_invalid": 0,
+  "total_llm_calls": 3,
+  "results": [
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 6,
+      "llm_calls": 1,
+      "chars_in": 2245,
+      "chars_out": 6206,
+      "elapsed_s": 93.4,
+      "invalid": false,
+      "findings_brief": [
+        {
+          "location": "`[200] /.env` — HTTP 200 でレスポンスが返却されている。nginx/1.18.0 が静的配信をしている場合、`.env` はデフォルトでブロックされない",
+          "description": "`/.env` ファイルの公開（認証情報・設定情報の完全漏洩）"
+        },
+        {
+          "location": "`[200] /admin` — 200 が返ることから、リダイレクトではなく画面自体が到達可能な可能性が高い。`X-Frame-Options: DENY` はあるが CSP / レート制限の示唆なし",
+          "description": "管理画面 `/admin` の無認証・無保護での公開"
+        },
+        {
+          "location": "`3306/tcp MySQL 5.7.30-log` が外部からバナー応答。MySQL 5.7 は 2023 年 10 月に EOL を迎えておりセキュリティパッチ提供終了",
+          "description": "MySQL 5.7.30 (3306/tcp) の外部公開"
+        },
+        {
+          "location": "`SSH-2.0-OpenSSH_8.4p1 Debian-5`。CVE-2024-6387 の影響対象は公式に OpenSSH 8.5p1〜9.7p1（8.4p1 はデフォルトで非該当、Debian backport でのみ該当しうる）。また CVE-2018-15473（ユーザー列挙）の修正は 7.8 以降で反映さ",
+          "description": "OpenSSH 8.4p1 — スキャナ報告 CVE-2024-6387 (RegreSSHion) は偽陽性疑い、要検証"
+        },
+        {
+          "location": "`Server: nginx/1.18.0`。スキャナは「1.20.1 以前の HTTP/2 脆弱性」と報告したが CVE-2021-3618 は ALPACA（TLS クロスプロトコル攻撃）であり、HTTPS が稼働しているかの確認が前提。HTTPS ポート (443) が開いていないため、本環境では攻撃成立の前提条",
+          "description": "nginx 1.18.0 — CVE-2021-3618 (ALPACA) と設定脆弱性の可能性"
+        },
+        {
+          "location": "欠落ヘッダ: `Strict-Transport-Security`, `Content-Security-Policy`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`。`X-Frame-Options: DENY` のみ設定済み",
+          "description": "セキュリティヘッダの包括的欠落（CSP / HSTS / X-Content-Type-Options 等）"
+        }
+      ],
+      "claimed_ports_in_evidence": [
+        3306
+      ],
+      "fabricated_ports": [],
+      "covered_ports": [
+        22,
+        80,
+        3306
+      ],
+      "port_coverage": 1.0
+    },
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 7,
+      "llm_calls": 1,
+      "chars_in": 2245,
+      "chars_out": 8409,
+      "elapsed_s": 103.3,
+      "invalid": false,
+      "findings_brief": [
+        {
+          "location": "`GET /.env` が HTTP 200 を返した。Laravel / Node.js(docker-compose 利用プロジェクト)等で `.env` が Web ルートに配置され、nginx が静的ファイルとして配信している構成が強く疑われる。ヘッダに `X-Frame-Options: DENY` のみでア",
+          "description": "/.env ファイルの公開(認証情報・設定漏洩)"
+        },
+        {
+          "location": "ポートスキャンで `3306/tcp MySQL 5.7.30-log` が検出。バナーからバージョン 5.7.30-log が確定。ローカル脆弱性スキャナは CVE-2021-2294(MySQL 5.7/8.0 認証関連)を CRITICAL としてマッチ済み。",
+          "description": "MySQL 5.7.30 の外部公開(インターネット到達可能な 3306/tcp)"
+        },
+        {
+          "location": "`GET /admin` が HTTP 200 を返す(401/403 ではなく 200)。認証ゲートが存在しないか、認証失敗時にも 200 で SPA を返す設計の可能性。`robots.txt` も同時に発見されており、管理パスの存在を示唆する記述がある可能性が高い。X-Frame-Options はあるが CSP",
+          "description": "/admin 管理画面の認証なし到達性"
+        },
+        {
+          "location": "バナー `SSH-2.0-OpenSSH_8.4p1 Debian-5`(Debian 11 bullseye ベースと推定)。スキャナは CVE-2018-15473(ユーザー列挙)を MEDIUM でマッチ。なお CVE-2024-6387(RegreSSHion)は **OpenSSH 8.5p1〜9.7p1**",
+          "description": "OpenSSH 8.4p1 におけるユーザー列挙(CVE-2018-15473)と SSH 攻撃面"
+        },
+        {
+          "location": "`Server: nginx/1.18.0`(バージョン露出あり)。欠落ヘッダ:`Strict-Transport-Security`, `Content-Security-Policy`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy",
+          "description": "セキュリティヘッダの広範な欠落と nginx 1.18.0 の旧バージョン利用"
+        },
+        {
+          "location": "以下の事実の組み合わせ:(1) `/.env` が 200 で公開、(2) MySQL 5.7.30 が外部公開、(3) `/admin` が認証なしで 200、(4) SSH でユーザー列挙が可能、(5) セキュリティヘッダ欠落で追加のアプリ層脆弱性が利用しやすい。",
+          "description": "想定攻撃チェーン: .env → MySQL → WebShell → SSH 横展開(仮説シナリオ)"
+        },
+        {
+          "location": "技術スタック: nginx 1.18.0 (Debian) + PHP/Node 系アプリ(`.env` の存在から推定)+ MySQL 5.7。バックエンドフレームワークの正体はまだ未確定。nginx の `proxy_pass` 背後に非公開ポート(例: 3000, 8000, 9000, 8080)のアプリが存在",
+          "description": "未確認サーフェス: nginx アプリバックエンドの 0-day / ロジック脆弱性仮説"
+        }
+      ],
+      "claimed_ports_in_evidence": [
+        3306
+      ],
+      "fabricated_ports": [],
+      "covered_ports": [
+        22,
+        80,
+        3306
+      ],
+      "port_coverage": 1.0
+    },
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 4,
+      "llm_calls": 1,
+      "chars_in": 2245,
+      "chars_out": 7608,
+      "elapsed_s": 93.2,
+      "invalid": false,
+      "findings_brief": [
+        {
+          "location": "HTTP 探査にて `http://192.0.2.10/.env` が HTTP 200 で応答。nginx/1.18.0 でホストされており、`.env` へのアクセス制御が実装されていない。",
+          "description": "/.env ファイルの公開 — 認証情報・シークレットの漏洩"
+        },
+        {
+          "location": "nmap 結果: `3306/tcp MySQL 5.7.30-log` が 192.0.2.10 のオープンポートとして検出。データベースがインターネット(または DMZ から直接)到達可能。",
+          "description": "MySQL 3306/tcp の外部公開(管理インターフェースのネットワーク露出)"
+        },
+        {
+          "location": "HTTP 探査にて `http://192.0.2.10/admin` が 200 応答。認証リダイレクト(302→login)ではなく直接 200 が返っていることから、認証なしで管理画面の HTML がレンダリングされている可能性。",
+          "description": "/admin パネルの未認証アクセス(HTTP 200)"
+        },
+        {
+          "location": "`Server: nginx/1.18.0`(mainline 1.18 は後継リリース済みでメンテナンス終了)。HTTPS 稼働の確認はできていないが、スキャナは CVE-2021-3618 を報告。Missing Security Headers: Strict-Transport-Security, Conten",
+          "description": "nginx 1.18.0 — EOL ブランチ + セキュリティヘッダ欠如"
+        }
+      ],
+      "claimed_ports_in_evidence": [
+        3306
+      ],
+      "fabricated_ports": [],
+      "covered_ports": [
+        80,
+        3306
+      ],
+      "port_coverage": 0.667
+    }
+  ],
+  "note": "モデルと日付に依存する参考値。判定は文字列/IP/ポート番号の照合で、説明の正しさは判定しない。応答が空の回(invalid)は測定不成立。",
+  "port_coverage_per_run": [
+    1.0,
+    1.0,
+    0.667
+  ],
+  "fabricated_ports_per_run": [
+    [],
+    [],
+    []
+  ]
+}

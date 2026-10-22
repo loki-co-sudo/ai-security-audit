@@ -1,0 +1,219 @@
+{
+  "mode": "AUDIT",
+  "model": "deepseek/deepseek-v4-flash-0731",
+  "effort": "speed",
+  "sample": "v3",
+  "runs_requested": 3,
+  "runs_done": 3,
+  "runs_with_findings": 3,
+  "per_vuln_hits": {
+    "V1": 3,
+    "V2": 3,
+    "V3": 3,
+    "V4": 3,
+    "V5": 3,
+    "V6": 3,
+    "V7": 2,
+    "V8": 2
+  },
+  "decoy_false_positives_per_run": [
+    [],
+    [],
+    [
+      "D5",
+      "D6",
+      "D7"
+    ]
+  ],
+  "decoy_same_class_per_run": [
+    [],
+    [],
+    []
+  ],
+  "per_decoy_hits": {
+    "D1": 0,
+    "D2": 0,
+    "D3": 0,
+    "D4": 0,
+    "D5": 1,
+    "D6": 1,
+    "D7": 1,
+    "D8": 0
+  },
+  "per_decoy_same_class_hits": {
+    "D1": 0,
+    "D2": 0,
+    "D3": 0,
+    "D4": 0,
+    "D5": 0,
+    "D6": 0,
+    "D7": 0,
+    "D8": 0
+  },
+  "recall_per_run": [
+    1.0,
+    1.0,
+    0.75
+  ],
+  "runs_invalid": 0,
+  "total_llm_calls": 3,
+  "hint_stripped": true,
+  "results": [
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 9,
+      "hit": {
+        "V2": [
+          "署名未検証JWTによる管理者認可のバイパス"
+        ],
+        "V5": [
+          "`/admin/accounts` のPOSTルートにおけるアクセス制御欠如と任意ロール作成"
+        ],
+        "V7": [
+          "招待処理でのロール範囲検証欠如による権限昇格"
+        ],
+        "V4": [
+          "累積返金上限の欠如による過剰返金"
+        ],
+        "V6": [
+          "クーポン適用ロジックの二重割引・重複適用・負額化"
+        ],
+        "V1": [
+          "`admin_report` におけるSecond-Order SQLインジェクション"
+        ],
+        "V8": [
+          "`read_export` のシンボリックリンク追跡・TOCTOUによる任意ファイル読み取り"
+        ],
+        "V3": [
+          "`X-Forwarded-For` を信頼したレートリミット回避・メモリ枯渇"
+        ]
+      },
+      "unlabeled": [
+        {
+          "location": "227-228",
+          "description": "JWT秘密鍵と汎用HMAC署名の再利用によるJWT偽造オラクル",
+          "severity": "MEDIUM"
+        }
+      ],
+      "decoy_hits": {},
+      "decoy_same_class_hits": {},
+      "decoy_findings": [],
+      "llm_calls": 1,
+      "chars_in": 8152,
+      "chars_out": 9286,
+      "elapsed_s": 479.2,
+      "invalid": false
+    },
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 9,
+      "hit": {
+        "V2": [
+          "JWT署名未検証による認証バイパス（delete_user）"
+        ],
+        "V5": [
+          "/admin/accounts の POST に対する認可漏れ",
+          "クーポンの重複適用・無上限割引による価格改ざん"
+        ],
+        "V4": [
+          "累積返金額を検証しない無制限返金"
+        ],
+        "V1": [
+          "ユーザー名を介した二次SQLインジェクション（admin_report）"
+        ],
+        "V6": [
+          "manager による admin 招待（権限昇格）"
+        ],
+        "V3": [
+          "レートリミットのキー偽装と非アトミック更新（X-Forwarded-For + TOCTOU）"
+        ],
+        "V7": [
+          "os.access と open の TOCTOU / シンボリックリンク追跡"
+        ],
+        "V8": [
+          "JWT_SECRET 兼用 HMAC 署名オラクルによる JWT 偽造の可能性"
+        ]
+      },
+      "unlabeled": [],
+      "decoy_hits": {},
+      "decoy_same_class_hits": {},
+      "decoy_findings": [],
+      "llm_calls": 1,
+      "chars_in": 8152,
+      "chars_out": 9913,
+      "elapsed_s": 660.5,
+      "invalid": false
+    },
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 12,
+      "hit": {
+        "V2": [
+          "JWT署名検証欠如による管理者認証バイパス",
+          "JWT subject検証欠如によるIDOR"
+        ],
+        "V5": [
+          "管理者ルートの認可チェック欠如（ROUTES と SAFE_ROUTES の混在）"
+        ],
+        "V1": [
+          "間接SQLインジェクション（username保存時の不完全エスケープが動的クエリと結合）"
+        ],
+        "V4": [
+          "返金処理の競合状態（TOCTOU）による過剰返金"
+        ],
+        "V3": [
+          "X-Forwarded-Forヘッダー信頼によるレート制限バイパスとメモリ枯渇",
+          "レートリミッターのメモリ枯渇"
+        ],
+        "V6": [
+          "クーポン入力の型検証欠如による予期しない割引動作"
+        ]
+      },
+      "unlabeled": [
+        {
+          "location": "19-21",
+          "description": "ユーザー名の不完全なHTMLエスケープによるXSS・データ破損",
+          "severity": "MEDIUM"
+        }
+      ],
+      "decoy_hits": {
+        "D6": [
+          "招待機能における権限昇格（managerによるadmin招待）"
+        ],
+        "D5": [
+          "クーポン重複適用による過剰割引と負の合計金額"
+        ],
+        "D7": [
+          "ファイル読み出しAPIのTOCTOUおよびシンボリックリンク攻撃"
+        ]
+      },
+      "decoy_same_class_hits": {},
+      "decoy_findings": [
+        {
+          "decoy": "D6",
+          "rule_id": "CWE-862 / CWE-269 (Missing Authorization / Improper Privilege Management)",
+          "description": "招待機能における権限昇格（managerによるadmin招待）"
+        },
+        {
+          "decoy": "D5",
+          "rule_id": "CWE-682 (Incorrect Calculation) / CWE-840 (Business Logic Error)",
+          "description": "クーポン重複適用による過剰割引と負の合計金額"
+        },
+        {
+          "decoy": "D7",
+          "rule_id": "CWE-367 (Time-of-Check Time-of-Use Race Condition) / CWE-59 (Improper Link Resolution)",
+          "description": "ファイル読み出しAPIのTOCTOUおよびシンボリックリンク攻撃"
+        }
+      ],
+      "llm_calls": 1,
+      "chars_in": 8152,
+      "chars_out": 14458,
+      "elapsed_s": 452.0,
+      "invalid": false
+    }
+  ],
+  "note": "モデルと日付に依存する参考値。未ラベル所見は誤検知と断定しない。応答が空の回(invalid)は測定不成立でrecall_per_runはnull。"
+}

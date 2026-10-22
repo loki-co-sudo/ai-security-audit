@@ -1,0 +1,82 @@
+{
+  "mode": "FUZZ",
+  "model": "z-ai/glm-5.3-flash",
+  "effort": "speed",
+  "runs_requested": 3,
+  "runs_done": 3,
+  "runs_invalid": 0,
+  "total_llm_calls": 6,
+  "results": [
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 4,
+      "llm_calls": 2,
+      "chars_in": 4299,
+      "chars_out": 5425,
+      "elapsed_s": 99.4,
+      "invalid": false,
+      "tp": [
+        "SQLI /item id",
+        "SSTI /greet name",
+        "TRAVERSAL /download file",
+        "XSS /search q"
+      ],
+      "fn": [],
+      "fp": [],
+      "unlisted": [],
+      "recall": 1.0
+    },
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 4,
+      "llm_calls": 2,
+      "chars_in": 4289,
+      "chars_out": 4360,
+      "elapsed_s": 54.5,
+      "invalid": false,
+      "tp": [
+        "SQLI /item id",
+        "SSTI /greet name",
+        "TRAVERSAL /download file",
+        "XSS /search q"
+      ],
+      "fn": [],
+      "fp": [],
+      "unlisted": [],
+      "recall": 1.0
+    },
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 4,
+      "llm_calls": 2,
+      "chars_in": 4289,
+      "chars_out": 3121,
+      "elapsed_s": 16.1,
+      "invalid": false,
+      "tp": [
+        "SQLI /item id",
+        "SSTI /greet name",
+        "TRAVERSAL /download file",
+        "XSS /search q"
+      ],
+      "fn": [],
+      "fp": [],
+      "unlisted": [],
+      "recall": 1.0
+    }
+  ],
+  "note": "モデルと日付に依存する参考値。判定は文字列/IP/ポート番号の照合で、説明の正しさは判定しない。応答が空の回(invalid)は測定不成立。",
+  "recall_per_run": [
+    1.0,
+    1.0,
+    1.0
+  ],
+  "false_positive_pages_per_run": [
+    [],
+    [],
+    []
+  ]
+}

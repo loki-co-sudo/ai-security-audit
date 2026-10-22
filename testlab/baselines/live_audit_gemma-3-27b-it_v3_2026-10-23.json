@@ -1,0 +1,195 @@
+{
+  "mode": "AUDIT",
+  "model": "google/gemma-3-27b-it",
+  "effort": "speed",
+  "sample": "v3",
+  "runs_requested": 3,
+  "runs_done": 3,
+  "runs_with_findings": 3,
+  "per_vuln_hits": {
+    "V1": 2,
+    "V2": 0,
+    "V3": 2,
+    "V4": 0,
+    "V5": 1,
+    "V6": 2,
+    "V7": 1,
+    "V8": 2
+  },
+  "decoy_false_positives_per_run": [
+    [
+      "D8"
+    ],
+    [
+      "D8"
+    ],
+    [
+      "D7",
+      "D8"
+    ]
+  ],
+  "decoy_same_class_per_run": [
+    [],
+    [
+      "D8"
+    ],
+    [
+      "D7"
+    ]
+  ],
+  "per_decoy_hits": {
+    "D1": 0,
+    "D2": 0,
+    "D3": 0,
+    "D4": 0,
+    "D5": 0,
+    "D6": 0,
+    "D7": 1,
+    "D8": 3
+  },
+  "per_decoy_same_class_hits": {
+    "D1": 0,
+    "D2": 0,
+    "D3": 0,
+    "D4": 0,
+    "D5": 0,
+    "D6": 0,
+    "D7": 1,
+    "D8": 1
+  },
+  "recall_per_run": [
+    0.5,
+    0.375,
+    0.375
+  ],
+  "runs_invalid": 0,
+  "total_llm_calls": 3,
+  "hint_stripped": true,
+  "results": [
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 5,
+      "hit": {
+        "V5": [
+          "Unrestricted Role Assignment via `create_account`"
+        ],
+        "V8": [
+          "Path Traversal in `read_export`"
+        ],
+        "V6": [
+          "TOCTOU in `refund_checked`"
+        ],
+        "V3": [
+          "Insecure Rate Limiting Bypass via Header Manipulation"
+        ]
+      },
+      "unlabeled": [],
+      "decoy_hits": {
+        "D8": [
+          "Path Traversal in `read_export_nofollow`"
+        ]
+      },
+      "decoy_same_class_hits": {},
+      "decoy_findings": [
+        {
+          "decoy": "D8",
+          "rule_id": "CWE-22 (Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal'))",
+          "description": "Path Traversal in `read_export_nofollow`"
+        }
+      ],
+      "llm_calls": 1,
+      "chars_in": 8152,
+      "chars_out": 8703,
+      "elapsed_s": 125.5,
+      "invalid": false
+    },
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 4,
+      "hit": {
+        "V6": [
+          "Business Logic Bypass - Refund Amount Greater Than Total"
+        ],
+        "V1": [
+          "Unsafe Trust of Caller Input in `admin_report`"
+        ],
+        "V7": [
+          "Potential Privilege Escalation via `invite` & `INVITABLE_BY`"
+        ]
+      },
+      "unlabeled": [],
+      "decoy_hits": {
+        "D8": [
+          "Path Traversal via Symlink in `read_export_nofollow`"
+        ]
+      },
+      "decoy_same_class_hits": {
+        "D8": [
+          "Path Traversal via Symlink in `read_export_nofollow`"
+        ]
+      },
+      "decoy_findings": [
+        {
+          "decoy": "D8",
+          "rule_id": "CWE-59 (Symbolic Link Vulnerability) / Novel — No CVE/CWE Match (This specific symlink + `os.O_NOFOLLOW` combination isn't often explicitly covered)",
+          "description": "Path Traversal via Symlink in `read_export_nofollow`"
+        }
+      ],
+      "llm_calls": 1,
+      "chars_in": 8152,
+      "chars_out": 8573,
+      "elapsed_s": 108.6,
+      "invalid": false
+    },
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 5,
+      "hit": {
+        "V8": [
+          "Path Traversal in `read_export`"
+        ],
+        "V3": [
+          "Potential Denial of Service via Rate Limiting Bypass"
+        ],
+        "V1": [
+          "SQL Injection Potential via Unsanitized Input in `admin_report`"
+        ]
+      },
+      "unlabeled": [],
+      "decoy_hits": {
+        "D8": [
+          "Path Traversal in `read_export_nofollow` (More Robust)"
+        ],
+        "D7": [
+          "Privilege Escalation via `INVITABLE_BY` in `invite_checked`"
+        ]
+      },
+      "decoy_same_class_hits": {
+        "D7": [
+          "Privilege Escalation via `INVITABLE_BY` in `invite_checked`"
+        ]
+      },
+      "decoy_findings": [
+        {
+          "decoy": "D8",
+          "rule_id": "CWE-22 (Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal'))",
+          "description": "Path Traversal in `read_export_nofollow` (More Robust)"
+        },
+        {
+          "decoy": "D7",
+          "rule_id": "Novel — No CVE/CWE Match",
+          "description": "Privilege Escalation via `INVITABLE_BY` in `invite_checked`"
+        }
+      ],
+      "llm_calls": 1,
+      "chars_in": 8152,
+      "chars_out": 7813,
+      "elapsed_s": 49.8,
+      "invalid": false
+    }
+  ],
+  "note": "モデルと日付に依存する参考値。未ラベル所見は誤検知と断定しない。応答が空の回(invalid)は測定不成立でrecall_per_runはnull。"
+}

@@ -1,0 +1,136 @@
+{
+  "mode": "FUZZ",
+  "model": "deepseek/deepseek-v4-flash-0731",
+  "effort": "speed",
+  "runs_requested": 3,
+  "runs_done": 3,
+  "runs_invalid": 0,
+  "total_llm_calls": 6,
+  "results": [
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 4,
+      "llm_calls": 2,
+      "chars_in": 4289,
+      "chars_out": 3847,
+      "elapsed_s": 22.4,
+      "invalid": false,
+      "findings_brief": [
+        {
+          "location": "http://127.0.0.1:42827/search (q)",
+          "description": "反射型XSS - /search の q パラメータ"
+        },
+        {
+          "location": "http://127.0.0.1:42827/item (id)",
+          "description": "SQLインジェクション - /item の id パラメータ"
+        },
+        {
+          "location": "http://127.0.0.1:42827/greet (name)",
+          "description": "サーバーサイドテンプレートインジェクション (SSTI) - /greet の name パラメータ"
+        },
+        {
+          "location": "http://127.0.0.1:42827/download (file)",
+          "description": "パストラバーサル／任意ファイル読み取り - /download の file パラメータ"
+        }
+      ],
+      "tp": [
+        "SQLI /item id",
+        "SSTI /greet name",
+        "TRAVERSAL /download file",
+        "XSS /search q"
+      ],
+      "fn": [],
+      "fp": [],
+      "unlisted": [],
+      "recall": 1.0
+    },
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 4,
+      "llm_calls": 2,
+      "chars_in": 4288,
+      "chars_out": 2871,
+      "elapsed_s": 25.1,
+      "invalid": false,
+      "findings_brief": [
+        {
+          "location": "GET http://127.0.0.1:40547/search (q)",
+          "description": "Reflected XSS in GET /search parameter q"
+        },
+        {
+          "location": "GET http://127.0.0.1:40547/item (id)",
+          "description": "Error-based SQL Injection in GET /item parameter id"
+        },
+        {
+          "location": "GET http://127.0.0.1:40547/greet (name)",
+          "description": "Server-Side Template Injection (SSTI) in GET /greet parameter name"
+        },
+        {
+          "location": "GET http://127.0.0.1:40547/download (file)",
+          "description": "Path Traversal / Arbitrary File Disclosure in GET /download parameter file"
+        }
+      ],
+      "tp": [
+        "SQLI /item id",
+        "SSTI /greet name",
+        "TRAVERSAL /download file",
+        "XSS /search q"
+      ],
+      "fn": [],
+      "fp": [],
+      "unlisted": [],
+      "recall": 1.0
+    },
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 4,
+      "llm_calls": 2,
+      "chars_in": 4301,
+      "chars_out": 3406,
+      "elapsed_s": 28.3,
+      "invalid": false,
+      "findings_brief": [
+        {
+          "location": "http://127.0.0.1:43815/search?q=",
+          "description": "Reflected XSS in /search parameter q"
+        },
+        {
+          "location": "http://127.0.0.1:43815/item?id=",
+          "description": "SQL Injection in /item parameter id"
+        },
+        {
+          "location": "http://127.0.0.1:43815/greet?name=",
+          "description": "Server-Side Template Injection (SSTI) in /greet parameter name"
+        },
+        {
+          "location": "http://127.0.0.1:43815/download?file=",
+          "description": "Directory Traversal / Arbitrary File Read in /download parameter file"
+        }
+      ],
+      "tp": [
+        "SQLI /item id",
+        "SSTI /greet name",
+        "TRAVERSAL /download file",
+        "XSS /search q"
+      ],
+      "fn": [],
+      "fp": [],
+      "unlisted": [],
+      "recall": 1.0
+    }
+  ],
+  "note": "モデルと日付に依存する参考値。判定は文字列/IP/ポート番号の照合で、説明の正しさは判定しない。応答が空の回(invalid)は測定不成立。",
+  "recall_per_run": [
+    1.0,
+    1.0,
+    1.0
+  ],
+  "false_positive_pages_per_run": [
+    [],
+    [],
+    []
+  ]
+}

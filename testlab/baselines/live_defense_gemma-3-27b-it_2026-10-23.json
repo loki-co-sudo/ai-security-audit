@@ -1,0 +1,105 @@
+{
+  "mode": "DEFENSE",
+  "model": "google/gemma-3-27b-it",
+  "effort": "speed",
+  "runs_requested": 3,
+  "runs_done": 3,
+  "runs_invalid": 0,
+  "total_llm_calls": 6,
+  "results": [
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 2,
+      "llm_calls": 2,
+      "chars_in": 5786,
+      "chars_out": 4179,
+      "elapsed_s": 17.8,
+      "invalid": false,
+      "findings_brief": [
+        {
+          "location": "203.0.113.9",
+          "description": "SQL Injection"
+        },
+        {
+          "location": "203.0.113.9, 192.0.2.44, 198.51.100.7",
+          "description": "Multiple - SQL Injection, LFI, XSS, and Brute Force"
+        }
+      ],
+      "attackers_found": [
+        "192.0.2.44",
+        "198.51.100.7",
+        "203.0.113.9"
+      ],
+      "attacker_recall": 1.0,
+      "false_attributions": [],
+      "mitre_known": 2,
+      "mitre_unverified": 3,
+      "format_note": false
+    },
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 3,
+      "llm_calls": 3,
+      "chars_in": 8636,
+      "chars_out": 6677,
+      "elapsed_s": 28.9,
+      "invalid": false,
+      "findings_brief": [
+        {
+          "location": "203.0.113.9",
+          "description": "SQL Injection"
+        },
+        {
+          "location": "203.0.113.9",
+          "description": "SQL Injection & Local File Inclusion (LFI) attempt"
+        },
+        {
+          "location": "192.0.2.44, 198.51.100.7",
+          "description": "XSS and Brute Force"
+        }
+      ],
+      "attackers_found": [
+        "192.0.2.44",
+        "198.51.100.7",
+        "203.0.113.9"
+      ],
+      "attacker_recall": 1.0,
+      "false_attributions": [],
+      "mitre_known": 4,
+      "mitre_unverified": 1,
+      "format_note": false
+    },
+    {
+      "state": "failed",
+      "errors": [
+        "呼出し上限(1)に達しました"
+      ],
+      "n_findings": 0,
+      "llm_calls": 1,
+      "chars_in": 1553,
+      "chars_out": 814,
+      "elapsed_s": 11.4,
+      "invalid": false,
+      "findings_brief": [],
+      "attackers_found": [],
+      "attacker_recall": 0.0,
+      "false_attributions": [],
+      "mitre_known": 0,
+      "mitre_unverified": 0,
+      "format_note": false
+    }
+  ],
+  "note": "モデルと日付に依存する参考値。判定は文字列/IP/ポート番号の照合で、説明の正しさは判定しない。応答が空の回(invalid)は測定不成立。",
+  "attacker_recall_per_run": [
+    1.0,
+    1.0,
+    0.0
+  ],
+  "false_attributions_per_run": [
+    [],
+    [],
+    []
+  ]
+}

@@ -1,0 +1,126 @@
+{
+  "mode": "DEFENSE",
+  "model": "deepseek/deepseek-v4-flash-0731",
+  "effort": "speed",
+  "runs_requested": 3,
+  "runs_done": 3,
+  "runs_invalid": 0,
+  "total_llm_calls": 8,
+  "results": [
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 4,
+      "llm_calls": 4,
+      "chars_in": 11346,
+      "chars_out": 6184,
+      "elapsed_s": 78.5,
+      "invalid": false,
+      "findings_brief": [
+        {
+          "location": "203.0.113.9",
+          "description": "SQL Injection (UNION-based)"
+        },
+        {
+          "location": "203.0.113.9",
+          "description": "SQL Injection (UNION-based) + パストラバーサル / LFI 試行 — sqlmap による自動攻撃"
+        },
+        {
+          "location": "192.0.2.44",
+          "description": "Reflected XSS (リフレクト型クロスサイトスクリプティング) の探索・検証プローブ"
+        },
+        {
+          "location": "198.51.100.7（攻撃元） / 対象: 10.0.0.2:22",
+          "description": "SSH ブルートフォース / 資格情報への不正アクセス試行"
+        }
+      ],
+      "attackers_found": [
+        "192.0.2.44",
+        "198.51.100.7",
+        "203.0.113.9"
+      ],
+      "attacker_recall": 1.0,
+      "false_attributions": [
+        "10.0.0.2"
+      ],
+      "mitre_known": 5,
+      "mitre_unverified": 2,
+      "format_note": false
+    },
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 2,
+      "llm_calls": 2,
+      "chars_in": 5786,
+      "chars_out": 3622,
+      "elapsed_s": 47.5,
+      "invalid": false,
+      "findings_brief": [
+        {
+          "location": "203.0.113.9",
+          "description": "SQL Injection（UNIONベース）"
+        },
+        {
+          "location": "- SQLi・LFI: 203.0.113.9",
+          "description": "SQLインジェクション / LFI（パストラバーサル）/ 反射型XSS / SSHブルートフォース"
+        }
+      ],
+      "attackers_found": [
+        "203.0.113.9"
+      ],
+      "attacker_recall": 0.333,
+      "false_attributions": [],
+      "mitre_known": 1,
+      "mitre_unverified": 0,
+      "format_note": false
+    },
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 2,
+      "llm_calls": 2,
+      "chars_in": 5786,
+      "chars_out": 3432,
+      "elapsed_s": 44.0,
+      "invalid": false,
+      "findings_brief": [
+        {
+          "location": "203.0.113.9",
+          "description": "SQL Injection（UNIONベースSQLi）"
+        },
+        {
+          "location": "203.0.113.9（Web攻撃: SQLi/LFI）、192.0.2.44（Web攻撃: XSS）、198.51.100.7（SSHブルートフォース）。要確認: 198.51.100.200（SSHログイン成功）",
+          "description": "SQL Injection / LFI (Path Traversal) / Reflected XSS / SSH Brute Force — 複数ベクトルによる自動化攻撃"
+        }
+      ],
+      "attackers_found": [
+        "192.0.2.44",
+        "198.51.100.7",
+        "203.0.113.9"
+      ],
+      "attacker_recall": 1.0,
+      "false_attributions": [
+        "198.51.100.200"
+      ],
+      "mitre_known": 3,
+      "mitre_unverified": 0,
+      "format_note": false
+    }
+  ],
+  "note": "モデルと日付に依存する参考値。判定は文字列/IP/ポート番号の照合で、説明の正しさは判定しない。応答が空の回(invalid)は測定不成立。",
+  "attacker_recall_per_run": [
+    1.0,
+    0.333,
+    1.0
+  ],
+  "false_attributions_per_run": [
+    [
+      "10.0.0.2"
+    ],
+    [],
+    [
+      "198.51.100.200"
+    ]
+  ]
+}
