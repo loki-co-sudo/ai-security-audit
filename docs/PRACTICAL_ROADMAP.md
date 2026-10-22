@@ -65,14 +65,14 @@ P4内は用途に応じて一項目ずつ選択できる。保留事項を自動
 | ID | 進捗 | 実装済み | 残り・未検証 |
 |---|---|---|---|
 | P1.2 | ほぼ実装・未完了扱い | 証拠保存・マスキング・全4モードの配線・HTML/MD/PDF/JSON、AUDITで実LLMの証拠ID引用を1回確認 | GUI目視、他モードの実LLM引用、ATTACK画面ログの未マスク |
-| P2.1 | 一部 | WEB FUZZ・DEFENSEシグネチャのdetector固定ベンチと基準値、AUDITの実LLM評価(無料枠モデル3回・`tools/live_eval.py`) | 他モデルでの実LLM評価、WEB FUZZ/DEFENSE/ATTACKの実LLM評価、ATTACKのベンチ、トークン使用量(現状は文字数のみ) |
+| P2.1 | 一部 | WEB FUZZ・DEFENSEシグネチャのdetector固定ベンチと基準値、AUDITの実LLM評価(無料枠モデル3回・`tools/live_eval.py`) | 他モデルでの実LLM評価、ATTACKの実LLM評価、WEB FUZZ/DEFENSEの大きな正解データでの実LLM評価(3回の小規模測定のみ)、ATTACKのベンチ、トークン使用量(現状は文字数のみ) |
 | P2.2 | 検出器側は実装 | IDOR(ログイン/公開除外・期待権限表)、SSTI別式確認、XSS content-type | 期待権限表のGUI入力・旧FuzzAgent配線、同一origin確認URL、逆方向 |
 | P3.1 | ほぼ実装 | `scan fuzz/audit/defense/attack`・`--targets-file`・`--engagement`・除外優先・`--format md`・`--effort auto`・`defense --duration`・`--use-profile`・`core/scan_runner.py`(ATTACK/AUDIT/DEFENSE) | WEB FUZZ経路のscan_runner移動、profilesのrate_limit_rps/scope_mode、実LLMでのauto分類 |
 | P3.2 | 中核+レポート連携 | 台帳・差分・mark/suppress/findings、レポート層の抑制除外と差分表示 | GUI/CLIからのengagement_id指定→レポート配線 |
 | P4.1 | 初期版 | ローカルJSON/YAML・明示選択のGET+query | 複雑schema・path param・body・認証scheme・GUI |
 | P4.2 | 初期版 | 標準エンジン・LangGraph版(モックLLM)の複数ファイル監査 | GUI、証拠保存、実LLM評価 |
 | P4.3 | 中核 | ローテーション/縮小/部分行/JSONL/MITRE確認 | journald/syslog、gzip回転、長時間運用検証 |
-| 共通 | 一部検証 | selftest 170 PASS / 0 FAIL / 5 SKIP(`SELFTEST_NON_LLM_ONLY=1`)。AUDITは実LLMで3回評価、証拠ID引用・effort auto・DEFENSE・WEB FUZZは実LLMで各1回の動作確認(付録) | 実LLM系5件のselftest、AUDIT以外の評価(複数回)、GUIの目視確認は全体を通して未実施 |
+| 共通 | 一部検証 | selftest 170 PASS / 0 FAIL / 5 SKIP(`SELFTEST_NON_LLM_ONLY=1`)。AUDITは実LLMで3回評価、証拠ID引用・effort autoは実LLMで各1回、DEFENSE・WEB FUZZは各3回の小規模測定(付録) | 実LLM系5件のselftest、AUDIT/DEFENSE/WEB FUZZ以外の実LLM評価、より大きな正解データでの複数回評価、GUIの目視確認は全体を通して未実施 |
 
 ## 4. P0: 通信・認証の境界
 
@@ -418,3 +418,8 @@ JSONL平坦化`normalize_log_line()`、`core/mitre.py`、`agents/monitor_agent.p
 - **DEFENSE(P4.3)**: 攻撃ログ8行(UNION SELECT、トラバーサル+sqlmap UA、wp-login)の1回走査。3所見、うち2件に実在のMITRE ID `T1190`、1件は`UNSPECIFIED`(IDを付けなかった)。未収録IDの「未確認」表示は今回は発火していない。
 - **WEB FUZZ(P2.1)**: ラボのfixtureに対し`scan fuzz`を実行。SQLi(`/item?id`)とXSS(`/search?q`)の2件をobservedで報告し、エスケープ済み/安全ページは報告なし。約15秒。
 いずれも1回のみでぶれ幅は未測定。AUDITのように3回で再現率が1.0〜0.375とぶれた例があるため、これらを品質の保証として扱わない。
+
+### 2026-10-22 WEB FUZZ・DEFENSEの3回測定(同モデル・effort=speed・各3回。参考値)
+- **WEB FUZZ**(ラボfixture・`--max-requests 120`・各20〜81秒): 3回とも `completed`・errors空・所見2件で、SQLi(CWE-89 `/item?id`)とXSS(CWE-79 `/search?q`)を報告。エスケープ済み/安全ページの所見は3回とも0件。揺れたのは重大度のみ(XSSがHIGH/MEDIUM/HIGH、SQLiがHIGH/HIGH/MEDIUM)。fixtureは小さく、罠の種類も限られる。ベンチマーク全体(`web_benchmark.py`)での実LLM評価ではない。
+- **DEFENSE**(攻撃ログ8行・同一送信元・各113〜158秒): 3回とも `completed`・errors空・所見3件。単一の攻撃連鎖が3件に分割されて報告され(SQLi / LFI / wp-login偵察が混在)、所見の切り分けは回ごとに異なり、重大度もCRITICAL×3 / HIGH,HIGH,CRITICAL / CRITICAL,CRITICAL,HIGH とぶれた。MITRE IDは全所見に付いた(T1190、T1595、T1083)。**3回目に `T1595.003` が「未確認:」付きで表示**され、収録外IDを確定タグにしない経路が実LLM出力で発火した(1回目の確認では未発火だった)。モデルは送信元が文書用IP帯(TEST-NET-3)であることにも毎回言及した。
+- 所見の件数・切り分け・重大度はモデルの揺れの範囲で、3回では分散の推定として足りない。この結果から品質の主張はしない。

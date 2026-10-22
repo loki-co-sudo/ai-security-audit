@@ -657,3 +657,6 @@ ASTプリスキャン・証拠保存・CVE照合は未対応。試験: `tools/te
 
 ## 2026-10-22 実LLM動作確認(無料枠モデル・各1回)
 AUDITの証拠ID引用、`--effort auto`、DEFENSEのMITRE ID、WEB FUZZのトリアージを確認。結果と限界は docs/PRACTICAL_ROADMAP.md 付録。コード変更なし。
+
+## 2026-10-22 実LLM測定(WEB FUZZ・DEFENSE 各3回)
+無料枠モデル・effort=speedで各3回。WEB FUZZは3回とも同じ2所見(重大度のみ揺れ)、DEFENSEは所見の切り分けと重大度が回ごとに変動し、3回目で未収録MITRE IDの「未確認」表示が実LLM出力で発火。結果と限界は docs/PRACTICAL_ROADMAP.md 付録。コード変更なし。
