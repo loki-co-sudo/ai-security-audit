@@ -9,6 +9,7 @@ import sys
 import tempfile
 import time
 import unittest
+import cli
 
 from cli import exit_code
 from core.autonomy.journal import replay
@@ -16,7 +17,7 @@ from testlab.fixtures.web_fixture import FixtureServer
 
 ROOT = str(Path(__file__).resolve().parents[1])
 CHILD = r'''
-import os, sys, time
+import json, os, sys, time
 from pathlib import Path
 from unittest.mock import patch
 import cli
@@ -41,6 +42,8 @@ with patch.dict(config._cfg, {**config._DEFAULTS, "effort": "speed"}, clear=True
      patch.object(FuzzAgent, "_save_investigation", lambda *a, **kw: None), \
      patch.object(FuzzAgent, "_record_telemetry", lambda *a, **kw: None), \
      patch.object(cli.AutonomousFuzzAgent, "_cap_crawl", crawl):
+    if os.environ.get("CLI_TEST_PROFILES"):
+        config._cfg["profiles"] = json.loads(os.environ["CLI_TEST_PROFILES"])
     sys.exit(cli.main(sys.argv[1:]))
 '''
 
@@ -297,6 +300,20 @@ class CLITest(unittest.TestCase):
         p, data = self.call(["scan", "audit", "--target", str(self.base / "missing.py")])
         self.assertEqual((p.returncode, data["state"]), (2, "failed"))
 
+    def test_format_md_prints_markdown_and_effort_auto_resolves(self):
+        src = self.base / "app.py"
+        src.write_text("import os\ndef run(x):\n    os.system(x)\n")
+        p = subprocess.run(self.command(["scan", "audit", "--target", str(src), "--format", "md", "--effort", "auto"]),
+                           cwd=self.base, env=self.env(), capture_output=True, text=True, timeout=45)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertTrue(p.stdout.startswith("# "), p.stdout[:80])        # JSONではなくMarkdown
+        self.assertIn("## [", p.stdout)
+        self.assertRegex(p.stderr, r"effort auto -> (speed|balanced|quality)")
+        p, data = self.call(["scan", "audit", "--target", str(src), "--effort", "auto"])
+        self.assertEqual(data["state"], "completed", data)               # 既定のjsonは従来どおり
+        p, data = self.call(["scan", "audit", "--target", str(src), "--effort", "bogus"])
+        self.assertEqual(p.returncode, 2)
+
     def test_scan_audit_accepts_a_project_directory(self):
         proj = self.base / "proj"
         (proj / "app").mkdir(parents=True)
@@ -321,6 +338,49 @@ class CLITest(unittest.TestCase):
         self.assertEqual(data["state"], "completed", data)
         self.assertIn("0 alerts", p.stderr)
         p, data = self.call(["scan", "defense", "--target", str(self.base / "none.log")])
+        self.assertEqual((p.returncode, data["state"]), (2, "failed"))
+
+    def test_use_profile_expands_defaults_and_explicit_args_win(self):
+        prof = {"lab": {"engagement_id": "lab1", "target": "X", "effort": "speed", "allow": ["a.example", "b.example"],
+                        "scan_profile": "aggressive", "max_requests": 50, "tls_verify": True}}
+        a = cli.expand_profile(["scan", "fuzz", "--use-profile", "lab", "--max-requests", "7"], prof)
+        self.assertEqual(a[:2], ["scan", "fuzz"])
+        self.assertEqual(a.count("--allow"), 2)
+        self.assertIn("--tls-verify", a)
+        self.assertEqual(a[a.index("--max-requests") + 1], "7")           # 明示引数が優先
+        self.assertEqual(a.count("--max-requests"), 1)
+        b = cli.expand_profile(["scan", "audit", "--use-profile", "lab"], prof)
+        self.assertNotIn("--allow", b)                                     # モード非対応のキーは無視
+        self.assertNotIn("--max-requests", b)
+        for bad in ({"lab": {"api_key": "SECRET_X"}}, {"lab": {"tls_verify": "yes"}}, {}):
+            with self.assertRaises(cli.CLIError) as cm:
+                cli.expand_profile(["scan", "fuzz", "--use-profile", "lab"], bad)
+            self.assertNotIn("SECRET_X", str(cm.exception))
+
+    def test_use_profile_end_to_end_and_unknown_profile_fails(self):
+        src = self.base / "app.py"
+        src.write_text("def f():\n    return 1\n")
+        profiles = json.dumps({"p": {"target": str(src), "effort": "speed"}})
+        p = subprocess.run(self.command(["scan", "audit", "--use-profile", "p"]), cwd=self.base,
+                           env=self.env(CLI_TEST_PROFILES=profiles), capture_output=True, text=True, timeout=45)
+        self.assertEqual(json.loads(p.stdout)["state"], "completed", p.stdout)
+        p, data = self.call(["scan", "audit", "--use-profile", "missing"])
+        self.assertEqual((p.returncode, data["state"]), (2, "failed"))
+
+    def test_scan_defense_duration_watches_appended_lines_then_ends(self):
+        log = self.base / "live.log"
+        log.write_text('10.0.0.6 - - [22/Oct/2026:01:00:01 +0900] "GET /index.html HTTP/1.1" 200 5 "-" "x"\n')
+        proc = subprocess.Popen(self.command(["scan", "defense", "--target", str(log), "--duration", "4"]),
+                                cwd=self.base, env=self.env(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        time.sleep(1.5)
+        with open(log, "a") as fh:
+            fh.write('10.0.0.5 - - [22/Oct/2026:01:00:02 +0900] "GET /?q=1 UNION SELECT 1,2 HTTP/1.1" 200 12 "-" "x"\n')
+        out, err = proc.communicate(timeout=40)
+        data = json.loads(out)
+        self.assertEqual(data["state"], "completed", data)           # 期限終了はcancelledではない
+        self.assertIn("1 alerts", err)                                # 開始後に追記された行も検知する
+        self.assertTrue(any("指定時間" in e for e in data["errors"]), data["errors"])
+        p, data = self.call(["scan", "defense", "--target", str(log), "--duration", "0"])
         self.assertEqual((p.returncode, data["state"]), (2, "failed"))
 
     def test_scan_attack_is_scoped_and_exclude_wins(self):

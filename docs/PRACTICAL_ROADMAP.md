@@ -244,10 +244,11 @@ python cli.py status FINDING_ID accepted-risk --reason "対応判断を記録" -
    **`--targets-file`と`--auth-file`は併用不可**(認証値を他対象へ送らないため)。
 4. 他モードへ展開【済(ただし`core/scan_runner.py`への共通化は未実装・現状はcli.pyに実装)】:
    `scan audit|defense --target FILE`(ローカルファイルのみ・Runジャーナル無し・`--out/--fail-on/--effort`。auditは標準エンジン、
-   defenseはログの1回走査で`--duration`は未実装)、`scan attack --target T --allow ...`(--allow必須・scope_mode=blockをプロセス内だけで
+   defenseは既定でログの1回走査、`--duration SECONDS`(1〜86400)で有限時間の監視。期限終了はcompletedで、その旨をerrorsに注記)、`scan attack --target T --allow ...`(--allow必須・scope_mode=blockをプロセス内だけで
    固定しconfig.jsonへ保存しない・除外優先・CTF能動機能とexploit生成は公開しない。偵察のみ)。
-未実装: `--format md`・`--effort auto`、GUI(設定ダイアログ/fuzz panel)と旧FuzzAgent経路への期待権限表の配線、
-audit/defense/attackの`--targets-file`、`config.json`の`profiles`。
+実装済み(追補): `--format md`(stdoutにMarkdown。既定json)、`--effort auto`(classify_effortを1コール使用。config.jsonへ保存しない。auditはマスク済み先頭4000字を送る)、
+`--use-profile NAME`(config.json `profiles`を既定値として展開、明示引数が優先、秘密値・未知キーは拒否)。
+未実装: GUI(設定ダイアログ/fuzz panel)と旧FuzzAgent経路への期待権限表の配線、audit/defense/attackの`--targets-file`、profilesのrate_limit_rps/scope_mode、core/scan_runner.py共通化。
 
 受け入れ条件: GUIをimportせず全モードのモック実行、終了コード、stdoutのJSON単独解析、設定優先順位と非永続性、除外優先、バッチ設定分離、SIGINT後の最終結果保存を検証する。
 

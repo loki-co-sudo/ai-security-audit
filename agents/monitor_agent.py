@@ -81,11 +81,13 @@ def _extract_ip(line: str) -> str:
 
 class MonitorAgent(BaseAgent):
 
-    def run(self, log_path: str, watch_mode: bool = True) -> None:
+    def run(self, log_path: str, watch_mode: bool = True, max_seconds: float | None = None) -> None:
         self._current_mode, self._current_target = "DEFENSE", log_path
         scan_id = self._begin_scan()  # 証拠保存(EvidenceStore)がfinalize前から使うため(P1.2)
         self.bus.clear()
         t0 = time.time()
+        deadline = t0 + max_seconds if max_seconds else None
+        timed_out = lambda: deadline is not None and time.time() >= deadline  # noqa: E731
         self._status(f"監視開始: {log_path}")
 
         self._out(
@@ -122,10 +124,10 @@ class MonitorAgent(BaseAgent):
         try:
             for line in watcher.watch(
                 interval=LOG_WATCH_INTERVAL,
-                stop_fn=self.is_stopped,
+                stop_fn=lambda: self.is_stopped() or timed_out(),
                 single_pass=not watch_mode,
             ):
-                if self.is_stopped():
+                if self.is_stopped() or timed_out():
                     break
 
                 line = line.rstrip()
@@ -226,6 +228,8 @@ class MonitorAgent(BaseAgent):
         coverage = self._build_coverage(log_path, len(analyses))
         state, errors = self._determine_state(watch_error=watch_error, analyses=analyses)
         errors += self._log_source_notes(watcher.stats, parse_problems)
+        if deadline is not None and timed_out() and not self.is_stopped():
+            errors.append(f"指定時間({max_seconds:g}秒)で監視を終了しました。この間に書かれた行だけが対象です")
         if (watcher.stats["truncations"] or watcher.stats["partial_discarded"]) and state == ScanState.COMPLETED.value:
             state = ScanState.PARTIAL.value        # 縮小(copytruncate等)では行を取りこぼし得るためcompletedにしない
         if store is not None:

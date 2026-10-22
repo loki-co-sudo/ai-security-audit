@@ -27,6 +27,8 @@ from core.autonomy.actions import new_grant
 from core.autonomy.journal import JOURNAL_ROOT, replay, validate_run_id
 from core.autonomy.run_store import STATE_FILE
 from core.llm_client import LLMClient
+from core.model_router import classify_effort
+from core.redaction import mask_source
 from core.scope_guard import extract_host, in_scope
 from tools.openapi_loader import OpenApiError, list_operations, load_openapi, select_points
 from core.settings import DEFAULT_SCAN_PROFILE, SCAN_PROFILES
@@ -54,6 +56,74 @@ def nonnegative(value):
     return n
 
 
+EFFORT_CHOICES = ("speed", "balanced", "quality", "auto")
+
+
+def resolve_effort(effort, llm, description):
+    """autoだけ難易度ルーター(classify_effort)で1コール分類する。config.jsonへは保存しない。"""
+    if effort != "auto":
+        return effort
+    level = classify_effort(description, llm)
+    print(f"effort auto -> {level}", file=sys.stderr, flush=True)
+    return level
+
+
+def render_markdown(result):
+    from tools.report_generator import generate_markdown
+    parts = result["results"] if result.get("batch") else [result]
+    return "\n\n".join(generate_markdown(r.get("mode", ""), r.get("target", ""), "", r.get("model", ""),
+                                          scan_result=r) for r in parts)
+
+
+# config.jsonのprofilesで使えるキー → (フラグ, 対象モード)。秘密値・未知キーは受け付けない
+PROFILE_KEYS = {
+    "engagement_id": ("--engagement-id", None), "target": ("--target", None), "effort": ("--effort", None),
+    "allow": ("--allow", ("fuzz", "attack")), "exclude": ("--exclude", ("fuzz", "attack")),
+    "scan_profile": ("--profile", ("fuzz", "attack")),
+    "max_requests": ("--max-requests", ("fuzz",)), "max_pages": ("--max-pages", ("fuzz",)),
+    "tls_verify": ("--tls-verify", ("fuzz",)), "tls_ca_bundle": ("--tls-ca-bundle", ("fuzz",)),
+}
+
+
+def expand_profile(argv, profiles):
+    """--use-profile NAME をconfig.jsonのprofilesから引数列へ展開する。明示した引数が常に優先。"""
+    argv = list(argv)
+    if "--use-profile" not in argv:
+        return argv
+    i = argv.index("--use-profile")
+    if i + 1 >= len(argv):
+        raise CLIError("--use-profileには名前が必要です")
+    name = argv[i + 1]
+    del argv[i:i + 2]
+    prof = (profiles or {}).get(name) if isinstance(profiles, dict) else None
+    if not isinstance(prof, dict):
+        raise CLIError("config.jsonのprofilesに指定された名前がありません")
+    mode = argv[1] if len(argv) > 1 and argv[0] == "scan" else None
+    if mode is None:
+        raise CLIError("--use-profileはscanコマンドでのみ使えます")
+    for key, value in prof.items():
+        if key not in PROFILE_KEYS:
+            raise CLIError(f"profilesに未対応のキーがあります: {key}（秘密値は置けません）")
+        flag, modes = PROFILE_KEYS[key]
+        if modes is not None and mode not in modes:
+            continue
+        if any(a == flag or a.startswith(flag + "=") or (key == "tls_verify" and a == "--no-tls-verify")
+               for a in argv):
+            continue
+        if key == "tls_verify":
+            if not isinstance(value, bool):
+                raise CLIError("profilesのtls_verifyは真偽値にしてください")
+            argv.append(flag if value else "--no-tls-verify")
+        elif isinstance(value, list):
+            for v in value:
+                argv.extend([flag, str(v)])
+        elif isinstance(value, (str, int)) and not isinstance(value, bool):
+            argv.extend([flag, str(value)])
+        else:
+            raise CLIError(f"profilesの{key}の値の型が不正です")
+    return argv
+
+
 def parser():
     p = Parser(description=__doc__)
     commands = p.add_subparsers(dest="command", required=True)
@@ -63,6 +133,8 @@ def parser():
     audit.add_argument("--target", required=True, help="監査するPythonソースのパス（ローカルのファイルまたはディレクトリ）")
     defense = scan.add_parser("defense")
     defense.add_argument("--target", required=True, help="解析するアクセスログのパス（ローカルファイル・1回だけ走査）")
+    defense.add_argument("--duration", type=float, metavar="SECONDS",
+                         help="指定すると1回走査ではなく有限時間(1〜86400秒)だけログを監視する。追記行も対象")
     attack = scan.add_parser("attack")
     attack.add_argument("--target", required=True, help="偵察対象のhost/IP/URL。--allowで明示した範囲内のみ実行")
     attack.add_argument("--allow", action="append", required=True, help="許可host/IP/CIDR。複数は繰り返す")
@@ -74,8 +146,11 @@ def parser():
     for sub in (audit, defense, attack):
         sub.add_argument("--out", help="結果JSONの追加保存先")
         sub.add_argument("--fail-on", choices=["none", *SEVERITIES], default="none")
-        sub.add_argument("--effort", choices=("speed", "balanced", "quality"))
+        sub.add_argument("--effort", choices=EFFORT_CHOICES)
     for sub in (fuzz, audit, defense, attack):
+        sub.add_argument("--use-profile", metavar="NAME", help="config.jsonのprofilesの設定を既定値として使う(明示引数が優先)")
+        sub.add_argument("--format", choices=("json", "md"), default="json",
+                         help="stdoutの形式。mdはバグバウンティ提出用Markdown(既定json)")
         sub.add_argument("--engagement-id", help="指定すると完了した結果を所見台帳(reports/engagements/<id>)へ記録する")
         sub.add_argument("--ledger-root", default=LEDGER_ROOT, help=argparse.SUPPRESS)
     resume = commands.add_parser("resume")
@@ -110,7 +185,7 @@ def parser():
     for sub in (fuzz, resume):
         sub.add_argument("--auth-file", help='0600のJSON: {"a": {...}, "b": {...}}')
         sub.add_argument("--approve-auth", default="", help="今回だけ認証を承認する役割: a または a,b（5分有効）")
-        sub.add_argument("--effort", choices=("speed", "balanced", "quality"))
+        sub.add_argument("--effort", choices=EFFORT_CHOICES)
     group = fuzz.add_mutually_exclusive_group(required=True)
     group.add_argument("--target")
     group.add_argument("--targets-file", help="1行1URL(#でコメント)。逐次実行。--auth-fileとは併用不可")
@@ -381,7 +456,8 @@ def run_attack(args, on_agent, was_interrupted):
                             model=config.get("llm_model"), timeout=config.get("llm_timeout"))
             bus = ConsoleBus(set())
             agent = ReconAgent(bus, llm)
-            agent.set_effort_override(args.effort)
+            agent.set_effort_override(resolve_effort(
+                args.effort, llm, f"ATTACK MODE reconnaissance of {args.target}"))
             on_agent(agent)
             if was_interrupted():
                 agent.stop()
@@ -392,21 +468,25 @@ def run_attack(args, on_agent, was_interrupted):
     return bus.result_payload or {"state": "failed", "errors": ["最終結果が通知されませんでした"], "findings": []}
 
 
-def run_local(mode, target, effort, on_agent, was_interrupted):
+def run_local(mode, target, effort, on_agent, was_interrupted, duration=None):
     """CODE AUDIT(標準エンジン)またはDEFENSE(ログ1回走査)を実行して最終結果を返す。ローカルファイルのみ・Runジャーナル無し。"""
     if not (Path(target).is_file() or (mode == "audit" and Path(target).is_dir())):
         raise CLIError("対象のファイル(auditはディレクトリも可)が見つかりません")
+    if duration is not None and not 1 <= duration <= 86400:
+        raise CLIError("--durationは1〜86400秒で指定してください")
     with redirect_stdout(sys.stderr):
         config.load()
         llm = LLMClient(base_url=config.get("llm_base_url"), api_key=config.get("llm_api_key"),
                         model=config.get("llm_model"), timeout=config.get("llm_timeout"))
         bus = ConsoleBus(set())
         agent = AuditAgent(bus, llm) if mode == "audit" else MonitorAgent(bus, llm)
-        agent.set_effort_override(effort)
+        agent.set_effort_override(resolve_effort(effort, llm, f"{mode.upper()} of {target}" + (
+            "\n" + mask_source(Path(target).read_text(encoding="utf-8", errors="replace")[:4000])
+            if mode == "audit" and Path(target).is_file() else "")))
         on_agent(agent)
         if was_interrupted():
             agent.stop()
-        agent._safe_run(path=target) if mode == "audit" else agent._safe_run(log_path=target, watch_mode=False)
+        agent._safe_run(path=target) if mode == "audit" else agent._safe_run(log_path=target, watch_mode=duration is not None, max_seconds=duration)
     return bus.result_payload or {"state": "failed", "errors": ["最終結果が通知されませんでした"], "findings": []}
 
 
@@ -432,6 +512,10 @@ def main(argv=None):
     signal.signal(signal.SIGINT, stop)
     result = {"state": "failed", "errors": [], "findings": []}
     try:
+        argv = list(sys.argv[1:] if argv is None else argv)
+        if "--use-profile" in argv:
+            config.load()
+            argv = expand_profile(argv, config.get("profiles"))
         args = parser().parse_args(argv)
         is_ledger = args.command in ("diff", "mark", "suppress", "findings", "openapi")
         is_audit = args.command == "scan" and args.mode in ("audit", "defense", "attack")
@@ -451,7 +535,8 @@ def main(argv=None):
         elif is_audit and args.mode == "attack":
             result = run_attack(args, lambda a: set_agent(a), lambda: interrupted)
         elif is_audit:
-            result = run_local(args.mode, args.target, args.effort, lambda a: set_agent(a), lambda: interrupted)
+            result = run_local(args.mode, args.target, args.effort, lambda a: set_agent(a), lambda: interrupted,
+                               getattr(args, "duration", None))
         elif args.command == "status":
             result = status_result(args.run_id, args.journal_root, args.allow)
             if args.fail_on != "none":
@@ -522,7 +607,7 @@ def main(argv=None):
                                              expires_at=time.time() + APPROVAL_TTL_SECONDS) for r in roles])
                     bus = ConsoleBus(secrets)
                     agent = AutonomousFuzzAgent(bus, llm)
-                    agent.set_effort_override(args.effort)
+                    agent.set_effort_override(resolve_effort(args.effort, llm, f"WEB FUZZ of {target}"))
                     if interrupted:
                         agent.stop()
                     agent._safe_run(**one)
@@ -562,7 +647,8 @@ def main(argv=None):
                             result.setdefault("errors", []).append("結果JSONの保存に失敗しました")
                             if result["state"] != "cancelled":
                                 result["state"] = "failed"
-                print(json.dumps(result, ensure_ascii=False, allow_nan=False))
+                print(render_markdown(result) if getattr(args, "format", "json") == "md"
+                      else json.dumps(result, ensure_ascii=False, allow_nan=False))
         finally:
             signal.signal(signal.SIGINT, previous)
     return exit_code(result, getattr(args, "fail_on", "none") if args else "none")

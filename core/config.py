@@ -46,6 +46,8 @@ _DEFAULTS: dict = {
     # 証拠保存（P1.2）。既定OFF（既存設定との後方互換）。ONでもマスキング後のみ保存し、
     # 生の認証情報は保存しない（core/redaction.py・core/evidence_store.py）。
     "save_evidence": False,
+    # CLIの案件プロファイル(cli.py --use-profile NAME)。{名前: {engagement_id,target,allow,exclude,scan_profile,effort,...}}。秘密値は置かない。
+    "profiles": {},
 }
 
 # 設定キーの許容リスト（未知キー警告のため）

@@ -624,3 +624,8 @@ CLI `openapi FILE` / `scan fuzz --openapi ... --openapi-op ...`。副次修正: 
 期限内の抑制所見を所見一覧・件数から除外し、抑制件数・理由・期限、直前scanとの差分(NEW/PERSISTING/REGRESSED/NOT_OBSERVED/UNVERIFIED)、
 所見ごとのfinding_idと対応statusを表示する。期限切れの抑制は表示に戻る。未記録scanや過去scanなしは差分を出さず理由を表示。`ledger`なしは従来どおり。
 試験: `tools/test_ledger_reports.py`(selftest 16x2)。GUI・CLIからのengagement_id指定は未配線(GUI目視も未実施)。
+
+## 2026-10-22 P3.1(追補): format md / effort auto / defense duration / profiles
+`cli.py`: `--format md`(`render_markdown`)、`--effort auto`(`resolve_effort`→`classify_effort`)、`scan defense --duration`
+(`MonitorAgent.run(max_seconds=)`。期限終了はcompletedで`errors`に注記)、`--use-profile`(`expand_profile`、`config.json`の`profiles`・`PROFILE_KEYS`の許可キーのみ)。
+試験: `tools/test_cli.py`(26件)。実LLMでのautoの分類は未検証(MockLLMでは既定へフォールバック)。
