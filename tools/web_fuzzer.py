@@ -673,6 +673,47 @@ class WebFuzzer:
                     ),
                 })
                 self.log(f"  [!] IDOR? 兆候: {p['param']}@{full_url}")
+        findings.extend(self._detect_idor_reverse(points))
+        return findings
+
+    def _detect_idor_reverse(self, points: list[dict]) -> list[dict]:
+        """逆方向(B所有物をAで読む)の比較。期待権限表で所有物を明示した行だけが対象。
+
+        対象: `a=deny b=allow` かつ `value`(Bの所有物のID)を指定した行。クロールで見つかったGETの同path・paramの注入点を
+        1つ選び、そのparamだけ表のvalueへ置き換えた同一URLを、まず所有者B(対照)で取得し、成功した場合だけAで取得する。
+        valueを推測・列挙しない(ID総当たりはしない)。GETのみ・書き込み/認証回避は無し。順方向と同じく、ログイン画面と
+        類似度が低い応答は根拠にしない(公開判定は表があるため行わない)。
+        """
+        findings: list[dict] = []
+        for exp in self.idor_expectations:
+            if not (exp["a"] == "deny" and exp["b"] == "allow" and exp.get("value")):
+                continue
+            if not self._budget_left():
+                break
+            cand = next((p for p in points if p["method"] == "GET" and p["param"] == exp["param"]
+                         and urlsplit(p["url"]).path == exp["path"]), None)
+            if cand is None:
+                continue
+            fields = dict(cand.get("fields") or {})
+            fields[exp["param"]] = exp["value"]
+            full_url = cand["url"] + "?" + urlencode(fields)
+            resp_b = self._send_as(self.session_b, full_url)         # 所有者(対照)
+            if resp_b is None or resp_b.status_code >= 400:
+                continue
+            resp_a = self._send_as(self.session, full_url)           # 期待上は拒否のセッション
+            if resp_a is None or resp_a.status_code != 200 or not self._bodies_similar(resp_b.text, resp_a.text):
+                continue
+            if _is_login_page(resp_a.text) or _is_login_page(resp_b.text):
+                continue
+            findings.append({
+                "url": full_url, "param": exp["param"], "method": "GET", "direction": "reverse",
+                "status_a": resp_a.status_code, "status_b": resp_b.status_code,
+                # 証拠の主はアクセス権が無いはずのセッション(A)の応答、比較用が所有者(B)の通常応答
+                "response_headers": dict(resp_a.headers), "response_body": resp_a.text, "baseline_body": resp_b.text,
+                "basis": "expectation",
+                "evidence": "逆方向: 期待上は拒否(a=deny)のセッションAが、所有者B対照が成功した同一URLへのGETで200・類似コンテンツを取得",
+            })
+            self.log(f"  [!] IDOR? 兆候(逆方向): {exp['param']}@{full_url}")
         return findings
 
     def _expectation_for(self, url: str, param: str, value: str) -> dict | None:

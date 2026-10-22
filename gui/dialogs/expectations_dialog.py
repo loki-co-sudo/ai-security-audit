@@ -19,6 +19,7 @@ _HELP = (
     "  書式: PATH PARAM [VALUE] a=allow|deny b=allow|deny\n"
     "  例  : /account id 1 a=allow b=deny   (所有者Aだけが読める。Bが読めたら違反の根拠)\n"
     "        /public id a=allow b=allow     (公開。VALUE省略=そのparamの全値)\n"
+    "        /account id 2 a=deny b=allow   (逆方向: 所有者はB。Aで読めたら違反の根拠。VALUE必須・IDは列挙しません)\n"
     "空行と # で始まる行は無視されます。表に無いURLは従来どおり『要人手確認』の観測として扱います。"
 )
 

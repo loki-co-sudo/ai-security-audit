@@ -708,3 +708,7 @@ AUDITの証拠ID引用、`--effort auto`、DEFENSEのMITRE ID、WEB FUZZのト�
 ## 2026-10-22 P4.2(追補): プロジェクト監査の証拠保存(標準エンジン)
 `agents/audit_agent.py`: `save_project_ast_evidence()`(LLMへ送った関数の範囲内のAST観測だけを保存・`## AST evidence IDs`節・実在IDのみ採用・未知IDと上限省略はerrors)。`core/evidence_store.py`: `save_code_evidence(project_relative=True)`でプロジェクト相対パスを保持(絶対パス/`..`は従来の相対化へフォールバック)。「証拠保存は未対応」の注記は削除。OFF時は不変。
 試験: `tools/test_code_index.py`の`AuditProjectEvidenceTest`(3件: 送った関数内のみ保存・同ファイルの範囲外は保存しない・相対パス・実在ID採用/未知ID除外・OFFで何も保存しない・パスの安全なフォールバック)。実LLMでの引用挙動、LangGraph版は未対応。
+
+## 2026-10-22 P2.2(追補): IDORの逆方向(B所有物をAで読む比較)
+`tools/web_fuzzer.py`: `_detect_idor_reverse()`を`_detect_idor`の末尾から呼ぶ。対象は期待権限表の`a=deny b=allow`で**value(Bの所有物のID)を明示した行だけ**。クロールで見つかった同path・paramのGET注入点を1つ使い、paramだけvalueへ置換した同一URLを、まず所有者B(対照)で取得し、成功した場合だけAで取得する(200・類似・ログイン画面でない場合に`direction="reverse"`・`basis="expectation"`の兆候)。IDの推測・列挙はせず、GETのみ・追加送信は1行あたり最大2リクエスト(予算に含む)。クロールされていないpathの行は対象外。表なし・value無しの行・順方向の行では動作不変(基準値`web_fuzz_detector(_expectations).json`との比較で差分なし)。
+試験: `tools/test_benchmark.py`(`/account?id=2`を検出・所有者以外403の`/profile`は検出しない・id=2への送信は対照とAの各1回・id=3等へ列挙しない・表なし/value無し/順方向行は無変化。旧実装では落ちることを確認)。ダイアログの説明に書き方を追記。実LLM・実環境は未確認。

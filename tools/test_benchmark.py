@@ -204,6 +204,36 @@ class ExpectationTest(unittest.TestCase):
             self.assertEqual(res.state, "failed")
             self.assertTrue(any("期待権限表が不正です" in e for e in res.errors), res.errors)
 
+    def test_reverse_direction_checks_only_explicit_owner_b_objects(self):
+        """B所有物(value明示・a=deny b=allow)をAで読めれば違反。ID列挙はせず、所有者を検査するページは違反にしない。"""
+        from testlab.fixtures.web_benchmark import BenchmarkServer, TOKENS
+        from tools.web_fuzzer import WebFuzzer
+        with BenchmarkServer() as srv:
+            def run(exp):
+                f = WebFuzzer(profile="aggressive", max_pages=40, max_requests=3000, target=srv.base_url,
+                              auth={"cookie": "sid=" + TOKENS["alice"]}, auth_b={"cookie": "sid=" + TOKENS["bob"]},
+                              tls_verify=False, tls_ca_bundle="")
+                f.idor_expectations = exp
+                f.authenticate(); f.authenticate_b()
+                pts = [p for p in f.crawl(srv.base_url)["injection_points"] if p["url"].endswith(("/account", "/profile"))]
+                srv.requests.clear()
+                return f._detect_idor(pts), list(srv.requests)
+            row = lambda path, value="2", a="deny", b="allow": {"path": path, "param": "id", "value": value, "a": a, "b": b}  # noqa: E731
+            hit, sent = run([row("/account")])
+            rev = [h for h in hit if h.get("direction") == "reverse"]
+            self.assertEqual([(h["url"].endswith("/account?id=2"), h["basis"]) for h in rev], [(True, "expectation")])
+            self.assertIn("逆方向", rev[0]["evidence"])
+            self.assertEqual(sum(1 for m, p, q, c in sent if q == "id=2"), 2)         # 対照(B)と対象(A)の各1回だけ
+            self.assertNotIn("id=3", " ".join(q for _, _, q, _ in sent))              # IDを推測・列挙しない
+            hit, _ = run([row("/profile")])                                            # 所有者以外は403のページ
+            self.assertEqual([h for h in hit if h.get("direction") == "reverse"], [])
+            hit, _ = run([row("/account", value=None)])                               # 所有物の指定が無い行は逆方向の対象外
+            self.assertEqual([h for h in hit if h.get("direction") == "reverse"], [])
+            hit, _ = run([row("/account", a="allow", b="deny")])                       # 順方向の行は逆方向を行わない
+            self.assertEqual([h for h in hit if h.get("direction") == "reverse"], [])
+            hit, _ = run([])
+            self.assertEqual([h for h in hit if h.get("direction") == "reverse"], [])  # 表なし=従来どおり
+
     def test_expectation_overrides_public_check_and_marks_basis(self):
         """期待上denyのBが読めれば、認証なしでも読める公開ページでも違反(期待表が公開判定より優先)。"""
         from testlab.fixtures.web_benchmark import BenchmarkServer, TOKENS
