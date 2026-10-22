@@ -38,6 +38,11 @@ reports/*.txt
 # 自動保存される成果物（PoC・調査レポート）
 reports/poc/
 reports/investigation/
+# 台帳・証拠・実LLM評価・Runジャーナル(案件データを含みうるためコミットしない)
+reports/engagements/
+reports/evidence/
+reports/live_eval/
+reports/runs/
 
 # スクリーンショット（開発用・ルート直下のみ除外）
 /screenshot_*.png
