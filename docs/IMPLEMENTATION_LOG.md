@@ -719,3 +719,7 @@ AUDITの証拠ID引用、`--effort auto`、DEFENSEのMITRE ID、WEB FUZZのト�
 
 ## 2026-10-22 P4.2(追補): LangGraph版プロジェクト監査の証拠保存
 `agents/langgraph_audit_agent.py`の`_run_project`が`evidence_hook`(save_evidence有効時のみ`save_project_ast_evidence`)をグラフへ渡し、実在IDのみ採用・未知IDと省略をerrorsへ。標準エンジンと同じ仕様。試験: `tools/test_code_index.py`の`LangGraphProjectEvidenceTest`(標準エンジンのテストを継承。LangGraphの変更を外すと落ちることを確認)。実LLMでの引用挙動は未確認。
+
+## 2026-10-22 P4.3(追補): syslogの攻撃元IP抽出(集約の見逃し修正)
+再現: ホスト名がIPのsyslog行(`Oct 22 10:00:00 10.0.0.2 sshd[1]: Failed password for root from 203.0.113.9 ...`)で、別々の攻撃者2人のアラートが1件になる(ヘッダのホストIPが集約キー)。`tools/log_watcher.py`に`parse_syslog()`(RFC3164/5424)・`source_ip()`を追加、`MonitorAgent._extract_ip`が使う。本文の標識(from/rhost=/src=/SRC=/client等)の**最後**を優先、標識なしは本文の最初のIP、syslogでない行は従来どおり先頭のIP(標識を使うとURLのsrc=等で集約キーを操作されうるため)。シグネチャ検知・ベンチマークの対象(生の行)は不変。
+試験: `tools/test_log_watcher.py`の`SyslogTest`(4件: 形式の解析・接続元優先・最後の標識/非syslogは標識不使用・DEFENSEで2人とも検知。monitor_agentの変更を外すと落ちることを確認)。

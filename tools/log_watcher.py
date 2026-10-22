@@ -82,6 +82,47 @@ def normalize_log_line(line: str) -> tuple[str, str]:
     return text[:_MAX_TEXT], ""
 
 
+# syslog(RFC3164/RFC5424)。優先度`<PRI>`は省略されることがある(ファイル出力では付かない形が多い)
+_SYSLOG_5424 = re.compile(r"^(?:<(?P<pri>\d{1,3})>)?1 (?P<ts>\S+) (?P<host>\S+) (?P<app>\S+) (?P<pid>\S+) (?P<msgid>\S+) "
+                          r"(?P<sd>-|(?:\[[^\]]*\])+) ?(?P<msg>.*)$")
+_SYSLOG_3164 = re.compile(r"^(?:<(?P<pri>\d{1,3})>)?(?P<ts>[A-Z][a-z]{2} [ \d]\d \d\d:\d\d:\d\d) (?P<host>\S+) "
+                          r"(?P<app>[^\s:\[]+)(?:\[(?P<pid>[^\]]*)\])?: ?(?P<msg>.*)$")
+_IPV4 = r"(?P<ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"
+# 攻撃元・接続元を示す標識。先頭に現れるホストのIPより優先する(ホスト名がIPのsyslogで別々の攻撃者が同一視されるのを防ぐ)
+_SOURCE_MARKERS = re.compile(r"(?i)(?:\bfrom\s+(?:ipv6:)?|\brhost=|\bsrc=|\bclient[ =]\[?|\bremote[ _]?(?:addr|ip)?[=: ]\s*)" + _IPV4)
+
+
+def parse_syslog(line: str) -> dict | None:
+    """RFC5424/RFC3164形式なら {format,pri,ts,host,app,pid,msg} を返し、そうでなければNone(検知の判定には使わない)。"""
+    s = line.strip()
+    for fmt, rx in (("rfc5424", _SYSLOG_5424), ("rfc3164", _SYSLOG_3164)):
+        m = rx.match(s)
+        if m:
+            d = m.groupdict()
+            return {"format": fmt, "pri": int(d["pri"]) if d.get("pri") and int(d["pri"]) <= 191 else None,
+                    "ts": d["ts"], "host": d["host"], "app": d["app"], "pid": d.get("pid") or "", "msg": d["msg"]}
+    return None
+
+
+def source_ip(line: str) -> str:
+    """syslog行の攻撃元(接続元)IPv4を返す。syslogでない行や見つからない場合は空文字(呼び出し側は先頭のIPへフォールバック)。
+
+    本文(msg)の中だけを見る(ヘッダのホストがIPでも攻撃元と取り違えない)。標識(from/rhost=/src=/client等)に続くIPを使い、
+    複数あれば**最後**を採る(sshdのユーザー名など攻撃者が本文の前半に仕込める文字列で接続元を偽装されにくくする。完全な
+    防止ではない)。標識が無ければ本文の最初のIP。**syslogでない行(アクセスログ等)では標識を使わない**: URLの`src=`等を
+    攻撃者が操作して集約キーをずらし、アラートを抑制させる余地を作らないため。
+    """
+    sys_ = parse_syslog(line)
+    if not sys_:
+        return ""
+    msg = sys_["msg"]
+    marked = [m.group("ip") for m in _SOURCE_MARKERS.finditer(msg)]
+    if marked:
+        return marked[-1]
+    m = re.search(_IPV4, msg)
+    return m.group("ip") if m else ""
+
+
 class LogWatcher:
     """
     ログファイルを末尾から継続的に読み込むジェネレータ。

@@ -368,8 +368,9 @@ JSONL平坦化`normalize_log_line()`、`core/mitre.py`、`agents/monitor_agent.p
 - JSONLは全スカラー値を`key=value`へ平坦化して既存シグネチャ検知へ渡す。不正行は件数をerrorsに出しつつ**生テキストのまま検知へ回す**(不正行に紛れた攻撃を見逃さない)。
 - MITRE: LLMのIDは`core/mitre.KNOWN_TECHNIQUES`(部分集合・権威ある一覧ではない)に無ければ「未確認:Txxxx」と表示し、確定タグにしない(削除はしない)。プロンプトにも推測禁止を追記。
 **追補(2026-10-22)**: 拡張子`.gz`の入力は追跡できないため、watch_modeでも1回通しで読む(`LogWatcher.archive`)。展開後256MiB・1行1MiBを上限とし、超過・破損・途中切れは`stats`(`archive_truncated`/`archive_error`)に記録して読めた分で終了、DEFENSEはpartial+errors注記(検出0件の成功にしない)。連結gzip(複数メンバー)は全て読む。ライブ追跡中のlogrotate圧縮は、開いたままのfdで旧ファイルの残りを読むため既存のrename-create経路で足りる(gzip化は追跡に影響しない)。
-**journald(2026-10-22)**: 対象`journald`または`journald:UNIT`(unitは英数字始まり・文字種/100文字制限で`-`始まりのオプション注入を拒否)。`journalctl --no-pager -o json [-u UNIT]`を**固定引数・shell無し・読み取り専用**で起動し、1回通しは直近10000件(`-n`)、`--duration`指定時は`-f -n 0`で新着を追跡(停止時にterminate→kill)。出力はJSONLとして既存の平坦化に乗り、`MESSAGE`を先頭へ置く(非UTF-8のバイト配列も復号)。journalctl不在・権限不足・異常終了は`stats["journal_error"]`→DEFENSEはpartial+errors注記(検出0件の成功にしない)。権限不足時は利用者が`systemd-journal`グループ等で読める状態にする必要がある(このツールは権限を上げない)。syslog形式のファイルは従来どおり平文行として検知するだけで、RFC3164/5424の構造化パースはしない。
-**未実装**: syslogの構造化パース、巨大ログのバックプレッシャー、Windowsでのinode相当の検証、実LLMでのMITRE出力確認、
+**journald(2026-10-22)**: 対象`journald`または`journald:UNIT`(unitは英数字始まり・文字種/100文字制限で`-`始まりのオプション注入を拒否)。`journalctl --no-pager -o json [-u UNIT]`を**固定引数・shell無し・読み取り専用**で起動し、1回通しは直近10000件(`-n`)、`--duration`指定時は`-f -n 0`で新着を追跡(停止時にterminate→kill)。出力はJSONLとして既存の平坦化に乗り、`MESSAGE`を先頭へ置く(非UTF-8のバイト配列も復号)。journalctl不在・権限不足・異常終了は`stats["journal_error"]`→DEFENSEはpartial+errors注記(検出0件の成功にしない)。権限不足時は利用者が`systemd-journal`グループ等で読める状態にする必要がある(このツールは権限を上げない)。syslog形式のファイルは従来どおり平文行として検知する(シグネチャ判定は生の行で、パースの結果に依存しない)。
+**syslogの攻撃元IP(2026-10-22)**: `parse_syslog()`(RFC3164/5424・PRI省略可)と`source_ip()`を追加し、`_extract_ip`(アラートの集約キー)がsyslog本文の接続元(from/rhost=/src=/client等・複数なら最後、標識なしは本文の最初のIP)を優先する。以前はヘッダのホストがIPだと別々の攻撃者が同じキーにまとまり、2人目のアラートが集約で消えた(再現して修正)。**非syslog行(アクセスログ等)は標識を使わず従来どおり先頭のIP**(URLの`src=`等を攻撃者に操作されて集約キーをずらされないため)。完全な偽装対策ではない。
+**未実装**: 巨大ログのバックプレッシャー、Windowsでのinode相当の検証、実LLMでのMITRE出力確認、
 `--duration`、実運用ログでの長時間検証。
 
 ## 9. 保留する作業と判断理由

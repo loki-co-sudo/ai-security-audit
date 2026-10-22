@@ -12,7 +12,7 @@ import time
 from datetime import datetime
 from collections import deque
 from agents.base_agent import BaseAgent
-from tools.log_watcher import LogWatcher, normalize_log_line
+from tools.log_watcher import LogWatcher, normalize_log_line, source_ip
 from tools.report_generator import _findings_and_counts
 import core.config as config
 from core import redaction
@@ -74,7 +74,12 @@ def _decoded_variants(line: str, max_len: int = 8000) -> list[str]:
 
 
 def _extract_ip(line: str) -> str:
-    """ログ行からIPアドレスを抽出する（見つからない場合は空文字）。"""
+    """ログ行から攻撃元IPアドレスを抽出する（見つからない場合は空文字）。
+
+    syslog/標識(from・rhost=・src=等)があれば接続元を優先し(P4.3)、無ければ従来どおり最初のIPv4。"""
+    ip = source_ip(line)
+    if ip:
+        return ip
     m = _IP_PATTERN.search(line)
     return m.group(0) if m else ""
 

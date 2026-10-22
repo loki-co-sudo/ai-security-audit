@@ -10,7 +10,7 @@ import unittest
 from unittest import mock
 
 from tools import log_watcher
-from tools.log_watcher import LogWatcher, normalize_log_line, parse_journal_target
+from tools.log_watcher import LogWatcher, normalize_log_line, parse_journal_target, parse_syslog, source_ip
 
 TICK = 0.01
 
@@ -354,6 +354,57 @@ class JournaldTest(unittest.TestCase):
                 agent._safe_run(log_path="journald:web.service", watch_mode=False)
         self.assertEqual(agent._last_scan_result.state, "completed", agent._last_scan_result.errors)
         self.assertEqual(len([e for e in bus.drain() if e.kind == "alert"]), 1)
+
+
+class SyslogTest(unittest.TestCase):
+    L3164 = "Oct 22 10:00:00 10.0.0.2 sshd[101]: Failed password for root from 203.0.113.9 port 4022 ssh2"
+    L5424 = "<34>1 2026-10-22T10:00:00Z 10.0.0.2 sshd 101 ID47 - Failed password for root from 203.0.113.9 port 22 ssh2"
+
+    def test_rfc3164_and_rfc5424_are_parsed_and_other_lines_are_not(self):
+        a = parse_syslog(self.L3164)
+        self.assertEqual((a["format"], a["host"], a["app"], a["pid"], a["pri"]), ("rfc3164", "10.0.0.2", "sshd", "101", None))
+        self.assertTrue(a["msg"].startswith("Failed password"))
+        b = parse_syslog(self.L5424)
+        self.assertEqual((b["format"], b["pri"], b["app"], b["pid"], b["host"]), ("rfc5424", 34, "sshd", "101", "10.0.0.2"))
+        self.assertEqual(parse_syslog("<13>Oct  2 01:02:03 h cron: job done")["pri"], 13)
+        self.assertIsNone(parse_syslog('203.0.113.9 - - [22/Oct/2026:10:00:00 +0900] "GET / HTTP/1.1" 200 5'))
+        self.assertIsNone(parse_syslog("random text"))
+        self.assertIsNone(parse_syslog("<999>Oct 22 10:00:00 h app: x")["pri"])        # 範囲外のPRIは捨てる(行自体は読む)
+
+    def test_source_ip_prefers_the_connection_source_over_the_header_host(self):
+        self.assertEqual(source_ip(self.L3164), "203.0.113.9")                            # ホスト(10.0.0.2)ではない
+        self.assertEqual(source_ip(self.L5424), "203.0.113.9")
+        self.assertEqual(source_ip("Oct 22 10:00:00 h sshd[1]: pam_unix(sshd:auth): authentication failure; rhost=198.51.100.7  user=root"),
+                         "198.51.100.7")
+        self.assertEqual(source_ip("Oct 22 10:00:00 h kernel: IN=eth0 SRC=192.0.2.8 DST=10.0.0.2 PROTO=TCP"), "192.0.2.8")
+        self.assertEqual(source_ip("Oct 22 10:00:00 h app: connection reset 192.0.2.50"), "192.0.2.50")   # 標識なしは本文の最初
+        self.assertEqual(source_ip("Oct 22 10:00:00 10.0.0.2 app: started"), "")        # 本文にIPが無ければ空(呼び出し側がフォールバック)
+
+    def test_last_marker_wins_and_non_syslog_lines_never_use_markers(self):
+        spoof = "Oct 22 10:00:00 h sshd[1]: Failed password for invalid user x from 9.9.9.9 from 203.0.113.9 port 22 ssh2"
+        self.assertEqual(source_ip(spoof), "203.0.113.9")                                  # ユーザー名に仕込めない前半の標識より後ろを採る
+        access = '203.0.113.9 - - [22/Oct/2026:10:00:00 +0900] "GET /?src=8.8.8.8 HTTP/1.1" 200 5 "-" "x"'
+        self.assertEqual(source_ip(access), "")                                           # URLのsrc=で集約キーをずらされない
+
+    def test_defense_alerts_each_attacker_behind_the_same_syslog_host(self):
+        """以前はホストIP(10.0.0.2)が集約キーになり、別々の攻撃者2人のうち2人目のアラートが集約で消えた。"""
+        from agents.monitor_agent import MonitorAgent
+        from core.event_bus import EventBus
+        from tools.fuzz_characterization import MockLLM
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d, True)
+        p = os.path.join(d, "auth.log")
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(self.L3164 + "\n"
+                    "Oct 22 10:00:03 10.0.0.2 sshd[102]: Failed password for admin from 198.51.100.7 port 5110 ssh2\n"
+                    "Oct 22 10:00:05 10.0.0.2 sshd[103]: Failed password for root from 203.0.113.9 port 4023 ssh2\n")
+        bus = EventBus()
+        agent = MonitorAgent(bus, MockLLM())
+        with mock.patch.object(MonitorAgent, "_save_investigation", lambda *a, **k: None), \
+             mock.patch.object(MonitorAgent, "_record_telemetry", lambda *a, **k: None):
+            agent._safe_run(log_path=p, watch_mode=False)
+        alerts = [e for e in bus.drain(1000) if e.kind == "alert"]
+        self.assertEqual(len(alerts), 2)                          # 攻撃者2人=2件。同じ攻撃者の3行目は集約される
 
 
 class MonitorIntegrationTest(unittest.TestCase):
