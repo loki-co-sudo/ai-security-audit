@@ -27,6 +27,7 @@ from core.event_bus import EventBus  # noqa: E402
 from core.llm_client import LLMClient  # noqa: E402
 
 TRUTH = os.path.join(ROOT, "testlab", "benchmark", "ground_truth_audit.json")
+TRUTHS = {"v1": TRUTH, "v2": os.path.join(ROOT, "testlab", "benchmark", "ground_truth_audit_v2.json")}
 
 
 class CallLimit(Exception):
@@ -76,6 +77,46 @@ def match(findings: list[dict], truth: dict) -> tuple[dict[str, list[str]], list
     return hit, extra
 
 
+def _is_same_class(f: dict, decoy: dict) -> bool:
+    """所見がdecoyの『似せている種類』の指摘か。判定は**CWE(rule_id)と所見のタイトル(description)だけ**。
+
+    本文(analysis/snippet)は見ない: 『コマンドインジェクションではない』といった否定の文や、`literal_eval`のような
+    関数名に種類のキーワードが含まれて誤って一致するため。キーワードは単語の一致で、判定は粗い近似(意味の理解ではない)。
+    """
+    rule = str(f.get("rule_id", "")).upper()
+    if any(re.search(rf"{re.escape(c.upper())}(?!\d)", rule) for c in decoy.get("class_cwes", [])):
+        return True
+    title = str(f.get("description", "")).lower()
+    for k in decoy.get("class_keywords", []):
+        k = k.lower()
+        if k.isascii():        # 英字の語は単語境界で一致(`rce`が`resource`に、`md5`が別語の一部に一致しない)
+            if re.search(rf"(?<![a-z0-9_]){re.escape(k)}(?![a-z0-9_])", title):
+                return True
+        elif k in title:
+            return True
+    return False
+
+
+def match_decoys(findings: list[dict], truth: dict, same_class_only: bool = False) -> dict[str, list[str]]:
+    """欠陥(vulnerabilities)に当たらず、decoy(安全だが危なそうに見える箇所)の範囲に当たる所見を decoy_id 別に返す。
+
+    欠陥の範囲と重なる所見はdecoyに数えない(欠陥の指摘として扱う)。位置不明の所見は数えない。
+    `same_class_only=True`はdecoyが似せている種類の指摘だけ(別の観点の指摘は数えない。decoyの`class_cwes`/`class_keywords`)。
+    """
+    margin = truth.get("match_margin_lines", 0)
+    out: dict[str, list[str]] = {}
+    for f in findings:
+        nums = set(line_numbers(f.get("location", "")))
+        if any(v["lines"][0] - margin <= n <= v["lines"][1] + margin for v in truth["vulnerabilities"] for n in nums):
+            continue
+        for d in truth.get("decoys", []):
+            if any(d["lines"][0] - margin <= n <= d["lines"][1] + margin for n in nums):
+                if same_class_only and not _is_same_class(f, d):
+                    continue
+                out.setdefault(d["id"], []).append(f.get("description", "")[:80])
+    return out
+
+
 class CountingLLM(LLMClient):
     calls = 0
     limit = 0
@@ -101,8 +142,9 @@ class CountingLLM(LLMClient):
         return out
 
 
-def run_audit_once(model: str, path: str, effort: str, max_calls: int, timeout: int = 0) -> dict:
-    with open(TRUTH, encoding="utf-8") as f:
+def run_audit_once(model: str, path: str, effort: str, max_calls: int, timeout: int = 0,
+                   truth_path: str = TRUTH) -> dict:
+    with open(truth_path, encoding="utf-8") as f:
         truth = json.load(f)
     config.load()
     llm = CountingLLM(base_url=config.get("llm_base_url"), api_key=config.get("llm_api_key"),
@@ -122,14 +164,22 @@ def run_audit_once(model: str, path: str, effort: str, max_calls: int, timeout: 
     res = agent._last_scan_result
     d = res.to_dict() if res else {"state": "failed", "findings": [], "errors": ["結果なし"]}
     hit, extra = match(d.get("findings", []), truth)
+    decoys = match_decoys(d.get("findings", []), truth)
+    decoys_same = match_decoys(d.get("findings", []), truth, same_class_only=True)
+    decoy_texts = [{"decoy": i, "rule_id": f.get("rule_id", ""), "description": f.get("description", "")[:300]}
+                   for f in d.get("findings", []) for i in decoys
+                   if any(f.get("description", "")[:80] == x for x in decoys[i])]          # 判定の根拠を後から読めるよう全文(300字)を残す
+    extra = [e for e in extra if not any(e["description"][:80] in v for v in decoys.values())]   # decoy側へ数えたものは未ラベルから外す
     return {"state": d["state"], "errors": d.get("errors", []) + ([err] if err else []),
-            "n_findings": len(d.get("findings", [])), "hit": hit, "unlabeled": extra,
+            "n_findings": len(d.get("findings", [])), "hit": hit, "unlabeled": extra, "decoy_hits": decoys,
+            "decoy_same_class_hits": decoys_same, "decoy_findings": decoy_texts,
             "llm_calls": llm.calls, "chars_in": llm.chars_in, "chars_out": llm.chars_out,
             "elapsed_s": round(time.time() - t0, 1)}
 
 
-def evaluate(model: str, runs: int, effort: str, max_calls: int, timeout: int = 0) -> dict:
-    with open(TRUTH, encoding="utf-8") as f:
+def evaluate(model: str, runs: int, effort: str, max_calls: int, timeout: int = 0, sample: str = "v1") -> dict:
+    truth_path = TRUTHS[sample]
+    with open(truth_path, encoding="utf-8") as f:
         truth = json.load(f)
     with open(os.path.join(ROOT, truth["source"]), encoding="utf-8") as f:
         stripped = strip_hints(f.read())
@@ -139,7 +189,7 @@ def evaluate(model: str, runs: int, effort: str, max_calls: int, timeout: int = 
             f.write(stripped)
         results, used = [], 0
         for _ in range(runs):
-            r = run_audit_once(model, path, effort, max(0, max_calls - used) if max_calls else 0, timeout)
+            r = run_audit_once(model, path, effort, max(0, max_calls - used) if max_calls else 0, timeout, truth_path)
             used += r["llm_calls"]
             results.append(r)
             if r["state"] == "failed" or any("上限" in e for e in r["errors"]):
@@ -147,8 +197,14 @@ def evaluate(model: str, runs: int, effort: str, max_calls: int, timeout: int = 
     ids = [v["id"] for v in truth["vulnerabilities"]]
     ok = [r for r in results if r["state"] in ("completed", "partial") and r["n_findings"] > 0]
     per = {i: sum(1 for r in ok if i in r["hit"]) for i in ids}
-    return {"mode": "AUDIT", "model": model, "effort": effort, "runs_requested": runs, "runs_done": len(results),
-            "runs_with_findings": len(ok), "per_vuln_hits": per,
+    decoy_ids = [d["id"] for d in truth.get("decoys", [])]
+    return {"mode": "AUDIT", "model": model, "effort": effort, "sample": sample, "runs_requested": runs,
+            "runs_done": len(results), "runs_with_findings": len(ok), "per_vuln_hits": per,
+            **({"decoy_false_positives_per_run": [sorted(r["decoy_hits"]) for r in results],
+                "decoy_same_class_per_run": [sorted(r["decoy_same_class_hits"]) for r in results],
+                "per_decoy_hits": {i: sum(1 for r in ok if i in r["decoy_hits"]) for i in decoy_ids},
+                "per_decoy_same_class_hits": {i: sum(1 for r in ok if i in r["decoy_same_class_hits"]) for i in decoy_ids}}
+               if decoy_ids else {}),
             "recall_per_run": [round(sum(1 for i in ids if i in r["hit"]) / len(ids), 3) for r in results],
             "total_llm_calls": used, "hint_stripped": True, "results": results,
             "note": "モデルと日付に依存する参考値。未ラベル所見は誤検知と断定しない。"}
@@ -162,9 +218,11 @@ def main(argv=None):
     p.add_argument("--effort", choices=("speed", "balanced", "quality"), default="balanced")
     p.add_argument("--max-calls", type=int, default=30)
     p.add_argument("--timeout", type=int, default=0, help="1回のLLM呼出しのタイムアウト秒(0=config値)")
+    p.add_argument("--sample", choices=sorted(TRUTHS), default="v1",
+                   help="v1=samples/target_code.py(8欠陥) / v2=samples/target_code_v2.py(8欠陥+6つのdecoy)")
     p.add_argument("--save")
     a = p.parse_args(argv)
-    out = evaluate(a.model, a.runs, a.effort, a.max_calls, a.timeout)
+    out = evaluate(a.model, a.runs, a.effort, a.max_calls, a.timeout, a.sample)
     text = json.dumps(out, ensure_ascii=False, indent=2)
     if a.save:
         with open(a.save, "w", encoding="utf-8") as f:

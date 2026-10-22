@@ -57,7 +57,8 @@ AI-Security-tool/
 ├── 起動.sh                      # Linuxランチャー（.venv/bin/python3 優先、無ければ system python3/python）
 ├── 起動.command                 # macOSランチャー（Finderダブルクリック対応）
 ├── samples/
-│   └── target_code.py           # CODE AUDIT 動作確認用のサンプル脆弱コード
+│   ├── target_code.py           # CODE AUDIT 動作確認用のサンプル脆弱コード
+│   └── target_code_v2.py        # 実LLM評価用の難しめサンプル(欠陥8＋安全だが危なそうに見えるdecoy6。正解は testlab/benchmark/ground_truth_audit_v2.json)
 ├── testlab/
 │   ├── fixtures/attack_benchmark.py # ATTACK偵察の評価用fixture(main/catchall(soft-404)/held の3台のHTTPとバナー付きTCP)。正解は benchmark/ground_truth_attack.json、基準値は baselines/attack_recon.json(改修前は attack_recon.before-fixes.json)
 │   ├── fixtures/web_benchmark.py # 検出品質評価用fixture(罠を含む。P2.1)。正解は benchmark/ground_truth_web_fuzz.json、改修前の基準値は baselines/web_fuzz_detector.json

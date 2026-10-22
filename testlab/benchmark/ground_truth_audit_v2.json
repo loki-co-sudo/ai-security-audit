@@ -1,0 +1,197 @@
+{
+ "schema_version": "1",
+ "mode": "AUDIT",
+ "source": "samples/target_code_v2.py",
+ "note": "samples/target_code_v2.py のマーカー(`# [Vn start]`〜`# [Vn end]`が欠陥、`# [Dn ...]`が危なそうに見えるが安全なdecoy)から機械的に作った正解。LLMの出力を見て付けていない。評価時は全コメントとdocstringを空に置換(行番号は不変)した版を渡す。vulnerabilitiesのいずれにも当たらず、decoysに当たる所見は『decoy誤検知』として別集計する(範囲外は『未ラベル』で、誤検知とは断定しない)。判定は行範囲の重なりのみで、説明の中身の正しさは見ない。 【追記・測定後】decoyに`class_cwes`/`class_keywords`を追加した: decoyが『似せている種類』(D1=SQLi, D2=コマンドインジェクション, D3=認証用途の弱いハッシュ, D4=パストラバーサル, D5=eval系のコード実行, D6=弱い乱数/非定数時間比較)の指摘だけを『同種の誤検知』と数える。行範囲だけで数えた最初の集計は、decoyの別の観点の指摘(例: 所有権未検証・内容検証なし・深いネストのDoS)も数えて過大だったため。この基準はdecoyの設計コメントから作り、LLMの出力から作っていないが、最初の測定を見た後に足したので、その測定結果に対する後付けの定義である点に注意。 【追記2】同種判定は、キーワードが関数名`literal_eval`に一致する不具合と、本文の否定文に一致する不具合が見つかったため、CWE(rule_id)と所見のタイトルだけで判定する形に直した(測定の不具合の修正で、結果を良く見せるための調整ではない。保存済みの結果を再採点して確認)。同種判定はキーワード照合の粗い近似で、所見の中身の正しさを判定するものではない。",
+ "match_margin_lines": 1,
+ "vulnerabilities": [
+  {
+   "id": "V1",
+   "lines": [
+    29,
+    40
+   ],
+   "note": "SSRF: 接頭辞の文字列比較は https://hooks.example.com.attacker.net を通す"
+  },
+  {
+   "id": "V2",
+   "lines": [
+    43,
+    49
+   ],
+   "note": "一括代入: リクエストのJSONを全てそのままDBへ反映する(is_admin / balance も書ける)"
+  },
+  {
+   "id": "V3",
+   "lines": [
+    52,
+    60
+   ],
+   "note": "関数をまたぐ認可漏れ: 取得ヘルパーが所有者を確認せず、呼び出し側も確認しない"
+  },
+  {
+   "id": "V4",
+   "lines": [
+    63,
+    72
+   ],
+   "note": "競合: クーポンの利用回数を「確認→加算」の2段階で行い、同時リクエストで上限を超えて使える"
+  },
+  {
+   "id": "V5",
+   "lines": [
+    75,
+    80
+   ],
+   "note": "オープンリダイレクト: \"/\" 始まりの確認は //attacker.net も通す"
+  },
+  {
+   "id": "V6",
+   "lines": [
+    83,
+    88
+   ],
+   "note": "安全でないデシリアライズ: アップロードされた設定をyaml.Loader(任意のPythonオブジェクトを生成できる)で読む"
+  },
+  {
+   "id": "V7",
+   "lines": [
+    91,
+    101
+   ],
+   "note": "推測可能な確認コード: 4桁の乱数を回数制限なしで検証する"
+  },
+  {
+   "id": "V8",
+   "lines": [
+    104,
+    116
+   ],
+   "note": "署名の比較に == を使い、さらに署名対象にタイムスタンプ(有効期限)が含まれていない"
+  }
+ ],
+ "decoys": [
+  {
+   "id": "D1",
+   "lines": [
+    119,
+    124
+   ],
+   "note": "安全(decoy): f文字列でSQLを組むが、テーブル名は固定の許可集合からのみ、値は全てバインド変数",
+   "class_cwes": [
+    "CWE-89"
+   ],
+   "class_keywords": [
+    "sql injection",
+    "sqli",
+    "sql インジェクション",
+    "sqlインジェクション",
+    "sql注入"
+   ]
+  },
+  {
+   "id": "D2",
+   "lines": [
+    127,
+    135
+   ],
+   "note": "安全(decoy): subprocessだがshell=False・引数は固定辞書のみ・ユーザー入力は選択キーとして使うだけ",
+   "class_cwes": [
+    "CWE-78",
+    "CWE-77"
+   ],
+   "class_keywords": [
+    "command injection",
+    "コマンドインジェクション",
+    "shell injection",
+    "シェルインジェクション",
+    "os command"
+   ]
+  },
+  {
+   "id": "D3",
+   "lines": [
+    138,
+    141
+   ],
+   "note": "安全(decoy): md5は認証ではなくキャッシュキー(内容の同一性)にだけ使う",
+   "class_cwes": [
+    "CWE-327",
+    "CWE-328",
+    "CWE-916"
+   ],
+   "class_keywords": [
+    "md5",
+    "弱いハッシュ",
+    "weak hash",
+    "脆弱なハッシュ",
+    "衝突"
+   ]
+  },
+  {
+   "id": "D4",
+   "lines": [
+    144,
+    154
+   ],
+   "note": "安全(decoy): 保存先を絶対パスへ解決し、UPLOAD_DIR配下であることを確認してから書く",
+   "class_cwes": [
+    "CWE-22",
+    "CWE-23",
+    "CWE-36"
+   ],
+   "class_keywords": [
+    "path traversal",
+    "パストラバーサル",
+    "directory traversal",
+    "ディレクトリトラバーサル",
+    "../"
+   ]
+  },
+  {
+   "id": "D5",
+   "lines": [
+    157,
+    163
+   ],
+   "note": "安全(decoy): ast.literal_eval はリテラルのみ評価し、任意コードを実行しない",
+   "class_cwes": [
+    "CWE-95",
+    "CWE-94",
+    "CWE-78"
+   ],
+   "class_keywords": [
+    "code execution",
+    "コード実行",
+    "任意コード",
+    "rce",
+    "eval()",
+    "eval関数",
+    "evalによる"
+   ]
+  },
+  {
+   "id": "D6",
+   "lines": [
+    166,
+    173
+   ],
+   "note": "安全(decoy): セキュリティ用途の乱数は secrets、定数時間比較は compare_digest",
+   "class_cwes": [
+    "CWE-330",
+    "CWE-338",
+    "CWE-208",
+    "CWE-1254"
+   ],
+   "class_keywords": [
+    "weak random",
+    "predictable",
+    "予測可能",
+    "timing attack",
+    "タイミング",
+    "非定数時間",
+    "弱い乱数"
+   ]
+  }
+ ]
+}

@@ -51,6 +51,86 @@ class MatchTest(unittest.TestCase):
         self.assertEqual([e["description"] for e in extra], ["z", "no lines"])   # 位置不明は的中に数えない
 
 
+class DecoyTest(unittest.TestCase):
+    TRUTH = {"match_margin_lines": 1,
+             "vulnerabilities": [{"id": "A", "lines": [10, 20]}],
+             "decoys": [{"id": "D1", "lines": [30, 40]}, {"id": "D2", "lines": [50, 60]}]}
+
+    def test_decoy_hits_are_counted_only_when_no_vulnerability_overlaps(self):
+        findings = [{"location": "35", "description": "x"},            # D1
+                    {"location": "21", "description": "y"},            # Aの余白内(欠陥の指摘)。decoyに数えない
+                    {"location": "29", "description": "z"},            # D1の余白内
+                    {"location": "99", "description": "w"},            # どちらでもない
+                    {"location": "", "description": "no lines"}]
+        self.assertEqual(le.match_decoys(findings, self.TRUTH), {"D1": ["x", "z"]})
+        self.assertEqual(le.match_decoys([], self.TRUTH), {})
+        self.assertEqual(le.match_decoys([{"location": "35"}], {"vulnerabilities": [], "decoys": []}), {})   # decoy無しの正解データ(v1)
+
+
+class DecoySameClassTest(unittest.TestCase):
+    TRUTH = {"match_margin_lines": 0, "vulnerabilities": [],
+             "decoys": [{"id": "D2", "lines": [10, 20], "class_cwes": ["CWE-78"], "class_keywords": ["command injection", "コマンドインジェクション"]}]}
+
+    def test_only_the_lookalike_class_counts_as_a_same_class_false_positive(self):
+        f = lambda desc, rule="": {"location": "15", "description": desc, "rule_id": rule}      # noqa: E731
+        same = [f("OSコマンドインジェクション"), f("x", "CWE-78"), f("Command Injection via shell")]
+        other = [f("所有権の検証がない(IDOR)", "CWE-639"), f("競合状態")]
+        self.assertEqual(len(le.match_decoys(same + other, self.TRUTH)["D2"]), 5)                  # 行範囲だけなら全て
+        self.assertEqual(len(le.match_decoys(same + other, self.TRUTH, same_class_only=True)["D2"]), 3)   # 同種だけ
+        self.assertEqual(le.match_decoys(other, self.TRUTH, same_class_only=True), {})
+
+    def test_criteria_do_not_match_function_names_negations_or_word_fragments(self):
+        """過去の不具合: `literal_eval`にeval、`Resource`にrce、本文の否定文にキーワードが一致した。判定はCWEとタイトルの単語一致だけ。"""
+        d = {"id": "D5", "lines": [1, 9], "class_cwes": ["CWE-95"],
+             "class_keywords": ["eval()", "rce", "code execution", "コード実行"]}
+        no = [{"description": "ast.literal_eval のリソース爆増による枯渇", "rule_id": "CWE-400"},
+              {"description": "Resource Exhaustion in parse_filter", "rule_id": "CWE-400"},
+              {"description": "DoS", "rule_id": "CWE-400", "analysis": "これは code execution ではない(コード実行は不可)"},
+              {"description": "x", "rule_id": "CWE-950"}]                                  # CWE-95 の前方一致で CWE-950 を拾わない
+        yes = [{"description": "RCE via eval()", "rule_id": ""}, {"description": "x", "rule_id": "CWE-95"},
+               {"description": "任意のコード実行", "rule_id": ""}]
+        for f in no:
+            self.assertFalse(le._is_same_class(f, d), f)
+        for f in yes:
+            self.assertTrue(le._is_same_class(f, d), f)
+
+
+class SampleV2Test(unittest.TestCase):
+    def setUp(self):
+        with open(le.TRUTHS["v2"], encoding="utf-8") as f:
+            self.truth = json.load(f)
+        with open(le.os.path.join(le.ROOT, self.truth["source"]), encoding="utf-8") as f:
+            self.src = f.read()
+
+    def test_truth_matches_the_markers_and_sections_do_not_overlap(self):
+        import re
+        marks = {}
+        for i, line in enumerate(self.src.splitlines(), 1):
+            m = re.match(r"# \[([VD]\d) (start|end)\]", line)
+            if m:
+                marks.setdefault(m.group(1), {})[m.group(2)] = i
+        listed = {e["id"]: e["lines"] for e in self.truth["vulnerabilities"] + self.truth["decoys"]}
+        self.assertEqual(listed, {k: [v["start"], v["end"]] for k, v in marks.items()})    # マーカーと正解が一致
+        spans = sorted(listed.values())
+        margin = self.truth["match_margin_lines"]
+        for (a0, a1), (b0, b1) in zip(spans, spans[1:]):
+            self.assertLess(a1 + margin, b0 - margin, (a1, b0))                              # 余白を足しても隣の区画に届かない
+        self.assertEqual(len(self.truth["vulnerabilities"]), 8)
+        self.assertEqual(len(self.truth["decoys"]), 6)
+        for d in self.truth["decoys"]:
+            self.assertTrue(d["class_cwes"] and d["class_keywords"], d["id"])                   # 同種の判定基準がある
+
+    def test_stripped_version_keeps_lines_and_hides_every_hint(self):
+        out = le.strip_hints(self.src)
+        self.assertEqual(self.src.count("\n"), out.count("\n"))
+        for hint in ("decoy", "[V1", "[D1", "安全(", "欠陥", "SSRF", "オープンリダイレクト", "競合:"):
+            self.assertNotIn(hint, out)
+        ast.parse(out)
+        names = {n.name: n.lineno for n in ast.parse(out).body if isinstance(n, ast.FunctionDef)}
+        for v in self.truth["vulnerabilities"]:
+            self.assertTrue(any(v["lines"][0] <= ln <= v["lines"][1] for ln in names.values()), v["id"])   # 各欠陥の区画に関数がある
+
+
 class CallLimitTest(unittest.TestCase):
     def test_limit_stops_before_the_call_is_sent(self):
         llm = le.CountingLLM(base_url="http://127.0.0.1:9", api_key="x", model="m", timeout=1)
