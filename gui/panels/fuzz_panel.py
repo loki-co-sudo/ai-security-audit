@@ -31,6 +31,7 @@ class FuzzPanel(ctk.CTkFrame):
         self._budget    = tk.StringVar(value="200")
         self._auth: dict = {}   # 認証設定（🔐ボタンで設定）
         self._auth_b: dict = {}  # 第2アカウント設定（IDOR比較用・任意）
+        self._expectations: list = []  # IDOR期待権限表（📋ボタンで設定・任意）
         self._auto_var  = tk.BooleanVar(value=False)
         self._build()
 
@@ -105,17 +106,26 @@ class FuzzPanel(ctk.CTkFrame):
             command=self._open_auth_b,
         )
         self._auth_b_btn.pack(side="left", padx=(0, 4), pady=7)
-        ctk.CTkLabel(
-            obar, text="※複数アカウント使用は対象プログラムの規約(ROE)で許可されているか要確認",
-            font=ctk.CTkFont("Segoe UI", 8), text_color=AMBER,
-        ).pack(side="left", padx=(0, 8))
-
+        self._exp_btn = ctk.CTkButton(
+            obar, text="📋 期待権限", width=96, height=26,
+            fg_color=BG_INPUT, hover_color="#3A2400",
+            border_color=AMBER, border_width=1,
+            text_color=AMBER, font=ctk.CTkFont("Segoe UI", 10),
+            command=self._open_expectations,
+        )
+        self._exp_btn.pack(side="left", padx=(0, 4), pady=7)
         ctk.CTkCheckBox(
             obar, text="AUTO", variable=self._auto_var,
             font=ctk.CTkFont("Segoe UI", 10), text_color=TEXT_DIM,
             fg_color=PURPLE, hover_color="#A96FE0",
             checkbox_width=16, checkbox_height=16,
         ).pack(side="left", padx=8)
+
+        # 狭い窓では右側から切れるため、操作に必要なAUTOを注意書きより先にpackする
+        ctk.CTkLabel(
+            obar, text="※複数アカウントは規約(ROE)で許可要確認",
+            font=ctk.CTkFont("Segoe UI", 8), text_color=AMBER,
+        ).pack(side="left", padx=(0, 8))
 
         ctk.CTkLabel(
             obar, text="検出のみ・同一オリジン限定・認可された対象のみ",
@@ -215,6 +225,7 @@ class FuzzPanel(ctk.CTkFrame):
             max_requests=budget,
             auth=self._auth or None,
             auth_b=self._auth_b or None,
+            idor_expectations=self._expectations or None,
         )
 
     def _open_auth(self) -> None:
@@ -231,6 +242,14 @@ class FuzzPanel(ctk.CTkFrame):
             self.winfo_toplevel(), initial=self._auth_b, on_save=self._on_auth_b_saved,
             title="🔐  認証設定（第2セッション・IDOR比較用）",
         )
+
+    def _open_expectations(self) -> None:
+        from gui.dialogs.expectations_dialog import ExpectationsDialog
+        ExpectationsDialog(self.winfo_toplevel(), initial=self._expectations, on_save=self._on_expectations_saved)
+
+    def _on_expectations_saved(self, rows: list) -> None:
+        self._expectations = rows or []
+        self._exp_btn.configure(text=f"📋 期待権限✓({len(rows)})" if rows else "📋 期待権限")
 
     def _on_auth_b_saved(self, data: dict) -> None:
         self._auth_b = data or {}

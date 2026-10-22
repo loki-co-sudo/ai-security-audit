@@ -695,3 +695,9 @@ AUDITの証拠ID引用、`--effort auto`、DEFENSEのMITRE ID、WEB FUZZのト�
 **発見した不具合**: `AuthDialog`は本体(`expand=True`)を先にpackし、P2.2で④認証状態の確認(確認URL等)を足したあと660pxの窓に収まらず、保存/キャンセル/クリアが窓外へ切れていた(AGENTS.mdのGUIパックオーダー規則違反)。ボタン行を先にpackし、本体を`CTkScrollableFrame`にして修正(高さ720・最小480)。`tools/test_gui_layout.py`(xvfb-run必須・無ければSKIP。旧レイアウトでは落ちることを確認)で固定。
 追加確認: DEFENSEパネルをGUI操作経路(`_start`→EventBus→30msポーリング→`dispatch`)で実際に実行(LLMはモック・ログ5行・ウィンドウマネージャ付き)。アラートカウンター(HIGH 2・MEDIUM 2)・ALERT TIMELINE・AI出力・SYSTEM LOG・ステータスバー「完了」が更新され、完了後に4形式の出力ボタンが動作した(JSONは`ai-security-audit-report`・completed)。同じ方法でAUDIT(標準エンジン・コード1ファイル)とWEB FUZZ(GUI経路の旧FuzzAgent・ローカルfixture・63リクエスト)もGUI操作経路で実行し、完了(AUDITは1.2秒、FUZZは7ステップ全てチェック・XSS/SQLi兆候・カウンター更新)と4形式出力を確認した(LLMはモック)。ATTACKパネルのGUI実行は未確認。なおユーザー設定にFASTモデルがある状態でSTRONGだけをモックに差し替えるとFASTクライアントの資格情報が空で失敗する(確認用スクリプト側の問題で、製品の不具合とは判断していない。確認時は設定の上書きでFASTを空にした)。
 `tools/gui_snapshot.py`: 同じ手順の再実行用(`python tools/gui_snapshot.py OUTDIR`)。**未確認**: 実画面(Windows/DPI/マルチモニタ)、ファイル選択ダイアログ、実スキャンをGUIから走らせた挙動、期待権限表のGUI入力(未実装)。
+
+## 2026-10-22 P2.2(追補): 期待権限表のGUI入力と旧FuzzAgent経路への配線
+`core/engagement.py`: `parse_expectation_lines()`(1行1ルール `PATH PARAM [VALUE] a=allow|deny b=allow|deny`・空行と`#`行は無視・行ごとに`parse_idor_expectations`と同じ検証・エラーは行番号つき・重複検出)と逆変換`format_expectation_lines()`。
+`agents/fuzz_agent.py`(GUIの旧経路): `run(idor_expectations=)`を追加し、検証して`fuzzer.idor_expectations`へ設定(不正ならfailedで送信しない・表があれば画面に「IDOR期待権限 : N行」)。`gui/dialogs/expectations_dialog.py`と`gui/panels/fuzz_panel.py`の「📋 期待権限」ボタン(設定後は✓(行数)表示)。保存時に不正行は行番号つきで表示してダイアログを閉じない。入力するのはpath/param/期待権限のみで秘密値は扱わない。
+試験: `tools/test_benchmark.py`(行形式の往復・エラー行番号、旧FuzzAgentで表なしは公開ページを除外・表あり(b=deny)は違反の根拠・不正な表はfailed)、`tools/test_gui_layout.py`(保存ボタンが窓内・不正入力で閉じない・正常入力の保存。xvfb-run必須)。仮想ディスプレイで目視(1465px・1000px幅)。
+**併せて**: WEB FUZZのオプション行は新ボタンの分だけ広がり、1000px幅でAUTOが窓外へ出たため、AUTOを注意書きより先にpackし、ROE注意書きを短縮した(「※複数アカウントは規約(ROE)で許可要確認」)。1000px幅ではもう1つの注意書き(検出のみ・同一オリジン限定)は表示されなくなる(下部ステータスバーに同趣旨の表示は残る)。実画面・実スキャンのGUI確認は未実施。

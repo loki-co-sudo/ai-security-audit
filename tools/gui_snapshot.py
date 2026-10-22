@@ -3,7 +3,7 @@
 
   python tools/gui_snapshot.py OUTDIR
 
-4タブ・設定ダイアログ・認証ダイアログのPNGをOUTDIRへ保存する(ImageMagickのimportが必要。xfwm4があればウィンドウマネージャ付き)。
+4タブ・設定ダイアログ・認証ダイアログ・期待権限表ダイアログのPNGをOUTDIRへ保存する(ImageMagickのimportが必要。xfwm4があればウィンドウマネージャ付き)。
 実スキャンは行わず、設定の保存もしない(ダイアログは開くだけ)。画像を人が/AIが見て確認するための補助で、自動判定はしない。
 レイアウトの回帰は tools/test_gui_layout.py が固定する。
 """
@@ -42,6 +42,13 @@ def _child(out: str) -> int:
     dlg = AuthDialog(app, initial={}, on_save=lambda *a, **k: None)
     shot("auth")
     dlg.destroy()
+    from gui.dialogs.expectations_dialog import ExpectationsDialog
+    exp = ExpectationsDialog(app, initial=[{"path": "/account", "param": "id", "value": "1", "a": "allow", "b": "deny"}],
+                             on_save=lambda *a, **k: None)
+    exp._text.insert("end", "\n/bad id a=maybe b=deny")
+    exp._save()                       # 不正行のエラー表示も撮る
+    shot("expectations")
+    exp.destroy()
     app.destroy()
     return 0
 

@@ -21,6 +21,7 @@ from tools.report_generator import _findings_and_counts
 import core.config as config
 from core.settings import SCAN_PROFILES, DEFAULT_SCAN_PROFILE
 from core.findings import Finding, CoverageItem, ScanState, CoverageStatus
+from core.engagement import EngagementError, parse_idor_expectations
 from core.evidence_store import EvidenceStore
 from core import redaction
 
@@ -107,6 +108,7 @@ class FuzzAgent(BaseAgent):
         auth_b: dict | None = None,
         tls_verify: bool | None = None,
         tls_ca_bundle: str | None = None,
+        idor_expectations: list | None = None,
     ) -> None:
         self._current_mode, self._current_target = "WEB FUZZ", target
         scan_id = self._begin_scan()  # 証拠保存(EvidenceStore)がfinalize前から使うため(P1.2)
@@ -118,6 +120,11 @@ class FuzzAgent(BaseAgent):
 
         if profile not in SCAN_PROFILES:
             profile = DEFAULT_SCAN_PROFILE
+        try:
+            idor_expectations = parse_idor_expectations(idor_expectations)
+        except EngagementError as e:
+            self._finalize(state=ScanState.FAILED.value, target=target, errors=[f"期待権限表が不正です: {e}"])
+            return
         base_url = target if target.startswith("http") else "http://" + target
         # 表示・LLM送信・保存の前にマスクするための既知の機密値（P1.2）
         known_secrets = self._known_secrets(auth, auth_b)
@@ -138,6 +145,8 @@ class FuzzAgent(BaseAgent):
         self._out("  SCOPE        : 同一オリジン限定 — 認可された対象のみ\n", "green")
         self._out(f"  AUTH         : {'設定あり（認証付きファジング）' if auth else 'なし'}\n",
                   "green" if auth else "dim")
+        if idor_expectations:
+            self._out(f"  IDOR期待権限 : {len(idor_expectations)}行（期待表を判定の根拠として使用）\n", "green")
         self._step(0, "done")
         if self.is_stopped():
             return
@@ -149,6 +158,7 @@ class FuzzAgent(BaseAgent):
             stop_event=self._stop_event,  # STOP後は新しい送信を開始しない (P0.2)
             tls_verify=tls_verify, tls_ca_bundle=tls_ca_bundle,
         )
+        fuzzer.idor_expectations = idor_expectations
         self._out(f"  TLS VERIFY   : {'有効' if fuzzer.tls_verify else '無効（既定・後方互換）'}\n\n",
                   "green" if fuzzer.tls_verify else "dim")
 

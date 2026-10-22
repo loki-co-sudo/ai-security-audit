@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 import unittest
+from unittest import mock
 
 from tools import benchmark as bm
 
@@ -156,6 +157,52 @@ class ExpectationTest(unittest.TestCase):
         self.assertEqual(with_exp["fn"], 0)
         self.assertLess(with_exp["fp"], without["fp"])         # 閲覧者別ページの誤検出が減る
         self.assertEqual(saved["kind"], "web_fuzz_detector_with_expectations")
+
+    def test_line_format_round_trips_and_reports_the_offending_line(self):
+        from core.engagement import (EngagementError, format_expectation_lines as fmt,
+                                     parse_expectation_lines as parse, parse_idor_expectations)
+        rows = parse("# comment\n/account id 1 a=allow b=deny\n\n/public id a=allow b=allow\n")
+        self.assertEqual([(r["path"], r["param"], r["value"], r["a"], r["b"]) for r in rows],
+                         [("/account", "id", "1", "allow", "deny"), ("/public", "id", None, "allow", "allow")])
+        self.assertEqual(parse(fmt(rows)), rows)                                   # 表示用の形式から元に戻せる
+        self.assertEqual(rows, parse_idor_expectations(rows))                      # 辞書形式と同じ検証を通る
+        self.assertEqual(parse(""), [])
+        for text, line in (("/a id a=allow", 1), ("# ok\n/a id a=maybe b=deny", 2), ("/a?x=1 id a=allow b=deny", 1),
+                           ("/a id a=allow b=deny\n/a id a=allow b=deny", 2), ("/a id a=allow a=deny b=deny", 1),
+                           ("http://h/a id a=allow b=deny", 1), ("/a id 1 2 a=allow b=deny", 1)):
+            with self.assertRaises(EngagementError, msg=text) as cm:
+                parse(text)
+            self.assertTrue(str(cm.exception).startswith(f"{line}行目"), (text, str(cm.exception)))
+
+    def test_legacy_fuzz_agent_applies_the_table_and_rejects_an_invalid_one(self):
+        """GUI経路の旧FuzzAgentが期待表を使う: 表なしで除外される公開ページが、b=denyの表では違反の根拠になる。"""
+        from agents.fuzz_agent import FuzzAgent
+        from core import config
+        from core.event_bus import EventBus
+        from testlab.fixtures.web_benchmark import BenchmarkServer, TOKENS
+        from tools.fuzz_characterization import MockLLM
+        with BenchmarkServer() as srv:
+            def run(exp):
+                bus, agent = EventBus(), FuzzAgent(EventBus(), MockLLM())
+                agent.bus = bus
+                with mock.patch.dict(config._cfg, {**config._DEFAULTS, "allowed_targets": [], "scope_mode": "warn",
+                                                   "save_evidence": False, "effort": "speed"}, clear=True), \
+                     mock.patch.object(FuzzAgent, "_save_investigation", lambda *a, **k: None), \
+                     mock.patch.object(FuzzAgent, "_record_telemetry", lambda *a, **k: None):
+                    agent._safe_run(target=srv.base_url, profile="aggressive", max_requests=1500,
+                                    auth={"cookie": "sid=" + TOKENS["alice"]}, auth_b={"cookie": "sid=" + TOKENS["bob"]},
+                                    idor_expectations=exp)
+                text = "".join(e.payload["text"] for e in bus.drain(100000) if e.kind == "output")
+                return agent._last_scan_result, text
+            res, text = run(None)
+            self.assertNotIn("/public?id", "".join(l for l in text.splitlines() if "[IDOR?]" in l))   # 表なし: 公開として除外
+            self.assertNotIn("IDOR期待権限", text)
+            res, text = run([{"path": "/public", "param": "id", "a": "allow", "b": "deny"}])
+            self.assertIn("/public?id", "".join(l for l in text.splitlines() if "[IDOR?]" in l))       # 表あり: 期待上deny
+            self.assertIn("IDOR期待権限 : 1行", text)
+            res, text = run([{"path": "/public", "param": "id", "a": "allow"}])     # 不正な表は送信せず失敗する
+            self.assertEqual(res.state, "failed")
+            self.assertTrue(any("期待権限表が不正です" in e for e in res.errors), res.errors)
 
     def test_expectation_overrides_public_check_and_marks_basis(self):
         """期待上denyのBが読めれば、認証なしでも読める公開ページでも違反(期待表が公開判定より優先)。"""

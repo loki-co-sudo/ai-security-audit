@@ -66,7 +66,7 @@ P4内は用途に応じて一項目ずつ選択できる。保留事項を自動
 |---|---|---|---|
 | P1.2 | ほぼ実装・未完了扱い | 証拠保存・マスキング・全4モードの配線・HTML/MD/PDF/JSON、AUDITで実LLMの証拠ID引用を1回確認 | 実画面でのGUI目視(仮想ディスプレイでの4タブ・JSON出力ボタン・結果注入後の4形式出力は確認済み)、他モードの実LLM引用、ATTACK画面ログの未マスク |
 | P2.1 | 一部 | WEB FUZZ・DEFENSEシグネチャ・ATTACK偵察のdetector固定ベンチと基準値、AUDITの実LLM評価(無料枠モデル3回・`tools/live_eval.py`) | 他モデルでの実LLM評価、ATTACKの実LLM評価、WEB FUZZ/DEFENSEの大きな正解データでの実LLM評価(3回の小規模測定のみ)、ATTACKのLLM解釈部分のベンチ、トークン使用量(現状は文字数のみ) |
-| P2.2 | 検出器側は実装 | IDOR(ログイン/公開除外・期待権限表)、SSTI別式確認、XSS content-type | 期待権限表のGUI入力・旧FuzzAgent配線、同一origin確認URL、逆方向 |
+| P2.2 | 検出器・GUI入力を実装 | IDOR(ログイン/公開除外・期待権限表・GUIの「📋 期待権限」入力と旧FuzzAgent配線)、SSTI別式確認、XSS content-type | 同一origin確認URLの検証強化、逆方向(B所有物をAで読む比較) |
 | P3.1 | ほぼ実装 | `scan fuzz/audit/defense/attack`・`--targets-file`・`--engagement`・除外優先・`--format md`・`--effort auto`・`defense --duration`・`--use-profile`・`core/scan_runner.py`(ATTACK/AUDIT/DEFENSE/WEB FUZZ・resumeの対象ごと実行)・`--min-verification`・`--rate-limit-rps`・profilesの`rate_limit_rps`/`scope_mode`(block のみ) | 案件プロファイルのGUI入力、予算(max_llm_calls等)のprofiles化 |
 | P3.2 | 中核+レポート連携 | 台帳・差分・mark/suppress/findings、レポート層の抑制除外と差分表示、CLI(`--engagement-id`)の出力への台帳ビュー付与・`--format md`の抑制除外/差分・`--fail-on`の期限内抑制除外 | GUIからのengagement_id指定と配線 |
 | P4.1 | 初期版 | ローカルJSON/YAML・明示選択のGET+query・サンプル値生成(parameter/schemaのexample・allOf/oneOf/anyOf・3.1型配列・array・format)・操作ごとの認証要件表示 | path param・body・POST等(境界として非対応のまま)、認証schemeの自動適用、GUI |
