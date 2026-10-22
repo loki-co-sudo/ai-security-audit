@@ -1,0 +1,92 @@
+{
+  "mode": "AUDIT",
+  "model": "minimax/minimax-m3.1-flash:free",
+  "effort": "quality",
+  "runs_requested": 1,
+  "runs_done": 1,
+  "runs_with_findings": 1,
+  "per_vuln_hits": {
+    "V1-sqli-token": 1,
+    "V2-toctou-session": 1,
+    "V3-idor": 1,
+    "V4-negative-amount": 1,
+    "V5-path-traversal": 1,
+    "V6-password-reset": 1,
+    "V7-trusted-role": 1,
+    "V8-type-validation": 0
+  },
+  "recall_per_run": [
+    0.875
+  ],
+  "total_llm_calls": 3,
+  "hint_stripped": true,
+  "results": [
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 27,
+      "hit": {
+        "V1-sqli-token": [
+          "認証クエリの SQL injection による認証バイパス",
+          "username と server time から生成される予測可能な session token",
+          "認証クエリの SQL injection による認証バイパス",
+          "username と時刻から生成される予測可能な session token"
+        ],
+        "V6-password-reset": [
+          "Password の平文保存",
+          "Session の無期限有効化と password reset・user 削除時の revocation 欠落",
+          "username から決定論的に生成される password reset token",
+          "Password reset token の期限切れが検証されない",
+          "Password reset token の check-then-use race による複数回使用",
+          "セキュリティ操作に対する audit trail の欠落",
+          "Session の無期限有効化と password reset・user 削除時の revocation 欠落",
+          "セキュリティ操作に対する audit trail の欠落"
+        ],
+        "V2-toctou-session": [
+          "active_sessions の check-then-act による session 上書き",
+          "Session の無期限有効化と password reset・user 削除時の revocation 欠落",
+          "create_session が user_id と token を無検証で登録する identity spoofing",
+          "create_session の check-then-act race condition",
+          "Session の無期限有効化と password reset・user 削除時の revocation 欠落"
+        ],
+        "V3-idor": [
+          "User profile の水平権限制御欠落による IDOR"
+        ],
+        "V4-negative-amount": [
+          "transfer_funds の送信元 ID 認証欠落による任意口座操作",
+          "負数金額による残高操作と inflation",
+          "残高確認と更新の分離による資金移動 race condition",
+          "存在しない target への credit を成功と報告する資金消失",
+          "セキュリティ操作に対する audit trail の欠落",
+          "セキュリティ操作に対する audit trail の欠落"
+        ],
+        "V5-path-traversal": [
+          "user file read の絶対 path・directory traversal による任意 file read",
+          "User file に対する object ownership 検証の欠落",
+          "user file read の絶対 path・directory traversal による任意 file read"
+        ],
+        "V7-trusted-role": [
+          "admin 権限判定の server-side identity binding 欠落",
+          "Caller-controlled role に依存する admin 権限判定"
+        ]
+      },
+      "unlabeled": [
+        {
+          "location": "L36-L41",
+          "description": "固定の既定 admin credential による初期アカウント侵害",
+          "severity": "CRITICAL"
+        },
+        {
+          "location": "L36-L41",
+          "description": "ソースに埋め込まれた既定 admin credential",
+          "severity": "HIGH"
+        }
+      ],
+      "llm_calls": 3,
+      "chars_in": 72963,
+      "chars_out": 75456,
+      "elapsed_s": 1185.6
+    }
+  ],
+  "note": "モデルと日付に依存する参考値。未ラベル所見は誤検知と断定しない。"
+}

@@ -701,3 +701,6 @@ AUDITの証拠ID引用、`--effort auto`、DEFENSEのMITRE ID、WEB FUZZのト�
 `agents/fuzz_agent.py`(GUIの旧経路): `run(idor_expectations=)`を追加し、検証して`fuzzer.idor_expectations`へ設定(不正ならfailedで送信しない・表があれば画面に「IDOR期待権限 : N行」)。`gui/dialogs/expectations_dialog.py`と`gui/panels/fuzz_panel.py`の「📋 期待権限」ボタン(設定後は✓(行数)表示)。保存時に不正行は行番号つきで表示してダイアログを閉じない。入力するのはpath/param/期待権限のみで秘密値は扱わない。
 試験: `tools/test_benchmark.py`(行形式の往復・エラー行番号、旧FuzzAgentで表なしは公開ページを除外・表あり(b=deny)は違反の根拠・不正な表はfailed)、`tools/test_gui_layout.py`(保存ボタンが窓内・不正入力で閉じない・正常入力の保存。xvfb-run必須)。仮想ディスプレイで目視(1465px・1000px幅)。
 **併せて**: WEB FUZZのオプション行は新ボタンの分だけ広がり、1000px幅でAUTOが窓外へ出たため、AUTOを注意書きより先にpackし、ROE注意書きを短縮した(「※複数アカウントは規約(ROE)で許可要確認」)。1000px幅ではもう1つの注意書き(検出のみ・同一オリジン限定)は表示されなくなる(下部ステータスバーに同趣旨の表示は残る)。実画面・実スキャンのGUI確認は未実施。
+
+## 2026-10-22 実LLM測定(AUDIT quality・1回)
+無料枠モデルでeffort=quality(検証パスあり)を1回。再現率0.875・27所見・3呼出し・約1186秒。speed(3回で1.0/1.0/0.375)との優劣は1回では言えない。結果JSONを`testlab/baselines/`へ保存。詳細と限界は docs/PRACTICAL_ROADMAP.md 付録。コード変更なし。
