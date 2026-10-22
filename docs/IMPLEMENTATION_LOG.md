@@ -727,3 +727,7 @@ AUDITの証拠ID引用、`--effort auto`、DEFENSEのMITRE ID、WEB FUZZのト�
 ## 2026-10-22 P3.2(追補): GUIでの台帳の閲覧・対応status・期限付き抑制
 `gui/ledger_util.py`: `list_findings()`/`apply_status()`/`apply_suppress()`(Tk非依存。statusはopen/fixed/accepted-risk・理由必須・抑制は1〜365日の整数のみ=無期限は作れない・検証は台帳側と二重)。`gui/dialogs/ledger_dialog.py`: ヘッダーの「📒」から開く。所見を一覧(抑制中は期限と理由を表示)し、選んだ所見へ状態記録または期限付き抑制。操作欄を先にpackして小さい窓でも見える。台帳は追記式で、取り消しは新しい記録(CLIと同じ台帳・同じ検証)。抑制はレポートの表示から外すだけで件数・理由・期限は残る。
 試験: `tools/test_gui_ledger.py`の`LedgerOperationsTest`(3件)、`tools/test_gui_layout.py`の`LedgerDialogTest`(選択なし/理由なし/不正日数の拒否・記録・抑制行の表示・操作欄が窓内。xvfb-run必須)。`tools/gui_snapshot.py`に台帳ダイアログを追加し目視。**これでP3.2の実装範囲は一通り完了。完了扱い([x])は実画面でのGUI確認後。**
+
+## 2026-10-22 実LLM評価の無料枠モデルが提供終了(ATTACKのLLM解釈部分のベンチは未着手)
+ATTACKのLLM解釈部分の評価(ローカルlabの観測に対する仮説の根拠・捏造の有無)を1回試した際、OpenRouterが`minimax/minimax-m3.1-flash:free`に404を返した(無料提供期間が同日終了・有料版`minimax/minimax-m3.1-flash`は入力$0.15/M・出力$0.60/M)。承認範囲は無料枠のみのため有料モデルは使わず中断した(この試行でLLMの応答は得ていない)。付録に注意書きを追記。他モデル・有料モデルでの再測定と、ATTACKのLLM解釈部分のベンチは、費用の承認後。
+併せて確認: ATTACKの確認用スクリプトでCOMMON_PORTSを差し替えてもrecon_agent側のimportには効かず、利用者のローカルで待受中のポート(5432)が検出された(外部への通信はなし)。

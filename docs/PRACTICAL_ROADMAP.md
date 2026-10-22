@@ -414,6 +414,8 @@ JSONL平坦化`normalize_log_line()`、`core/mitre.py`、`agents/monitor_agent.p
 
 ## 付録: 実LLM評価の記録 (P2.1)
 
+**注意(2026-10-22)**: 以下の測定に使った`minimax/minimax-m3.1-flash:free`は、同日にOpenRouterの無料提供が終了し、`:free`版は404(有料版`minimax/minimax-m3.1-flash`を使うよう案内)を返すようになった。以降の記録はこのモデルの無料枠で取った値で、同じ条件では再現できない。再測定には有料モデルが要るため、費用の判断(利用者の承認)が済むまで実施しない。
+
 ### 2026-10-22 AUDIT (`minimax/minimax-m3.1-flash:free`、OpenRouter無料枠、effort=speed、3回)
 `python tools/live_eval.py audit --model MODEL --runs N --max-calls K --timeout 900`。入力は`samples/target_code.py`から**全コメントとdocstringを除いた版**
 (行番号は不変)。正解`testlab/benchmark/ground_truth_audit.json`の8件は、サンプルの設計意図から付けたもので、LLMの出力を見て付けていない。
