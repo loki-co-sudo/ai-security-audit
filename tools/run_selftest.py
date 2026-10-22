@@ -3161,6 +3161,20 @@ def test_ledger_reports():
         _ng("LedgerReports", str(result.errors + result.failures))
 
 
+def test_live_eval_harness():
+    _section("16ab. LIVE EVAL — 実LLM評価ハーネスの非LLM部分(P2.1)")
+    import unittest
+    from tools import test_live_eval as t
+    result = unittest.TestResult()
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
+                               for c in (t.StripHintsTest, t.MatchTest, t.CallLimitTest))
+    suite.run(result)
+    if result.wasSuccessful():
+        _ok("LiveEvalHarness", f"{result.testsRun} tests: ヒント除去で行番号不変/行照合と余白/呼出し上限(LLM呼出しなし)")
+    else:
+        _ng("LiveEvalHarness", str(result.errors + result.failures))
+
+
 def test_openapi_loader():
     _section("16y. OPENAPI — ローカルOpenAPI入力・明示選択・通信ゼロ(P4.1)")
     import unittest
@@ -3315,6 +3329,7 @@ def main():
     test_benchmark()
     test_findings_ledger()
     test_ledger_reports()
+    test_live_eval_harness()
     test_openapi_loader()
     test_log_watcher_realworld()
     test_code_index()

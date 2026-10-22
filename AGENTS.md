@@ -130,6 +130,8 @@ AI-Security-tool/
 │   ├── test_run_store.py        # RunStoreの固定試験（selftest 16tに統合）
 │   ├── test_policy_gate.py      # 上記autonomy型・Gate・予算・タスク状態の固定試験（selftest 16pに統合）
 │   ├── test_evidence_provenance.py # 証拠の由来情報(content_sha256/action_id/masking_version/truncated)とverify()の固定試験（selftest 16oに統合）
+│   ├── live_eval.py             # P2.1: 実LLM評価ハーネス(AUDIT)。ヒント除去・複数回・呼出し上限・config非変更。結果は参考値で本番品質ではない
+│   ├── test_live_eval.py        # 上記の非LLM部分の固定試験(selftest 16ab)
 │   ├── benchmark.py             # P2.1 検出品質ベンチマーク(detector固定モード。`python tools/benchmark.py web-fuzz`)
 │   ├── test_benchmark.py        # 集計器(手計算)・正解データ・基準値との一致の固定試験（selftest 16wに統合）
 │   ├── test_cli.py              # CLIプロセス試験（JSON・認証・再開・SIGINT。selftest 16v）
@@ -531,7 +533,7 @@ P0.1・P0.2・P1.1は完了済み。実装詳細・セルフテスト結果は
   未知ID除外）・16k（FuzzAgentでの実際の証拠保存〜evidence_id引用〜検証の一連の流れ）
   を追加。
   （`tools/run_selftest.py` 142 PASS / 0 FAIL、実LLM系5件は既定どおりSKIP・2026-09-05）
-- [ ] P2.1 CLI非依存の最小ベンチマーク（**WEB FUZZ・DEFENSEシグネチャのdetector固定モードは実装済み**＋認証期限切れ・共通ログイン画面の罠。未: 実LLM評価、AUDIT/ATTACKのベンチ、LLM使用量）
+- [ ] P2.1 CLI非依存の最小ベンチマーク（**WEB FUZZ・DEFENSEシグネチャのdetector固定モードは実装済み**＋認証期限切れ・共通ログイン画面の罠。**AUDITの実LLM評価(無料枠モデル・3回)は実施済み**。未: 他モデル・他モードの実LLM評価、ATTACKのベンチ、トークン使用量）
 - [ ] P2.2 IDOR/SSTI/XSSの既存検出品質改善（**検出器側は実装済み**: IDORのログイン画面/公開除外・期待権限表、SSTI別式確認、XSS content-type。未: 期待権限表のGUI入力・旧FuzzAgent経路への配線、同一origin認証確認URL、逆方向）
 - [ ] P3.1 CLI・案件プロファイル・除外優先・実行設定分離（**scan fuzz/audit/defense/attack、--engagement、除外優先、--targets-fileは実装済み**。**`--format md`・`--effort auto`・`defense --duration`・`config.json`の`profiles`(`--use-profile`)も実装済み**。**audit/defense/attackの`--targets-file`も実装済み**。core/scan_runner.pyへの分離は実装済み(WEB FUZZ経路はcli.pyに残る)。未: profilesのrate_limit_rps/scope_mode）
 - [ ] P3.2 案件別JSONLイベント台帳・差分・期限付き抑制（**台帳・差分・mark/suppress/findings CLIは実装済み**。**レポート層(HTML/MD/PDF/JSON)は`Ledger.report_view()`を`scan_result["ledger"]`に付けると抑制除外・差分表示に対応済み**。未: GUI/CLIからのengagement_id指定と配線）

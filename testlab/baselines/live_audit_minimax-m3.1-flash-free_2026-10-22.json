@@ -1,0 +1,56 @@
+{
+  "mode": "AUDIT",
+  "model": "minimax/minimax-m3.1-flash:free",
+  "date": "2026-10-22",
+  "effort": "speed",
+  "runs": 3,
+  "hint_stripped": true,
+  "truth": "testlab/benchmark/ground_truth_audit.json",
+  "source": "samples/target_code.py",
+  "per_vuln_hits": {
+    "V1-sqli-token": 3,
+    "V2-toctou-session": 3,
+    "V3-idor": 2,
+    "V4-negative-amount": 2,
+    "V5-path-traversal": 2,
+    "V6-password-reset": 3,
+    "V7-trusted-role": 2,
+    "V8-type-validation": 2
+  },
+  "recall_per_run": [
+    1.0,
+    1.0,
+    0.375
+  ],
+  "findings_per_run": [
+    15,
+    17,
+    8
+  ],
+  "unlabeled_per_run": [
+    0,
+    1,
+    1
+  ],
+  "unlabeled_examples": [
+    "固定された初期管理者資格情報による管理者アカウント奪取",
+    "管理者を含む既定 credential のソースコード埋め込み"
+  ],
+  "llm_calls_per_run": [
+    1,
+    1,
+    1
+  ],
+  "elapsed_s_per_run": [
+    465.3,
+    498.0,
+    495.0
+  ],
+  "chars_in": 7457,
+  "chars_out_per_run": [
+    32236,
+    31496,
+    61730
+  ],
+  "note": "無料枠モデルでの参考値。モデル・日付・エフォートに依存し、同じ入力でも再現率が0.375〜1.0とぶれた。行範囲の重なりで照合するため、複数行にまたがる所見は複数の正解に当たりうる(再現率は上振れしうる)。未ラベル所見は誤検知と断定しない。"
+}

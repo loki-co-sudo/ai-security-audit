@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "mode": "AUDIT",
+  "source": "samples/target_code.py",
+  "note": "samples/target_code.py の設計意図(VULNERABILITY 1〜8の見出し)から付けた正解。LLMの出力を見て付けていない。評価時は全コメントとdocstringを空に置換(行番号は不変)した版を渡す。範囲外の所見は『未ラベル』として別集計し、誤検知とは断定しない(ラベルに無い実在の問題の可能性がある)。",
+  "match_margin_lines": 2,
+  "vulnerabilities": [
+    {"id": "V1-sqli-token", "lines": [54, 78], "keywords": ["sql", "injection", "token", "predictable"], "note": "SQLインジェクションと予測可能なトークン"},
+    {"id": "V2-toctou-session", "lines": [87, 114], "keywords": ["race", "toctou", "session"], "note": "セッション二重作成のTOCTOU"},
+    {"id": "V3-idor", "lines": [120, 133], "keywords": ["idor", "authoriz", "object"], "note": "他ユーザーのプロフィール参照"},
+    {"id": "V4-negative-amount", "lines": [139, 158], "keywords": ["negative", "amount", "transfer", "logic"], "note": "負の金額チェック欠如"},
+    {"id": "V5-path-traversal", "lines": [167, 175], "keywords": ["traversal", "path"], "note": "パストラバーサル"},
+    {"id": "V6-password-reset", "lines": [184, 214], "keywords": ["reset", "token", "expir"], "note": "パスワードリセットの論理欠陥"},
+    {"id": "V7-trusted-role", "lines": [220, 235], "keywords": ["admin", "role", "trust", "privilege"], "note": "クライアント入力のroleを信頼"},
+    {"id": "V8-type-validation", "lines": [251, 269], "keywords": ["type", "validation", "amount", "inf"], "note": "JSON後の型・範囲検証なし"}
+  ]
+}
