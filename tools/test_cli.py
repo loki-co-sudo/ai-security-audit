@@ -383,6 +383,13 @@ class CLITest(unittest.TestCase):
         p, data = self.call(["scan", "defense", "--target", str(log), "--duration", "0"])
         self.assertEqual((p.returncode, data["state"]), (2, "failed"))
 
+    def test_scan_runner_does_not_import_the_gui(self):
+        code = ("import sys, core.scan_runner as r, cli; "
+                "bad=[m for m in ('tkinter','customtkinter','gui') if m in sys.modules]; "
+                "assert not bad, bad; assert r.CLIError is cli.CLIError")
+        p = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=self.env(), capture_output=True, text=True)
+        self.assertEqual(p.returncode, 0, p.stderr)
+
     def test_targets_file_for_audit_defense_and_attack(self):
         a, b = self.base / "a.py", self.base / "b.py"
         a.write_text("import os\ndef run(x):\n    os.system(x)\n")

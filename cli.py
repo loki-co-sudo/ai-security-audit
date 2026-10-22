@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 from contextlib import redirect_stdout
 import json
-import ipaddress
 import re
 import os
 from pathlib import Path
@@ -14,22 +13,17 @@ import stat
 import sys
 import tempfile
 import time
-from urllib.parse import urlsplit
 
-from agents.audit_agent import AuditAgent
-from agents.monitor_agent import MonitorAgent
-from agents.recon_agent import ReconAgent
 from agents.fuzz_capabilities import AutonomousFuzzAgent, auth_action_args, load_profile
-from core import config, event_bus as ev, redaction
+from core import config
 from core.engagement import EngagementError, parse_idor_expectations
 from core.findings_ledger import DEFAULT_ROOT as LEDGER_ROOT, STATUSES as LEDGER_STATUSES, Ledger, LedgerError
 from core.autonomy.actions import new_grant
 from core.autonomy.journal import JOURNAL_ROOT, replay, validate_run_id
 from core.autonomy.run_store import STATE_FILE
 from core.llm_client import LLMClient
-from core.model_router import classify_effort
-from core.redaction import mask_source
-from core.scope_guard import extract_host, in_scope
+from core.scan_runner import (CLIError, ConsoleBus, aggregate, check_path, check_rules, check_target, masked,
+                              resolve_effort, run_attack as _run_attack, run_local as _run_local, target_excluded)
 from tools.openapi_loader import OpenApiError, list_operations, load_openapi, select_points
 from core.settings import DEFAULT_SCAN_PROFILE, SCAN_PROFILES
 
@@ -37,10 +31,6 @@ APPROVAL_TTL_SECONDS = 300
 AUTH_FIELDS = frozenset(("cookie", "header_name", "header_value", "login_url", "post_url",
                         "user_field", "user_val", "pass_field", "pass_val", "confirm_url", "expect_text"))
 SEVERITIES = {"low": 1, "medium": 2, "high": 3, "critical": 4}
-
-
-class CLIError(Exception):
-    pass
 
 
 class Parser(argparse.ArgumentParser):
@@ -57,15 +47,6 @@ def nonnegative(value):
 
 
 EFFORT_CHOICES = ("speed", "balanced", "quality", "auto")
-
-
-def resolve_effort(effort, llm, description):
-    """autoだけ難易度ルーター(classify_effort)で1コール分類する。config.jsonへは保存しない。"""
-    if effort != "auto":
-        return effort
-    level = classify_effort(description, llm)
-    print(f"effort auto -> {level}", file=sys.stderr, flush=True)
-    return level
 
 
 def render_markdown(result):
@@ -240,28 +221,6 @@ def read_auth(path):
     return data
 
 
-def check_rules(rules, flag):
-    out = []
-    for rule in rules:
-        rule = rule.strip() if isinstance(rule, str) else ""
-        if not rule:
-            raise CLIError(f"{flag}は空にできません")
-        try:
-            ipaddress.ip_network(rule, strict=False)
-        except ValueError:
-            if not re.fullmatch(r"(?:\*\.)?[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?", rule):
-                raise CLIError(f"{flag}はhost/IP/CIDRを指定してください（URL/pathは不可）")
-        out.append(rule)
-    return out
-
-
-def check_target(target):
-    url = urlsplit(target if "://" in target else "http://" + target)
-    if url.scheme not in ("http", "https") or not url.hostname or url.username or url.password or url.query or url.fragment:
-        raise CLIError("対象URLにはHTTP(S)のhost/pathだけを指定してください（認証値・queryは不可）")
-    return url
-
-
 def read_targets(path, validate=None):
     p = Path(path)
     if not p.is_file() or p.stat().st_size > 262144:
@@ -276,32 +235,6 @@ def read_targets(path, validate=None):
     for t in targets:
         (validate or check_target)(t)
     return targets
-
-
-def check_path(value):
-    if not value or len(value) > 4096 or "\x00" in value or any(ord(c) < 32 for c in value):
-        raise CLIError("対象パスが不正です")
-
-
-def target_excluded(target, excluded):
-    return bool(excluded) and in_scope(extract_host(target if "://" in target else "http://" + target), excluded)[0]
-
-
-def aggregate(results, skipped):
-    """逐次実行した各対象の結果を1つにまとめる。全対象completedのときだけcompleted。"""
-    states = [r.get("state") for r in results]
-    if skipped or any(st == "cancelled" for st in states):
-        state = "cancelled"
-    elif all(st == "completed" for st in states):
-        state = "completed"
-    elif all(st == "failed" for st in states):
-        state = "failed"
-    else:
-        state = "partial"
-    findings = [{**f, "target": r.get("target")} for r in results for f in r.get("findings", [])]
-    errors = [f"{r.get('target')}: {e}" for r in results for e in r.get("errors", [])]
-    errors += [f"{t}: 中断のため未実行" for t in skipped]
-    return {"state": state, "batch": True, "errors": errors, "findings": findings, "results": results}
 
 
 def read_engagement(path):
@@ -330,16 +263,6 @@ def read_engagement(path):
     except EngagementError as e:
         raise CLIError(f"案件設定が不正です: {e}")
     return data
-
-
-def masked(value, secrets):
-    if isinstance(value, str):
-        return redaction.mask_log_line(value, secrets)
-    if isinstance(value, dict):
-        return {k: masked(v, secrets) for k, v in value.items()}
-    if isinstance(value, list):
-        return [masked(v, secrets) for v in value]
-    return value
 
 
 def exit_code(result, fail_on="none"):
@@ -393,18 +316,6 @@ def status_result(run_id, root, allowed):
             "findings_available": False}
 
 
-class ConsoleBus(ev.EventBus):
-    def __init__(self, secrets):
-        super().__init__()
-        self.secrets, self.result_payload = secrets, None
-
-    def emit(self, kind, payload=None):
-        if kind == ev.RESULT:
-            self.result_payload = masked(payload, self.secrets)
-        elif kind in (ev.LOG, ev.STATUS):
-            print(masked(str(payload), self.secrets), file=sys.stderr, flush=True)
-
-
 def openapi_list(path):
     try:
         ops = list_operations(load_openapi(path))
@@ -451,54 +362,18 @@ def record_ledger(args, engagement, result):
         result["ledger_error"] = True
 
 
+def _llm():
+    return LLMClient(base_url=config.get("llm_base_url"), api_key=config.get("llm_api_key"),
+                     model=config.get("llm_model"), timeout=config.get("llm_timeout"))
+
+
 def run_attack(args, on_agent, was_interrupted):
-    """ATTACK MODE(偵察のみ)を1回実行する。許可は--allow必須・scope_mode=blockで固定、除外は許可より優先。
-    設定の上書きはこのプロセス内だけで、config.jsonへは保存しない。CTF能動機能・exploit生成は公開しない。"""
-    exclude = check_rules(args.exclude, "--exclude")
-    check_target(args.target)
-    if target_excluded(args.target, exclude):
-        raise CLIError("除外対象のため実行しませんでした（除外は許可より優先）")
-    with redirect_stdout(sys.stderr):
-        config.load()
-        saved = {k: config._cfg.get(k) for k in ("allowed_targets", "scope_mode")}
-        config._cfg.update(allowed_targets=list(args.allow), scope_mode="block")
-        try:
-            llm = LLMClient(base_url=config.get("llm_base_url"), api_key=config.get("llm_api_key"),
-                            model=config.get("llm_model"), timeout=config.get("llm_timeout"))
-            bus = ConsoleBus(set())
-            agent = ReconAgent(bus, llm)
-            agent.set_effort_override(resolve_effort(
-                args.effort, llm, f"ATTACK MODE reconnaissance of {args.target}"))
-            on_agent(agent)
-            if was_interrupted():
-                agent.stop()
-            agent._safe_run(target=args.target, scan_web=not args.no_web, intensity=args.profile,
-                            generate_exploit=False, port_scope=args.port_scope, scan_udp=args.udp)
-        finally:
-            config._cfg.update(saved)
-    return bus.result_payload or {"state": "failed", "errors": ["最終結果が通知されませんでした"], "findings": []}
+    return _run_attack(args.target, args.allow, args.exclude, args.profile, args.port_scope, args.udp, args.no_web,
+                       args.effort, on_agent, was_interrupted, llm_factory=_llm)
 
 
 def run_local(mode, target, effort, on_agent, was_interrupted, duration=None):
-    """CODE AUDIT(標準エンジン)またはDEFENSE(ログ1回走査)を実行して最終結果を返す。ローカルファイルのみ・Runジャーナル無し。"""
-    if not (Path(target).is_file() or (mode == "audit" and Path(target).is_dir())):
-        raise CLIError("対象のファイル(auditはディレクトリも可)が見つかりません")
-    if duration is not None and not 1 <= duration <= 86400:
-        raise CLIError("--durationは1〜86400秒で指定してください")
-    with redirect_stdout(sys.stderr):
-        config.load()
-        llm = LLMClient(base_url=config.get("llm_base_url"), api_key=config.get("llm_api_key"),
-                        model=config.get("llm_model"), timeout=config.get("llm_timeout"))
-        bus = ConsoleBus(set())
-        agent = AuditAgent(bus, llm) if mode == "audit" else MonitorAgent(bus, llm)
-        agent.set_effort_override(resolve_effort(effort, llm, f"{mode.upper()} of {target}" + (
-            "\n" + mask_source(Path(target).read_text(encoding="utf-8", errors="replace")[:4000])
-            if mode == "audit" and Path(target).is_file() else "")))
-        on_agent(agent)
-        if was_interrupted():
-            agent.stop()
-        agent._safe_run(path=target) if mode == "audit" else agent._safe_run(log_path=target, watch_mode=duration is not None, max_seconds=duration)
-    return bus.result_payload or {"state": "failed", "errors": ["最終結果が通知されませんでした"], "findings": []}
+    return _run_local(mode, target, effort, on_agent, was_interrupted, duration, llm_factory=_llm)
 
 
 def main(argv=None):

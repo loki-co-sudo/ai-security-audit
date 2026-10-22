@@ -252,7 +252,7 @@ python cli.py status FINDING_ID accepted-risk --reason "対応判断を記録" -
    固定しconfig.jsonへ保存しない・除外優先・CTF能動機能とexploit生成は公開しない。偵察のみ)。
 実装済み(追補): audit/defense/attackの`--targets-file`(1〜50件・逐次・重複除去・失敗は他対象の結果を消さず、全completedでなければ全体はpartial/failed)、`--format md`(stdoutにMarkdown。既定json)、`--effort auto`(classify_effortを1コール使用。config.jsonへ保存しない。auditはマスク済み先頭4000字を送る)、
 `--use-profile NAME`(config.json `profiles`を既定値として展開、明示引数が優先、秘密値・未知キーは拒否)。
-未実装: GUI(設定ダイアログ/fuzz panel)と旧FuzzAgent経路への期待権限表の配線、profilesのrate_limit_rps/scope_mode、core/scan_runner.py共通化。
+未実装: GUI(設定ダイアログ/fuzz panel)と旧FuzzAgent経路への期待権限表の配線、profilesのrate_limit_rps/scope_mode、core/scan_runner.py: ATTACK/AUDIT/DEFENSE実行層は分離済み(WEB FUZZ・resume・statusはcli.pyに残る)。
 
 受け入れ条件: GUIをimportせず全モードのモック実行、終了コード、stdoutのJSON単独解析、設定優先順位と非永続性、除外優先、バッチ設定分離、SIGINT後の最終結果保存を検証する。
 
