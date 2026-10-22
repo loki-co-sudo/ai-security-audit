@@ -430,7 +430,7 @@ class AutonomousFuzzAgent(FuzzAgent):
         full = self._stream_llm([
             self.llm.system(_TRIAGE_SYS),
             self.llm.user(f"Triage these authorized fuzzing results:\n\n{ctx.summary}"),
-        ])
+        ], structured="vuln")
         if effort.get("verify_pass") and not self.is_stopped():
             full = self._verify_findings(ctx.summary, full, samples=effort.get("verify_samples", 1))
         ctx.full = full

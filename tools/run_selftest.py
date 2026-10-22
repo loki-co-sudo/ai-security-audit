@@ -3169,12 +3169,26 @@ def test_live_eval_harness():
     result = unittest.TestResult()
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
                                for c in (t.StripHintsTest, t.MatchTest, t.CallLimitTest, t.DecoyTest, t.DecoySameClassTest,
-                                         t.SampleV2Test, t.SampleV3Test, t.InvalidRunTest))
+                                         t.SampleV2Test, t.SampleV3Test, t.InvalidRunTest, t.CountingStructuredTest))
     suite.run(result)
     if result.wasSuccessful():
         _ok("LiveEvalHarness", f"{result.testsRun} tests: ヒント除去で行番号不変/行照合と余白/呼出し上限(LLM呼出しなし)")
     else:
         _ng("LiveEvalHarness", str(result.errors + result.failures))
+
+
+def test_structured_output():
+    _section("16ag. STRUCTURED OUTPUT — ローカルOllama向けスキーマ制約モード(既定OFF・偽のOllamaサーバーで検証)")
+    import unittest
+    from tools import test_structured_output as t
+    result = unittest.TestResult()
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
+                               for c in (t.RenderTest, t.ChatJsonTest, t.AgentModeTest, t.RuntimeOverrideAndCliTest, t.ConfigTest))
+    suite.run(result)
+    if result.wasSuccessful():
+        _ok("StructuredOutput", f"{result.testsRun} tests: マーカー形式への変換・注入の無害化/ネイティブAPIの要求内容/失敗の明示/OFF時は従来どおり/CLIフラグ")
+    else:
+        _ng("StructuredOutput", str(result.errors + result.failures))
 
 
 def test_live_eval_modes():
@@ -3231,7 +3245,7 @@ def test_gui_layout():
     result = unittest.TestResult()
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
                                for c in (t.AuthDialogLayoutTest, t.ExpectationsDialogTest, t.EngagementGuiTest,
-                                         t.LedgerDialogTest))
+                                         t.LedgerDialogTest, t.StructuredSettingsTest))
     suite.run(result)
     if result.wasSuccessful():
         _ok("GuiLayout", f"{result.testsRun} tests(仮想ディスプレイ): 認証/期待権限/台帳ダイアログの操作欄が窓内・案件IDと4パネルの台帳記録")
@@ -3399,6 +3413,7 @@ def main():
     test_live_eval_harness()
     test_unparsed_output()
     test_live_eval_modes()
+    test_structured_output()
     test_gui_ledger_ops()
     test_gui_layout()
     test_openapi_loader()

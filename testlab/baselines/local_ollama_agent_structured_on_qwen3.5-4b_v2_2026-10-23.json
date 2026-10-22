@@ -1,0 +1,110 @@
+{
+  "mode": "AUDIT",
+  "model": "qwen3.5:4b",
+  "effort": "speed",
+  "sample": "v2",
+  "runs_requested": 1,
+  "runs_done": 1,
+  "runs_with_findings": 1,
+  "per_vuln_hits": {
+    "V1": 0,
+    "V2": 1,
+    "V3": 0,
+    "V4": 1,
+    "V5": 0,
+    "V6": 1,
+    "V7": 1,
+    "V8": 1
+  },
+  "decoy_false_positives_per_run": [
+    [
+      "D2",
+      "D4"
+    ]
+  ],
+  "decoy_same_class_per_run": [
+    [
+      "D4"
+    ]
+  ],
+  "per_decoy_hits": {
+    "D1": 0,
+    "D2": 1,
+    "D3": 0,
+    "D4": 1,
+    "D5": 0,
+    "D6": 0
+  },
+  "per_decoy_same_class_hits": {
+    "D1": 0,
+    "D2": 0,
+    "D3": 0,
+    "D4": 1,
+    "D5": 0,
+    "D6": 0
+  },
+  "recall_per_run": [
+    0.625
+  ],
+  "runs_invalid": 0,
+  "total_llm_calls": 1,
+  "hint_stripped": true,
+  "results": [
+    {
+      "state": "completed",
+      "errors": [],
+      "n_findings": 5,
+      "hit": {
+        "V6": [
+          "YAML Deserialization Remote Code Execution",
+          "SQL Injection via Dynamic Query Construction"
+        ],
+        "V2": [
+          "SQL Injection via Dynamic Query Construction"
+        ],
+        "V4": [
+          "SQL Injection via Dynamic Query Construction",
+          "Race Condition in Coupon Redemption"
+        ],
+        "V7": [
+          "SQL Injection via Dynamic Query Construction"
+        ],
+        "V8": [
+          "SQL Injection via Dynamic Query Construction"
+        ]
+      },
+      "unlabeled": [],
+      "decoy_hits": {
+        "D2": [
+          "Integer Overflow in Report ID Processing"
+        ],
+        "D4": [
+          "Path Traversal via Filename Manipulation"
+        ]
+      },
+      "decoy_same_class_hits": {
+        "D4": [
+          "Path Traversal via Filename Manipulation"
+        ]
+      },
+      "decoy_findings": [
+        {
+          "decoy": "D2",
+          "rule_id": "CWE-190",
+          "description": "Integer Overflow in Report ID Processing"
+        },
+        {
+          "decoy": "D4",
+          "rule_id": "CWE-22",
+          "description": "Path Traversal via Filename Manipulation"
+        }
+      ],
+      "llm_calls": 1,
+      "chars_in": 6695,
+      "chars_out": 5120,
+      "elapsed_s": 299.8,
+      "invalid": false
+    }
+  ],
+  "note": "モデルと日付に依存する参考値。未ラベル所見は誤検知と断定しない。応答が空の回(invalid)は測定不成立でrecall_per_runはnull。"
+}

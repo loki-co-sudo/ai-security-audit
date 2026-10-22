@@ -360,6 +360,6 @@ class MonitorAgent(BaseAgent):
                 f"SUSPICIOUS ENTRIES REQUIRING ANALYSIS:\n```\n{suspect}\n```\n\n"
                 f"Analyze these log entries for threat classification and severity."
             ),
-        ])
+        ], structured="threat")
         self._out("\n", "")
         return result

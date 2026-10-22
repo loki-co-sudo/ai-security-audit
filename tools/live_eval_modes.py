@@ -34,8 +34,9 @@ _NO_FAST = {"llm_fast_model": "", "llm_fast_base_url": "", "llm_fast_api_key": "
 def _llm(model: str, max_calls: int, timeout: int):
     from core import config
     config.load()
-    llm = le.CountingLLM(base_url=config.get("llm_base_url"), api_key=config.get("llm_api_key"), model=model,
-                         timeout=timeout or config.get("llm_timeout"))
+    local = le.OVERRIDES["base_url"]
+    llm = le.CountingLLM(base_url=local or config.get("llm_base_url"), api_key="ollama" if local else config.get("llm_api_key"),
+                         model=model, timeout=timeout or config.get("llm_timeout"))
     llm.limit = max_calls
     return llm
 
@@ -82,7 +83,7 @@ def run_defense_once(model: str, max_calls: int, timeout: int = 0) -> dict:
     agent, err, t0 = MonitorAgent(EventBus(), llm), "", time.time()
     with mock.patch.object(MonitorAgent, "_save_investigation", lambda *a, **k: None), \
          mock.patch.object(MonitorAgent, "_record_telemetry", lambda *a, **k: None), \
-         mock.patch.dict(config._cfg, {"effort": "speed", "save_evidence": False, **_NO_FAST}), \
+         mock.patch.dict(config._cfg, {"effort": "speed", "save_evidence": False, "llm_structured": le.OVERRIDES["structured"], **_NO_FAST}), \
          mock.patch("agents.monitor_agent._AGGREGATION_WINDOW", 300), redirect_stdout(sys.stderr):
         try:
             agent._safe_run(log_path=path, watch_mode=False)
@@ -140,7 +141,7 @@ def run_fuzz_once(model: str, max_calls: int, timeout: int = 0) -> dict:
     with BenchmarkServer() as srv, \
          mock.patch.object(FuzzAgent, "_save_investigation", lambda *a, **k: None), \
          mock.patch.object(FuzzAgent, "_record_telemetry", lambda *a, **k: None), \
-         mock.patch.dict(config._cfg, {"effort": "speed", "save_evidence": False, "allowed_targets": [],
+         mock.patch.dict(config._cfg, {"effort": "speed", "save_evidence": False, "llm_structured": le.OVERRIDES["structured"], "allowed_targets": [],
                                        "scope_mode": "warn", **_NO_FAST}), redirect_stdout(sys.stderr):
         try:
             agent._safe_run(target=srv.base_url, profile="aggressive", max_requests=1500)
@@ -215,7 +216,7 @@ def run_attack_once(model: str, max_calls: int, timeout: int = 0) -> dict:
          mock.patch("agents.recon_agent.passive_os_fingerprint", lambda *a, **k: ""), \
          mock.patch.object(ReconAgent, "_save_investigation", lambda *a, **k: None), \
          mock.patch.object(ReconAgent, "_record_telemetry", lambda *a, **k: None), \
-         mock.patch.dict(config._cfg, {"effort": "speed", "save_evidence": False, "allowed_targets": [truth["ip"], truth["host"]],
+         mock.patch.dict(config._cfg, {"effort": "speed", "save_evidence": False, "llm_structured": le.OVERRIDES["structured"], "allowed_targets": [truth["ip"], truth["host"]],
                                        "scope_mode": "block", **_NO_FAST}), redirect_stdout(sys.stderr):
         try:
             # 対象はIP(TEST-NET)にする: ドメイン名だとPhase 0のcrt.sh(受動サブドメイン列挙)が外部へ通信する

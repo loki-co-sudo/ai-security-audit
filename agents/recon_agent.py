@@ -633,7 +633,7 @@ class ReconAgent(BaseAgent):
         full = self._stream_llm([
             self.llm.system(SYSTEM_PROMPT + (_EVIDENCE_INSTRUCTION if known_evidence_ids else "")),
             self.llm.user(f"Analyze this reconnaissance data and build attack hypotheses:\n\n{recon_summary}"),
-        ], live_stats=True)
+        ], live_stats=True, structured="finding")
 
         # 品質エフォート: STRONGモデルで攻撃仮説を再検証し過剰主張を除去する。
         effort = self._effort()

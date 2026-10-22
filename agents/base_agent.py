@@ -13,6 +13,7 @@ from core.event_bus import EventBus
 import core.event_bus as ev
 import core.config as config
 from core.llm_client import LLMClient
+from core import structured_output
 from core.model_router import build_fast_client, fast_signature, current_effort
 from core.scope_guard import in_scope
 from core.settings import DETECTOR_VERSIONS
@@ -53,20 +54,21 @@ _MARKER_RE = re.compile(r"---(VULN|FINDING)_START---(.*?)---\1_END---", re.S)
 
 # LLM出力がこの長さ以上なのに所見マーカーが1つも無ければ、形式を守れず所見として取り込めなかった疑いがある
 _UNPARSED_MIN_CHARS = 400
-_FINDING_MARKERS = ("---VULN_START---", "---FINDING_START---", "---THREAT_START---")
+# START〜END が揃った完全なブロックが1つも無ければ、所見として取り込めていない(STARTだけの壊れたブロックも含む)
+_COMPLETE_BLOCK = re.compile(r"---(VULN|FINDING|THREAT)_START---.*?---\1_END---", re.S)
 
 
 def unparsed_output_note(text: str) -> str:
-    """出力が十分に長いのに所見マーカーが1つも無い場合の注記を返す(問題なければ空文字)。
+    """出力が十分に長いのに、完全な所見ブロック(START〜END)が1つも無い場合の注記を返す(問題なければ空文字)。
 
     形式を守らないモデルでは、実質のある分析が出ていても所見0件・成功に見えてしまう(2026-10-23、小型モデルで確認)。
     本当に「問題なし」と答えた長い出力もこの注記の対象になりうるが、その場合も取り込めた所見が無いことを
     明示する方が安全なため、partialにして注記する(検出0件の成功とは区別する)。
     """
     t = (text or "").strip()
-    if len(t) < _UNPARSED_MIN_CHARS or any(m in t for m in _FINDING_MARKERS):
+    if len(t) < _UNPARSED_MIN_CHARS or _COMPLETE_BLOCK.search(t):
         return ""
-    return (f"AI出力({len(t)}文字)に所見マーカー(---VULN_START---等)が無く、所見として取り込めませんでした。"
+    return (f"AI出力({len(t)}文字)に所見マーカーの揃ったブロック(---VULN_START--- 〜 ---VULN_END--- 等)が無く、所見として取り込めませんでした。"
             "モデルが出力形式を守っていない可能性があります(検出0件の成功ではありません。画面の出力を確認してください)")
 
 
@@ -163,6 +165,7 @@ class BaseAgent(ABC):
         self._effort_override: str | None = None
         self._result_finalized = False
         self._last_scan_result = None
+        self._llm_notes: list[str] = []      # 構造化出力の失敗など、結果のerrorsへ残す注記(finalizeで消費)
         self._current_mode = ""
         self._current_target = ""
         self._scan_id: str | None = None
@@ -247,7 +250,8 @@ class BaseAgent(ABC):
         if self._scan_id:
             sr.scan_id = self._scan_id  # _begin_scan()で先に確定済みならそれを使う(P1.2)
         sr.state = state
-        sr.errors = list(errors or [])
+        sr.errors = list(errors or []) + self._llm_notes
+        self._llm_notes = []
         sr.findings = list(findings or [])
         sr.coverage = list(coverage or [])
         sr.model = getattr(self.llm, "model", "") or ""
@@ -324,12 +328,17 @@ class BaseAgent(ABC):
         out.insert(0, {"role": "system", "content": directive.strip()})
         return out
 
-    def _stream_llm(self, messages: list[dict], live_stats: bool = False) -> str:
+    def _stream_llm(self, messages: list[dict], live_stats: bool = False, structured: str | None = None) -> str:
         """LLMをストリーミングし、各チャンクを OUTPUT イベントで流す。
 
         live_stats=True のとき、累積テキストから深刻度を逐次集計し、変化したら
         STATS イベントを送る（DETECTION SUMMARY のリアルタイム更新）。
+        `structured`("vuln"/"threat"/"finding")を渡し、かつ設定 llm_structured が真のときだけ、
+        Ollamaのスキーマ制約モードで受けて既存のマーカー形式に変換する(ストリーミングではなく一括表示)。
+        設定が偽(既定)なら従来のストリーミングと完全に同じ。
         """
+        if structured and config.get("llm_structured", False):
+            return self._structured_llm(messages, structured, live_stats)
         acc = {"text": "", "last": None}
 
         def _chunk(chunk: str) -> None:
@@ -353,6 +362,27 @@ class BaseAgent(ABC):
         )
         if self._llm_gate is not None:
             self._llm_gate.after_call(None)   # ストリーミングは使用量を取得しない(不明として数える)
+        return text
+
+    def _structured_llm(self, messages: list[dict], kind: str, live_stats: bool) -> str:
+        """llm_structured有効時の1回呼出し。失敗は画面とerrorsへ残し、空文字を返す(呼び出し側の空応答判定でpartialになる)。"""
+        msgs = structured_output.with_hint(self._apply_language(messages))
+        if not self._llm_permitted(msgs, "strong"):
+            return ""
+        try:
+            data, meta = self.llm.complete_structured(
+                msgs, structured_output.schema_for(kind), num_ctx=config.get("llm_structured_num_ctx", 12288))
+            text = structured_output.render(kind, data)
+        except structured_output.StructuredOutputError as e:
+            self._out(f"\n[ LLM STRUCTURED ERROR ] {e}\n", "critical")
+            self._llm_notes.append(f"構造化出力(llm_structured)に失敗しました: {e}")
+            text = ""
+        else:
+            self._out(text + "\n")
+            if live_stats:
+                self._stats(_count_severities(text))
+        if self._llm_gate is not None:
+            self._llm_gate.after_call(None)
         return text
 
     # ── LLM予算ゲート(任意・呼出前に制限する) ─────────────────

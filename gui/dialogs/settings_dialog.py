@@ -341,6 +341,36 @@ class SettingsDialog(RobustToplevel):
             text_color=TEXT_PRI, height=28,
         ).pack(side="left", fill="x", expand=True)
 
+        # ── ローカルOllama: 構造化出力(JSONスキーマ制約 — 任意) ─────
+        ctk.CTkLabel(
+            body, text="🧩 ローカルOllama: 構造化出力（任意）",
+            font=ctk.CTkFont("Segoe UI", 10, "bold"), text_color=AMBER,
+        ).pack(anchor="w", pady=(10, 0))
+        ctk.CTkLabel(
+            body, text="小型のローカルモデルが所見の形式を守れず「所見0件」になるのを避けます(Ollamaの/api/chat専用)。"
+                       "形式が保証されるだけで、内容の正しさは保証されません。既定はOFF。",
+            font=ctk.CTkFont("Segoe UI", 9), text_color=TEXT_DIM,
+            anchor="w", justify="left", wraplength=580,
+        ).pack(anchor="w", pady=(0, 2))
+        st_row = ctk.CTkFrame(body, fg_color="transparent")
+        st_row.pack(fill="x", pady=5)
+        self._structured_var = tk.BooleanVar(self, value=bool(config.get("llm_structured", False)))
+        ctk.CTkCheckBox(
+            st_row, text="構造化出力を使う(llm_structured)", variable=self._structured_var,
+            font=ctk.CTkFont("Segoe UI", 10), text_color=TEXT_PRI,
+            fg_color=AMBER, hover_color="#CC8400", checkbox_width=16, checkbox_height=16,
+        ).pack(side="left", padx=(0, 12))
+        ctk.CTkLabel(st_row, text="num_ctx", font=ctk.CTkFont("Consolas", 10, "bold"),
+                     text_color=TEXT_DIM).pack(side="left", padx=(0, 4))
+        self._structured_ctx_var = tk.StringVar(self, value=str(config.get("llm_structured_num_ctx", 12288)))
+        ctk.CTkEntry(
+            st_row, textvariable=self._structured_ctx_var, width=90, height=28,
+            font=ctk.CTkFont("Consolas", 10), fg_color=BG_INPUT, border_color=BORDER, border_width=1, text_color=TEXT_PRI,
+        ).pack(side="left")
+        self._structured_error = ctk.CTkLabel(body, text="", font=ctk.CTkFont("Segoe UI", 10), text_color=RED_C,
+                                              anchor="w", justify="left", wraplength=580)
+        self._structured_error.pack(anchor="w")
+
         # モデル要件ゲート（ヒューリスティック警告・ブロックしない） — AGENT_ARCHITECTURE.md §5.2
         self._readiness_label = ctk.CTkLabel(
             body, text="", font=ctk.CTkFont("Segoe UI", 9),
@@ -763,6 +793,15 @@ class SettingsDialog(RobustToplevel):
 
         eid = self._engagement_var.get().strip()
         from core.config import validate_config
+        try:
+            structured_ctx = int(self._structured_ctx_var.get().strip())
+        except ValueError:
+            structured_ctx = -1
+        sproblems = validate_config({"llm_structured_num_ctx": structured_ctx})
+        if sproblems:          # 不正なnum_ctxは保存せず、ダイアログを閉じない
+            self._structured_error.configure(text=f"✗ {sproblems[0].split('] ', 1)[-1]}")
+            return
+        self._structured_error.configure(text="")
         problems = validate_config({"engagement_id": eid})
         if problems:           # 不正な案件IDは保存せず、ダイアログを閉じない
             self._eng_error.configure(text=f"✗ 案件ID: {problems[0].split('] ', 1)[-1]}")
@@ -785,6 +824,8 @@ class SettingsDialog(RobustToplevel):
             ],
             "scope_mode": self._scope_mode_var.get(),
             "engagement_id": eid,
+            "llm_structured": bool(self._structured_var.get()),
+            "llm_structured_num_ctx": structured_ctx,
             "tls_verify": bool(self._tls_verify_var.get()),
             "tls_ca_bundle": self._tls_ca_var.get().strip(),
         }

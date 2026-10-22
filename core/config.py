@@ -51,6 +51,10 @@ _DEFAULTS: dict = {
     # GUIの所見台帳(P3.2): 空=記録しない(既定・従来どおり)。設定するとGUIのスキャン結果を
     # reports/engagements/<id>/ へ記録し、レポートに差分・抑制を反映する(CLIの--engagement-idと同じ台帳)。
     "engagement_id": "",
+    # ローカルOllama向けの構造化出力(JSONスキーマ制約)。既定OFF=従来どおり(core/structured_output.py)。
+    # 小型モデルが所見マーカーを守れず所見0件になるのを避ける。形式が保証されるだけで内容の正しさは保証されない。
+    "llm_structured": False,
+    "llm_structured_num_ctx": 12288,
 }
 
 # 設定キーの許容リスト（未知キー警告のため）
@@ -113,7 +117,17 @@ def _validate_engagement_id(v) -> str | None:
         return str(e)
     return None
 
+def _validate_llm_structured(v) -> str | None:
+    return None if isinstance(v, bool) else "llm_structured は true/false である必要があります"
+
+def _validate_llm_structured_num_ctx(v) -> str | None:
+    if isinstance(v, bool) or not isinstance(v, int) or not 2048 <= v <= 262144:
+        return "llm_structured_num_ctx は 2048〜262144 の整数である必要があります"
+    return None
+
 _VALIDATORS = {
+    "llm_structured": _validate_llm_structured,
+    "llm_structured_num_ctx": _validate_llm_structured_num_ctx,
     "engagement_id": _validate_engagement_id,
     "llm_timeout": _validate_timeout,
     "effort":      _validate_effort,
@@ -164,7 +178,19 @@ def save(data: dict) -> None:
         json.dump(_cfg, f, indent=2, ensure_ascii=False)
 
 
+_runtime: dict = {}     # このプロセス内だけの上書き(CLIのフラグ等)。load()で消えず、config.jsonへは保存しない
+
+
+def set_runtime_override(key: str, value) -> None:
+    """このプロセス内だけ設定値を上書きする(保存しない・load()の再読込でも維持する)。未知のキーは拒否する。"""
+    if key not in _VALID_KEYS:
+        raise KeyError(f"未知の設定キー: {key}")
+    _runtime[key] = value
+
+
 def get(key: str, default=None):
+    if key in _runtime:
+        return _runtime[key]
     if not _cfg:
         load()
     return _cfg.get(key, _DEFAULTS.get(key, default))

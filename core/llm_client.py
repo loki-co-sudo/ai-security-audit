@@ -231,6 +231,16 @@ class LLMClient:
         resp.raise_for_status()
         return _parse_models_response(resp.json())
 
+    # ── 構造化出力(ローカルOllama・任意) ───────────────────
+    def complete_structured(self, messages: list[dict], schema: dict, num_ctx: int = 12288) -> tuple[dict, dict]:
+        """OllamaのネイティブAPIにJSONスキーマつきで1回問い合わせ、(JSON, メタ情報)を返す。失敗は StructuredOutputError。
+
+        設定 llm_structured が真のときだけ BaseAgent が使う(core/structured_output.py)。呼出し回数・文字数を数える
+        評価用のサブクラスが差し替えられるよう、エージェントはこのメソッド経由で呼ぶ。
+        """
+        from core import structured_output  # noqa: PLC0415
+        return structured_output.chat_json(self.base_url, self.model, messages, schema, num_ctx=num_ctx, timeout=self.timeout)
+
     # ── ユーティリティ ─────────────────────────────────────
     @staticmethod
     def system(content: str) -> dict:

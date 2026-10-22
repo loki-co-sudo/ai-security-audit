@@ -143,6 +143,19 @@ class SampleV3Test(SampleV2Test):
         self.assertEqual(vids, dids)                                                      # V1↔D1 …: 対応する安全版がある
 
 
+class CountingStructuredTest(unittest.TestCase):
+    def test_structured_calls_are_counted_and_limited_so_they_are_not_mistaken_for_empty_output(self):
+        from unittest import mock
+        llm = le.CountingLLM(base_url="http://127.0.0.1:9/v1", api_key="x", model="m", timeout=1)
+        llm.limit = 1
+        data = {"findings": [{"name": "x"}]}
+        with mock.patch("core.structured_output.chat_json", return_value=(data, {})):
+            self.assertEqual(llm.complete_structured([{"role": "user", "content": "q"}], {})[0], data)
+            self.assertEqual((llm.calls, llm.chars_out > 0, llm.chars_in), (1, True, 1))
+            with self.assertRaises(le.CallLimit):                                      # 呼出し上限も効く
+                llm.complete_structured([{"role": "user", "content": "q"}], {})
+
+
 class InvalidRunTest(unittest.TestCase):
     def test_empty_llm_output_is_invalid_not_a_zero_recall(self):
         """レート制限(429)などで応答が空の回を再現率0.0として記録すると、『見つけられなかった』と誤読される。"""

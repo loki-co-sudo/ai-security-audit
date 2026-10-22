@@ -148,6 +148,8 @@ def parser():
         sub.add_argument("--min-verification", choices=list(VERIFICATION_RANK), default="observed", help=MIN_VERIFICATION_HELP)
         sub.add_argument("--effort", choices=EFFORT_CHOICES)
     for sub in (fuzz, audit, defense, attack):
+        sub.add_argument("--structured-output", action="store_true",
+                         help="ローカルOllama向け: 所見をJSONスキーマ制約で受ける(llm_structured。この実行だけ・保存しない)")
         sub.add_argument("--use-profile", metavar="NAME", help="config.jsonのprofilesの設定を既定値として使う(明示引数が優先)")
         sub.add_argument("--format", choices=("json", "md"), default="json",
                          help="stdoutの形式。mdはバグバウンティ提出用Markdown(既定json)")
@@ -431,6 +433,8 @@ def main(argv=None):
             config.load()
             argv = expand_profile(argv, config.get("profiles"))
         args = parser().parse_args(argv)
+        if getattr(args, "structured_output", False):
+            config.set_runtime_override("llm_structured", True)
         is_ledger = args.command in ("diff", "mark", "suppress", "findings", "openapi")
         is_audit = args.command == "scan" and args.mode in ("audit", "defense", "attack")
         if not is_ledger and (not is_audit or args.mode == "attack"):

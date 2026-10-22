@@ -78,6 +78,7 @@ AI-Security-tool/
 ├── core/
 │   ├── settings.py              # 全定数（色・フォント・LLMデフォルト値・FASTモデル・EFFORT_PRESETS・スキャン設定・APP_VERSION）
 │   ├── config.py                # config.jsonの読み書き＋バリデーション。settings.pyをデフォルトとしてフォールバック（llm_fast_model/effort/allowed_targets/scope_mode等）
+│   ├── structured_output.py     # ローカルOllama向け構造化出力(llm_structured・既定OFF): JSONスキーマ制約→既存のマーカー形式へ変換。マーカー注入を無害化。/api/chat専用
 │   ├── event_bus.py             # スレッドセーフUIイベントバス（queue.Queue基盤）
 │   ├── llm_client.py            # LLMClient。update()でホットリロード可能。OpenRouterヘッダー自動付与。fetch_models()で価格・コンテキスト長・知能指数（Artificial Analysis）付きモデル一覧を取得。cost_tier()/sort_models()も提供
 │   ├── model_router.py          # ロール別モデルルーティング（STRONG/FAST）＆推論エフォート（lokicode移植）。summarize_telemetry()/suggest_efficient_model()でテレメトリ実績を助言表示（自動切り替えはしない）
@@ -138,6 +139,7 @@ AI-Security-tool/
 │   ├── experiments/ollama_structured_audit.py # 実験(製品に組み込まない): Ollamaのformat(JSONスキーマ)でローカル小型モデルにAUDITを構造化出力させ、形式遵守と品質を測る
 │   ├── live_eval_modes.py       # P2.1: DEFENSE/WEB FUZZ/ATTACKのLLM解釈の実LLM評価(`live_eval.py defense|fuzz|attack`)。正解は testlab/benchmark/ground_truth_{defense_llm,attack_llm}.json。ATTACKはスキャナ・プローバーを固定し通信しない
 │   ├── test_live_eval_modes.py  # 上記の非LLM部分の固定試験(selftest 16af)
+│   ├── test_structured_output.py # llm_structuredモード(ローカルOllamaのスキーマ制約)の固定試験。偽のOllamaサーバーで検証(selftest 16ag)
 │   ├── test_unparsed_output.py  # LLMが形式を守らず所見0件・成功に見える問題の固定試験(selftest 16ac)
 │   ├── benchmark.py             # P2.1 検出品質ベンチマーク(detector固定モード。`python tools/benchmark.py web-fuzz|defense|attack`)
 │   ├── gui_snapshot.py          # GUI目視確認用スナップショット(xvfb-runの仮想ディスプレイ・`python tools/gui_snapshot.py OUTDIR`)
@@ -288,8 +290,9 @@ fix: fix ALERT event not firing in DEFENSE MODE
   保存ボタンが窓外へ切れていた(2026-10-22、仮想ディスプレイのスクリーンショットで発覚)。ボタン行を先にpackし、
   本体は`CTkScrollableFrame`にする。確認は`python tools/gui_snapshot.py OUTDIR`、固定は`tools/test_gui_layout.py`。
 - **LLMが所見マーカーを守らない出力を「検出0件の成功」にしない**。形式を守れないモデルでは、1.2万文字の実質的な
-  分析があっても`---VULN_START---`が無く、0件・completedに見えた(2026-10-23、ministral-8bで発覚)。長い出力でマーカーが
-  1つも無ければ`agents.base_agent.unparsed_output_note()`でpartial+注記にする(DEFENSEはシグネチャが主なので注記のみ)。
+  分析があっても`---VULN_START---`が無く、0件・completedに見えた(2026-10-23、ministral-8bで発覚)。長い出力で
+  START〜ENDの揃ったブロックが1つも無ければ`agents.base_agent.unparsed_output_note()`でpartial+注記にする(DEFENSEはシグネチャが主なので注記のみ)。
+  ローカルOllamaでは設定`llm_structured`(既定OFF)でJSONスキーマ制約の出力に切り替えられる(`core/structured_output.py`)。形式は保証されるが内容の正しさは保証されない。
   新しいエージェント/モデルを足すときは状態判定でこの注記を使う。
 - **テストクラスを足したら`tools/run_selftest.py`の登録も確認する**。selftestはクラスを個別に列挙するため、登録を
   忘れると「全件PASS」の報告にそのテストが入らない(2026-10-23、十数クラスの登録漏れを発見)。確認用:

@@ -30,7 +30,10 @@ class HelperTest(unittest.TestCase):
         self.assertEqual(unparsed_output_note(""), "")
         self.assertEqual(unparsed_output_note("脆弱性は見つかりませんでした。"), "")           # 短い「問題なし」は対象外
         self.assertEqual(unparsed_output_note(PROSE + BLOCK), "")                           # マーカーがあれば対象外
-        self.assertEqual(unparsed_output_note(PROSE.replace("問題", "---THREAT_START---")), "")
+        broken = PROSE + "---VULN_START---\nNAME: x\nSEVERITY: HIGH\n(ENDが無い)"                  # STARTだけの壊れたブロック
+        self.assertNotEqual(unparsed_output_note(broken), "")                                # 取り込めていないので注記する
+        self.assertEqual(unparsed_output_note(PROSE + "---THREAT_START---x---THREAT_END---"), "")
+        self.assertNotEqual(unparsed_output_note(PROSE + "---VULN_START---x---THREAT_END---"), "")   # 種類が食い違うブロックは完全ではない
         self.assertIn("所見マーカー", unparsed_output_note(PROSE))
         self.assertEqual(unparsed_output_note("a" * 399), "")
         self.assertNotEqual(unparsed_output_note("a" * 400), "")

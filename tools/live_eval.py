@@ -142,13 +142,24 @@ class CountingLLM(LLMClient):
         self.chars_out += len(out or "")
         return out
 
+    def complete_structured(self, messages, schema, *a, **kw):
+        self._gate(messages)                                  # 構造化出力の呼出しも回数・文字数に数える(数えないと出力0文字=無効に見える)
+        data, meta = super().complete_structured(messages, schema, *a, **kw)
+        self.chars_out += len(json.dumps(data, ensure_ascii=False))
+        return data, meta
+
+
+# 評価プロセス内だけの上書き(config.jsonは書き換えない): ローカルOllamaを使う場合のbase_urlと構造化出力
+OVERRIDES: dict = {"base_url": "", "structured": False}
+
 
 def run_audit_once(model: str, path: str, effort: str, max_calls: int, timeout: int = 0,
                    truth_path: str = TRUTH) -> dict:
     with open(truth_path, encoding="utf-8") as f:
         truth = json.load(f)
     config.load()
-    llm = CountingLLM(base_url=config.get("llm_base_url"), api_key=config.get("llm_api_key"),
+    llm = CountingLLM(base_url=OVERRIDES["base_url"] or config.get("llm_base_url"),
+                      api_key="ollama" if OVERRIDES["base_url"] else config.get("llm_api_key"),
                       model=model, timeout=timeout or config.get("llm_timeout"))
     llm.limit = max_calls
     agent = AuditAgent(EventBus(), llm)
@@ -156,7 +167,8 @@ def run_audit_once(model: str, path: str, effort: str, max_calls: int, timeout: 
     err = ""
     with mock.patch.object(AuditAgent, "_save_investigation", lambda *a, **k: None), \
          mock.patch.object(AuditAgent, "_record_telemetry", lambda *a, **k: None), \
-         mock.patch.dict(config._cfg, {"effort": effort, "save_evidence": False}), \
+         mock.patch.dict(config._cfg, {"effort": effort, "save_evidence": False,
+                                       "llm_structured": OVERRIDES["structured"]}), \
          redirect_stdout(sys.stderr):
         try:
             agent._safe_run(path=path)
@@ -227,8 +239,11 @@ def main(argv=None):
     p.add_argument("--timeout", type=int, default=0, help="1回のLLM呼出しのタイムアウト秒(0=config値)")
     p.add_argument("--sample", choices=sorted(TRUTHS), default="v1",
                    help="v1=samples/target_code.py(8欠陥) / v2=target_code_v2.py(8欠陥+6decoy) / v3=target_code_v3.py(8欠陥+対応する安全版8decoy)")
+    p.add_argument("--base-url", default="", help="LLMのbase_urlをこのプロセス内だけで上書き(例: http://127.0.0.1:11434/v1=ローカルOllama)")
+    p.add_argument("--structured", action="store_true", help="ローカルOllamaのスキーマ制約モード(llm_structured)を有効にして測る")
     p.add_argument("--save")
     a = p.parse_args(argv)
+    OVERRIDES.update(base_url=a.base_url, structured=a.structured)
     if a.mode != "audit":
         from tools.live_eval_modes import evaluate_mode
         out = evaluate_mode(a.mode, a.model, a.runs, a.max_calls, a.timeout)

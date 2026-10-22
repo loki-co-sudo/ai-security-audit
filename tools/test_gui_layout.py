@@ -174,6 +174,46 @@ class LedgerDialogTest(unittest.TestCase):
         self.assertEqual(o["ledger"][o["fids"][1]], ["open", True])
 
 
+STRUCT_CHILD = r'''
+import sys, json
+sys.path.insert(0, sys.argv[1])
+from unittest import mock
+import customtkinter as ctk
+from core import config
+from core.llm_client import LLMClient
+from gui.dialogs.settings_dialog import SettingsDialog
+root = ctk.CTk()
+saved = []
+llm = LLMClient(base_url="http://127.0.0.1:1/v1", api_key="x", model="m", timeout=1)
+out = {}
+with mock.patch.object(config, "save", lambda d: saved.append(d)):
+    d = SettingsDialog(root, llm, on_save=lambda m: None)
+    for _ in range(4):
+        d.update_idletasks(); d.update()
+    out["default_off"] = not d._structured_var.get()
+    d._structured_var.set(True); d._structured_ctx_var.set("50"); d._save(); d.update()
+    out["error"] = d._structured_error.cget("text"); out["saved_after_bad"] = len(saved); out["alive"] = bool(d.winfo_exists())
+    d._structured_ctx_var.set("16384"); d._save()
+    out["saved"] = {k: saved[-1].get(k) for k in ("llm_structured", "llm_structured_num_ctx")} if saved else None
+root.destroy()
+print(json.dumps(out, ensure_ascii=False))
+'''
+
+
+@unittest.skipUnless(shutil.which("xvfb-run"), "xvfb-runが無いためGUIレイアウト試験を実行できない")
+class StructuredSettingsTest(unittest.TestCase):
+    def test_default_off_invalid_num_ctx_keeps_the_dialog_open_and_valid_values_are_saved(self):
+        import json
+        p = subprocess.run(["xvfb-run", "-a", "-s", "-screen 0 1600x1000x24", sys.executable, "-c", STRUCT_CHILD, ROOT],
+                           capture_output=True, text=True, timeout=90, cwd=ROOT)
+        self.assertEqual(p.returncode, 0, p.stderr[-1200:])
+        o = json.loads(p.stdout.strip().splitlines()[-1])
+        self.assertTrue(o["default_off"])
+        self.assertIn("llm_structured_num_ctx", o["error"])
+        self.assertEqual((o["saved_after_bad"], o["alive"]), (0, True))
+        self.assertEqual(o["saved"], {"llm_structured": True, "llm_structured_num_ctx": 16384})
+
+
 @unittest.skipUnless(shutil.which("xvfb-run"), "xvfb-runが無いためGUIレイアウト試験を実行できない")
 class EngagementGuiTest(unittest.TestCase):
     def test_settings_validate_the_id_and_all_four_panels_record_results_only_when_set(self):

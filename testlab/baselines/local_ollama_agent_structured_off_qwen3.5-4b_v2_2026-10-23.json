@@ -1,0 +1,67 @@
+{
+  "mode": "AUDIT",
+  "model": "qwen3.5:4b",
+  "effort": "speed",
+  "sample": "v2",
+  "runs_requested": 1,
+  "runs_done": 1,
+  "runs_with_findings": 0,
+  "per_vuln_hits": {
+    "V1": 0,
+    "V2": 0,
+    "V3": 0,
+    "V4": 0,
+    "V5": 0,
+    "V6": 0,
+    "V7": 0,
+    "V8": 0
+  },
+  "decoy_false_positives_per_run": [
+    []
+  ],
+  "decoy_same_class_per_run": [
+    []
+  ],
+  "per_decoy_hits": {
+    "D1": 0,
+    "D2": 0,
+    "D3": 0,
+    "D4": 0,
+    "D5": 0,
+    "D6": 0
+  },
+  "per_decoy_same_class_hits": {
+    "D1": 0,
+    "D2": 0,
+    "D3": 0,
+    "D4": 0,
+    "D5": 0,
+    "D6": 0
+  },
+  "recall_per_run": [
+    null
+  ],
+  "runs_invalid": 1,
+  "total_llm_calls": 1,
+  "hint_stripped": true,
+  "results": [
+    {
+      "state": "partial",
+      "errors": [
+        "AI推論が空応答でした（LLM呼び出し失敗の可能性）"
+      ],
+      "n_findings": 0,
+      "hit": {},
+      "unlabeled": [],
+      "decoy_hits": {},
+      "decoy_same_class_hits": {},
+      "decoy_findings": [],
+      "llm_calls": 1,
+      "chars_in": 6479,
+      "chars_out": 0,
+      "elapsed_s": 318.5,
+      "invalid": true
+    }
+  ],
+  "note": "モデルと日付に依存する参考値。未ラベル所見は誤検知と断定しない。応答が空の回(invalid)は測定不成立でrecall_per_runはnull。"
+}

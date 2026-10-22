@@ -387,7 +387,7 @@ class AuditAgent(BaseAgent):
         full = self._stream_llm([
             self.llm.system(system_prompt),
             self.llm.user(user_prompt),
-        ], live_stats=True)
+        ], live_stats=True, structured="vuln")
         self._step(3, "done")
         self._step(2, "done")
 
@@ -526,7 +526,7 @@ class AuditAgent(BaseAgent):
                 "Look for missing authorization between entry points and data access, IDOR, injection and unsafe calls "
                 "across file boundaries. Report LINES as `file:line`. Code that is not shown was NOT analyzed — do not "
                 "claim it is safe.\n\n```python\n" + ctx.text + "\n```" + evidence_listing),
-        ], live_stats=True)
+        ], live_stats=True, structured="vuln")
         self._step(3, "done")
         self._step(2, "done")
         if self.is_stopped():

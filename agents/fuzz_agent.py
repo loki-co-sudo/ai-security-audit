@@ -286,7 +286,7 @@ class FuzzAgent(BaseAgent):
         full = self._stream_llm([
             self.llm.system(_TRIAGE_SYS),
             self.llm.user(f"Triage these authorized fuzzing results:\n\n{summary}"),
-        ])
+        ], structured="vuln")
 
         # 品質エフォート: STRONGモデルで所見を再検証し誤検知を削減する。
         effort = self._effort()

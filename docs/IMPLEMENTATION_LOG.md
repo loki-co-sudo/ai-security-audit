@@ -742,3 +742,8 @@ ATTACKのLLM解釈部分の評価(ローカルlabの観測に対する仮説の�
 
 ## 2026-10-23 実LLM測定(AUDIT v3・DEFENSE/WEB FUZZ/ATTACKのLLM解釈)・ローカル小型モデルとhuginnの試行
 `tools/live_eval_modes.py`(defense/fuzz/attack)、`samples/target_code_v3.py`+`ground_truth_audit_v3.json`、3モデルの結果を`testlab/baselines/live_*_2026-10-23.json`へ保存。この日の実費はOpenRouterのキー使用量の差分で約$0.21(承認された安価モデルのペース内)。gemma-3-27bのATTACKは長いため打ち切り。ローカルの`qwen3.5:4b`+スキーマ制約の実験(`tools/experiments/ollama_structured_audit.py`)とhuginnの試行は docs/PRACTICAL_ROADMAP.md 付録。huginn側は変更していない。
+
+## 2026-10-23 ローカルOllama向け構造化出力モード(llm_structured・既定OFF)
+`core/structured_output.py`(スキーマ・マーカー形式への変換・無害化・`/api/chat`呼出し)、`LLMClient.complete_structured`、`BaseAgent._stream_llm(structured=)`/`_structured_llm`(AUDIT標準・プロジェクト、WEB FUZZ(両経路)、ATTACK、DEFENSEの主要な解釈呼出しが対象。検証パスと攻撃シナリオの文章生成は従来どおり)、`config`の`llm_structured`/`llm_structured_num_ctx`と`set_runtime_override`、設定ダイアログの欄、CLIの`--structured-output`、`live_eval.py --base-url/--structured`。失敗の注記は`BaseAgent._llm_notes`→`_finalize`でerrorsへ。
+試験: `tools/test_structured_output.py`(偽のOllamaサーバーで要求の中身・失敗の明示・OFF時は従来どおり・CLIフラグ・マーカー注入の無害化・設定検証。selftest 16ag)、`tools/test_gui_layout.py`の`StructuredSettingsTest`、`tools/test_unparsed_output.py`(壊れたブロックの追加)、`tools/test_live_eval.py`(`CountingStructuredTest`)。
+併せて修正: `unparsed_output_note`が「STARTだけの壊れたブロック」を素通りしていた不具合(実測で発覚)、構造化呼出しが評価のカウントに入らず無効と誤判定される不具合。実測結果は docs/PRACTICAL_ROADMAP.md 付録。huginnやrei-secは変更していない。
