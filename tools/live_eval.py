@@ -195,7 +195,10 @@ def evaluate(model: str, runs: int, effort: str, max_calls: int, timeout: int = 
             if r["state"] == "failed" or any("上限" in e for e in r["errors"]):
                 break
     ids = [v["id"] for v in truth["vulnerabilities"]]
-    ok = [r for r in results if r["state"] in ("completed", "partial") and r["n_findings"] > 0]
+    # LLMの応答が空(出力0文字)の回は、レート制限・接続失敗などで測定が成立していない。再現率0.0とは区別して集計から外す
+    for r in results:
+        r["invalid"] = r["chars_out"] == 0
+    ok = [r for r in results if r["state"] in ("completed", "partial") and r["n_findings"] > 0 and not r["invalid"]]
     per = {i: sum(1 for r in ok if i in r["hit"]) for i in ids}
     decoy_ids = [d["id"] for d in truth.get("decoys", [])]
     return {"mode": "AUDIT", "model": model, "effort": effort, "sample": sample, "runs_requested": runs,
@@ -205,9 +208,11 @@ def evaluate(model: str, runs: int, effort: str, max_calls: int, timeout: int = 
                 "per_decoy_hits": {i: sum(1 for r in ok if i in r["decoy_hits"]) for i in decoy_ids},
                 "per_decoy_same_class_hits": {i: sum(1 for r in ok if i in r["decoy_same_class_hits"]) for i in decoy_ids}}
                if decoy_ids else {}),
-            "recall_per_run": [round(sum(1 for i in ids if i in r["hit"]) / len(ids), 3) for r in results],
+            "recall_per_run": [None if r["invalid"] else round(sum(1 for i in ids if i in r["hit"]) / len(ids), 3)
+                               for r in results],
+            "runs_invalid": sum(1 for r in results if r["invalid"]),
             "total_llm_calls": used, "hint_stripped": True, "results": results,
-            "note": "モデルと日付に依存する参考値。未ラベル所見は誤検知と断定しない。"}
+            "note": "モデルと日付に依存する参考値。未ラベル所見は誤検知と断定しない。応答が空の回(invalid)は測定不成立でrecall_per_runはnull。"}
 
 
 def main(argv=None):

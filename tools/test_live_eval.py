@@ -131,6 +131,21 @@ class SampleV2Test(unittest.TestCase):
             self.assertTrue(any(v["lines"][0] <= ln <= v["lines"][1] for ln in names.values()), v["id"])   # 各欠陥の区画に関数がある
 
 
+class InvalidRunTest(unittest.TestCase):
+    def test_empty_llm_output_is_invalid_not_a_zero_recall(self):
+        """レート制限(429)などで応答が空の回を再現率0.0として記録すると、『見つけられなかった』と誤読される。"""
+        from unittest import mock
+        fake = {"state": "partial", "errors": ["AI推論が空応答でした"], "n_findings": 0, "hit": {}, "unlabeled": [],
+                "decoy_hits": {}, "decoy_same_class_hits": {}, "decoy_findings": [], "llm_calls": 1,
+                "chars_in": 100, "chars_out": 0, "elapsed_s": 1.0}
+        good = dict(fake, state="completed", n_findings=2, chars_out=500, errors=[], hit={"V1": ["x"]})
+        with mock.patch.object(le, "run_audit_once", side_effect=[fake, good]):
+            out = le.evaluate("m", 2, "speed", 5, sample="v2")
+        self.assertEqual(out["recall_per_run"], [None, round(1 / 8, 3)])
+        self.assertEqual((out["runs_invalid"], out["runs_with_findings"]), (1, 1))
+        self.assertEqual(out["per_vuln_hits"]["V1"], 1)
+
+
 class CallLimitTest(unittest.TestCase):
     def test_limit_stops_before_the_call_is_sent(self):
         llm = le.CountingLLM(base_url="http://127.0.0.1:9", api_key="x", model="m", timeout=1)
