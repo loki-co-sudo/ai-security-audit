@@ -6,15 +6,19 @@ tools/log_watcher.py — ログファイル監視・行ストリーム
 """
 
 from __future__ import annotations
+import gzip
 import json
 import os
 import re
 import time
+import zlib
 from typing import Callable, Generator
 
 _IP_KEYS = ("remote_addr", "remote_ip", "client_ip", "clientip", "src_ip", "ip", "host")
 _MAX_TEXT = 4000
 _MAX_DEPTH = 3
+MAX_ARCHIVE_BYTES = 256 * 1024 * 1024    # gzip展開後の読み取り上限(圧縮爆弾対策)
+_MAX_LINE_BYTES = 1024 * 1024            # 1行の上限(改行の無い巨大データでメモリを使い切らない)
 
 
 def _flatten(obj, prefix: str, out: list[str], depth: int = 0) -> None:
@@ -68,12 +72,17 @@ class LogWatcher:
     copytruncateでコピー前に消えた行、ポーリング間隔内に複数回ローテーションされた中間ファイル、
     縮小後に元と同じサイズまで書き戻された場合(縮小を検知できない)。
     `stats` に件数を残す(ローテーション/縮小/一時不在/不完全行の破棄・フラッシュ)。
+
+    gzip(回転済みアーカイブ): 拡張子が`.gz`のパスは追跡できないため、watch_modeでも1回通しで全行を読む
+    (`archive=True`)。展開後256MiB・1行1MiBを上限とし、超過・破損・途中切れは`stats`へ記録して読めた分で終了する
+    (`archive_truncated`/`archive_error`)。呼び出し側はこれをpartial扱いにする。
     """
 
     def __init__(self, path: str):
         self.path = path
+        self.archive = path.lower().endswith(".gz")
         self.stats = {"lines": 0, "rotations": 0, "truncations": 0, "missing_polls": 0,
-                      "partial_flushed": 0, "partial_discarded": 0}
+                      "partial_flushed": 0, "partial_discarded": 0, "archive_truncated": 0, "archive_error": ""}
 
     def watch(
         self,
@@ -88,8 +97,8 @@ class LogWatcher:
         if not os.path.isfile(self.path):
             raise FileNotFoundError(f"Log file not found: {self.path}")
 
-        if single_pass:
-            yield from self._read_all()
+        if single_pass or self.archive:
+            yield from (self._read_gzip() if self.archive else self._read_all())
             return
 
         fh = open(self.path, "rb")
@@ -167,6 +176,24 @@ class LogWatcher:
             for line in f:
                 self.stats["lines"] += 1
                 yield line
+
+    def _read_gzip(self) -> Generator[str, None, None]:
+        """gzipアーカイブを1行ずつyieldする。上限超過・破損・途中切れは例外にせずstatsへ記録して終了する。"""
+        total = 0
+        try:
+            with gzip.open(self.path, "rb") as f:
+                while True:
+                    raw = f.readline(_MAX_LINE_BYTES + 1)
+                    if not raw:
+                        return
+                    total += len(raw)
+                    if len(raw) > _MAX_LINE_BYTES or total > MAX_ARCHIVE_BYTES:
+                        self.stats["archive_truncated"] += 1
+                        return
+                    self.stats["lines"] += 1
+                    yield raw.decode("utf-8", errors="replace")
+        except (OSError, EOFError, zlib.error) as e:      # BadGzipFile(OSError)・途中切れ(EOFError)・破損(zlib.error)
+            self.stats["archive_error"] = type(e).__name__
 
     @staticmethod
     def generate_sample_log(path: str, entries: int = 200) -> None:

@@ -675,3 +675,6 @@ AUDITの証拠ID引用、`--effort auto`、DEFENSEのMITRE ID、WEB FUZZのト�
 ## 2026-10-22 P4.1(追補): サンプル値生成の拡張と認証要件の表示
 `tools/openapi_loader.py`: `_sample`をparameter側example/examples優先・allOf統合・oneOf/anyOf先頭・3.1の型配列・array要素・最小値・formatに拡張(再帰/循環は深さ制限と既存の$ref循環検出)。`Operation.auth`(scheme名・種類・in/schemeのみ)を追加し`openapi FILE`の出力に含める。送信境界(GET+queryのみ・path値生成なし・body/POSTなし・serversを使わない)は不変。
 試験: `tools/test_openapi_loader.py`に`SampleAndAuthTest`(3件)。ヘッダ名・説明・外部URLが出力に漏れないことも確認。
+
+## 2026-10-22 P4.3(追補): gzipアーカイブ入力
+`LogWatcher`が`.gz`を1回通しで読む(`_read_gzip`: 展開後256MiB・1行1MiBの上限、BadGzipFile/EOFError/zlib.errorをstatsへ記録)。`MonitorAgent`は上限超過・破損でstateをpartialにしerrorsへ注記。試験: `tools/test_log_watcher.py`の`GzipArchiveTest`(5件)、`tools/test_cli.py`にCLI経由1件。journald/syslogは未実装。

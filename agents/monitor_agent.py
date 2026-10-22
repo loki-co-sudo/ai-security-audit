@@ -97,7 +97,7 @@ class MonitorAgent(BaseAgent):
             "header",
         )
         self._out(f"  LOG SOURCE : {log_path}\n", "dim")
-        self._out(f"  MODE       : {'CONTINUOUS WATCH' if watch_mode else 'SINGLE PASS'}\n", "dim")
+        self._out(f"  MODE       : {'CONTINUOUS WATCH' if watch_mode and not log_path.lower().endswith('.gz') else 'SINGLE PASS'}\n", "dim")
         self._out(f"  STARTED    : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n", "dim")
 
         watcher = LogWatcher(log_path)
@@ -230,8 +230,9 @@ class MonitorAgent(BaseAgent):
         errors += self._log_source_notes(watcher.stats, parse_problems)
         if deadline is not None and timed_out() and not self.is_stopped():
             errors.append(f"指定時間({max_seconds:g}秒)で監視を終了しました。この間に書かれた行だけが対象です")
-        if (watcher.stats["truncations"] or watcher.stats["partial_discarded"]) and state == ScanState.COMPLETED.value:
-            state = ScanState.PARTIAL.value        # 縮小(copytruncate等)では行を取りこぼし得るためcompletedにしない
+        if (watcher.stats["truncations"] or watcher.stats["partial_discarded"] or watcher.stats["archive_truncated"]
+                or watcher.stats["archive_error"]) and state == ScanState.COMPLETED.value:
+            state = ScanState.PARTIAL.value        # 縮小(copytruncate等)・アーカイブの上限超過/破損では行を取りこぼし得る
         if store is not None:
             errors = errors + [f"証拠保存エラー: {e}" for e in store.save_errors]
             errors = errors + [f"証拠保存を省略: {o}" for o in store.omissions]
@@ -254,6 +255,10 @@ class MonitorAgent(BaseAgent):
             notes.append(f"回転した旧ファイルの未完の最終行を{stats['partial_flushed']}件、そのまま1行として処理しました")
         if stats["missing_polls"]:
             notes.append(f"ログファイルが一時的に存在しない状態を{stats['missing_polls']}回検知しました")
+        if stats["archive_truncated"]:
+            notes.append("gzipアーカイブが展開後の上限(256MiB)または1行の上限(1MiB)を超えたため、そこまでで読み取りを終了しました")
+        if stats["archive_error"]:
+            notes.append(f"gzipアーカイブを最後まで読めませんでした({stats['archive_error']})。読めた分だけを対象にしています")
         if problems.get("invalid_json"):
             notes.append(f"JSONLとして不正な行が{problems['invalid_json']}件ありました(生テキストとして検知は実施)")
         return notes

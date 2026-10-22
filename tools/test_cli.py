@@ -340,6 +340,19 @@ class CLITest(unittest.TestCase):
         p, data = self.call(["scan", "defense", "--target", str(self.base / "none.log")])
         self.assertEqual((p.returncode, data["state"]), (2, "failed"))
 
+    def test_scan_defense_reads_a_rotated_gzip_archive(self):
+        import gzip
+        arc = self.base / "access.log.2.gz"
+        with gzip.open(arc, "wb") as f:
+            f.write(b'10.0.0.5 - - [22/Oct/2026:01:00:00 +0900] "GET /?q=1 UNION SELECT 1,2 HTTP/1.1" 200 12 "-" "x"\n')
+        p, data = self.call(["scan", "defense", "--target", str(arc)])
+        self.assertEqual((p.returncode, data["state"]), (0, "completed"), data)
+        self.assertIn("1 alerts", p.stderr)
+        arc.write_bytes(arc.read_bytes()[:-8])                                 # 末尾(CRC/長さ)を欠いた破損
+        p, data = self.call(["scan", "defense", "--target", str(arc)])
+        self.assertEqual(data["state"], "partial", data)
+        self.assertTrue(any("gzip" in e for e in data["errors"]), data["errors"])
+
     def test_use_profile_expands_defaults_and_explicit_args_win(self):
         prof = {"lab": {"engagement_id": "lab1", "target": "X", "effort": "speed", "allow": ["a.example", "b.example"],
                         "scan_profile": "aggressive", "max_requests": 50, "tls_verify": True}}

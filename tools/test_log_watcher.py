@@ -1,4 +1,5 @@
 """tools/log_watcher.py(P4.3)の固定試験。一時ディレクトリで実ファイルのローテーション等を再現する。"""
+import gzip
 import json
 import os
 import shutil
@@ -8,6 +9,7 @@ import time
 import unittest
 from unittest import mock
 
+from tools import log_watcher
 from tools.log_watcher import LogWatcher
 
 TICK = 0.01
@@ -181,6 +183,85 @@ class MitreTest(unittest.TestCase):
         vuln = "---VULN_START---\nNAME: x\nSEVERITY: HIGH\nCWE: CWE-89\nMITRE_TTP: T9999\n---VULN_END---"
         (g,) = _parse(vuln, "---VULN_START---", "---VULN_END---")
         self.assertEqual(g["ref"], "CWE-89")
+
+
+class GzipArchiveTest(unittest.TestCase):
+    def setUp(self):
+        self.d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.d, True)
+
+    def gz(self, data: bytes, name="access.log.2.gz"):
+        p = os.path.join(self.d, name)
+        with gzip.open(p, "wb") as f:
+            f.write(data)
+        return p
+
+    def lines(self, w, **kw):
+        return list(w.watch(interval=TICK, stop_fn=lambda: False, **kw))
+
+    def test_gzip_is_read_once_even_in_watch_mode_and_counts_lines(self):
+        w = LogWatcher(self.gz(b"a\nb\nlast-without-newline"))
+        self.assertTrue(w.archive)
+        self.assertEqual([x.rstrip("\n") for x in self.lines(w)], ["a", "b", "last-without-newline"])   # 追跡せず終了する
+        self.assertEqual((w.stats["lines"], w.stats["archive_truncated"], w.stats["archive_error"]), (3, 0, ""))
+
+    def test_concatenated_gzip_members_are_all_read(self):
+        p = os.path.join(self.d, "multi.gz")
+        with open(p, "wb") as f:
+            f.write(gzip.compress(b"one\n") + gzip.compress(b"two\n"))
+        self.assertEqual([x.strip() for x in self.lines(LogWatcher(p))], ["one", "two"])
+
+    def test_corrupt_or_cut_archive_keeps_readable_lines_and_records_error(self):
+        full = gzip.compress(b"".join(b"line %d\n" % i for i in range(5000)))
+        p = os.path.join(self.d, "cut.gz")
+        with open(p, "wb") as f:
+            f.write(full[: len(full) // 2])                     # 途中で切れたアーカイブ
+        w = LogWatcher(p)
+        got = self.lines(w)
+        self.assertTrue(0 < len(got) < 5000)
+        self.assertEqual(w.stats["archive_error"], "EOFError")
+        bad = os.path.join(self.d, "notgzip.gz")
+        with open(bad, "wb") as f:
+            f.write(b"plain text, not gzip\n")
+        w = LogWatcher(bad)
+        self.assertEqual(self.lines(w), [])
+        self.assertEqual(w.stats["archive_error"], "BadGzipFile")
+
+    def test_decompressed_size_and_line_length_are_capped(self):
+        with mock.patch.object(log_watcher, "MAX_ARCHIVE_BYTES", 100):
+            w = LogWatcher(self.gz(b"x" * 49 + b"\n" + b"y" * 49 + b"\n" + b"z" * 49 + b"\n"))
+            self.assertEqual(len(self.lines(w)), 2)             # 3行目で合計が上限を超え、そこで終了
+            self.assertEqual(w.stats["archive_truncated"], 1)
+        with mock.patch.object(log_watcher, "_MAX_LINE_BYTES", 10):
+            w = LogWatcher(self.gz(b"ok\n" + b"A" * 50 + b"\nnext\n"))
+            self.assertEqual(len(self.lines(w)), 1)
+            self.assertEqual(w.stats["archive_truncated"], 1)
+
+    def test_defense_scans_a_gzip_archive_and_marks_partial_when_unreadable(self):
+        from agents.monitor_agent import MonitorAgent
+        from core.event_bus import EventBus
+        from tools.fuzz_characterization import MockLLM
+
+        def scan(path):
+            bus = EventBus()
+            agent = MonitorAgent(bus, MockLLM())
+            with mock.patch.object(MonitorAgent, "_save_investigation", lambda *a, **k: None), \
+                 mock.patch.object(MonitorAgent, "_record_telemetry", lambda *a, **k: None):
+                agent._safe_run(log_path=path, watch_mode=True)         # .gzはwatch_modeでも1回通し
+            return agent._last_scan_result, [e for e in bus.drain() if e.kind == "alert"]
+
+        attack = b'10.0.0.5 - - [22/Oct/2026:01:00:00 +0900] "GET /?q=1 UNION SELECT 1,2 HTTP/1.1" 200 12 "-" "x"\n'
+        res, alerts = scan(self.gz(attack * 3 + b"\n"))
+        self.assertEqual(len(alerts), 1)                               # 同一IP・同一パターンは集約
+        self.assertEqual(res.state, "completed", res.errors)
+        full = gzip.compress(attack + b"".join(b"filler %d\n" % i for i in range(20000)))
+        cut = os.path.join(self.d, "cut2.gz")
+        with open(cut, "wb") as f:
+            f.write(full[: len(full) // 2])
+        res, alerts = scan(cut)
+        self.assertEqual(len(alerts), 1)                               # 読めた分は検知する
+        self.assertEqual(res.state, "partial")                         # 途中切れは検出0件の成功にしない
+        self.assertTrue(any("gzipアーカイブを最後まで読めませんでした" in e for e in res.errors), res.errors)
 
 
 class MonitorIntegrationTest(unittest.TestCase):
