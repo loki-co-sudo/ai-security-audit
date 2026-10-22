@@ -275,6 +275,32 @@ class AuditProjectTest(Base):
         res, _ = self.run_audit()
         self.assertEqual(res.state, "failed")
 
+@unittest.skipUnless(__import__("core.orchestrator", fromlist=["x"]).LANGGRAPH_AVAILABLE, "langgraph未導入")
+class LangGraphProjectTest(AuditProjectTest):
+    """LangGraph版も標準エンジンと同じ索引・マスク・非実行・正直なcoverageでディレクトリを扱う(モックLLM)。"""
+
+    def run_audit(self):
+        from unittest import mock
+        from agents.langgraph_audit_agent import LangGraphAuditAgent
+        from core.event_bus import EventBus
+        from tools.fuzz_characterization import MockLLM
+        llm = MockLLM()
+        agent = LangGraphAuditAgent(EventBus(), llm)
+        with mock.patch.object(LangGraphAuditAgent, "_save_investigation", lambda *a, **k: None), \
+             mock.patch.object(LangGraphAuditAgent, "_record_telemetry", lambda *a, **k: None), \
+             mock.patch.dict("core.config._cfg", {**__import__("core.config", fromlist=["x"])._DEFAULTS, "effort": "speed"}, clear=True):
+            agent._safe_run(path=self.root)
+        return agent._last_scan_result, llm
+
+    def test_prompt_is_multi_file_and_deep_pass_sees_the_same_text(self):
+        res, llm = self.run_audit()
+        self.assertIn("Multi-file Python project excerpt", llm.stream_prompts[0])
+        self.assertIn("app/db.py:", llm.stream_prompts[0])
+        self.assertNotIn("PROJECT_SECRET_VALUE", llm.stream_prompts[0])
+
+    def test_empty_project_fails_instead_of_reporting_success(self):
+        super().test_empty_project_fails_instead_of_reporting_success()
+
 
 if __name__ == "__main__":
     unittest.main()

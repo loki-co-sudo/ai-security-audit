@@ -13,7 +13,7 @@ from agents.audit_agent import AuditAgent, ast_scan, save_ast_evidence, _EVIDENC
 import core.config as config
 from core.evidence_store import EvidenceStore
 from tools.report_generator import _findings_and_counts
-from core.findings import ScanState
+from core.findings import CoverageItem, CoverageStatus, ScanState
 
 try:
     from core.orchestrator import build_audit_graph, AuditState, LANGGRAPH_AVAILABLE, _MAX_SURFACE_CHARS
@@ -26,6 +26,9 @@ class LangGraphAuditAgent(BaseAgent):
     """LangGraph StateGraph を使った自律型コード監査エージェント。"""
 
     def run(self, path: str) -> None:
+        if os.path.isdir(path):
+            self._run_project(path)
+            return
         self._current_mode, self._current_target = "AUDIT", path
         scan_id = self._begin_scan()  # 証拠保存がfinalize前からscan_idを使うため(P1.2)
         self.bus.clear()
@@ -104,6 +107,64 @@ class LangGraphAuditAgent(BaseAgent):
         state, errors = self._determine_state(final_state, combined)
         errors = errors + evidence_errors + rejected
         self._finalize(state=state, errors=errors, findings=findings, coverage=coverage,
+                       mode="AUDIT", target=path)
+
+    def _run_project(self, path: str) -> None:
+        """ディレクトリ入力(P4.2): 標準エンジンと同じ索引・優先付き文脈をグラフの入力にする。
+
+        表層スキャンと深層解析が同じ本文を見るよう、文脈は深層解析の上限(8000字)に合わせて作る
+        (どちらのノードでもsmart_truncateが働かず、coverageと送信内容が一致する)。ASTプリスキャン・
+        証拠保存・CVE照合は未対応(標準エンジンのプロジェクト監査と同じ)。
+        """
+        from tools import code_index
+        from core import redaction
+        from core.orchestrator import _MAX_DEEP_CHARS
+        self._current_mode, self._current_target = "AUDIT", path
+        self._begin_scan()
+        self.bus.clear()
+        self._status(f"[LangGraph] {os.path.basename(path.rstrip('/')) or path} を索引化中 ...")
+        if not LANGGRAPH_AVAILABLE:
+            self._finalize(state=ScanState.FAILED.value, errors=["langgraphがインストールされていません"],
+                           mode="AUDIT", target=path)
+            return
+        try:
+            idx = code_index.build_index(path)
+        except OSError as e:
+            self._finalize(state=ScanState.FAILED.value, errors=[f"プロジェクトを読めません: {e}"],
+                           mode="AUDIT", target=path)
+            return
+        if not idx.files:
+            self._finalize(state=ScanState.FAILED.value, mode="AUDIT", target=path, coverage=[
+                CoverageItem(target_ref=p, status=CoverageStatus.SKIPPED.value, rule_id="LLM_CODE_REVIEW", reason=r)
+                for p, r in idx.skipped], errors=["解析できるPythonファイルがありません"])
+            return
+        idx.sources = {rel: redaction.mask_source(src) for rel, src in idx.sources.items()}
+        ctx = code_index.render_context(idx, _MAX_DEEP_CHARS)
+        self._out(f"  TARGET : {path}\n  FILES  : {len(idx.files)} analyzed, {len(idx.skipped)} not analyzed\n"
+                  f"  CONTEXT: {len(ctx.included)} function(s) sent, {len(ctx.omitted)} omitted by budget\n"
+                  f"  ENGINE : LangGraph StateGraph (multi-file)\n\n", "dim")
+        header = ("Multi-file Python project excerpt. Each block is labelled `file:start-end` and lines carry their "
+                  "real line numbers (`NN| code`). Report LINES as `file:line`. Code that is not shown was NOT "
+                  "analyzed — do not claim it is safe.\n\n")
+        try:
+            graph = build_audit_graph(self.llm, self.bus, self.is_stopped,
+                                      source_loader=lambda _p: header + ctx.text)
+            final_state = graph.invoke({
+                "source_path": path, "source_code": "", "outputs": [],
+                "severity_counts": {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0},
+                "iteration": 0, "phase": "init", "evidence_listing": "", "evidence_instruction": ""})
+        except Exception as e:
+            self._out(f"\n[ GRAPH ERROR ] {e}\n", "critical")
+            self._finalize(state=ScanState.FAILED.value, errors=[str(e)], mode="AUDIT", target=path)
+            return
+        combined = "\n".join(final_state.get("outputs", []) or [])
+        parsed, _counts = _findings_and_counts("CODE AUDIT", combined)
+        findings = self._findings_from_markers(parsed, corroborated=False)
+        state, errors = self._determine_state(final_state, combined)
+        errors = errors + AuditAgent._project_notes(ctx)
+        if state == ScanState.COMPLETED.value and (ctx.omitted or idx.limit_hit or idx.skipped):
+            state = ScanState.PARTIAL.value
+        self._finalize(state=state, errors=errors, findings=findings, coverage=AuditAgent._project_coverage(ctx),
                        mode="AUDIT", target=path)
 
     def _determine_state(self, final_state: dict, combined_text: str) -> tuple[str, list[str]]:

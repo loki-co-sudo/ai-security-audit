@@ -56,6 +56,24 @@ P2の最小ベンチマークはCLIを待たず、Pythonの呼び出し口から
 
 P4内は用途に応じて一項目ずつ選択できる。保留事項を自動で追加しない。
 
+### 進捗サマリ(最新: 2026-10-22・この表が進捗の入口)
+
+進捗の正本はこの節。詳細な実装記録は `docs/IMPLEMENTATION_LOG.md`、各IDの未了事項は該当節、リポジトリ横断の概況は `~/projects/PROJECT_STATUS.md`。
+実装やロードマップの状態が変わったら、**この表・§4/AGENTS.md §4・IMPLEMENTATION_LOG・PROJECT_STATUS.mdを同じ作業で更新する**。
+チェックボックスは「受け入れ条件を全て満たし、未検証が無い」場合のみ [x] にする。
+
+| ID | 進捗 | 実装済み | 残り・未検証 |
+|---|---|---|---|
+| P1.2 | ほぼ実装・未完了扱い | 証拠保存・マスキング・全4モードの配線・HTML/MD/PDF/JSON | GUI目視、実LLMの証拠ID引用、ATTACK画面ログの未マスク |
+| P2.1 | 一部 | WEB FUZZ・DEFENSEシグネチャのdetector固定ベンチと基準値 | 実LLM評価、AUDIT/ATTACKのベンチ、LLM使用量 |
+| P2.2 | 検出器側は実装 | IDOR(ログイン/公開除外・期待権限表)、SSTI別式確認、XSS content-type | 期待権限表のGUI入力・旧FuzzAgent配線、同一origin確認URL、逆方向 |
+| P3.1 | ほぼ実装 | `scan fuzz/audit/defense/attack`・`--targets-file`・`--engagement`・除外優先・`--format md`・`--effort auto`・`defense --duration`・`--use-profile`・`core/scan_runner.py`(ATTACK/AUDIT/DEFENSE) | WEB FUZZ経路のscan_runner移動、profilesのrate_limit_rps/scope_mode、実LLMでのauto分類 |
+| P3.2 | 中核+レポート連携 | 台帳・差分・mark/suppress/findings、レポート層の抑制除外と差分表示 | GUI/CLIからのengagement_id指定→レポート配線 |
+| P4.1 | 初期版 | ローカルJSON/YAML・明示選択のGET+query | 複雑schema・path param・body・認証scheme・GUI |
+| P4.2 | 初期版 | 標準エンジン・LangGraph版(モックLLM)の複数ファイル監査 | GUI、証拠保存、実LLM評価 |
+| P4.3 | 中核 | ローテーション/縮小/部分行/JSONL/MITRE確認 | journald/syslog、gzip回転、長時間運用検証 |
+| 共通 | 未検証 | selftest 169 PASS / 0 FAIL / 5 SKIP(`SELFTEST_NON_LLM_ONLY=1`) | 実LLM系5件、GUIの目視確認は全体を通して未実施 |
+
 ## 4. P0: 通信・認証の境界
 
 ### P0.1 最初の変更: 全送信経路の同一オリジン検査と共通予算
@@ -324,7 +342,7 @@ CLI: `openapi FILE`(operation一覧。通信しない)、`scan fuzz --openapi FI
   上限や未解析があればcompletedにせずpartialにする。文脈には「見ていないコードを安全と見なさない」注記を入れる。
 - 優先順位は入口(route/get/post等のデコレータ)→認可らしい名前→DB操作→危険呼出し、入口から名前一致で辿れる関数(+1)。**呼出し解決は名前一致の近似で、
   優先付け専用**(到達可能性や脆弱性の主張には使わない)。機密名リテラルの値は送信前にマスク(行数不変)。
-**未実装/限界**: LangGraph版(`orchestrator.py`)・GUIのディレクトリ選択、ASTプリスキャン/証拠保存/CVE照合(プロジェクト監査では未対応で、証拠は「なし」)、
+**未実装/限界**: GUIのディレクトリ選択(LangGraph版は追補で対応済み・モックLLM検証のみ)、ASTプリスキャン/証拠保存/CVE照合(プロジェクト監査では未対応で、証拠は「なし」)、
 クラス継承・メソッド解決・動的ディスパッチ、Python以外、実LLMでの検出品質評価(ベンチマーク未作成)。
 
 ### P4.3 実ログとローテーション

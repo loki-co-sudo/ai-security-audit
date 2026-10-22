@@ -3195,7 +3195,7 @@ def test_code_index():
     from tools import test_code_index as t
     result = unittest.TestResult()
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
-                               for c in (t.SplitProjectTest, t.SafetyTest, t.LimitsAndGapsTest, t.AuditProjectTest))
+                               for c in (t.SplitProjectTest, t.SafetyTest, t.LimitsAndGapsTest, t.AuditProjectTest, t.LangGraphProjectTest))
     suite.run(result)
     if result.wasSuccessful():
         _ok("CodeIndex", f"{result.testsRun} tests: 非実行/root外symlink/秘密除外/上限/循環/動的import/正直なcoverage")

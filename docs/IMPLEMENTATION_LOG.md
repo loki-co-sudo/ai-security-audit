@@ -645,3 +645,8 @@ SIGINT後の残りは「中断のため未実行」。試験: `tools/test_cli.py
 ## 2026-10-22 P3.1(追補): core/scan_runner.py
 挙動を変えないリファクタリング。`run_attack`/`run_local`/`ConsoleBus`/`aggregate`/`masked`/`resolve_effort`/入力検査を`core/scan_runner.py`へ移動(GUI非依存)。
 `cli.CLIError`は`scan_runner.RunnerError`の別名。LLM生成は`llm_factory`でcli側から渡し、既存試験の`cli.LLMClient`差し替えを維持。WEB FUZZ・resume・statusは未移動。
+
+## 2026-10-22 P4.2(追補): LangGraph版の複数ファイル監査
+`LangGraphAuditAgent._run_project`: ディレクトリ入力で標準エンジンと同じ`code_index`の索引・マスク・優先付き文脈・coverage/注記を使う。
+`build_audit_graph(source_loader=)`で本文を差し替え、文脈は深層解析の上限(8000字)に合わせて表層/深層が同じ本文を見る(smart_truncateが働かない)。
+ASTプリスキャン・証拠保存・CVE照合は未対応。試験: `tools/test_code_index.py`の`LangGraphProjectTest`(モックLLMのみ。実LLMでの深層解析の質は未検証)。

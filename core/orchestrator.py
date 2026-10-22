@@ -93,12 +93,16 @@ def build_audit_graph(
     bus: EventBus,
     is_stopped: Callable[[], bool],
     evidence_hook: Callable[[str], tuple[str, str]] | None = None,
+    source_loader: Callable[[str], str] | None = None,
 ):
     """CODE AUDIT 用 LangGraph StateGraph を構築してコンパイル済みグラフを返す。
 
     `evidence_hook`（任意・P1.2）: マスク済みソースを受け取り、証拠保存して
     (ユーザープロンプトに足す証拠ID一覧, システムプロンプトに足す引用指示) を返す。
     未指定なら従来どおり証拠なしで動作する。
+
+    `source_loader`（任意・P4.2）: source_pathの代わりにLLMへ渡す本文を返す（ディレクトリ入力で
+    索引化した複数ファイルの文脈を渡す用）。OSErrorは読み込み失敗として扱う。
     """
     if not LANGGRAPH_AVAILABLE:
         raise ImportError(
@@ -137,8 +141,11 @@ def build_audit_graph(
             return {"phase": "stopped"}
         _emit("\n  [GRAPH 1/5] load_code — ファイル読み込み中 ...\n", "dim")
         try:
-            with open(state["source_path"], "r", encoding="utf-8", errors="replace") as f:
-                code = f.read()
+            if source_loader is not None:
+                code = source_loader(state["source_path"])
+            else:
+                with open(state["source_path"], "r", encoding="utf-8", errors="replace") as f:
+                    code = f.read()
             # 以降の全ノード(LLM送信)が使う前に機密名へのリテラル代入をマスクする(P1.2)。
             code = redaction.mask_source(code)
             lines = code.count("\n") + 1
