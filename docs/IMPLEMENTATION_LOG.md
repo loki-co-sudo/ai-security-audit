@@ -792,3 +792,13 @@ ATTACKのLLM解釈部分の評価(ローカルlabの観測に対する仮説の�
 - R6: 所見IDをv2（`f2_`・正規化origin=scheme/host/実効port）に変更。旧v1イベントは上書きせず、警告・自動継承なし・版が違うscan同士のdiffは拒否。`legacy_finding_id()` は移行候補算出用（移行ツールは未実装、旧台帳が見つかった場合にdry-run前提で行う）。認証context IDは未導入。
 - D0: `LabState.control_state`・`unverified_deviation`・`candidates`・二系列採点（`lab-workflow/5`）。詳細と結果は `docs/LOCAL_LAB_EVAL.md` §6.10。
 - 未着手: 通常レポートの証拠健全性表示、新規の未使用ケースでの評価、R7/GUI、R1のmethod・プローブ指紋。
+
+## 2026-10-23 実装レビュー §8（G1/G2・lab不完全本文・証拠健全性）への対応
+
+- G1: `cli.py lab` のJSONに `lab.candidates`（常に出力・候補なしは空）と `lab.finding_details` を追加。所見・台帳へは昇格させない。
+- G2: lab所見の `evidence_complete` に対照の保存証拠を含め、`evidence_missing_test_ids`・`observation_limits` を追加。採点は証拠不足を `confirmed_without_complete_evidence` に数える（FNには数えない。意味はgrader冒頭と LOCAL_LAB_EVAL §6.11）。
+- lab経路の不完全本文: `evaluate(body_complete=)`・`body_incomplete`（inconclusive）・証拠の `truncated`・結果への伝播・再開後の復元。`lab-workflow/5` のD0契約は不変。
+- 通常レポート: `core.evidence_store.inspect_evidence`（読み取り専用）と `report_generator.generate*(evidence_root=)`。integrity/completeness の2軸をHTML/MD/PDF/JSONに同じ判定で表示。GUI・CLIの出力は保存先を明示して渡す。
+- AGENTS.md §3 に、レビューで繰り返し見つかった作業傾向（経路の端から端までの追跡・根拠一式の検査・機密漏えい検査・テストPASSと契約の区別・指標と判定の混同禁止・完了状態の区別）を追記。
+- 状態: 実装済み・固定試験済み（`tools.test_lab` 92件ほか）。未実施: 実LLM再測定、GUI目視、Windows実機、HTMLの目視。残課題: R7（GUI非同期化）、R1のmethod・プローブ指紋、D0の旧新差の分離分析、新規未使用ケースの評価。
+- 2026-10-23 再レビュー対応: `LAB_ENGINE_VERSION` を `lab-workflow/6` へ（旧版Runの再開は拒否）。形式不正の証拠参照を `invalid_reference` として全形式に残す。4パネルに結果状態・注意の表示（`gui/result_notice.py`）。テストのファイル閉じ忘れを整理（`-W error::ResourceWarning` で `tools.test_lab` 93件OK）。未着手: GUI出力処理・台帳I/Oの非同期化（R7、独立作業）、旧新判定の差分分析。

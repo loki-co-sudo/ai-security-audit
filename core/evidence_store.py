@@ -123,6 +123,47 @@ def content_digest(data: dict) -> str:
     return hashlib.sha256(canon.encode("utf-8")).hexdigest()
 
 
+_SCAN_REF_RE = re.compile(r"scan_[a-f0-9]{12}")
+_EVID_REF_RE = re.compile(r"evidence_[a-f0-9]{12}")
+
+
+def inspect_evidence(root: str | None, scan_id: str, evidence_id: str) -> dict:
+    """保存済み証拠を**読み取り専用**で検査する。作成・修復・書換えはしない。
+
+    戻り値: {"integrity", "completeness", "reason"}。2軸は別物:
+      integrity    … 保存物の整合性。ok(記録時のハッシュと一致) / missing / hash_mismatch(保存後に内容が変わった) /
+                      no_hash(由来情報導入前の旧形式) / invalid_reference(IDの形式が不正・保存先の外を指す) /
+                      unreadable(読めない・壊れている) / unchecked(保存先が指定されていない=検査不能)
+      completeness … 取得内容の完全性。complete(保存時に切り詰め・省略の記録なし) / truncated(切り詰め・省略・上流で不完全と記録) /
+                      unknown(整合性が確認できない、または旧形式)
+    ハッシュ一致(ok)は保存物が記録後に変わっていないことだけを示す。所見の意味的な正しさ・元の全文があることは意味しない。
+    保存先は呼び出し側が明示する(cwdから推測しない)。"""
+    if not root:
+        return {"integrity": "unchecked", "completeness": "unknown", "reason": "evidence_root_not_specified"}
+    if not (_SCAN_REF_RE.fullmatch(str(scan_id or "")) and _EVID_REF_RE.fullmatch(str(evidence_id or ""))):
+        return {"integrity": "invalid_reference", "completeness": "unknown", "reason": "bad_id_format"}
+    path = os.path.join(root, scan_id, f"{evidence_id}.json")
+    try:
+        if os.path.islink(path) or os.path.realpath(path) != os.path.join(os.path.realpath(root), scan_id, f"{evidence_id}.json"):
+            return {"integrity": "invalid_reference", "completeness": "unknown", "reason": "outside_root_or_symlink"}
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        return {"integrity": "missing", "completeness": "unknown", "reason": "file_not_found"}
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return {"integrity": "unreadable", "completeness": "unknown", "reason": "read_or_parse_failed"}
+    if not isinstance(data, dict):
+        return {"integrity": "unreadable", "completeness": "unknown", "reason": "not_an_object"}
+    recorded = data.get("content_sha256", "")
+    if not recorded:
+        return {"integrity": "no_hash", "completeness": "unknown", "reason": "legacy_evidence_without_hash"}
+    if content_digest(data) != recorded:
+        return {"integrity": "hash_mismatch", "completeness": "unknown", "reason": "content_changed_after_save"}
+    cut = bool(data.get("truncated")) or bool(data.get("omitted_reason"))
+    return {"integrity": "ok", "completeness": "truncated" if cut else "complete",
+            "reason": str(data.get("omitted_reason") or ("truncated" if cut else ""))[:120]}
+
+
 def relativize_path(path: str, base: str | None = None) -> str:
     """証拠に残すパスを相対形へ変換する。baseがcwd配下でない場合はファイル名のみ。
 

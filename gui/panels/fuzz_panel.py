@@ -301,6 +301,8 @@ class FuzzPanel(ctk.CTkFrame):
         if k == ev.RESULT:
             from gui.ledger_util import attach_ledger
             self._scan_result = attach_ledger(p)
+            from gui import result_notice
+            result_notice.show(self._out_box, self._scan_result)
         elif k == ev.OUTPUT:
             self._out_box.append(p["text"], p.get("tag", ""))
         elif k == ev.STEP:

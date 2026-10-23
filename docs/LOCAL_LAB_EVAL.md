@@ -401,7 +401,7 @@ glm-5.3は決定論を上回る再現率を初めて示したが、探査を対�
 - `supported`（裏付けあり）と `refuted`（期待どおり）は、対照が `passed` または `not_required` のときだけ。probeが逸脱しても対照が `not_run` なら新状態 `unverified_deviation`（候補）。対照が `failed`/`inconclusive` なら `undetermined`。全probeが適合でも対照が未実行なら `refuted` ではなく `undetermined`。
 - `corroborated` も対照が `passed`/`not_required` を要する。旧実装は対照が未実施でも、probeが2件逸脱すれば真だった。
 - 候補は結果の `candidates` に残す（探索候補は消さない）。所見（findings）・連鎖の材料・台帳には入れない。連鎖は、メンバー全てが `supported` のときだけ仮説にする。優先順位付けでは、候補の対照確認と、連鎖が完成しうる仮説に加点する。
-- 採点は別系列: `recall`/`false_positives` は裏付けあり（findings）のみ、`candidate_recall`/`candidate_false`/`unverified_deviations` は候補を含む。未判定率は `unverified_deviation` を未判定に数える。**`lab-workflow/4`以前の値とは定義が違うため比較しない**（旧ベースラインは別名で保存済み）。
+- 採点は別系列: `recall`/`false_positives` は裏付けあり（findings）のみ、`candidate_recall`/`candidate_false`/`unverified_deviations` は候補を含む。未判定率は `unverified_deviation` を未判定に数える。**`lab-workflow/4`以前の値とは定義が違い、旧値は版と定義を添えて残しているだけで、直接の優劣比較には使わない**（旧ベースラインは別名で保存済み）。
 
 結果（モック・順序ランダム20通り。ベースライン: `lab_eval_dev9_mock_d0_wf5_2026-10-23.json` / `lab_eval_holdout5_mock_d0_wf5_2026-10-23.json`）:
 
@@ -417,10 +417,31 @@ glm-5.3は決定論を上回る再現率を初めて示したが、探査を対�
 読み取れること:
 
 - 偽陽性（裏付けありの誤り）は全方式で0になった。保留03の `h-kb-legacy`（対照が予算内に実行されず支持と報告された）は、所見ではなく候補（candidate_false=1.0）として残る。順序ランダムの旧偽陽性も同様に候補側へ移った。
-- 代償として、予算が5〜7リクエストと小さい案件では、対照の実行に使う分だけ裏付け済みの再現率と連鎖が下がった（決定論の開発9件: 0.864→0.636、連鎖 3/3→2/3）。決定論の裏付け済み再現率は固定と同じになり、優位は候補の発見率（0.773 vs 0.636）と連鎖に残る程度。
+- 旧新の差（決定論の開発9件: recall 0.864→0.636、連鎖 3/3→2/3）の**原因は分離できていない**。差には少なくとも (1) 採点・報告条件の変更（旧は対照未確認を所見に数え、新は除外）、(2) 選択順の変更（`unverified_deviation` への加点と連鎖加点の追加）、(3) 対照の実行コスト（予算が5〜7リクエストと小さい）が混在する。「対照の通信コストによる代償」とは断定しない。同じ観測履歴を旧/新判定で採点し直す分析（§6.11の次の作業）で分離する。固定の裏付け済み recall が旧版と同じ0.636のままなのは、固定は宣言順で対照が先に走るためで、決定論の優位は候補の発見率（0.773 vs 0.636）と連鎖に残る程度。
 - 開発の `lab-bank-01` は決定論が0件（事前重要度が外れた案件で、D0以前から不利）。優先度の係数は今回調整していない。
 - 保留5件は結果を見た後のため、ここの数値は汎化性能の主張に使えない。新規の未使用ケースで評価するまでは、D0の有効性は「偽陽性の構造的な除去」までしか主張しない。実LLMでの再測定は未実施。
 - 試験: `tools.test_lab` 79件OK（契約の状態遷移・連鎖から除外・報告・二系列採点を追加）。旧契約を前提にしていた既存の期待値は、契約変更に合わせて更新した（`test_deviation_supports_and_corroboration` 等。連鎖の検出自体を見る試験は予算を8へ広げた）。
+
+### 6.11 出力・証拠の契約の完成（G1/G2・不完全な本文・証拠健全性表示・2026-10-23）
+
+実装レビュー §8 への対応。D0の条件・係数・予算は変更していない（再現率を戻す調整はしない）。**実装済み・固定試験済み**。実LLM評価・GUI目視・Windows確認は未実施。
+
+契約（追跡経路: 取得→判定→保存→再開→出力→採点）:
+
+- **候補のCLI出力（G1）**: `cli.py lab` のJSONに `lab.candidates`（状態・対照の状態・逸脱内容・証拠参照・未実施の対照・本文の制約）を常に含める（候補なしは空リスト）。`findings`・所見台帳へは昇格させない。`lab.finding_details` に所見ごとの `evidence_complete`・`evidence_missing_test_ids`・`observation_limits` を出す。`--report-dir` に依存しない。
+- **証拠充足（G2）**: `evidence_complete` は、裏付けに必要な根拠一式（逸脱probe＋通った対照）の保存証拠が全て揃う場合だけ真。「対照を実行して適合した」事実（verification_state）と「保存証拠が揃っている」ことは別で、保存失敗だけでは観測事実（所見・corroborated）を消さない。採点では、証拠が欠けた所見は `unique_confirmed_with_evidence`（TP）に含めず `confirmed_without_complete_evidence` に数える。**この所見は `false_negatives` にも数えない**（報告はしたが再検証できない状態）ため、`recall = TP/対象` は `1 - false_negatives/対象` と一致せず、差が証拠不足の件数になる。
+- **不完全な本文（lab経路）**: `HttpTransport` が付ける `fz_incomplete_reason`（size_cap/read_timeout/read_error）を、`evaluate`・証拠保存（`source_incomplete`）・結果（`body_complete`/`incomplete_reason`/`bytes_read`・所見と候補の `observation_limits`）・レポートへ渡す。本文依存の期待値は、読めた範囲で違反が見つかれば逸脱として保持し、見つからない・含まれないことは `conforms`/`refuted` にせず `inconclusive(body_incomplete)`。ステータス・ヘッダーだけで成立する判定は本文の完全性に依存しない。解除条件の文字列が不完全な本文で見つからないテストは解除せず、理由を `locked_unlock_undecided_incomplete_body` として残す。証拠保存OFFでも結果に残り、再開（RunStoreの復元）後も同じ。
+- **通常レポートの証拠健全性**: 保存物の整合性 `integrity`（ok/missing/hash_mismatch/no_hash/invalid_reference/unreadable/unchecked）と取得内容の完全性 `completeness`（complete/truncated/unknown）を別軸で、HTML/MD/PDF/JSONに同じ判定結果で表示（`core.evidence_store.inspect_evidence`・読み取り専用・保存先は `evidence_root` で明示）。検査時点と未検査（`unchecked`）を表示し、欠落した証拠があっても所見は削除しない。labレポートも同じ2軸（旧「ハッシュ検証 OK」表示を置換）。
+
+試験: `tools.test_lab` 92件（G1/G2/不完全な本文/再開）、`tools.test_structured_reports`（7状態×4形式・読み取り専用・移動したレポート・不正参照）。旧契約を前提にした期待値の変更は2件（JSONの証拠項目に検査結果の3項目を追加、labレポートの証拠表示を2軸化）。PDFは実レンダリングを目視確認した（HTMLの目視は未実施）。
+
+追補（同日・再レビュー対応）:
+
+- **判定契約の版**: 判定契約（G2の証拠充足・不完全本文の扱い）を変えたため `LAB_ENGINE_VERSION` を `lab-workflow/6` に上げた（`/5`=D0、`/6`=G2・不完全本文）。版はプロファイルハッシュに入るため、旧版のRunは再開を拒否される（`body_complete` 等の欠落を既定値で補って再開しない）。固定試験: 旧版のクラッシュRunを新版で再開すると `failed`・再送0。§6.10の評価値は `/5`、§6.9以前は `/4`以下の値で、版と定義を添えて残している。
+- **不正な証拠参照**: 形式が不正な証拠IDは、リンクは作らないが `invalid_reference`（`bad_id_format`、scan_id不正は `bad_scan_id`）として全形式に残す（以前は黙って消えた）。表示用IDは英数字・`_`・`-`以外を`?`に置換して40文字以内。symlinkや保存先外の参照は別理由（`outside_root_or_symlink`）として区別。
+- **GUIの結果状態**: 4パネルの出力欄に「結果の状態: 一部完了(partial)・注意N件」と注意の詳細（最大8件・マスク済み、未検査の検査単位の件数）を表示（`gui/result_notice.py`）。仮想ディスプレイで実際のOutputBoxへの表示を確認。**GUIの出力処理（証拠読込・PDF生成）とR7の台帳I/Oは依然としてGUIスレッドの同期処理**で、別スレッド化は独立した作業として未着手（実負荷での停止時間は未測定）。WindowsのDPI・実画面の見た目も未確認。
+
+**次の推奨作業**: 開発案件の同じ観測履歴を旧/新判定で採点し直し、未達を「未発見／対照未実施／対照失敗・不明／証拠不足」に分解する（対照の残コスト・残予算も記録）。結果を見てから選択方式の改善要否を判断し、方式と採用基準を凍結した後に、新規の未使用ケースで評価する。
 
 ## 7. 安全試験（`tools/test_lab.py`）
 

@@ -12,6 +12,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -41,6 +42,12 @@ def raw(cid):
         return json.load(f)
 
 
+def _raw_case(cid):
+    """案件設定のJSON(編集用の複製)。ファイルは読んだらすぐ閉じる。"""
+    with open(case_path(cid), encoding="utf-8") as f:
+        return json.load(f)
+
+
 class Tmp(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="labtest_")
@@ -51,9 +58,9 @@ class Tmp(unittest.TestCase):
         own = app is None
         app = app or APPS[cid]().start()
         try:
-            res = lw.run_lab_case(case, app.base_url, app.credentials(), strategy=strategy,
-                                  journal_root=os.path.join(self.tmp, "runs"),
-                                  evidence_root=os.path.join(self.tmp, "ev"), **kw)
+            kw.setdefault("journal_root", os.path.join(self.tmp, "runs"))
+            kw.setdefault("evidence_root", os.path.join(self.tmp, "ev"))
+            res = lw.run_lab_case(case, app.base_url, app.credentials(), strategy=strategy, **kw)
             return res, app
         finally:
             if own:
@@ -282,10 +289,12 @@ class WorkflowE2ETest(Tmp):
         res, _ = self.run_case("lab-shop-01")
         md = render_markdown(load_case(case_path("lab-shop-01")), res.to_dict(), evidence_root=os.path.join(self.tmp, "ev"))
         for needle in ("案件ID", "対象機能", "使用した固定テスト操作", "再現手順", "証拠", "期待される正常動作との差",
-                       "確認できた影響", "深刻度", "改善案", "検証済み・未検証事項", "未検査範囲と終了理由", "ハッシュ検証 OK"):
+                       "確認できた影響", "深刻度", "改善案", "検証済み・未検証事項", "未検査範囲と終了理由", "保存物の整合性=ok"):   # 旧表示「ハッシュ検証 OK」を整合性/完全性の2軸へ変更
             self.assertIn(needle, md)
         self.assertIn("実際の影響の測定ではない", md)
-        self.assertNotIn("NG(", md)
+        for bad in ("整合性=missing", "整合性=hash_mismatch", "整合性=no_hash", "整合性=unreadable", "整合性=invalid_reference"):
+            self.assertNotIn(bad, md)                                                       # 旧「NG(」の確認を、各異常状態に拡張
+        self.assertIn("取得内容の完全性=complete", md)
 
     def test_secrets_never_leak(self):
         res, app = self.run_case("lab-shop-01", "llm", llm=lab_eval.MockRanker("first"))
@@ -614,6 +623,27 @@ class ResumeTest(Tmp):
                 self.assertGreaterEqual(res.budget["requests_used"], len(after))
                 self.assertNotEqual(res.state, "completed")
 
+    def test_run_from_an_older_engine_version_is_not_resumed(self):
+        """判定契約(版)が違う旧Runは、欠落フィールドを既定値で補って再開せず、拒否する。"""
+        self.assertEqual(lw.LAB_ENGINE_VERSION, "lab-workflow/6")
+        jr = os.path.join(self.tmp, "runs_old")
+        app = ShopApp().start()
+        try:
+            spec = {"case_path": case_path("lab-shop-01"), "base_url": app.base_url, "creds": app.credentials(),
+                    "strategy": "fixed", "journal_root": jr, "evidence_root": os.path.join(self.tmp, "ev"),
+                    "crash": "before_send:t-orders-cross", "engine_version": "lab-workflow/5"}
+            p = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "lab_crash_child.py"), json.dumps(spec)],
+                               capture_output=True, text=True, timeout=60)
+            self.assertEqual(p.returncode, 137, p.stderr[-500:])
+            sent = len(app.requests)
+            res = lw.run_lab_case(load_case(case_path("lab-shop-01")), app.base_url, app.credentials(), strategy="fixed",
+                                  journal_root=jr, evidence_root=os.path.join(self.tmp, "ev"), resume_run_id=os.listdir(jr)[0])
+            self.assertEqual(res.state, "failed")
+            self.assertTrue(any("再開に失敗" in e for e in res.errors), res.errors)
+            self.assertEqual(len(app.requests), sent)                                   # 何も再送しない
+        finally:
+            app.stop()
+
     def test_resume_rejects_changed_profile(self):
         jr = os.path.join(self.tmp, "runs_p")
         app, p = self.crash("fixed", "after_send:t-orders-cross", jr)
@@ -868,6 +898,276 @@ class D0ReportingTest(Tmp):
     def test_complete_budget_has_no_candidates_for_deterministic_on_shop(self):
         res, _ = self.run_case("lab-shop-01", "deterministic", budget_override={"max_requests": 30})
         self.assertEqual(res.candidates, [])
+
+
+class LabCutHelper:
+    """HttpTransportの本文読取を、指定した応答だけ途中で切って不完全にする(通信自体は実際にloopbackへ行う)。"""
+
+    def cut(self, rules):
+        """rules: [(URLに含まれる文字列, 認証トークン(None=任意), 残すバイト数, 理由)]"""
+        orig = lw.HttpTransport._cap_response_body
+
+        def patched(tself, resp):
+            orig(tself, resp)
+            url = resp.request.url or ""
+            auth = (resp.request.headers.get("Authorization") or "").removeprefix("Bearer ")
+            for part, token, keep, reason in rules:
+                if part in url and (token is None or token == auth):
+                    resp._content = resp._content[:keep]
+                    resp.fz_truncated, resp.fz_incomplete_reason, resp.fz_bytes_read = True, reason, keep
+                    return
+        patcher = mock.patch.object(lw.HttpTransport, "_cap_response_body", patched)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+
+class G2EvidenceCompletenessTest(Tmp):
+    """G2: 所見の裏付けに必要な根拠一式(逸脱probe＋通った対照)の保存証拠が欠ければ evidence_complete=False。"""
+
+    def _run(self, store_cls=None, **kw):
+        ctx = mock.patch.object(lw, "EvidenceStore", store_cls) if store_cls else mock.patch.object(lw, "EvidenceStore", lw.EvidenceStore)
+        with ctx:
+            return self.run_case("lab-shop-01", "fixed", budget_override={"max_requests": 30}, **kw)
+
+    @staticmethod
+    def _failing(match):
+        class Store(lw.EvidenceStore):
+            def save_http_evidence(self, **k):
+                return None if match(k) else super().save_http_evidence(**k)
+        return Store
+
+    def _idor(self, res):
+        return next(f for f in res.findings if f["hypothesis_id"] == "h-orders-idor")
+
+    def test_all_evidence_saved_is_complete(self):
+        res, _ = self._run()
+        f = self._idor(res)
+        self.assertTrue(f["evidence_complete"])
+        self.assertEqual(f["evidence_missing_test_ids"], [])
+        self.assertEqual(f["verification_state"], "corroborated")
+
+    def test_control_only_save_failure_makes_evidence_incomplete_but_keeps_the_observation(self):
+        # t-orders-own(対照)だけ保存に失敗させる。probeの証拠は全て保存される
+        res, app = self._run(self._failing(lambda k: "/orders" in k["url"] and "id=1" in k["url"] and k["status"] == 200
+                                           and "Order 1" in str(k.get("body", ""))))
+        f = self._idor(res)
+        self.assertIn("t-orders-own", f["evidence_missing_test_ids"])
+        self.assertFalse(f["evidence_complete"])
+        self.assertEqual(f["verification_state"], "corroborated")             # 観測した事実は消さない
+        self.assertEqual(res.tests["t-orders-own"]["outcome"], lw.CONFORMS)
+        self.assertIsNone(res.tests["t-orders-own"]["evidence_id"])
+        g = grader.grade(load_case(case_path("lab-shop-01")), grader.load_truth("lab-shop-01"), res.to_dict(),
+                         app.requests, [])
+        self.assertEqual(g["confirmed_without_complete_evidence"], 1)
+        self.assertNotIn("h-orders-idor", g["missed"])                         # 未報告ではない(FNに数えない)
+        self.assertEqual(g["unique_confirmed_with_evidence"], g["reachable_flaws"] - 1 - g["false_negatives"])
+
+    def test_one_of_several_controls_missing(self):
+        raw_case = _raw_case("lab-shop-01")
+        own = next(t for t in raw_case["tests"] if t["test_id"] == "t-orders-own")
+        own2 = json.loads(json.dumps(own))
+        own2["test_id"], own2["params"] = "t-orders-own-2", {"id": "1", "v": "2"}
+        raw_case["tests"].append(own2)
+        case = parse_case(raw_case)
+        res, _ = self._run(self._failing(lambda k: "v=2" in k["url"]), case=case)
+        f = self._idor(res)
+        self.assertEqual(f["evidence_missing_test_ids"], ["t-orders-own-2"])
+        self.assertFalse(f["evidence_complete"])
+        self.assertEqual(res.tests["t-orders-own"]["outcome"], lw.CONFORMS)
+
+    def test_capacity_omission_leaves_findings_without_complete_evidence(self):
+        class Small(lw.EvidenceStore):
+            def __init__(self, sid, **k):
+                super().__init__(sid, max_items=3, **k)
+        res, _ = self._run(Small)
+        self.assertTrue(res.findings)
+        self.assertTrue(any(not f["evidence_complete"] for f in res.findings))
+        self.assertTrue(any("証拠保存を省略" in e for e in res.errors))
+        self.assertEqual({f["hypothesis_id"] for f in res.findings} & {"h-orders-idor"}, {"h-orders-idor"})   # 所見は消えない
+
+    def test_evidence_off_means_not_complete(self):
+        raw_case = _raw_case("lab-shop-01")
+        raw_case["evidence"] = {"save": False}
+        res, _ = self.run_case("lab-shop-01", "fixed", case=parse_case(raw_case), budget_override={"max_requests": 30})
+        self.assertTrue(res.findings)
+        self.assertTrue(all(not f["evidence_complete"] for f in res.findings))
+
+
+class LabIncompleteBodyTest(Tmp, LabCutHelper):
+    """lab経路: 不完全な本文(途中切断・サイズ上限・読取時間超過)を、判定・証拠・結果・再開まで伝える。"""
+
+    def setUp(self):
+        super().setUp()
+        self.c = load_case(case_path("lab-shop-01"))
+
+    def ev(self, tid, status, body, complete=True, headers=None):
+        return lw.evaluate(self.c.tests[tid], status, headers or {}, body, complete)
+
+    def test_evaluate_body_dependent_checks_need_a_complete_body(self):
+        self.assertEqual(self.ev("t-orders-cross", 403, "", True)[0], lw.CONFORMS)              # 正常な空本文
+        o, why, _ = self.ev("t-orders-cross", 403, "", False)
+        self.assertEqual((o, why), (lw.INCONCLUSIVE, "body_incomplete"))                         # 不完全な空本文はconformsにしない
+        self.assertEqual(self.ev("t-orders-cross", 200, '{"order":"Ord', False)[0], lw.DEVIATES)  # ステータスは本文に依存しない
+        o, _, diffs = self.ev("t-search-reflect", 200, "Results: <script>1</script>", False)
+        self.assertEqual(o, lw.DEVIATES)                                                         # 読めた範囲の違反は保持する
+        self.assertTrue(diffs)
+        self.assertEqual(self.ev("t-search-reflect", 200, "Results: ", False)[0], lw.INCONCLUSIVE)
+        self.assertEqual(self.ev("t-orders-own", 200, "Ord", False)[0], lw.INCONCLUSIVE)         # body_containsが見つからない≠欠落
+        self.assertEqual(self.ev("t-orders-own", 200, "Order 1: keyboard", False)[0], lw.CONFORMS)   # 読めた範囲で満たす
+        self.assertEqual(self.ev("t-orders-expired", 403, "", False)[0], lw.CONFORMS)           # ステータスだけの判定は成立
+        self.assertEqual(self.ev("t-orders-own", 200, "", True)[0], lw.DEVIATES)                 # 完全な空本文は欠落
+
+    def test_truncated_control_is_inconclusive_and_blocks_support(self):
+        tok = None
+        with APPS["lab-shop-01"]() as app:
+            tok = app.credentials()["cred:user_a"]
+            self.cut([("/orders?id=1", tok, 3, "read_error")])
+            res, _ = self.run_case("lab-shop-01", "fixed", app=app, budget_override={"max_requests": 30})
+        own = res.tests["t-orders-own"]
+        self.assertEqual((own["outcome"], own["reason"], own["body_complete"], own["incomplete_reason"]),
+                         (lw.INCONCLUSIVE, "body_incomplete", False, "read_error"))
+        self.assertEqual(res.hypotheses["h-orders-idor"]["control_state"], "inconclusive")
+        self.assertEqual(res.hypotheses["h-orders-idor"]["status"], "undetermined")
+        self.assertNotIn("h-orders-idor", {f["hypothesis_id"] for f in res.findings})
+
+    def test_truncated_probe_is_not_refuted_by_the_missing_text(self):
+        with APPS["lab-shop-01"]() as app:
+            self.cut([("/search", None, 4, "size_cap")])
+            res, _ = self.run_case("lab-shop-01", "fixed", app=app, budget_override={"max_requests": 30})
+        self.assertEqual(res.tests["t-search-reflect"]["outcome"], lw.INCONCLUSIVE)
+        self.assertEqual(res.hypotheses["h-search-xss"]["status"], "undetermined")           # refutedにしない
+
+    def test_status_only_decision_is_kept_and_limitation_is_recorded(self):
+        with APPS["lab-shop-01"]() as app:
+            tok = app.credentials()["cred:user_a"]
+            self.cut([("/export/orders.csv", tok, 2, "read_timeout"), ("/orders?id=2", tok, 2, "read_error")])
+            res, _ = self.run_case("lab-shop-01", "fixed", app=app, budget_override={"max_requests": 30})
+        exp = res.tests["t-export-user"]
+        self.assertEqual((exp["outcome"], exp["body_complete"]), (lw.DEVIATES, False))          # ステータスで逸脱
+        f = next(x for x in res.findings if x["hypothesis_id"] == "h-export-authz")
+        self.assertEqual([x["reason"] for x in f["observation_limits"]], ["read_timeout"])
+        self.assertTrue(f["evidence_complete"])                                                  # 保存はできている(内容が部分)
+
+    def test_incompleteness_survives_without_evidence_and_reaches_evidence_when_saved(self):
+        for save in (True, False):
+            raw_case = _raw_case("lab-shop-01")
+            raw_case["evidence"] = {"save": save}
+            with APPS["lab-shop-01"]() as app:
+                tok = app.credentials()["cred:user_a"]
+                self.cut([("/export/orders.csv", tok, 2, "read_error")])
+                res, _ = self.run_case("lab-shop-01", "fixed", app=app, case=parse_case(raw_case),
+                                       budget_override={"max_requests": 30}, evidence_root=os.path.join(self.tmp, f"ev{save}"))
+            self.assertFalse(res.tests["t-export-user"]["body_complete"], save)
+            self.assertEqual(res.tests["t-export-user"]["incomplete_reason"], "read_error", save)
+            f = next(x for x in res.findings if x["hypothesis_id"] == "h-export-authz")
+            self.assertTrue(f["observation_limits"], save)                                       # 保存OFFでも結果から消えない
+            if save:
+                from core.evidence_store import EvidenceStore
+                ev = EvidenceStore(res.scan_id, root=os.path.join(self.tmp, f"ev{save}")).load(res.tests["t-export-user"]["evidence_id"])
+                self.assertTrue(ev["truncated"])
+                self.assertIn("read_error", ev["omitted_reason"])
+            md = render_markdown(load_case(case_path("lab-shop-01")), res.to_dict(),
+                                 evidence_root=os.path.join(self.tmp, f"ev{save}"))
+            self.assertIn("本文が不完全", md)
+            blob = md + json.dumps(res.to_dict(), ensure_ascii=False, default=str)
+            for tok in app.credentials().values():                                          # 結果・レポートに認証値を残さない
+                self.assertNotIn(tok, blob, save)
+            if save:
+                self.assertIn("保存物の整合性=ok / 取得内容の完全性=truncated", md)           # 整合性と完全性は別軸
+
+    def test_resume_restores_incompleteness_and_does_not_resend(self):
+        jr = os.path.join(self.tmp, "runs_resume")
+        app = ShopApp().start()
+        try:
+            tok = app.credentials()["cred:user_a"]
+            spec = {"case_path": case_path("lab-shop-01"), "base_url": app.base_url, "creds": app.credentials(),
+                    "strategy": "fixed", "journal_root": jr, "evidence_root": os.path.join(self.tmp, "ev"),
+                    "crash": "before_send:t-orders-cross", "cuts": [["/orders?id=1", tok, 3, "read_error"]]}
+            p = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "lab_crash_child.py"), json.dumps(spec)],
+                               capture_output=True, text=True, timeout=60)
+            self.assertEqual(p.returncode, 137, p.stderr[-500:])
+            before = [(r["path"], r["query"], r["role"]) for r in app.requests]
+            res = lw.run_lab_case(load_case(case_path("lab-shop-01")), app.base_url, app.credentials(), strategy="fixed",
+                                  journal_root=jr, evidence_root=os.path.join(self.tmp, "ev"),
+                                  resume_run_id=os.listdir(jr)[0])
+            after = [(r["path"], r["query"], r["role"]) for r in app.requests]
+        finally:
+            app.stop()
+        own = res.tests["t-orders-own"]                                                   # 再開後の復元結果(再送なし)
+        self.assertEqual((own["outcome"], own["body_complete"], own["incomplete_reason"]),
+                         (lw.INCONCLUSIVE, False, "read_error"))
+        self.assertEqual(res.hypotheses["h-orders-idor"]["control_state"], "inconclusive")
+        self.assertNotIn(("/orders", "id=1", "user_a"), after[len(before):])
+        self.assertTrue(res.clean_finish, res.errors)
+
+
+class G1CliCandidatesTest(Tmp):
+    """G1: 候補(対照未確認の逸脱)の詳細をCLI JSONへ渡す。findings・台帳へは昇格させない。"""
+
+    def _cli(self, *args):
+        p = subprocess.run([sys.executable, os.path.join(ROOT, "cli.py"), "lab", *args], capture_output=True, text=True,
+                           timeout=120, cwd=ROOT)
+        return p.returncode, p.stdout, p.stderr
+
+    def _creds(self, app):
+        path = os.path.join(self.tmp, "creds.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(app.credentials(), f)
+        os.chmod(path, 0o600)
+        return path
+
+    def _case_with_budget(self, cid, n):
+        d = _raw_case(cid)
+        d["budget"]["max_requests"] = n
+        path = os.path.join(self.tmp, f"{cid}_{n}.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(d, f)
+        return path
+
+    def test_candidates_reach_cli_json_with_and_without_report_dir_and_stay_out_of_findings_and_ledger(self):
+        led = os.path.join(self.tmp, "led")
+        for with_report in (False, True):
+            args = ["--case", self._case_with_budget("lab-billing-01", 3)]
+            with APPS["lab-billing-01"]() as app:
+                args += ["--base-url", app.base_url, "--creds-file", self._creds(app), "--journal-root", os.path.join(self.tmp, f"j{with_report}"),
+                         "--evidence-root", os.path.join(self.tmp, f"e{with_report}"), "--engagement-id", "g1", "--ledger-root", led]
+                if with_report:
+                    args += ["--report-dir", os.path.join(self.tmp, "r")]
+                rc, out, err = self._cli(*args)
+                toks = list(app.credentials().values())
+            doc = json.loads(out)
+            cands = doc["lab"]["candidates"]
+            self.assertTrue(cands, with_report)
+            c = cands[0]
+            for k in ("hypothesis_id", "status", "control_state", "test_ids", "control_test_ids", "diffs", "evidence_ids", "note"):
+                self.assertIn(k, c)
+            self.assertEqual((c["status"], c["control_state"]), ("deviation_unverified", "not_run"))
+            self.assertTrue(c["diffs"] and all(c["diffs"].values()))
+            self.assertTrue(c["evidence_ids"])
+            self.assertTrue(c["control_test_ids"])
+            cand_ids = {x["hypothesis_id"] for x in cands}
+            self.assertFalse(cand_ids & {f.get("hypothesis_id") for f in doc["findings"]})
+            self.assertNotIn(c["hypothesis_id"], json.dumps(doc["findings"]))
+            for t in toks:
+                self.assertNotIn(t, out)
+                self.assertNotIn(t, err)
+            self.assertEqual(doc["lab"]["hypotheses"][c["hypothesis_id"]]["status"], "unverified_deviation")
+        from core.findings_ledger import Ledger
+        events, _ = Ledger("g1", root=led).read()
+        observed = [e for e in events if e["type"] == "finding_observed"]
+        self.assertEqual(len(observed), 0)                    # 候補だけの結果は、所見としても台帳にも入らない(この予算では所見0件)
+        self.assertEqual(len(doc["findings"]), 0)
+
+    def test_no_candidates_is_an_empty_list_and_finding_details_expose_evidence_state(self):
+        with APPS["lab-chain-02"]() as app:
+            rc, out, err = self._cli("--case", case_path("lab-chain-02"), "--base-url", app.base_url,
+                                     "--journal-root", os.path.join(self.tmp, "j"), "--evidence-root", os.path.join(self.tmp, "e"))
+        doc = json.loads(out)
+        self.assertIn("candidates", doc["lab"])
+        self.assertIsInstance(doc["lab"]["candidates"], list)
+        fd = doc["lab"]["finding_details"]
+        self.assertEqual(len(fd), len(doc["findings"]))
+        self.assertTrue(all("evidence_complete" in x and "observation_limits" in x for x in fd))
 
 
 class RetryAndLedgerTest(Tmp):

@@ -96,6 +96,7 @@ h2{color:var(--cyan);font-size:14px;border-bottom:1px solid var(--border);
 .h .lbl,.h .cnt{color:var(--orange)}
 .m .lbl,.m .cnt{color:var(--yellow)}
 .l .lbl,.l .cnt{color:var(--green)}
+.evchk{color:var(--muted,#8a94a6);font-size:.85em}
 .finding{background:var(--panel);border-radius:8px;border:1px solid var(--border);
          margin-bottom:16px;overflow:hidden}
 .fhdr{padding:12px 18px;border-bottom:1px solid var(--border);
@@ -212,7 +213,9 @@ def _render_finding(f: dict, lbl: dict) -> str:
         parts.append(f'<p>Verification: {html.escape(f["verification"])}</p>')
         if f.get("ledger"):
             parts.append(f'<p>Ledger: {html.escape(f["ledger"])}</p>')
-        refs = " ".join(f'<a href="{path}">{eid}</a>' for eid, path in f["evidence_refs"])
+        refs = " ".join(
+            (f'<a href="{c["path"]}">{c["evidence_id"]}</a>' if c["path"] else html.escape(c["evidence_id"]))
+            + f' <span class="evchk">[{html.escape(evidence_label(c))}]</span>' for c in f.get("evidence_checks", []))
         parts.append(f'<p>Evidence: {refs or "not saved / unavailable"}</p>')
     if f.get("snippet"):
         parts.append(f'<div class="slabel">{lbl["vuln_code"]}</div><pre>{html.escape(f["snippet"])}</pre>')
@@ -301,7 +304,33 @@ def _ledger_summary(result: dict) -> list[str]:
     return lines
 
 
-def _report_data(mode, target, raw_text, model, scan_result):
+def _evidence_checks(scan_id: str, refs: list, evidence_root: str | None) -> list[dict]:
+    """HTML/MD/PDF/JSONが共有する証拠の検査結果(読み取り専用)。参照ごとに integrity と completeness を別々に持つ。"""
+    from core.evidence_store import inspect_evidence
+    out = []
+    for eid, path in refs:
+        out.append({"evidence_id": eid, "path": path, **inspect_evidence(evidence_root, scan_id, eid)})
+    return out
+
+
+def _invalid_check(eid, scan_id: str) -> dict:
+    shown = re.sub(r"[^A-Za-z0-9_\-]", "?", str(eid))[:40]        # 表示用に無害化・短縮(リンクは作らない)
+    why = "bad_id_format" if re.fullmatch(r"scan_[a-f0-9]{12}", scan_id or "") else "bad_scan_id"
+    return {"evidence_id": shown, "path": "", "integrity": "invalid_reference", "completeness": "unknown", "reason": why}
+
+
+def evidence_label(c: dict) -> str:
+    """検査結果の短い表示(全形式で同じ文言)。"""
+    return f"integrity={c['integrity']}; completeness={c['completeness']}"
+
+
+_EVIDENCE_LEGEND = ("Evidence check: integrity = hash check of the saved file (ok = unchanged since saving; it does NOT mean the finding "
+                    "is correct or that the full original text exists) / completeness = truncation record of the captured content "
+                    "(truncated = partial). unchecked = no evidence root specified, so not inspectable. Findings are never dropped "
+                    "because evidence is missing")
+
+
+def _report_data(mode, target, raw_text, model, scan_result, evidence_root=None, checked_at=None):
     """確定結果を優先し、旧マーカー入力は互換アダプターで読む。"""
     if scan_result is None:
         findings, counts = _findings_and_counts(mode, raw_text)
@@ -310,11 +339,13 @@ def _report_data(mode, target, raw_text, model, scan_result):
     findings = []
     scan_id = result.get("scan_id", "")
     for item in result.get("findings", []):
-        refs = []
+        refs, invalid = [], []
         for eid in item.get("evidence_ids", []):
             if (re.fullmatch(r"scan_[a-f0-9]{12}", scan_id)
-                    and re.fullmatch(r"evidence_[a-f0-9]{12}", eid)):
+                    and re.fullmatch(r"evidence_[a-f0-9]{12}", str(eid))):
                 refs.append((eid, f"evidence/{scan_id}/{eid}.json"))
+            else:
+                invalid.append(eid)
         findings.append({
             "name": item.get("description", ""),
             "severity": item.get("severity", "LOW"),
@@ -324,6 +355,9 @@ def _report_data(mode, target, raw_text, model, scan_result):
             "verification": item.get("verification_state", "observed"),
             "ledger": item.get("_ledger_line", ""),
             "evidence_refs": refs,
+            # 形式が不正な参照はリンクを作らないが、「不正な参照があった」事実は検査結果として残す(黙って消さない)
+            "evidence_checks": _evidence_checks(scan_id, refs, evidence_root)
+            + [_invalid_check(eid, scan_id) for eid in invalid],
             "confidence": ("ENSEMBLE_MINORITY" if
                            item.get("verifier_support", {}).get("ensemble_minority") else ""),
         })
@@ -331,7 +365,16 @@ def _report_data(mode, target, raw_text, model, scan_result):
               for sev in ("CRITICAL", "HIGH", "MEDIUM", "LOW")}
     summary = [f"State: {result.get('state', 'unknown')}",
                *_ledger_summary(result),
-               "Evidence: excerpts may be masked or omitted; no references means not saved or unavailable."]
+               "Evidence: excerpts may be masked or omitted; no references means not saved or unavailable.",
+               _EVIDENCE_LEGEND,
+               ("Evidence inspection: performed at " + (checked_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                if evidence_root else "Evidence inspection: not performed (evidence root not specified)")]
+    checks = [c for f in findings for c in f["evidence_checks"]]
+    if checks:
+        bad = [c for c in checks if c["integrity"] != "ok" or c["completeness"] != "complete"]
+        summary.append(f"Evidence check result: {len(checks) - len(bad)}/{len(checks)} refs ok+complete"
+                       + ("" if not bad else " | not ok/complete: " + ", ".join(
+                           f"{c['evidence_id']}({evidence_label(c)})" for c in bad[:20])))
     summary.extend(f"Error: {e}" for e in result.get("errors", []))
     summary.extend(f"Coverage: {c.get('status')} | {c.get('target_ref')} | {c.get('reason', '')}"
                    for c in result.get("coverage", []))
@@ -352,6 +395,7 @@ def generate(
     timestamp: str | None = None,
     lang: str | None = None,
     scan_result=None,
+    evidence_root: str | None = None,
 ) -> str:
     """スキャン結果をHTMLレポートとして生成して文字列で返す。"""
     if timestamp is None:
@@ -359,7 +403,7 @@ def generate(
 
     lbl = _labels(lang)
     mode, target, raw_text, model, findings, counts = _report_data(
-        mode, target, raw_text, model, scan_result)
+        mode, target, raw_text, model, scan_result, evidence_root, timestamp)
 
     findings_section = ""
     if findings:
@@ -425,6 +469,7 @@ def generate_pdf(
     timestamp: str | None = None,
     lang: str | None = None,
     scan_result=None,
+    evidence_root: str | None = None,
 ) -> bytes | None:
     """スキャン結果を日本語対応PDFとして生成しバイト列で返す。
 
@@ -435,7 +480,7 @@ def generate_pdf(
 
     lbl = _labels(lang)
     mode, target, raw_text, model, findings, counts = _report_data(
-        mode, target, raw_text, model, scan_result)
+        mode, target, raw_text, model, scan_result, evidence_root, timestamp)
     from tools import pdf_writer
     return pdf_writer.render(
         meta={
@@ -458,6 +503,7 @@ def generate_markdown(
     timestamp: str | None = None,
     lang: str | None = None,
     scan_result=None,
+    evidence_root: str | None = None,
 ) -> str:
     """バグバウンティ提出用（HackerOne/Bugcrowd等）のMarkdownレポートを生成する。
 
@@ -469,7 +515,7 @@ def generate_markdown(
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     lbl = _labels(lang)
     mode, target, raw_text, model, findings, counts = _report_data(
-        mode, target, raw_text, model, scan_result)
+        mode, target, raw_text, model, scan_result, evidence_root, timestamp)
     if scan_result is not None:
         mode, target, model = map(_markdown_text, (mode, target, model))
         findings = [{k: (_markdown_text(v) if isinstance(v, str) and k not in ("snippet", "fix") else v)
@@ -497,7 +543,8 @@ def generate_markdown(
         if "verification" in f:
             lines.extend([f"Verification: {f['verification']}"] + (
                 [f"Ledger: {f['ledger']}"] if f.get("ledger") else []) + ["Evidence: " + (
-                " ".join(f"[{eid}]({path})" for eid, path in f["evidence_refs"])
+                " ".join((f"[{c['evidence_id']}]({c['path']})" if c["path"] else f"`{c['evidence_id']}`")
+                         + f" `[{evidence_label(c)}]`" for c in f.get("evidence_checks", []))
                 or "not saved / unavailable"), ""])
         sev = (f.get("severity") or "LOW").upper()
         name = f.get("name") or "Unknown"
@@ -538,6 +585,7 @@ def generate_json(
     timestamp: str | None = None,
     lang: str | None = None,
     scan_result=None,
+    evidence_root: str | None = None,
 ) -> str:
     """スキャン結果を機械可読のJSONレポートとして生成する（HTML/MD/PDFと同じ共通所見から）。
 
@@ -567,7 +615,7 @@ def generate_json(
         })
     else:
         result = _apply_ledger(scan_result.to_dict() if hasattr(scan_result, "to_dict") else dict(scan_result))
-        _, _, _, _, shaped, counts = _report_data(mode, target, raw_text, model, result)
+        _, _, _, _, shaped, counts = _report_data(mode, target, raw_text, model, result, evidence_root, timestamp)
         out_findings = []
         view = result.get("ledger") or {}
         sup = [r for r in view.get("findings", []) if r.get("suppressed")]
@@ -582,8 +630,9 @@ def generate_json(
                 "snippet": raw.get("snippet", ""), "analysis": raw.get("analysis", ""),
                 "remediation": raw.get("remediation", ""),
                 "verifier_support": raw.get("verifier_support", {}),
-                "evidence": [{"evidence_id": eid, "path": path}
-                             for eid, path in shaped_f["evidence_refs"]],
+                "evidence": [{"evidence_id": c["evidence_id"], "path": c["path"] or None, "integrity": c["integrity"],
+                              "completeness": c["completeness"], "reason": c["reason"]}
+                             for c in shaped_f["evidence_checks"]],
             })
         doc.update({
             "legacy": False, "scan_id": result.get("scan_id", ""),
@@ -598,6 +647,9 @@ def generate_json(
                         "diff": view.get("diff"), "note": view.get("note", ""),
                         "warnings": view.get("warnings", [])} if view else None),
             "counts": counts, "findings": out_findings,
+            "evidence_inspection": {"performed": bool(evidence_root), "checked_at": timestamp if evidence_root else None,
+                                    "note": ("integrity=保存物のハッシュ検査(意味的な正しさ・全文の存在は意味しない)、"
+                                             "completeness=取得内容の切り詰め記録。unchecked=保存先未指定で検査不能")},
             "notes": ["suppression applies only when a ledger view is attached (ledger != null)",
                       "evidence excerpts may be masked or omitted; an empty evidence list means "
                       "not saved or unavailable"],

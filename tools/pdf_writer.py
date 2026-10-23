@@ -224,7 +224,8 @@ class _Renderer:
         if "verification" in f:
             text = "Verification: " + f["verification"] + (
                 "\nLedger: " + f["ledger"] if f.get("ledger") else "") + "\nEvidence: " + (
-                "\n".join(f"{eid}: {path}" for eid, path in f["evidence_refs"])
+                "\n".join(f"{c['evidence_id']}: {c['path'] or '(no link)'} [integrity={c['integrity']}; completeness={c['completeness']}]"
+                          for c in f.get("evidence_checks", []))
                 or "not saved / unavailable")
             self._line_block(self._wrap(text, self.f_small, inner_w), self.f_small,
                              C_MID, x0, 24)

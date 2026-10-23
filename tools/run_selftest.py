@@ -2980,9 +2980,11 @@ def test_monitor_geometry():
 
 def test_structured_reports():
     import unittest
-    from tools.test_structured_reports import StructuredReportsTest
+    from tools.test_structured_reports import EvidenceIntegrityReportTest, ResultNoticeTest, StructuredReportsTest
     result = unittest.TestResult()
-    unittest.defaultTestLoader.loadTestsFromTestCase(StructuredReportsTest).run(result)
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
+                               for c in (StructuredReportsTest, EvidenceIntegrityReportTest, ResultNoticeTest))
+    suite.run(result)
     if result.wasSuccessful():
         _ok("Structured reports", f"{result.testsRun} tests: final findings, evidence references, GUI forwarding")
     else:

@@ -59,8 +59,10 @@ EFFORT_CHOICES = ("speed", "balanced", "quality", "auto")
 def render_markdown(result):
     from tools.report_generator import generate_markdown
     parts = result["results"] if result.get("batch") else [result]
+    from core.evidence_store import EVIDENCE_ROOT
+    root = os.path.abspath(EVIDENCE_ROOT)        # 証拠の保存先は明示して渡す(生成側はcwdから推測しない)
     return "\n\n".join(generate_markdown(r.get("mode", ""), r.get("target", ""), "", r.get("model", ""),
-                                          scan_result=r) for r in parts)
+                                          scan_result=r, evidence_root=root) for r in parts)
 
 
 # config.jsonのprofilesで使えるキー → (フラグ, 対象モード)。秘密値・未知キーは受け付けない
@@ -408,6 +410,12 @@ def lab_command(args, creds):
     result["lab"] = {"case_id": d["case_id"], "strategy": d["strategy"], "run_id": d["run_id"], "end_reason": d["end_reason"],
                      "finish_reason": d["finish_reason"], "clean_finish": d["clean_finish"], "counters": d["counters"],
                      "hypotheses": d["hypotheses"], "chains": d["chains"], "open_chains": d["open_chains"],
+                     # 候補=逸脱は観測したが必要な対照が未実施の仮説。findings・台帳には入れない(候補なしは空リスト)
+                     "candidates": d["candidates"],
+                     # findingsごとの根拠一式(逸脱probe・対照)の保存状況と、不完全な本文による制約
+                     "finding_details": [{k: f.get(k) for k in ("hypothesis_id", "feature", "test_ids", "control_test_ids",
+                                                               "evidence_complete", "evidence_missing_test_ids",
+                                                               "observation_limits")} for f in d["findings"]],
                      "untested": d["untested"], "out_of_scope": d["out_of_scope"], "budget": d["budget"]}
     if args.report_dir:
         try:

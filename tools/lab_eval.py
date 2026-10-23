@@ -227,7 +227,8 @@ def aggregate(rows: list[dict]) -> dict:
             "cases": len(cases), "runs": sum(len(g) for g in cases.values()),
             "workflow_completion_rate": round(sum(1 for gs in cases.values() for g in gs if g["workflow_completed"])
                                               / sum(len(g) for g in cases.values()), 4),
-            "unique_confirmed_with_evidence": tp, "false_positives": fp, "false_negatives": mean("false_negatives"),
+            "unique_confirmed_with_evidence": tp, "confirmed_without_complete_evidence": mean("confirmed_without_complete_evidence"),
+            "false_positives": fp, "false_negatives": mean("false_negatives"),
             "reachable_flaws": reach,
             "candidate_recall": grader.NA if reach == 0 else round(mean("candidate_found") / reach, 4),
             "candidate_false": mean("candidate_false"), "unverified_deviations": mean("unverified_deviations"),

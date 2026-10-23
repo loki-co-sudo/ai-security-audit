@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 
 from core.autonomy.lab_case import LabCase
-from core.evidence_store import EvidenceStore
+from core.evidence_store import EVIDENCE_ROOT, inspect_evidence
 
 _STATE_JA = {"completed": "完了", "partial": "一部のみ(未判定・未検査あり)", "failed": "失敗", "cancelled": "中断"}
 _HSTATUS_JA = {"supported": "不備を支持する観測あり", "refuted": "期待どおり(全probeが適合)",
@@ -22,7 +22,7 @@ def _md(s) -> str:
 
 
 def render_markdown(case: LabCase, result: dict, *, evidence_root: str | None = None) -> str:
-    store = EvidenceStore(result["scan_id"], **({"root": evidence_root} if evidence_root else {}))
+    store_root = evidence_root or EVIDENCE_ROOT
     out = [f"# 診断レポート: {case.title}", "",
            f"- 案件ID: `{case.case_id}`(split: {case.split})",
            f"- 実行: run_id=`{result['run_id']}` / 方式: `{result['strategy']}` / 実行状態: "
@@ -55,10 +55,15 @@ def render_markdown(case: LabCase, result: dict, *, evidence_root: str | None = 
                 "- 期待される正常動作(拒否・非露出など)に反する応答が、登録済みの固定テスト操作で観測された。"
                 "それ以上の影響(実データ漏えいの範囲など)は測定していない。", "", "**証拠**", ""]
         if not f["evidence_complete"]:
-            out.append("- 証拠が不足している(保存の省略・失敗)。確認済みとして扱わないこと。")
+            miss = ", ".join(f"`{t}`" for t in f.get("evidence_missing_test_ids", []))
+            out.append("- 証拠が不足している(保存の省略・失敗" + (f"。保存証拠が無いテスト: {miss}" if miss else "")
+                       + ")。観測は保持するが、第三者が保存証拠だけで再検証できない。確認済みとして扱わないこと。")
+        for lim in f.get("observation_limits", []):
+            out.append(f"- 制約: `{lim['test_id']}` の応答本文が不完全({lim['reason']})。読めた範囲の観測であり、本文依存の判定は完全な本文を見ていない。")
         for eid in f["evidence_ids"]:
-            ok, why = store.verify(eid)
-            out.append(f"- `{eid}`: 保存済み証拠のハッシュ検証 {'OK' if ok else 'NG(' + why + ')'}")
+            chk = inspect_evidence(store_root, result["scan_id"], eid)
+            out.append(f"- `{eid}`: 保存物の整合性={chk['integrity']} / 取得内容の完全性={chk['completeness']}"
+                       + ("(ハッシュ一致は保存後に変更が無いことだけを示す。取得内容は一部のみ)" if chk["completeness"] == "truncated" else ""))
         out += ["", f"**改善案**: {_md(f['remediation'])}", ""]
     if result.get("candidates"):
         out += ["## 対照が未実施の逸脱(候補・所見としては確定しない)", "",
@@ -68,6 +73,8 @@ def render_markdown(case: LabCase, result: dict, *, evidence_root: str | None = 
             out += [f"- **{_md(c['title'])}**(`{c['hypothesis_id']}` / 対照: {c['control_state']})",
                     f"  - 逸脱したテスト: {', '.join(f'`{t}`' for t in c['test_ids'])} / 未実施の対照: "
                     f"{', '.join(f'`{t}`' for t in c['control_test_ids']) or '-'}"]
+            for lim in c.get("observation_limits", []):
+                out.append(f"  - 制約: `{lim['test_id']}` の応答本文が不完全({lim['reason']})")
         out.append("")
     if result.get("chains") or result.get("open_chains"):
         out += ["## 連鎖の仮説(小さな不備の組合せ)", "",

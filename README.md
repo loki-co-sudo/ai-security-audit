@@ -432,6 +432,12 @@ P1.2は証拠マスキング・保存基盤、WEB FUZZの証拠保存とGUIレ�
 HTML/MDの証拠リンクは`reports/`基準の相対パスです。レポートを移動する場合は
 `evidence/<scan_id>/`も同じ相対位置へコピーしてください。PDFには証拠IDと保存場所を表示します。
 証拠参照がない所見は未保存/利用不可と表示されます。
+各証拠参照には、読み取り専用の検査結果が**2軸**で付きます（HTML/MD/PDF/JSONで同じ意味）:
+`integrity`（保存物の整合性: ok / missing / hash_mismatch / no_hash / invalid_reference / unreadable / unchecked）と
+`completeness`（取得内容の完全性: complete / truncated / unknown）。`integrity=ok`は保存後に変更が無いことだけを示し、
+所見の正しさや元の全文があることは意味しません（切り詰め済みの証拠もokになり得ます）。保存先を指定しない生成
+（`generate*(evidence_root=...)`が未指定）は`unchecked`（検査不能）で、移動したレポートは新しい保存先を明示して生成し直してください。
+欠落・改変があっても所見は削除しません。検査は証拠を作成・修復・書換えしません。
 証拠保存（`save_evidence`、既定OFF）は WEB FUZZ・CODE AUDIT（標準エンジン）・DEFENSE に対応しました
 （LangGraph版は未対応。HTML/MD/PDFに加えJSON出力にも対応）。ATTACKはCTFモードで取得したフラグの中身と取得経路
 （Active Retrievalのリクエスト、またはFlag Huntの検出フィールド）がレポートに「INFO」所見として出力されます。
@@ -559,5 +565,6 @@ POSIX以外は権限の同等性を検証できないため、認証ファイル
 
 - 外部ネットワークを物理的に遮断して評価するには `tools/lab_eval.py run ... --isolate-net`（bubblewrapのネットワーク名前空間。loopbackのみ）、正解データをワークフローから別プロセス・別マウントで隔離するには `--isolate-truth` を付けます。bwrapが無い環境では黙って続行せず失敗します。
 - `--retry-transient 1` は、503/429等の一時的な失敗を理由付き（ジャーナルに `retry_scheduled`）で**1回だけ**再試行します（deterministic/llmのみ。401等の認証系は再試行しません）。
+- JSON出力の `lab.candidates` は、逸脱は観測したが必要な対照が未実施の仮説（状態 `deviation_unverified`・逸脱内容・証拠参照・未実施の対照）です。**所見(`findings`)・所見台帳には入りません**（候補が無ければ空リスト。`--report-dir` の有無に依存しません）。`lab.finding_details` は所見ごとに、根拠一式（逸脱probeと通った対照）の保存証拠が揃っているか（`evidence_complete`・`evidence_missing_test_ids`）と、本文が不完全だった観測の制約（`observation_limits`）を示します。
 - 終了コードは `scan` と同じ規則で、未判定・未実施が残る `partial` は 2 になります。
 - 結果は `reports/lab/eval_*/`（`eval.json` と案件別のMarkdownレポート・証拠）に保存されます。レポートの外部提出機能はありません。

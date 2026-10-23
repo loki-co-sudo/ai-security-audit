@@ -9,7 +9,12 @@ from __future__ import annotations
 import os
 from typing import Callable
 
+from core.evidence_store import EVIDENCE_ROOT
 from tools import report_generator
+
+
+def _evidence_root() -> str:
+    return os.path.abspath(EVIDENCE_ROOT)      # 検査対象の保存先を明示する(生成側はcwdから推測しない)
 
 
 def _open(path: str, log: Callable[[str], None]) -> None:
@@ -27,6 +32,7 @@ def export_html(
 ) -> None:
     html_content = report_generator.generate(
         mode=mode, target=target, raw_text=raw, model=model, scan_result=scan_result,
+        evidence_root=_evidence_root(),
     )
     _open(report_generator.save(html_content, slug), log)
 
@@ -37,6 +43,7 @@ def export_pdf(
 ) -> None:
     pdf_bytes = report_generator.generate_pdf(
         mode=mode, target=target, raw_text=raw, model=model, scan_result=scan_result,
+        evidence_root=_evidence_root(),
     )
     if pdf_bytes is None:
         log("PDF出力には Pillow が必要です: pip install Pillow")
@@ -51,6 +58,7 @@ def export_markdown(
     """バグバウンティ提出用Markdownレポートを出力する（BOUNTY_ROADMAP.md Phase D）。"""
     md_content = report_generator.generate_markdown(
         mode=mode, target=target, raw_text=raw, model=model, scan_result=scan_result,
+        evidence_root=_evidence_root(),
     )
     _open(report_generator.save_markdown(md_content, slug), log)
 
@@ -62,6 +70,7 @@ def export_json(
     """機械可読のJSONレポートを出力する（P1.2）。"""
     content = report_generator.generate_json(
         mode=mode, target=target, raw_text=raw, model=model, scan_result=scan_result,
+        evidence_root=_evidence_root(),
     )
     _open(report_generator.save_json(content, slug), log)
 

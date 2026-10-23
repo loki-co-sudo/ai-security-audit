@@ -5,8 +5,11 @@
 分母と成功条件は実行前に固定している:
   - 対象の不備 = truthの `flaws` のうち reachable=true(登録済み固定テスト操作で到達できるもの)。
     到達不能(unreachable_flaws)は再現率の分母に入れず、「未検査として報告できたか」を別に見る。
-  - 成功(TP) = その不備の仮説について、証拠付き(evidence_complete)で報告した一意な所見(lab-workflow/5以降は必要な対照も通った裏付けありのみ)。同じ仮説の重複は1件。
+  - 成功(TP) = その不備の仮説について、証拠付き(evidence_complete)で報告した一意な所見(lab-workflow/5以降は必要な対照も通った裏付けありのみ、/6以降は対照の保存証拠も必要)。同じ仮説の重複は1件。
   - 候補(candidates) = 逸脱を観測したが対照が未実施の仮説。所見には数えず、candidate_recall(発見率)/candidate_false として別系列で採点する。
+  - 証拠不足 = 到達可能な不備を所見として報告したが、根拠一式(逸脱probe＋通った対照)の保存証拠が欠けるもの。
+    TPにも false_negatives にも数えず confirmed_without_complete_evidence に数える(報告はしたが再検証できない)。
+    このため recall = TP/対象 は 1 - false_negatives/対象 と一致せず、差が証拠不足の件数になる。
   - FP = non_flaws(紛らわしいが正常)または truth に無い仮説の所見。
   - 連鎖(truthの`chains`) = 規則ID+メンバー仮説の集合が一致する報告を正解とする。truthにない連鎖の報告は偽の連鎖。分母が0なら再現率はN/A。
   - 未判定率 = 全仮説のうち supported/refuted 以外(unverified_deviationを含む)の割合。未判定・未実施・予算切れを陰性に数えない。

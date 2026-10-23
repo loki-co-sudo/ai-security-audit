@@ -45,7 +45,8 @@ from core.findings import (
 )
 from core.http_transport import HttpTransport, RequestPolicy, new_session
 
-LAB_ENGINE_VERSION = "lab-workflow/5"
+LAB_ENGINE_VERSION = "lab-workflow/6"   # 判定契約を変えたら上げる(プロファイルハッシュに含まれ、旧Runの再開は拒否される)
+# /5: D0(対照未確認の逸脱を裏付けにしない) /6: evidence_completeに対照を含める・不完全な本文を判定へ伝える
 PROMPT_VERSION = "lab-rank/1"
 STRATEGIES = ("fixed", "fixed_random", "deterministic", "llm")
 T1, T2 = SideEffect.T1_OBSERVE, SideEffect.T2_DIFFERENTIAL
@@ -60,9 +61,16 @@ CONFORMS, DEVIATES, INCONCLUSIVE = "conforms", "deviates", "inconclusive"
 
 
 # ── 期待値との比較(Evaluate) ──────────────────────────────────
-def evaluate(test: LabTest, status: int | None, headers: dict, body: str) -> tuple[str, str, list[str]]:
+def evaluate(test: LabTest, status: int | None, headers: dict, body: str,
+             body_complete: bool = True) -> tuple[str, str, list[str]]:
     """応答を事前定義の期待値と比べる。戻り値: (outcome, reason, diffs)。diffsは案件設定由来の静的文言と
-    ステータス値だけで、対象の応答本文を含めない。"""
+    ステータス値だけで、対象の応答本文を含めない。
+
+    body_complete=False(途中切断・サイズ上限・読取時間超過)のとき、本文に依存する判定は読めた範囲でしか言えない:
+      - 読めた範囲で見つかった body_not_contains の違反は、逸脱として保持する(読めなかった部分は結果を変えない)。
+      - body_contains が見つからない/body_not_contains が見つからないことは、残りの本文に在り得るので conforms にしない。
+        他に確定した逸脱が無ければ inconclusive(reason=body_incomplete)。
+      - ステータス・ヘッダーの判定は本文の完全性に依存しないので、そのまま行う。"""
     exp = test.expect
     want = exp.get("status")
     want_list = [want] if isinstance(want, int) else list(want or [])
@@ -71,14 +79,20 @@ def evaluate(test: LabTest, status: int | None, headers: dict, body: str) -> tup
     if status in test.inconclusive_statuses and status not in want_list:
         return INCONCLUSIVE, f"status_{status}", []
     diffs: list[str] = []
+    undecided = False
     if want_list and status not in want_list:
         diffs.append(f"status: expected {want_list}, observed {status}")
     for s in exp.get("body_contains", []):
         if s not in body:
-            diffs.append(f"body: expected to contain {s!r}")
+            if body_complete:
+                diffs.append(f"body: expected to contain {s!r}")
+            else:
+                undecided = True
     for s in exp.get("body_not_contains", []):
         if s in body:
             diffs.append(f"body: must not contain {s!r}")
+        elif not body_complete:
+            undecided = True
     lower = {k.lower(): v for k, v in headers.items()}
     for name in exp.get("header_absent", []):
         if name.lower() in lower:
@@ -86,7 +100,9 @@ def evaluate(test: LabTest, status: int | None, headers: dict, body: str) -> tup
     for name, frag in (exp.get("header_contains") or {}).items():
         if frag.lower() not in str(lower.get(name.lower(), "")).lower():
             diffs.append(f"header: {name} must contain {frag!r}")
-    return (DEVIATES, "expectation_not_met", diffs) if diffs else (CONFORMS, "", [])
+    if diffs:
+        return DEVIATES, "expectation_not_met", diffs
+    return (INCONCLUSIVE, "body_incomplete", []) if undecided else (CONFORMS, "", [])
 
 
 # ── 観測→仮説の状態(Observe / Classify) ──────────────────────────
@@ -414,17 +430,25 @@ def run_lab_case(case: LabCase, base_url: str, creds: dict[str, str], *, strateg
             return ActionResult("exhausted" if why == "budget_exhausted" else "failed",
                                 {"reason": why}, outputs=out)
         body = resp.text or ""
-        outcome, reason, diffs = evaluate(t, resp.status_code, dict(resp.headers), body)
+        cut = getattr(resp, "fz_incomplete_reason", None) if getattr(resp, "fz_truncated", False) else None
+        outcome, reason, diffs = evaluate(t, resp.status_code, dict(resp.headers), body, body_complete=cut is None)
         eid = None
         if evidence is not None:
             eid = evidence.save_http_evidence(method="GET", url=resp.request.url or action.args["url"],
                                               status=resp.status_code, headers=dict(resp.headers), body=body,
-                                              known_secrets=known_secrets, action_id=action.action_id)
+                                              known_secrets=known_secrets, action_id=action.action_id,
+                                              source_incomplete=cut)
         unlocks = [o.test_id for o in case.tests.values()
                    if o.unlocked_by and o.unlocked_by["test_id"] == t.test_id
                    and o.unlocked_by["body_contains"] in body]
+        # 本文が不完全で解除条件の文字列が見つからない場合は『無い』と言えない(解除しないが、理由を残す)
+        undecided_unlock = [o.test_id for o in case.tests.values()
+                            if cut and o.unlocked_by and o.unlocked_by["test_id"] == t.test_id
+                            and o.test_id not in unlocks]
         out = {"outcome": outcome, "reason": reason, "status_code": resp.status_code, "diffs": diffs,
-               "evidence_id": eid, "unlocks": unlocks, "body_sha12": hashlib.sha256(body.encode()).hexdigest()[:12],
+               "evidence_id": eid, "unlocks": unlocks, "body_complete": cut is None, "incomplete_reason": cut,
+               "bytes_read": getattr(resp, "fz_bytes_read", len(body.encode())), "unlock_undecided": undecided_unlock,
+               "body_sha12": hashlib.sha256(body.encode()).hexdigest()[:12],
                "attempt": int(action.args.get("attempt", 1)), "retry_after": resp.headers.get("Retry-After")}
         prev = state.results.get(t.test_id)
         if prev is not None and out["attempt"] > 1:
@@ -556,7 +580,8 @@ def _assemble(case, state, outcome, runner, sr, strategy, run_id, counters, sele
         if res is not None:
             st = "executed" if res["outcome"] != INCONCLUSIVE else "inconclusive"
             tests[tid] = {"state": st, "outcome": res["outcome"], "reason": res["reason"],
-                          "status_code": res["status_code"], "evidence_id": res["evidence_id"], "diffs": res["diffs"]}
+                          "status_code": res["status_code"], "evidence_id": res["evidence_id"], "diffs": res["diffs"],
+                          "body_complete": res.get("body_complete", True), "incomplete_reason": res.get("incomplete_reason")}
             cov = CoverageStatus.TESTED if res["outcome"] != INCONCLUSIVE else CoverageStatus.FAILED
             why = res["reason"]
         else:
@@ -564,7 +589,9 @@ def _assemble(case, state, outcome, runner, sr, strategy, run_id, counters, sele
             if rec and rec.state == TaskState.UNKNOWN_OUTCOME:
                 reason = "unknown_outcome"
             if reason == "not_selected:no_selectable_tests" and t.unlocked_by and not state.unlocked(t):
-                reason = "locked_never_unlocked"
+                src = state.results.get(t.unlocked_by["test_id"], {})
+                undecided = t.test_id in src.get("unlock_undecided", [])
+                reason = "locked_unlock_undecided_incomplete_body" if undecided else "locked_never_unlocked"
             tests[tid] = {"state": "not_run", "outcome": None, "reason": reason, "status_code": None,
                           "evidence_id": None, "diffs": []}
             cov, why = CoverageStatus.SKIPPED, reason
@@ -591,6 +618,8 @@ def _assemble(case, state, outcome, runner, sr, strategy, run_id, counters, sele
                 "control_test_ids": [t.test_id for t in state.tests_of(hid, "control")],
                 "diffs": {t.test_id: state.results[t.test_id]["diffs"] for t in dev},
                 "evidence_ids": [state.results[t.test_id]["evidence_id"] for t in dev if state.results[t.test_id]["evidence_id"]],
+                "observation_limits": [{"test_id": t.test_id, "reason": state.results[t.test_id].get("incomplete_reason")}
+                                       for t in dev if not state.results[t.test_id].get("body_complete", True)],
                 "note": "逸脱は観測したが、必要な対照が未実施。不備と確定せず、連鎖の根拠にもしない"})
         elif st == "supported" and not_run:
             untested.append({"hypothesis_id": hid, "title": h.title, "status": "supported_partial",
@@ -600,6 +629,10 @@ def _assemble(case, state, outcome, runner, sr, strategy, run_id, counters, sele
             ctl = [t for t in state.tests_of(hid, "control") if state.results.get(t.test_id, {}).get("outcome") == CONFORMS]
             first = dev[0]
             ev_ids = [state.results[t.test_id]["evidence_id"] for t in dev + ctl if state.results[t.test_id]["evidence_id"]]
+            # 裏付けに必要な根拠一式(逸脱probe＋通った対照)。1つでも保存証拠が無ければ第三者は再検証できない
+            ev_missing = [t.test_id for t in dev + ctl if not state.results[t.test_id]["evidence_id"]]
+            limits = [{"test_id": t.test_id, "reason": state.results[t.test_id].get("incomplete_reason")}
+                      for t in dev + ctl if not state.results[t.test_id].get("body_complete", True)]
             corr = state.corroborated(hid)
             f = Finding(
                 finding_id=new_id("find"), rule_id=h.rule_id, location=f"{first.path} [{h.feature}]",
@@ -612,8 +645,9 @@ def _assemble(case, state, outcome, runner, sr, strategy, run_id, counters, sele
             fd.update({"hypothesis_id": hid, "feature": h.feature,
                        "test_ids": [t.test_id for t in dev], "control_test_ids": [t.test_id for t in ctl],
                        "diffs": {t.test_id: state.results[t.test_id]["diffs"] for t in dev},
-                       "evidence_complete": bool(ev_ids) and all(
-                           state.results[t.test_id]["evidence_id"] for t in dev),
+                       "evidence_complete": bool(ev_ids) and not ev_missing,
+                       "evidence_missing_test_ids": ev_missing,
+                       "observation_limits": limits,
                        "repro": [repro_step(case, t) for t in dev]})
             findings.append(fd)
             sr.findings.append(f)
