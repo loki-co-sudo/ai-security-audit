@@ -8,7 +8,7 @@ action_finished → observation_ingested → hypothesis_updated（予測と反�
 優先順位の係数は、結果を見る前に固定した値（評価後に動かさない）:
   value = 型の事前重要度 × (根拠が独立: 1.0 / 推定: 0.5) × 一般化係数 / 追加で必要な実験数
   一般化係数: 同じ(型,操作,ロール)で未検査の最初の1件=1.0、残り=0.3。既に逸脱が見つかった組=0.1、棄却済みの組=0.35。
-  同じ(型,操作)で別ロールが既に支持済み=×0.4（同じ欠陥の重複確認は情報価値が低い）。
+  同じ(型,操作)で別ロールが既に支持済み=×0.1（同じ欠陥の重複確認は情報価値が低いので後回しにする。排除はしない。U4で0.4→0.1）。
 """
 from __future__ import annotations
 from typing import Callable
@@ -28,7 +28,7 @@ from core.autonomy.task_graph import TaskState
 
 CAP_ANON, CAP_AUTHED = "research.get_anon", "research.get_authed"
 UNGROUNDED_FACTOR = 0.5
-SAME_KEY_FIRST, SAME_KEY_OTHERS, KEY_REFUTED, KEY_SUPPORTED, OP_SUPPORTED = 1.0, 0.3, 0.35, 0.1, 0.4
+SAME_KEY_FIRST, SAME_KEY_OTHERS, KEY_REFUTED, KEY_SUPPORTED, OP_SUPPORTED = 1.0, 0.3, 0.35, 0.1, 0.1   # OP_SUPPORTED: 0.4→0.1 (U4・docs/AUTONOMOUS_DISCOVERY_STAGE1.md §9)
 DEFAULT_MIN_VALUE = 0.02
 
 

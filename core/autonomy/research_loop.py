@@ -42,7 +42,7 @@ from core.findings import (
 )
 from core.http_transport import HttpTransport, RequestPolicy, new_session
 
-RESEARCH_ENGINE_VERSION = "research-stage1/2"   # /2: 再開に必要な記録（stage・decision_recorded・ダイジェスト）を追加。/1のRunは再開できない
+RESEARCH_ENGINE_VERSION = "research-stage1/3"   # /2: 再開に必要な記録を追加（/1のRunは再開不可）。/3: 重複確認の後回し（OP_SUPPORTED 0.1）で実験の選択順が変わった（/2のRunは再開不可）
 _ARGS = {"url": {"type": "str", "required": True}, "exp_id": {"type": "str", "required": True},
          "op_id": {"type": "str", "required": True}, "role": {"type": "str", "required": True},
          "path_params": {"type": "dict"}}

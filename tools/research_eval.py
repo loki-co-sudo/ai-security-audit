@@ -100,6 +100,8 @@ def main() -> int:
     ap.add_argument("--model", help="実LLMのモデル名（--llm real に必須）")
     ap.add_argument("--approve-real-llm", action="store_true", help="実LLM（費用が発生）の使用承認。無ければ実行しない")
     ap.add_argument("--llm-max-tokens", type=int, default=800)
+    ap.add_argument("--budgets", help="リクエスト予算を複数指定して、予算ごとの結果を出す（例: 12,16,20,25,30,40）。--llm none 専用")
+    ap.add_argument("--op-supported", type=float, help="優先順位の係数 OP_SUPPORTED の上書き（U4の前後比較用。既定は実装の値）")
     ap.add_argument("--reasoning-effort", choices=("low", "medium", "high"), help="OpenRouterのreasoning.effort（推論モデルが推論でトークンを使い切る問題への対処）。未指定ならモデル既定")
     ap.add_argument("--out")
     a = ap.parse_args()
@@ -112,6 +114,24 @@ def main() -> int:
         from tools.lab_eval import TimedLLM, openrouter_usage
         timed = TimedLLM(a.model)
         usage0 = openrouter_usage()
+    if a.op_supported is not None:
+        from core.autonomy import research_planner
+        research_planner.OP_SUPPORTED = a.op_supported
+    if a.budgets:
+        if a.llm != "none":
+            print("--budgetsは--llm noneでだけ使えます", file=sys.stderr)
+            return 2
+        runs = [{**run_one(c, int(sd), budget_override={"max_requests": int(b)}), "budget": int(b)}
+                for c in a.cases.split(",") for b in a.budgets.split(",") for sd in a.seeds.split(",")]
+        text = json.dumps({"runs": runs, "curve": _curve(runs), "op_supported": a.op_supported, "n_runs": len(runs),
+                           "boundary_violations_total": sum(r["grade"]["boundary"]["violations"] for r in runs),
+                           "note": "seed違いは独立した未知案件ではない。LLM呼出0。"}, ensure_ascii=False, indent=1)
+        if a.out:
+            with open(a.out, "w", encoding="utf-8") as f:
+                f.write(text + "\n")
+        else:
+            print(text)
+        return 0
     runs = []
     for c in a.cases.split(","):
         for sd in a.seeds.split(","):
@@ -141,6 +161,27 @@ def main() -> int:
     else:
         print(text)
     return 0 if summary["boundary_violations_total"] == 0 else 1
+
+
+def _curve(runs: list) -> dict:
+    """案件×予算ごとの平均（seed平均）。recallは分母0ならNone。"""
+    out: dict = {}
+    for r in runs:
+        out.setdefault(r["case_id"], {}).setdefault(str(r["budget"]), []).append(r)
+    mean = lambda xs: round(sum(xs) / len(xs), 4) if xs else None  # noqa: E731
+    res = {}
+    for cid, byb in out.items():
+        res[cid] = {}
+        for b, rs in byb.items():
+            rec = [x["grade"]["recall"] for x in rs if x["grade"]["recall"] is not None]
+            res[cid][b] = {"n": len(rs), "recall_mean": mean(rec), "redundant_mean": mean([x["grade"]["redundant_confirmations"] for x in rs]),
+                           "reported_units_mean": mean([x["grade"]["reported_units"] for x in rs]),
+                           "probed_mean": mean([x["metrics"]["hypotheses_probed"] for x in rs]),
+                           "not_examined_mean": mean([x["metrics"]["not_examined"] for x in rs]),
+                           "fp_total": sum(x["grade"]["false_positive_units"] for x in rs),
+                           "overclaim_total": sum(len(x["grade"]["ungrounded_overclaim"]) for x in rs),
+                           "violations_total": sum(x["grade"]["boundary"]["violations"] for x in rs)}
+    return res
 
 
 class _Capped:

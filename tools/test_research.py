@@ -295,7 +295,9 @@ class ResearchE2ETest(unittest.TestCase):
         self.assertFalse([f for f in res["findings"] if f["op_id"] == "doc_export"])
         cands = [c for c in res["candidates"] if c["op_id"] == "doc_export"]
         self.assertTrue(cands)
-        self.assertTrue(all(c["reason"] == "ungrounded_expectation" and not c["grounded"] for c in cands))
+        self.assertTrue(all(c["reason"] in ("ungrounded_expectation", "control_not_run") and not c["grounded"] for c in cands))
+        self.assertIn("ungrounded_expectation", {c["reason"] for c in cands})              # 対照まで済んだものは『期待値が推定』で止まる
+        self.assertFalse({c["hypothesis_id"] for c in cands} & {f["hypothesis_id"] for f in res["findings"]})   # どの理由でも所見にはならない
         self.assertEqual(g["candidate_hits_ungrounded"], [["object_authz", "doc_export"]])
 
     def test_control_discipline_for_every_decided_hypothesis(self):
@@ -386,7 +388,16 @@ class ResearchReportTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         from core.autonomy.research_report import render_markdown
+        from core.autonomy import research_planner
         case = load_blind_case(os.path.join(CASES, "blind-docs-01.json"))
+        saved, research_planner.OP_SUPPORTED = research_planner.OP_SUPPORTED, 0.4     # 重複確認が出る係数で、グルーピング表示を検査する
+        try:
+            cls._build(case, render_markdown)
+        finally:
+            research_planner.OP_SUPPORTED = saved
+
+    @classmethod
+    def _build(cls, case, render_markdown):
         with tempfile.TemporaryDirectory() as td, DocsApp(seed=3) as app:
             cls.res = run_research_case(case, app.base_url, app.credentials(), journal_root=td + "/j", evidence_root=td + "/e").to_dict()
             cls.md = render_markdown(cls.res, evidence_root=td + "/e")
@@ -416,6 +427,7 @@ class ResearchReportTest(unittest.TestCase):
         self.assertIn("期待値が推定", rest)
 
     def test_duplicates_are_grouped_and_tampering_is_visible(self):
+        self.assertGreater(len(self.res["findings"]), len({(f["family"], f["op_id"]) for f in self.res["findings"]}))   # 重複確認がある前提
         n_titles = len([l for l in self.md.split("\n") if l.startswith("### ")])
         self.assertEqual(n_titles, len({(f["family"], f["op_id"]) for f in self.res["findings"]}))
         self.assertNotIn("hash_mismatch", self.md)
@@ -856,6 +868,36 @@ class ResearchCliTest(unittest.TestCase):
             rc2, out2, _ = self._cli("--case", self.CASE, "--base-url", app.base_url, "--creds-file", self._creds(td, app),
                                      "--journal-root", jr, "--evidence-root", td + "/e", "--resume", rid)
             self.assertEqual((rc2, json.loads(out2)["state"]), (2, "failed"))
+
+
+class DuplicateDeferralTest(unittest.TestCase):
+    """U4: 同じ欠陥の別ロールでの重複確認は後回しにする（排除はしない）。"""
+
+    def test_default_defers_duplicate_confirmations_without_losing_findings(self):
+        res, _, _, g, _ = run_case("blind-docs-01", seed=3)
+        self.assertEqual(g["redundant_confirmations"], 0)
+        self.assertEqual(g["recall"], 1.0)
+
+    def test_the_knob_changes_only_the_selection_order(self):
+        from core.autonomy import research_planner
+        saved, research_planner.OP_SUPPORTED = research_planner.OP_SUPPORTED, 0.4
+        try:
+            old = run_case("blind-docs-01", seed=3)
+        finally:
+            research_planner.OP_SUPPORTED = saved
+        new = run_case("blind-docs-01", seed=3)
+        self.assertGreater(old[3]["redundant_confirmations"], 0)                        # 旧係数では重複確認が出る
+        self.assertEqual({(f["family"], f["op_id"]) for f in old[0]["findings"]},
+                         {(f["family"], f["op_id"]) for f in new[0]["findings"]})          # 見つかる欠陥は同じ
+        for r in (old, new):
+            self.assertEqual((r[3]["false_positive_units"], r[3]["boundary"]["violations"], r[0]["metrics"]["prereg_violations"]),
+                             (0, 0, []))
+        self.assertEqual(new[0]["versions"]["research_engine"], "research-stage1/3")
+
+    def test_deferred_duplicates_still_run_when_budget_remains(self):
+        # 候補が尽きるまで予算を与えれば、後回しにした重複確認も実行される（排除ではない）
+        res, _, info, g, _ = run_case("blind-docs-01", seed=3, budget_override={"max_requests": 80, "max_seconds": 90.0})
+        self.assertGreater(g["redundant_confirmations"], 0)
 
 
 class ResearchBoundaryTest(unittest.TestCase):
