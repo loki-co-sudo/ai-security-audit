@@ -900,6 +900,69 @@ class DuplicateDeferralTest(unittest.TestCase):
         self.assertGreater(g["redundant_confirmations"], 0)
 
 
+class StrategyTest(unittest.TestCase):
+    """比較用の方式（static/checklist）。仮説・操作部品・予算・探索・対照は共通で、実験の選び方だけが違う。"""
+
+    @classmethod
+    def setUpClass(cls):
+        def go(strategy):
+            case = load_blind_case(os.path.join(CASES, "blind-docs-01.json"))
+            truth = truth_of("blind-docs-01")
+            with tempfile.TemporaryDirectory() as td, DocsApp(seed=3, flaws=frozenset(truth["env_flaws"])) as app:
+                res = run_research_case(case, app.base_url, app.credentials(), journal_root=td + "/j", evidence_root=td + "/e",
+                                        strategy=strategy).to_dict()
+                ev = replay(res["run_id"], td + "/j").events
+                g = grade(res, truth, list(app.requests), case.public_dict()["spec"], 40, [])
+            return res, ev, g
+        cls.runs = {s: go(s) for s in ("adaptive", "static", "checklist")}
+
+    def test_same_safety_and_same_hypotheses_for_every_strategy(self):
+        base = {h["hypothesis_id"] for h in self.runs["adaptive"][0]["hypotheses"]}
+        for st, (res, ev, g) in self.runs.items():
+            self.assertEqual({h["hypothesis_id"] for h in res["hypotheses"]}, base, st)
+            self.assertEqual((g["false_positive_units"], g["ungrounded_overclaim"], g["boundary"]["violations"],
+                              res["metrics"]["prereg_violations"]), (0, [], 0, []), st)
+            self.assertEqual(res["versions"]["strategy"], st)
+            self.assertLessEqual(g["requests_env"], 40)
+            for f in res["findings"]:                                             # 対照つきでなければ確定しない（方式によらない）
+                h = next(x for x in res["hypotheses"] if x["hypothesis_id"] == f["hypothesis_id"])
+                self.assertIn(h["control_state"], ("passed", "not_required"), st)
+
+    def _probe_keys(self, ev, res):
+        by = {h["probe"]: h for h in res["hypotheses"] if h["probe"]}
+        return [e["exp_id"] for e in ev if e["type"] == "experiment_planned" and e["purpose"] == "probe"], by
+
+    def test_checklist_follows_the_spec_order_and_control_follows_its_probe(self):
+        res, ev, _ = self.runs["checklist"]
+        ops = list(load_blind_case(os.path.join(CASES, "blind-docs-01.json")).operations)
+        probes, by = self._probe_keys(ev, res)
+        idx = [ops.index(by[p]["op_id"]) for p in probes if p in by and by[p]["family"] != "field_exposure"]
+        self.assertEqual(idx, sorted(idx))                                         # 仕様の操作順（価値を見ない）
+        planned = [(e["purpose"], e["exp_id"]) for e in ev if e["type"] == "experiment_planned" and e["purpose"] in ("probe", "control")]
+        for i, (purpose, exp) in enumerate(planned[:-1]):
+            if purpose == "probe" and by.get(exp) and by[exp]["control"] and by[exp]["control"] not in {x[1] for x in planned[:i]}:
+                if planned[i + 1][0] == "control":
+                    self.assertEqual(planned[i + 1][1], by[exp]["control"])         # 対照は直後（実験設計の一部）
+
+    def test_static_never_reorders_after_results_while_adaptive_does(self):
+        # staticは初期の価値順を固定する。結果（支持済み）で後回しにしないので、重複確認が出る。adaptiveは出ない
+        self.assertEqual(self.runs["adaptive"][2]["redundant_confirmations"], 0)
+        self.assertGreater(self.runs["static"][2]["redundant_confirmations"], 0)
+        self.assertGreater(self.runs["checklist"][2]["redundant_confirmations"], 0)
+
+    def test_baselines_are_not_resumable_and_unknown_strategy_is_rejected(self):
+        case = load_blind_case(os.path.join(CASES, "blind-docs-01.json"))
+        with tempfile.TemporaryDirectory() as td, DocsApp(seed=3) as app:
+            r = run_research_case(case, app.base_url, app.credentials(), journal_root=td + "/j", resume_run_id="run_000000000001",
+                                  strategy="static").to_dict()
+            self.assertEqual(r["state"], "failed")
+            self.assertTrue([e for e in r["errors"] if "再開に対応しません" in e])
+            self.assertEqual(app.requests, [])
+        from core.autonomy.research_planner import Researcher
+        with self.assertRaises(ValueError):
+            Researcher(case, "http://127.0.0.1:1", None, None, lambda: False, strategy="random")
+
+
 class ResearchBoundaryTest(unittest.TestCase):
     def test_budget_exhaustion_ends_with_reason_and_leaves_unexamined(self):
         res, ev, info, g, _ = run_case(budget_override={"max_requests": 14})

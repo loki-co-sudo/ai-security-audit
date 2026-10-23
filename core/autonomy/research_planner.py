@@ -30,11 +30,16 @@ CAP_ANON, CAP_AUTHED = "research.get_anon", "research.get_authed"
 UNGROUNDED_FACTOR = 0.5
 SAME_KEY_FIRST, SAME_KEY_OTHERS, KEY_REFUTED, KEY_SUPPORTED, OP_SUPPORTED = 1.0, 0.3, 0.35, 0.1, 0.1   # OP_SUPPORTED: 0.4→0.1 (U4・docs/AUTONOMOUS_DISCOVERY_STAGE1.md §9)
 DEFAULT_MIN_VALUE = 0.02
+# 実験の選び方だけが違う方式（仮説の具体化・操作部品・予算・探索・対照の設計は共通）。比較実験用（要求仕様 §7.2）。
+#   adaptive  価値順に選び、観測のたびに再計画する（既定）
+#   static    探索の後に価値順を1回だけ計算して固定し、結果で並べ替えない（再計画しない）
+#   checklist 仕様の操作順→ロール→対象IDの機械的な順（価値を見ない。固定的な網羅探索）
+STRATEGIES = ("adaptive", "static", "checklist")
 
 
 class Researcher:
     def __init__(self, case: BlindCase, base_url: str, journal: RunJournal, ledger: BudgetLedger,
-                 is_stopped: Callable[[], bool], llm=None, llm_max_tokens: int = 800):
+                 is_stopped: Callable[[], bool], llm=None, llm_max_tokens: int = 800, strategy: str = "adaptive"):
         self.case, self.base_url, self.journal, self.ledger, self.is_stopped = case, base_url, journal, ledger, is_stopped
         self.model = TargetModel(case)
         self.hyps: dict[str, Hypothesis] = {}
@@ -47,10 +52,14 @@ class Researcher:
         self.commit_hid: str | None = None
         self.finish_reason = ""
         self.stage = 0
-        self.min_value = float(case.stop_conditions.get("min_value", DEFAULT_MIN_VALUE))
+        self.min_value = float(case.stop_conditions.get("min_value", DEFAULT_MIN_VALUE)) if strategy == "adaptive" else 0.0
         self.exp_purpose: dict[str, str] = {}
         self.planned_seq: dict[str, int] = {}             # exp_id -> experiment_planned のseq
         self.llm, self.llm_max_tokens = llm, llm_max_tokens
+        if strategy not in STRATEGIES:
+            raise ValueError(f"未知のstrategy: {strategy}")
+        self.strategy = strategy
+        self._order: list | None = None               # 比較用の方式（static/checklist）が最初の選択時に固定する仮説の順序
         self._llm_done: set[str] = set()
         self.llm_stats = {"calls": 0, "skipped": 0, "parse_failures": 0, "proposals": 0, "new_registered": 0,
                           "duplicate_of_rule": 0, "duplicate_of_llm": 0, "rejected": {}, "usage": [], "details": []}
@@ -82,7 +91,7 @@ class Researcher:
         if self.ledger.requests_remaining() <= 0:
             self.finish_reason = "budget_requests_exhausted"
             return []
-        ranked = self._rank()
+        ranked = self._ranked_for_strategy()
         if not ranked:
             self.finish_reason = "frontier_empty"
             return []
@@ -316,6 +325,34 @@ class Researcher:
             v = PRIOR[h.family] * (1.0 if h.grounded else UNGROUNDED_FACTOR) * self._gen_factor(h) / cost
             out.append((v, h, exp, purpose))
         out.sort(key=lambda x: (-x[0], x[1].hypothesis_id))
+        return out
+
+    def _ranked_for_strategy(self) -> list[tuple]:
+        if self.strategy == "adaptive":
+            return self._rank()
+        # 比較用: 直前にprobeを実行した仮説の対照は、どの方式でも直後に実行する（実験設計の一部であり、選び方の違いではない）
+        for h in self.hyps.values():
+            if h.hypothesis_id == self.commit_hid:
+                exp, purpose = self._next_experiment(h)
+                if purpose == "control":
+                    return [(1e9, h, exp, purpose)]
+        if self._order is None:
+            if self.strategy == "static":
+                self._order = [x[1].hypothesis_id for x in self._rank() if x[3] == "probe"]      # 探索後の初期状態の価値順を1回だけ固定
+            else:
+                opx = {oid: i for i, oid in enumerate(self.case.operations)}
+                rolex = {r: i for i, r in enumerate(["anonymous"] + sorted(self.case.accounts))}
+                cand = [h for h in self.hyps.values() if h.probe is not None and h.gap is None]
+                self._order = [h.hypothesis_id for h in sorted(cand, key=lambda h: (opx[h.op_id], rolex.get(h.probe_role, 99), h.object_id))]
+        known = set(self._order)
+        self._order += [h.hypothesis_id for h in self.hyps.values() if h.probe is not None and h.gap is None
+                        and h.hypothesis_id not in known]                  # 固定後に登録された仮説は末尾（登録順）
+        out = []
+        for hid in self._order:
+            exp, purpose = self._next_experiment(self.hyps[hid])
+            if exp is not None:
+                out.append((1.0 - len(out) * 1e-6, self.hyps[hid], exp, purpose))     # 値は順序を保つためだけ
+                break
         return out
 
     # ── 終了時 ──────────────────────────────────

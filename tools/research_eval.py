@@ -67,7 +67,7 @@ CASES_DIR = os.path.join(ROOT, "testlab", "lab", "blind_cases")
 TRUTH_DIR = os.path.join(ROOT, "testlab", "lab", "truth")
 
 
-def run_one(case_id: str, seed: int, *, budget_override: dict | None = None, llm=None) -> dict:
+def run_one(case_id: str, seed: int, *, budget_override: dict | None = None, llm=None, strategy: str = "adaptive") -> dict:
     case = load_blind_case(os.path.join(CASES_DIR, f"{case_id}.json"))
     with open(os.path.join(TRUTH_DIR, f"{case_id}.json"), encoding="utf-8") as f:
         truth = json.load(f)
@@ -79,13 +79,13 @@ def run_one(case_id: str, seed: int, *, budget_override: dict | None = None, llm
     try:
         with tempfile.TemporaryDirectory() as td, DocsApp(canary=canary, flaws=flaws, seed=seed) as app:
             res = run_research_case(case, app.base_url, app.credentials(), journal_root=td + "/j",
-                                    evidence_root=td + "/e", budget_override=bo or None, llm=llm).to_dict()
+                                    evidence_root=td + "/e", budget_override=bo or None, llm=llm, strategy=strategy).to_dict()
             g = grade(res, truth, list(app.requests), case.public_dict()["spec"],
                       bo.get("max_requests", case.budget["max_requests"]), canary.hits)
     finally:
         canary.stop()
     L = res["llm"]
-    return {"case_id": case_id, "seed": seed, "grade": g, "metrics": res["metrics"], "run_id": res["run_id"],
+    return {"case_id": case_id, "seed": seed, "strategy": strategy, "grade": g, "metrics": res["metrics"], "run_id": res["run_id"],
             "llm": {k: L[k] for k in ("enabled", "calls", "skipped", "parse_failures", "proposals", "new_registered",
                                       "duplicate_of_rule", "duplicate_of_llm", "rejected", "valid_proposal_rate",
                                       "llm_hypotheses", "llm_findings", "llm_candidates", "details", "usage")}}
@@ -101,6 +101,7 @@ def main() -> int:
     ap.add_argument("--approve-real-llm", action="store_true", help="実LLM（費用が発生）の使用承認。無ければ実行しない")
     ap.add_argument("--llm-max-tokens", type=int, default=800)
     ap.add_argument("--budgets", help="リクエスト予算を複数指定して、予算ごとの結果を出す（例: 12,16,20,25,30,40）。--llm none 専用")
+    ap.add_argument("--strategies", default="adaptive", help="実験の選び方（--budgetsと併用）: adaptive,static,checklist のカンマ区切り")
     ap.add_argument("--op-supported", type=float, help="優先順位の係数 OP_SUPPORTED の上書き（U4の前後比較用。既定は実装の値）")
     ap.add_argument("--reasoning-effort", choices=("low", "medium", "high"), help="OpenRouterのreasoning.effort（推論モデルが推論でトークンを使い切る問題への対処）。未指定ならモデル既定")
     ap.add_argument("--out")
@@ -121,8 +122,8 @@ def main() -> int:
         if a.llm != "none":
             print("--budgetsは--llm noneでだけ使えます", file=sys.stderr)
             return 2
-        runs = [{**run_one(c, int(sd), budget_override={"max_requests": int(b)}), "budget": int(b)}
-                for c in a.cases.split(",") for b in a.budgets.split(",") for sd in a.seeds.split(",")]
+        runs = [{**run_one(c, int(sd), budget_override={"max_requests": int(b)}, strategy=st), "budget": int(b)}
+                for c in a.cases.split(",") for st in a.strategies.split(",") for b in a.budgets.split(",") for sd in a.seeds.split(",")]
         text = json.dumps({"runs": runs, "curve": _curve(runs), "op_supported": a.op_supported, "n_runs": len(runs),
                            "boundary_violations_total": sum(r["grade"]["boundary"]["violations"] for r in runs),
                            "note": "seed違いは独立した未知案件ではない。LLM呼出0。"}, ensure_ascii=False, indent=1)
@@ -164,23 +165,27 @@ def main() -> int:
 
 
 def _curve(runs: list) -> dict:
-    """案件×予算ごとの平均（seed平均）。recallは分母0ならNone。"""
+    """案件×方式×予算ごとの平均（seed平均）。recallは分母0ならNone。"""
     out: dict = {}
     for r in runs:
-        out.setdefault(r["case_id"], {}).setdefault(str(r["budget"]), []).append(r)
+        out.setdefault(r["case_id"], {}).setdefault(r.get("strategy", "adaptive"), {}).setdefault(str(r["budget"]), []).append(r)
     mean = lambda xs: round(sum(xs) / len(xs), 4) if xs else None  # noqa: E731
-    res = {}
-    for cid, byb in out.items():
+    res: dict = {}
+    for cid, bys in out.items():
         res[cid] = {}
-        for b, rs in byb.items():
-            rec = [x["grade"]["recall"] for x in rs if x["grade"]["recall"] is not None]
-            res[cid][b] = {"n": len(rs), "recall_mean": mean(rec), "redundant_mean": mean([x["grade"]["redundant_confirmations"] for x in rs]),
-                           "reported_units_mean": mean([x["grade"]["reported_units"] for x in rs]),
-                           "probed_mean": mean([x["metrics"]["hypotheses_probed"] for x in rs]),
-                           "not_examined_mean": mean([x["metrics"]["not_examined"] for x in rs]),
-                           "fp_total": sum(x["grade"]["false_positive_units"] for x in rs),
-                           "overclaim_total": sum(len(x["grade"]["ungrounded_overclaim"]) for x in rs),
-                           "violations_total": sum(x["grade"]["boundary"]["violations"] for x in rs)}
+        for st, byb in bys.items():
+            res[cid][st] = {}
+            for b, rs in byb.items():
+                rec = [x["grade"]["recall"] for x in rs if x["grade"]["recall"] is not None]
+                res[cid][st][b] = {"n": len(rs), "recall_mean": mean(rec),
+                                   "redundant_mean": mean([x["grade"]["redundant_confirmations"] for x in rs]),
+                                   "reported_units_mean": mean([x["grade"]["reported_units"] for x in rs]),
+                                   "probed_mean": mean([x["metrics"]["hypotheses_probed"] for x in rs]),
+                                   "not_examined_mean": mean([x["metrics"]["not_examined"] for x in rs]),
+                                   "requests_mean": mean([x["metrics"]["requests_used"] for x in rs]),
+                                   "fp_total": sum(x["grade"]["false_positive_units"] for x in rs),
+                                   "overclaim_total": sum(len(x["grade"]["ungrounded_overclaim"]) for x in rs),
+                                   "violations_total": sum(x["grade"]["boundary"]["violations"] for x in rs)}
     return res
 
 
