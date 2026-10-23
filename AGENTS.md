@@ -117,7 +117,7 @@ AI-Security-tool/
 │       ├── research_model.py    # Target Model: 仕様＋観測(利用者ID・所有/共有)を出典つきで保持。取得失敗は unknowns へ
 │       ├── research_hypothesis.py # 仮説の具体化(規則5型)・予測と反証条件・有効な仮説の定義(validate)・判定(hyp_state)。設計は docs/AUTONOMOUS_DISCOVERY_STAGE1.md
 │       ├── research_planner.py  # Researcher: 観測の取り込み・仮説の事前登録(Journal)・価値順の実験選択・再計画(通信しない)
-│       ├── research_loop.py     # run_research_case(): 既存Runner/Gate/Journal/予算/証拠を再利用した実行・結果組立。LLM呼出0・GETのみ・再開は未対応
+│       ├── research_loop.py     # run_research_case(): 既存Runner/Gate/Journal/予算/証拠を再利用した実行・結果組立。GETのみ・再開に対応(resume_run_id)・LLM提案は任意(予算で制限)
 │       └── research_report.py   # 編集可能なMarkdownレポートドラフト(根拠・予測・対照・証拠の整合性/完全性・未確認・検証不能・レビュー状態)
 ├── agents/
 │   ├── base_agent.py            # 抽象基底クラス。threading.Eventで停止管理、EventBusヘルパー群、_check_scope()（スコープガード）
@@ -155,6 +155,7 @@ AI-Security-tool/
 │   ├── lab_robustness.py        # 決定論方式の係数・宣言順への依存を調べる(開発ケースのみ)
 │   ├── lab_eval.py              # ローカル模擬案件の評価ハーネス(固定/順序ランダム/決定論/LLM助言を同条件で比較・採点・再現確認・保留ケースの使用記録)。実LLMは承認フラグ必須
 │   ├── test_lab.py              # 案件契約・期待値比較・安全(範囲外/予算/STOP/再開)・正解の隔離・手計算採点の固定試験（selftest 16aeに統合）
+│   ├── research_crash_child.py  # 自律調査の強制終了(os._exit)を再現する試験用の子プロセス(再開試験が使う)
 │   ├── research_eval.py         # 自律調査の評価ハーネス(被験環境TeamDocsを起動→調査→独立採点。LLM呼出0。seed違いは独立案件ではない)
 │   ├── test_research.py         # 自律調査の固定試験(案件契約・有効な仮説の定義・判定行列・事前登録の順序・正常対象で捏造0・予算/STOP・漏えい・レポート。selftest 16ahに統合)
 │   ├── lab_crash_child.py       # 上記の再開試験用に os._exit を再現する子プロセス
@@ -488,7 +489,7 @@ validation error記録が残る。JSON出力も未実装。P1.2全体を完了�
 2026-10-23: ローカル模擬診断案件の評価基盤と、固定テスト操作を選ぶ自律ワークフロー（決定論＋LLM助言）を実装
 （`docs/LOCAL_LAB_EVAL.md` が正本）。その後、連鎖の仮説検出・再試行・`cli.py lab`・bwrap隔離・複数モデルの実LLM評価・保留5件の評価まで実施（結果は同文書 §6.5〜6.9。LLM助言は決定論を超えず、決定論の偽陽性は保留で1.0）。GUI・WEB FUZZ経路への統合は未実装。
 
-2026-10-23: 自律調査 Stage 1 の U1（観測→仮説の具体化→予測の事前登録→実験→評価→再計画→報告、LLM呼出0）を実装・固定試験済み（開発ケース2件×seed5通りで根拠付き3欠陥を再現・正常対象で所見0・境界逸脱0。未知ケース・実LLM・比較は未実施）。要求と現状の差・次の単位は `docs/AUTONOMOUS_DISCOVERY_STAGE1.md` が正本。同日のU2（LLMが仮説を提案し、検証器と決定論の判定器を通ったものだけを事前登録。`research_llm.py`）は機構を固定試験済み・`z-ai/glm-5.3-flash`で開発ケースを評価済みだが、規則のみに対する上乗せは確認できなかった（再開・CLI/台帳は未実装）。
+2026-10-23: 自律調査 Stage 1 の U1（観測→仮説の具体化→予測の事前登録→実験→評価→再計画→報告、LLM呼出0）を実装・固定試験済み（開発ケース2件×seed5通りで根拠付き3欠陥を再現・正常対象で所見0・境界逸脱0。未知ケース・実LLM・比較は未実施）。要求と現状の差・次の単位は `docs/AUTONOMOUS_DISCOVERY_STAGE1.md` が正本。同日のU2（LLMが仮説を提案し、検証器と決定論の判定器を通ったものだけを事前登録。`research_llm.py`）は機構を固定試験済み・`z-ai/glm-5.3-flash`で開発ケースを評価済みだが、規則のみに対する上乗せは確認できなかった（CLI/台帳は未実装。再開はU3で実装済み）。
 
 P0.1・P0.2・P1.1は完了済み。実装詳細・セルフテスト結果は
 [docs/IMPLEMENTATION_LOG.md](docs/IMPLEMENTATION_LOG.md) を参照。

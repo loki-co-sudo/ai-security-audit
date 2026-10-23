@@ -9,7 +9,8 @@ core/autonomy/research_loop.py — 自律調査ループの実行（Stage 1）
     決定論的に検証し、観測していないIDや仕様外のパスは送信しない。Gate（スコープ・副作用・予算・重複）→HttpTransport（同一origin・予算）を通る。
   - LLMは使わない（max_llm_calls=0）。対象の応答本文はジャーナル・結果へ入れない（項目名・ステータス・マスク済み証拠の参照だけ）。
   - 認証情報は参照名（cred:*）だけが記録に出る。tokenは実行時にヘッダーへ入れ、既知の機密値としてマスク対象に登録する。
-  - 状態を変える操作の部品は無い。仕様にあれば『検証不能（必要な能力つき）』として残す。再開は未対応（resumable=false）。
+  - 状態を変える操作の部品は無い。仕様にあれば『検証不能（必要な能力つき）』として残す。
+  - 再開できる（resume_run_id）。動的に追加した実験もRunStoreに保存し、判定に必要な項目だけのダイジェストを結果として保存する（本文は保存しない）。
 設計: docs/AUTONOMOUS_DISCOVERY_STAGE1.md
 """
 from __future__ import annotations
@@ -28,10 +29,12 @@ from core.autonomy.research_hypothesis import (
     CONFORMS, DEVIATES, RULE_ID, SEVERITY_ESTIMATE, S_NOT_EXAMINED, S_REFUTED, S_SUPPORTED, S_UNDETERMINED,
     S_UNVERIFIABLE, S_UNVERIFIED, control_state, evaluate_check,
 )
-from core.autonomy.research_model import ExpResult, safe_json
+from core.autonomy.research_model import ExpResult, digest_json, retained_keys, safe_json
 from core.autonomy.research_planner import CAP_ANON, CAP_AUTHED, Researcher
-from core.autonomy.resume import profile_hash
-from core.autonomy.runner import ENGINE_VERSION, ScriptedRunner
+from core.autonomy.journal import replay
+from core.autonomy.resume import ResumeError, profile_hash, reconcile
+from core.autonomy.run_store import RunStore, RunStoreError
+from core.autonomy.runner import ENGINE_VERSION, PlanTask, ScriptedRunner
 from core.autonomy.task_graph import TaskState
 from core.evidence_store import EvidenceStore
 from core.findings import (
@@ -39,7 +42,7 @@ from core.findings import (
 )
 from core.http_transport import HttpTransport, RequestPolicy, new_session
 
-RESEARCH_ENGINE_VERSION = "research-stage1/1"
+RESEARCH_ENGINE_VERSION = "research-stage1/2"   # /2: 再開に必要な記録（stage・decision_recorded・ダイジェスト）を追加。/1のRunは再開できない
 _ARGS = {"url": {"type": "str", "required": True}, "exp_id": {"type": "str", "required": True},
          "op_id": {"type": "str", "required": True}, "role": {"type": "str", "required": True},
          "path_params": {"type": "dict"}}
@@ -84,6 +87,7 @@ class ResearchRunResult:
     unknowns: list = field(default_factory=list)
     metrics: dict = field(default_factory=dict)
     llm: dict = field(default_factory=dict)               # LLM提案の内訳・使用量（LLM未使用なら calls=0）
+    resume: dict = field(default_factory=dict)            # 再開した場合の復元の記録（通常は空）
     errors: list = field(default_factory=list)
     counters: dict = field(default_factory=dict)
     budget: dict = field(default_factory=dict)
@@ -106,9 +110,11 @@ def run_research_case(case: BlindCase, base_url: str, creds: dict[str, str], *, 
                       evidence_root: str | None = None, is_stopped: Callable[[], bool] | None = None,
                       budget_override: dict | None = None, clock=time.monotonic,
                       fault_hook: Callable[[str, str], None] | None = None, llm=None,
-                      llm_max_tokens: int = 800) -> ResearchRunResult:
+                      llm_max_tokens: int = 800, resume_run_id: str | None = None) -> ResearchRunResult:
     """1案件を1回、自律調査する。creds は `cred:<名前>` -> token（実行時にヘッダーへ入れるだけで記録しない）。
-    llm（任意）: complete(messages, max_tokens, usage_out) を持つ提案役。使うには予算 max_llm_calls>0 が必要（0なら呼ばない）。"""
+    llm（任意）: complete(messages, max_tokens, usage_out) を持つ提案役。使うには予算 max_llm_calls>0 が必要（0なら呼ばない）。
+    resume_run_id（任意）: 中断したRunを再開する。完了済みの実験は再送せず、結果不明の実験は自動で再実行しない
+    （関連する仮説は判定不能）。予算は巻き戻さない。案件・対象・予算・版が開始時と違えば拒否する。時間予算は再開時に数え直す。"""
     t_start = time.time()
     stopped = is_stopped or (lambda: False)
     budget = {**case.budget, **(budget_override or {})}
@@ -118,23 +124,68 @@ def run_research_case(case: BlindCase, base_url: str, creds: dict[str, str], *, 
     phash = profile_hash({"mode": "RESEARCH", "case": case.public_dict(), "base_url": base_url, "budget": budget,
                           "engine": ENGINE_VERSION, "research_engine": RESEARCH_ENGINE_VERSION})
     sr = new_scan_result("LAB", case.case_id, engagement_id=case.case_id)
-    counters = {"gate_denied": 0, "budget_denied": 0, "experiments_failed": 0}
+    counters = {"gate_denied": 0, "budget_denied": 0, "experiments_failed": 0, "resumed": bool(resume_run_id), "prior_requests": 0}
+    resuming = resume_run_id is not None
+    journal = store = None
+    prior = 0
+    resume_notes: dict = {}
     try:
-        journal = RunJournal(new_run_id(), journal_root, known_secrets=known_secrets)
-    except (JournalError, OSError, ValueError) as e:
-        return _failed_result(case, sr, f"監査記録の開始に失敗しました: {e}")
+        journal = RunJournal(resume_run_id or new_run_id(), journal_root, known_secrets=known_secrets)
+        store = RunStore(journal.run_id, journal_root, must_exist=resuming)
+        if resuming:
+            if store.get_meta("profile_hash") != phash:
+                raise ResumeError("プロファイル(案件・対象・予算・版)が開始時と異なるため再開しません")
+            sr.scan_id = store.get_meta("scan_id") or sr.scan_id
+            report = reconcile(journal, store)
+            prior = store.requests_consumed(0)
+            for row in store.tasks().values():        # 結果不明は1リクエスト消費済みとみなす（巻き戻さない）
+                if row["state"] in ("unknown_outcome", "running") or row["consumption_unknown"]:
+                    prior += 1
+            journal.append("run_resumed", profile_hash=phash, prior_requests=prior, notes=report.notes,
+                           unknown_tasks=report.unknown_tasks)
+            counters["prior_requests"] = prior
+    except (ResumeError, JournalError, RunStoreError, OSError, ValueError) as e:
+        for o in (store, journal):
+            if o is not None:
+                try:
+                    o.close()
+                except Exception:   # noqa: BLE001
+                    pass
+        return _failed_result(case, sr, f"{'再開' if resuming else '監査記録の開始'}に失敗しました: {e}", resume_run_id or "")
     max_req = int(budget["max_requests"])
-    transport = HttpTransport(policy=RequestPolicy(max_requests=max_req, timeout=5))
+    transport = HttpTransport(policy=RequestPolicy(max_requests=max(0, max_req - prior), timeout=5))
     transport.bind_origin(base_url)
-    ledger = BudgetLedger(max_requests=max_req, request_counter=lambda: transport.req_count,
+    ledger = BudgetLedger(max_requests=max_req, request_counter=lambda: prior + transport.req_count,
                           deadline_seconds=float(budget["max_seconds"]), max_llm_calls=int(budget.get("max_llm_calls", 0)),
                           max_llm_input_chars=int(budget.get("max_llm_input_chars", 8000)), clock=clock)
     gate = PolicyGate(registry, EngagementPolicy(base_origin=base_url, allowed_targets=list(case.allowed_hosts),
-                                                 allowed_side_effects=frozenset(effects)), ledger, journal)
+                                                 allowed_side_effects=frozenset(effects)), ledger, journal, store=store)
     evidence = EvidenceStore(sr.scan_id, **({"root": evidence_root} if evidence_root else {}))
     researcher = Researcher(case, base_url, journal, ledger, stopped,
                             llm=llm if int(budget.get("max_llm_calls", 0)) > 0 else None, llm_max_tokens=llm_max_tokens)
     mask = lambda s: redaction.mask_log_line(str(s), known_secrets)  # noqa: E731
+    keep = retained_keys(case)
+    plan: list = []
+    if resuming:
+        try:
+            resume_notes = researcher.rehydrate(replay(journal.run_id, journal_root).events, store.tasks())
+            have = {r["task_id"] for r in store.plan()}
+            plan = [PlanTask(r["task_id"], r["capability"], r["args"], tuple(r["depends_on"]), r["auth_context"])
+                    for r in store.plan()]
+            rejected_exps = {r["exp_id"] for r in researcher.rejected if "exp_id" in r}
+            for exp_id, exp in researcher.experiments.items():      # 計画したが、保存前に中断した実験は未実行として復元する
+                if exp_id not in have and exp_id not in rejected_exps:
+                    t = researcher._to_task(exp)
+                    store.append_task({"task_id": t.task_id, "capability": t.capability, "args": t.args,
+                                       "depends_on": t.depends_on, "auth_context": t.auth_context})
+                    plan.append(t)
+        except (ResumeError, RunStoreError, JournalError, KeyError, ValueError) as e:
+            for o in (store, journal):
+                try:
+                    o.close()
+                except Exception:   # noqa: BLE001
+                    pass
+            return _failed_result(case, sr, f"再開に失敗しました: {type(e).__name__}: {e}", journal.run_id)
 
     def execute(action: Action) -> ActionResult:
         exp = researcher.experiments.get(action.args.get("exp_id"))
@@ -146,12 +197,16 @@ def run_research_case(case: BlindCase, base_url: str, creds: dict[str, str], *, 
         if (action.args.get("url") != expected or action.args.get("role") != exp.role
                 or (action.args.get("path_params") or {}) != exp.params() or validate_experiment(exp, researcher.model)):
             return ActionResult("failed", {"reason": "args_mismatch"})      # 登録・観測と違う引数は送信しない
+
+        def fail(why: str, status: str = "failed") -> ActionResult:
+            researcher.buffer[exp.exp_id] = ExpResult(exp.exp_id, None, reason=why)
+            return ActionResult(status, {"reason": why}, outputs={"status_code": None, "reason": why, "digest": None,
+                                                                  "body_complete": True, "incomplete_reason": None, "evidence_id": None})
         headers = {}
         if exp.role != "anonymous":
             token = creds.get(case.accounts[exp.role].ref)
             if not token:
-                researcher.buffer[exp.exp_id] = ExpResult(exp.exp_id, None, reason="credential_unavailable")
-                return ActionResult("failed", {"reason": "credential_unavailable"})
+                return fail("credential_unavailable")
             headers["Authorization"] = f"Bearer {token}"
         if fault_hook:
             fault_hook("before_send", exp.exp_id)
@@ -160,21 +215,24 @@ def run_research_case(case: BlindCase, base_url: str, creds: dict[str, str], *, 
             fault_hook("after_send", exp.exp_id)
         if resp is None:
             why = transport.last_error or "network_error"
-            researcher.buffer[exp.exp_id] = ExpResult(exp.exp_id, None, reason=why)
-            return ActionResult("exhausted" if why == "budget_exhausted" else "failed", {"reason": why})
+            return fail(why, "exhausted" if why == "budget_exhausted" else "failed")
         body = resp.text or ""
         cut = getattr(resp, "fz_incomplete_reason", None) if getattr(resp, "fz_truncated", False) else None
         eid = evidence.save_http_evidence(method="GET", url=resp.request.url or expected, status=resp.status_code,
                                           headers=dict(resp.headers), body=body, known_secrets=known_secrets,
                                           action_id=action.action_id, source_incomplete=cut)
-        researcher.buffer[exp.exp_id] = ExpResult(exp.exp_id, resp.status_code, json=safe_json(body),
-                                                  body_complete=cut is None, incomplete_reason=cut, evidence_id=eid)
+        dg = digest_json(safe_json(body), keep)       # 判定に必要な項目だけ。ライブも再開後も、この同じ入力で評価する
+        researcher.buffer[exp.exp_id] = ExpResult(exp.exp_id, resp.status_code, json=dg, body_complete=cut is None,
+                                                  incomplete_reason=cut, evidence_id=eid)
         return ActionResult("done", {"exp_id": exp.exp_id, "status_code": resp.status_code},
-                            evidence_ids=[eid] if eid else [], outputs={"status_code": resp.status_code})
+                            evidence_ids=[eid] if eid else [],
+                            outputs={"status_code": resp.status_code, "digest": dg, "body_complete": cut is None,
+                                     "incomplete_reason": cut, "evidence_id": eid, "reason": ""})
 
     runner = ScriptedRunner(gate=gate, journal=journal, registry=registry,
                             executors={CAP_ANON: execute, CAP_AUTHED: execute}, is_stopped=stopped, budget=ledger,
-                            plan=[], store=None, selector=researcher.select, on_idle=researcher.step)
+                            plan=plan, store=store, resumed=resuming, restore_cb=lambda t, row: None,
+                            selector=researcher.select, on_idle=researcher.step)
     finished = False
     try:
         outcome = runner.run(mode="LAB", target=base_url, scan_id=sr.scan_id, profile_hash=phash)
@@ -193,6 +251,7 @@ def run_research_case(case: BlindCase, base_url: str, creds: dict[str, str], *, 
         counters["experiments_failed"] = sum(1 for r in outcome.tasks.values() if r.state == TaskState.FAILED)
         result = _assemble(case, researcher, outcome, runner, sr, journal.run_id, counters, ledger, evidence, mask,
                            budget, phash)
+        result.resume = dict(resume_notes) if resuming else {}
         result.errors = [mask(e) for e in result.errors]
         end_errors = runner.close_run(state=result.state, errors=result.errors)
         if end_errors:
@@ -204,10 +263,11 @@ def run_research_case(case: BlindCase, base_url: str, creds: dict[str, str], *, 
     finally:
         if not finished:
             runner.close_run(state=ScanState.FAILED.value, errors=["内部エラーで中断しました"])
-        try:
-            journal.close()
-        except Exception:   # noqa: BLE001
-            pass
+        for o in (store, journal):
+            try:
+                o.close()
+            except Exception:   # noqa: BLE001
+                pass
     result.elapsed_seconds = round(time.time() - t_start, 3)
     return result
 
@@ -351,7 +411,7 @@ def _assemble(case, researcher, outcome, runner, sr, run_id, counters, ledger, e
     sr.detector_version = RESEARCH_ENGINE_VERSION
     return ResearchRunResult(
         case_id=case.case_id, run_id=run_id, scan_id=sr.scan_id, state=scan_state, end_reason=end_reason,
-        finish_reason=researcher.finish_reason, clean_finish=clean, resumable=False, model=model.summary(),
+        finish_reason=researcher.finish_reason, clean_finish=clean, resumable=True, model=model.summary(),
         hypotheses=hyps_out, rejected=list(researcher.rejected), experiments=exps_out, decision_log=researcher.decisions,
         findings=findings, candidates=candidates, refuted=refuted, undetermined=undetermined, unverifiable=unverifiable,
         not_examined=not_examined, unknowns=list(model.unknowns), metrics=metrics, errors=errors, counters=counters,

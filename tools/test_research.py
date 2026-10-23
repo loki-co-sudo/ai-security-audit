@@ -20,6 +20,7 @@ from core.autonomy.journal import replay  # noqa: E402
 from core.autonomy.lab_case import LabCaseError  # noqa: E402
 from core.autonomy.research_case import load_blind_case, parse_blind_case  # noqa: E402
 from core.autonomy.research_loop import run_research_case  # noqa: E402
+from core.autonomy.research_case import load_blind_case as _lbc  # noqa: E402,F401
 from core.autonomy.research_model import ExpResult, Experiment, TargetModel  # noqa: E402
 from testlab.lab.apps import CanaryServer  # noqa: E402
 from testlab.lab.blind_apps import ALL_FLAWS, DocsApp  # noqa: E402
@@ -243,14 +244,20 @@ class HypothesisLogicTest(unittest.TestCase):
 
 
 class RunnerExtensionTest(unittest.TestCase):
-    def test_on_idle_requires_selector_and_rejects_store(self):
+    def test_on_idle_requires_selector(self):
         from core.autonomy.runner import ScriptedRunner
         with self.assertRaises(ValueError):
             ScriptedRunner(gate=None, journal=None, registry=None, executors={}, is_stopped=lambda: False, budget=None,
                            plan=[], on_idle=lambda o: [])
-        with self.assertRaises(ValueError):
-            ScriptedRunner(gate=None, journal=None, registry=None, executors={}, is_stopped=lambda: False, budget=None,
-                           plan=[], selector=lambda o: (None, "x"), on_idle=lambda o: [], store=object())
+
+    def test_add_task_is_persisted_to_the_store_and_idempotent(self):
+        from core.autonomy.run_store import RunStore
+        with tempfile.TemporaryDirectory() as td, RunStore("run_000000000001", td) as st:
+            t = {"task_id": "x:a", "capability": "research.get_anon", "args": {"url": "http://127.0.0.1:1/a"}, "depends_on": ()}
+            st.append_task(t)
+            st.append_task(t)
+            st.append_task(dict(t, task_id="x:b"))
+            self.assertEqual([x["task_id"] for x in st.plan()], ["x:a", "x:b"])
 
 
 def _ev(events, type_, **kw):
@@ -398,7 +405,7 @@ class ResearchReportTest(unittest.TestCase):
                     "## 未判定・未検査・未解決の観測", "## 研究判断の記録", "## 制約"):
             self.assertIn(sec, self.md)
         for k in ("未レビュー", "新規脆弱性・ゼロデイの発見を主張しない", "事前登録した予測", "反証条件", "再現手順", "整合性: ok",
-                  "T3", "再開: 未対応"):
+                  "T3", "再開: 対応"):
             self.assertIn(k, self.md)
 
     def test_unconfirmed_items_are_not_written_as_findings(self):
@@ -591,6 +598,155 @@ class ResearchLlmTest(unittest.TestCase):
         refuted = {r["hypothesis_id"] for r in res["refuted"]}
         self.assertIn("h:list_scope:docs_list:admin", refuted)                          # 提案は実験され、反証された
         self.assertEqual(g["false_positive_units"], 0)
+
+
+class ResearchResumeTest(unittest.TestCase):
+    """実プロセスを os._exit で落として再開する（labと同じ方式）。"""
+    CASE = "blind-docs-02"
+
+    @classmethod
+    def setUpClass(cls):
+        import subprocess  # noqa: F401
+        base = run_case(cls.CASE, seed=3)
+        cls.baseline = base[0]
+        cls.order = [e["exp_id"] for e in cls.baseline["experiments"]]
+
+    def crash_and_resume(self, crash, child_llm=None, resume_llm=None, budget=None, mutate=None):
+        import subprocess
+        truth = truth_of(self.CASE)
+        case = load_blind_case(os.path.join(CASES, self.CASE + ".json"))
+        with tempfile.TemporaryDirectory() as td, DocsApp(seed=3, flaws=frozenset(truth["env_flaws"])) as app:
+            jr, er = td + "/j", td + "/e"
+            spec = {"case_path": os.path.join(CASES, self.CASE + ".json"), "base_url": app.base_url, "creds": app.credentials(),
+                    "journal_root": jr, "evidence_root": er, "crash": crash, "budget": budget, "llm": child_llm}
+            p = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "research_crash_child.py"), json.dumps(spec)],
+                               capture_output=True, text=True, timeout=120)
+            self.assertEqual(p.returncode, 137, p.stderr[-600:])
+            before = [(r["role"], r["path"]) for r in app.requests]
+            rid = os.listdir(jr)[0]
+            if mutate:
+                mutate(jr, rid)
+            res = run_research_case(case, app.base_url, app.credentials(), journal_root=jr, evidence_root=er,
+                                    resume_run_id=rid, budget_override=budget, llm=resume_llm).to_dict()
+            after = [(r["role"], r["path"]) for r in app.requests]
+            events = replay(rid, jr).events if res["state"] != "failed" or res["run_id"] else []
+            g = grade(res, truth, list(app.requests), case.public_dict()["spec"], (budget or case.budget).get("max_requests", 40), [])
+        return res, events, before, after, g
+
+    def test_resume_after_crash_never_repeats_or_rewinds(self):
+        for idx in (2, 7, 9, 10, 20, 30):
+            exp = self.order[idx]
+            for point in ("before_send", "after_send"):
+                res, ev, before, after, g = self.crash_and_resume(f"{point}:{exp}")
+                tag = (point, exp)
+                new = after[len(before):]
+                self.assertNotEqual(res["state"], "failed", (tag, res["errors"]))
+                self.assertTrue(res["resumable"] and res["counters"]["resumed"], tag)
+                self.assertEqual(set(new) & set(before), set(), tag)               # 完了済みの実験を再送しない
+                self.assertEqual(len(set(after)), len(after), tag)                  # 同じ(ロール,パス)を二度送らない
+                self.assertEqual(res["resume"]["unknown_outcome"], [exp], tag)     # 結果不明の実験は1件だけ。自動では再実行しない
+                self.assertTrue([e for e in res["errors"] if "前回の実行結果が不明" in e], tag)
+                self.assertLessEqual(len(after), 40, tag)                          # 予算は巻き戻らない
+                self.assertGreaterEqual(res["budget"]["requests_used"], len(after), tag)
+                self.assertNotEqual(res["state"], "completed", tag)
+                self.assertEqual((g["false_positive_units"], g["ungrounded_overclaim"], g["boundary"]["violations"]), (0, [], 0), tag)
+                self.assertEqual(res["metrics"]["prereg_violations"], [], tag)
+                ingested = [e["exp_id"] for e in ev if e["type"] == "observation_ingested"]
+                self.assertEqual(len(ingested), len(set(ingested)), tag)           # 二重に取り込まない
+                self.assertEqual(len(_ev(ev, "run_resumed")), 1, tag)
+                self.assertEqual(len(_ev(ev, "run_finished")), 1, tag)
+
+    def test_hypotheses_that_depend_on_the_unknown_experiment_are_undetermined(self):
+        probe = next(h for h in self.baseline["hypotheses"] if h["probe"] and h["probe_status_code"] is not None
+                     and h["control"] and h["op_id"] == "doc_comments")
+        res, ev, before, after, g = self.crash_and_resume(f"after_send:{probe['probe']}")
+        h = next(x for x in res["hypotheses"] if x["hypothesis_id"] == probe["hypothesis_id"])
+        self.assertEqual(h["state"], "undetermined")
+        self.assertIn("unknown_outcome", h["reason"])
+        self.assertNotIn(h["hypothesis_id"], [f["hypothesis_id"] for f in res["findings"]])
+
+    def test_completed_experiments_keep_their_results_and_conclusions(self):
+        exp = self.order[20]
+        res, ev, *_ = self.crash_and_resume(f"before_send:{exp}")
+        base = {h["hypothesis_id"]: h for h in self.baseline["hypotheses"]}
+        same = 0
+        for h in res["hypotheses"]:
+            b = base.get(h["hypothesis_id"])
+            if b and exp not in (h["probe"], h["control"]) and b["state"] in ("supported", "refuted") and h["state"] == b["state"]:
+                same += 1
+        self.assertGreater(same, 10)                                                 # 中断前に結論が出た仮説の結論は変わらない
+        prior = [e for e in ev if e["type"] == "hypothesis_registered"]
+        self.assertEqual(len({e["hypothesis_id"] for e in prior}), len(prior))        # 同じ仮説を二重に登録しない
+
+    def test_llm_phases_and_registrations_survive_a_resume(self):
+        budget = {"max_llm_calls": 2, "max_requests": 40, "max_seconds": 90.0, "max_llm_input_chars": 8000}
+        second = MockProposer("good")
+        # 子プロセスは仕様段階の提案（list_scope(admin)を登録）を済ませ、探索の途中（段階2）で落ちる
+        res, ev, before, after, g = self.crash_and_resume("before_send:x:docs_list:alice", child_llm="good",
+                                                           resume_llm=second, budget=budget)
+        self.assertEqual(res["state"] != "failed", True, res["errors"])
+        self.assertEqual(second.calls, 1)                                           # 済んだ『仕様段階』は繰り返さず、観測後の段階だけ呼ぶ
+        phases = [e["phase"] for e in _ev(ev, "llm_proposals")]
+        self.assertEqual(phases, ["spec", "observed"])
+        self.assertEqual(res["llm"]["calls"], 2)                                    # 再開前の呼出も数える
+        reg = [e for e in ev if e["type"] == "hypothesis_registered" and e["hypothesis_id"] == "h:list_scope:docs_list:admin"]
+        self.assertEqual(len(reg), 1)                                               # 再開で二重登録しない
+        self.assertFalse(reg[0]["probe_preexisting"])
+        self.assertIn("h:list_scope:docs_list:admin", [f["hypothesis_id"] for f in res["findings"]])   # 再開後に事前登録どおり確定
+        self.assertEqual(res["metrics"]["prereg_violations"], [])
+        self.assertEqual(g["recall"], 1.0)
+
+    def test_resume_is_refused_for_a_different_profile_or_a_finished_run(self):
+        import subprocess
+        truth = truth_of(self.CASE)
+        case = load_blind_case(os.path.join(CASES, self.CASE + ".json"))
+        exp = self.order[9]
+        with tempfile.TemporaryDirectory() as td, DocsApp(seed=3, flaws=frozenset(truth["env_flaws"])) as app:
+            jr, er = td + "/j", td + "/e"
+            spec = {"case_path": os.path.join(CASES, self.CASE + ".json"), "base_url": app.base_url, "creds": app.credentials(),
+                    "journal_root": jr, "evidence_root": er, "crash": f"before_send:{exp}"}
+            subprocess.run([sys.executable, os.path.join(ROOT, "tools", "research_crash_child.py"), json.dumps(spec)],
+                           capture_output=True, text=True, timeout=120)
+            rid = os.listdir(jr)[0]
+            n0 = len(app.requests)
+            bad = run_research_case(case, app.base_url, app.credentials(), journal_root=jr, evidence_root=er, resume_run_id=rid,
+                                    budget_override={"max_requests": 39}).to_dict()
+            self.assertEqual(bad["state"], "failed")
+            self.assertTrue([e for e in bad["errors"] if "再開に失敗" in e and "プロファイル" in e], bad["errors"])
+            self.assertEqual(len(app.requests), n0)                                  # 何も再送しない
+            ok = run_research_case(case, app.base_url, app.credentials(), journal_root=jr, evidence_root=er, resume_run_id=rid).to_dict()
+            self.assertNotEqual(ok["state"], "failed")
+            again = run_research_case(case, app.base_url, app.credentials(), journal_root=jr, evidence_root=er, resume_run_id=rid).to_dict()
+            self.assertEqual(again["state"], "failed")                               # 終了済みのRunは再開できない
+            self.assertTrue([e for e in again["errors"] if "終了済み" in e], again["errors"])
+
+    def test_rehydrate_rejects_a_tampered_prediction(self):
+        from core.autonomy.resume import ResumeError
+        from core.autonomy.research_planner import Researcher
+        case = load_blind_case(os.path.join(CASES, "blind-docs-01.json"))
+        res, ev, *_ = run_case("blind-docs-01", seed=3)
+        events = copy.deepcopy(ev)
+        reg = next(e for e in events if e["type"] == "hypothesis_registered" and e["family"] == "object_authz")
+        reg["falsification"] = "（改変）常に支持される"
+        r = Researcher(case, "http://127.0.0.1:1", None, None, lambda: False)
+        with self.assertRaises(ResumeError):
+            r.rehydrate(events, {})
+
+    def test_run_store_keeps_digests_not_response_bodies(self):
+        import sqlite3
+        truth = truth_of("blind-docs-01")
+        case = load_blind_case(os.path.join(CASES, "blind-docs-01.json"))
+        with tempfile.TemporaryDirectory() as td, DocsApp(seed=3, flaws=frozenset(truth["env_flaws"])) as app:
+            res = run_research_case(case, app.base_url, app.credentials(), journal_root=td + "/j", evidence_root=td + "/e").to_dict()
+            db = sqlite3.connect(os.path.join(td, "j", res["run_id"], "state.sqlite3"))
+            dump = " ".join(r[0] for r in db.execute("SELECT outputs_json FROM tasks"))
+            db.close()
+            tokens = list(app.credentials().values())
+        self.assertIn("digest", dump)
+        for banned in ("@example.test", "body of ", "alice-private", "090-"):
+            self.assertNotIn(banned, dump)
+        for tok in tokens:
+            self.assertNotIn(tok, dump)
 
 
 class ResearchBoundaryTest(unittest.TestCase):

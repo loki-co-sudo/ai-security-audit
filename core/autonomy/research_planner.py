@@ -91,7 +91,8 @@ class Researcher:
                 break
             problems = validate_experiment(exp, self.model)
             if problems:      # 観測に由来しない引数・未承認の操作は送信しない。理由を残して次の候補へ
-                self.journal.append("experiment_rejected", exp_id=exp.exp_id, hypothesis_id=h.hypothesis_id, problems=problems)
+                self.journal.append("experiment_rejected", exp_id=exp.exp_id, hypothesis_id=h.hypothesis_id, problems=problems,
+                                    role=exp.role, op_id=exp.op_id, path_params=exp.params())
                 self.experiments[exp.exp_id] = exp
                 self.rejected.append({"hypothesis_id": h.hypothesis_id, "exp_id": exp.exp_id, "problems": problems})
                 continue
@@ -229,9 +230,9 @@ class Researcher:
                     continue
                 tasks.append(self._to_task(exp))
                 self.exp_purpose[exp.exp_id] = f"discovery({kind}): 仮説の対象(ID・ロール・共有関係)を決める観測"
-                self._journal_planned(exp, "discovery", [], 0.0, self.exp_purpose[exp.exp_id])
+                self._journal_planned(exp, "discovery", [], 0.0, self.exp_purpose[exp.exp_id], stage=stage)
         skipped = sorted(set(self.case.accounts) - set(roles)) if stage == 2 else []
-        self.decisions.append({"step": len(self.decisions), "purpose": f"discovery_stage_{stage}",
+        self._record_decision({"step": len(self.decisions), "purpose": f"discovery_stage_{stage}",
                                "experiments": [t.task_id for t in tasks], "skipped_roles": skipped,
                                "why": ("各アカウントの利用者IDを観測" if stage == 1 else
                                        "利用者IDを取得できたアカウントだけ、所有/共有オブジェクトを観測")})
@@ -245,11 +246,17 @@ class Researcher:
         return PlanTask(exp.exp_id, CAP_ANON if exp.role == "anonymous" else CAP_AUTHED, args,
                         depends_on=depends, auth_context=exp.role)
 
-    def _journal_planned(self, exp: Experiment, purpose: str, serves: list, value: float, why: str) -> None:
+    def _journal_planned(self, exp: Experiment, purpose: str, serves: list, value: float, why: str,
+                         stage: int = 0, hypothesis_id: str = "") -> None:
         ev = self.journal.append("experiment_planned", exp_id=exp.exp_id, role=exp.role, op_id=exp.op_id,
                                  path_params=exp.params(), purpose=purpose, serves=serves, value=round(value, 4),
-                                 why=why[:300])
+                                 why=why[:300], stage=stage, hypothesis_id=hypothesis_id)
         self.planned_seq[exp.exp_id] = ev["seq"]
+
+    def _record_decision(self, d: dict) -> None:
+        """判断の記録。結果に載せるだけでなく、再開時に復元できるようジャーナルにも残す。"""
+        self.decisions.append(d)
+        self.journal.append("decision_recorded", decision=d)
 
     def _plan(self, exp: Experiment, purpose: str, h: Hypothesis, value: float, ranked: list) -> PlanTask:
         serves = sorted(x.hypothesis_id for x in self.hyps.values()
@@ -258,8 +265,8 @@ class Researcher:
                + (" (対照)" if purpose == "control" else ""))
         task = self._to_task(exp)
         self.exp_purpose[exp.exp_id] = why
-        self._journal_planned(exp, purpose, serves, value, why)
-        self.decisions.append({"step": len(self.decisions), "exp_id": exp.exp_id, "purpose": purpose,
+        self._journal_planned(exp, purpose, serves, value, why, hypothesis_id=h.hypothesis_id)
+        self._record_decision({"step": len(self.decisions), "exp_id": exp.exp_id, "purpose": purpose,
                                "hypothesis_id": h.hypothesis_id, "serves": serves, "value": round(value, 4),
                                "alternatives": [[x[1].hypothesis_id, round(x[0], 4)] for x in ranked[1:4]]})
         self.commit_hid = h.hypothesis_id if purpose == "probe" else None
@@ -320,3 +327,94 @@ class Researcher:
                                     to_state="not_examined", reason=self.finish_reason or "not_selected",
                                     based_on=[], prediction_sha=h.prediction_sha())
                 self.states[hid] = ("not_examined", self.finish_reason or "not_selected")
+
+    # ── 再開（U3）: ジャーナルとRunStoreから研究者の状態を復元する ────────────────
+    def rehydrate(self, events: list[dict], store_tasks: dict) -> dict:
+        """中断したRunの状態を、ジャーナル（登録した仮説・計画した実験・観測の取り込み順・状態更新・判断）と
+        RunStore（各実験の結果のダイジェスト）から復元する。通信もジャーナルへの書込みもしない。
+        整合しないもの（予測ハッシュの不一致・計画に無い実験の観測）は ResumeError で拒否する。
+        結果が不明（開始したが完了が確認できない）の実験は、自動で再実行せず、判定不能（probe/control_unknown_outcome）として扱う。"""
+        from core.autonomy.resume import ResumeError
+        from core.autonomy.research_hypothesis import hypothesis_from_registration
+        exp_of = lambda e: Experiment(e["role"], e["op_id"], tuple(sorted((e.get("path_params") or {}).items())))  # noqa: E731
+        for e in events:
+            t = e["type"]
+            if t == "experiment_planned":
+                x = exp_of(e)
+                self.experiments[x.exp_id], self.planned_seq[x.exp_id], self.exp_purpose[x.exp_id] = x, e["seq"], e.get("why", "")
+                if e.get("purpose") == "discovery":
+                    self.stage = max(self.stage, int(e.get("stage") or 0))
+            elif t == "experiment_rejected":
+                x = exp_of(e)
+                self.experiments[x.exp_id] = x
+                self.rejected.append({"hypothesis_id": e["hypothesis_id"], "exp_id": e["exp_id"], "problems": e["problems"]})
+            elif t == "hypothesis_rejected":
+                self.rejected.append({"hypothesis_id": e["hypothesis_id"], "problems": e["problems"]})
+            elif t == "decision_recorded":
+                self.decisions.append(e["decision"])
+        results: dict[str, ExpResult] = {}
+        unknown: list[str] = []
+        for tid, row in store_tasks.items():
+            if tid not in self.experiments:
+                continue
+            st, out = row["state"], row["outputs"] or {}
+            if st in ("unknown_outcome", "running"):
+                results[tid] = ExpResult(tid, None, reason="unknown_outcome")
+                unknown.append(tid)
+            elif st in ("done", "exhausted", "failed") and "status_code" in out:
+                results[tid] = ExpResult(tid, out.get("status_code"), json=out.get("digest"), body_complete=out.get("body_complete", True),
+                                         incomplete_reason=out.get("incomplete_reason"), evidence_id=out.get("evidence_id"),
+                                         reason=out.get("reason", ""))
+        ingested = 0
+        for e in events:
+            if e["type"] != "observation_ingested":
+                continue
+            tid = e["exp_id"]
+            if tid not in self.experiments:
+                raise ResumeError(f"{tid}: 計画に無い実験の観測がジャーナルにあります(破損)")
+            res = results.pop(tid, None) or ExpResult(tid, e.get("status_code"), reason="outputs_missing")
+            self.model.ingest(self.experiments[tid], res)
+            self._ingested.add(tid)
+            ingested += 1
+        self.buffer.update(results)                  # 完了したが未取り込み（結果不明を含む）→ 最初のstepで取り込み、ジャーナルへ残す
+        for e in events:
+            if e["type"] == "hypothesis_registered":
+                h = hypothesis_from_registration(e)
+                if h.prediction_sha() != e["prediction_sha"]:
+                    raise ResumeError(f"{h.hypothesis_id}: 予測ハッシュが一致しません（登録内容が改変された可能性）")
+                h.registered_seq, h.probe_preexisting = e["seq"], bool(e.get("probe_preexisting"))
+                self.hyps[h.hypothesis_id] = h
+        last: dict[str, tuple] = {}
+        for e in events:
+            if e["type"] == "hypothesis_updated":
+                last[e["hypothesis_id"]] = (e["to_state"], e["reason"])
+        for hid in self.hyps:
+            self.states[hid] = last.get(hid, (S_REGISTERED, "probe_not_run"))
+        st_ = self.llm_stats
+        for e in events:
+            if e["type"] != "llm_proposals":
+                continue
+            self._llm_done.add(e["phase"])
+            if e.get("skipped"):
+                st_["skipped"] += 1
+                continue
+            st_["calls"] += 1
+            if e.get("error") or e.get("parse_error"):
+                st_["parse_failures"] += 1
+                continue
+            st_["usage"].append(e.get("usage"))
+            for r in e.get("results", []):
+                st_["proposals"] += 1
+                st_["details"].append(r)
+                s_ = r["status"]
+                if s_ == "new":
+                    st_["new_registered"] += 1
+                elif s_ in ("duplicate_of_rule", "duplicate_of_llm"):
+                    st_[s_] += 1
+                else:
+                    st_["rejected"][r["reason"]] = st_["rejected"].get(r["reason"], 0) + 1
+        planned = [e for e in events if e["type"] == "experiment_planned" and e.get("purpose") in ("probe", "control")]
+        self.commit_hid = planned[-1]["hypothesis_id"] if planned and planned[-1]["purpose"] == "probe" else None
+        self.model.sessions_checked = self.stage >= 1
+        return {"experiments": len(self.experiments), "ingested": ingested, "buffered": len(self.buffer),
+                "hypotheses": len(self.hyps), "unknown_outcome": unknown, "stage": self.stage}

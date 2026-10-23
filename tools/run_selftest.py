@@ -3247,11 +3247,12 @@ def test_research_stage1():
     result = unittest.TestResult()
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c) for c in (
         t.CaseContractTest, t.HypothesisLogicTest, t.RunnerExtensionTest, t.ResearchE2ETest, t.ResearchBoundaryTest,
-        t.ResearchReportTest, t.ListVisibilityCheckTest, t.ResearchLlmTest))
+        t.ResearchReportTest, t.ListVisibilityCheckTest, t.ResearchLlmTest, t.ResearchResumeTest))
     suite.run(result)
     if result.wasSuccessful():
         _ok("Research", f"{result.testsRun} tests: 案件契約(仮説/期待値を置けない)/有効な仮説の定義/判定行列(対照・根拠の有無)/"
-                        "観測で変わる実験/予測の事前登録の順序/正常対象で捏造0/対照欠落は未確認/予算枯渇・STOP/漏えい非混入/検証不能の理由"
+                        "観測で変わる実験/予測の事前登録の順序/正常対象で捏造0/対照欠落は未確認/予算枯渇・STOP/漏えい非混入/検証不能の理由/"
+                        "強制終了→再開(完了済みは再送しない・結果不明は自動再実行しない・予算は巻き戻さない・予測の改変は拒否)/LLM提案"
                         "（パイプラインの確認であり、未知ケースでの発見能力の証拠ではない）")
     else:
         _ng("Research", str(result.errors + result.failures))

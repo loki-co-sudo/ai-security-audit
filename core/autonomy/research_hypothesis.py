@@ -524,3 +524,21 @@ def build_list_scope(model: TargetModel, op: SpecOperation, role: str) -> tuple[
         control_reason="応答自身の所有者/共有先の項目との照合で自己完結（別の対照は不要）。HTTP成功と利用者IDの観測が前提",
         control_check=None, grounded=True, needed_observations=[],
         key=("list_scope", op.op_id, role)), ""
+
+
+def _exp_from_dict(d: dict | None) -> Experiment | None:
+    if d is None:
+        return None
+    return Experiment(d["role"], d["op_id"], tuple(sorted((d.get("path_params") or {}).items())))
+
+
+def hypothesis_from_registration(d: dict) -> Hypothesis:
+    """ジャーナルの hypothesis_registered から仮説を復元する（再開用）。呼び出し側が prediction_sha の一致を検査する。"""
+    return Hypothesis(
+        hypothesis_id=d["hypothesis_id"], family=d["family"], op_id=d["op_id"], probe_role=d["probe_role"],
+        object_id=d["object_id"], claim=d["claim"], basis=d["basis"], preconditions=d["preconditions"], check=d["check"],
+        prediction_if_true=d["prediction_if_true"], falsification=d["falsification"], probe=_exp_from_dict(d.get("probe")),
+        control=_exp_from_dict(d.get("control")), control_required=d["control_required"], control_reason=d["control_reason"],
+        control_check=d.get("control_check"), grounded=d["grounded"], ungrounded_reason=d.get("ungrounded_reason", ""),
+        needed_observations=d.get("needed_observations", []), gap=d.get("gap"), source=d.get("source", "rule"),
+        llm_rationale=d.get("llm_rationale", ""), key=(d["family"], d["op_id"], d["probe_role"]))

@@ -162,3 +162,33 @@ def safe_json(text: str):
         return json.loads(text)
     except (ValueError, TypeError):
         return None
+
+
+def retained_keys(case: BlindCase) -> set:
+    """判定に使う項目名（仕様が定義したID・所有者・共有先と、操作ごとの対象キー）。ダイジェストはこの値だけ残す。"""
+    keys: set = set()
+    for o in case.objects.values():
+        keys |= {o.get("id_field"), o.get("owner_field"), o.get("shared_field")}
+    for op in case.operations.values():
+        keys.add(op.returns.get("object_key"))
+    return {k for k in keys if k}
+
+
+def digest_json(js, keep: set):
+    """応答JSONを、判定に必要な最小限へ削る。項目名（キー）は全て残し、値は keep に含まれる短い文字列/文字列配列だけ残す。
+    他の値（メール・電話・本文など）は None にする。判定（マーカー・項目名・所有/共有・空かどうか）はダイジェストで同じ結果になり、
+    再開時にも同じ入力で再評価できる。個人情報や本文をRunStoreに残さない。"""
+    def item(x):
+        if not isinstance(x, dict):
+            return None
+        out = {}
+        for k, v in x.items():
+            ok = k in keep and ((isinstance(v, str) and len(v) <= 200) or
+                                (isinstance(v, list) and len(v) <= 200 and all(isinstance(e, str) and len(e) <= 200 for e in v)))
+            out[k] = v if ok else None
+        return out
+    if isinstance(js, dict):
+        return item(js)
+    if isinstance(js, list):
+        return [item(x) for x in js[:1000]]
+    return None

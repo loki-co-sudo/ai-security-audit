@@ -112,6 +112,18 @@ class RunStore:
                     (t["task_id"], i, t["capability"], json.dumps(t.get("args", {}), sort_keys=True),
                      json.dumps(list(t.get("depends_on", ()))), t.get("auth_context", "anonymous"), _now()))
 
+    def append_task(self, t: dict) -> None:
+        """実行中に計画へ1件追加する（動的な再計画用）。既にあれば何もしない（再開時の冪等性）。"""
+        with self._tx() as db:
+            if db.execute("SELECT 1 FROM tasks WHERE task_id=?", (t["task_id"],)).fetchone():
+                return
+            idx = db.execute("SELECT COALESCE(MAX(idx),-1)+1 FROM tasks").fetchone()[0]
+            db.execute(
+                "INSERT INTO tasks(task_id,idx,capability,args_json,depends_json,auth_context,updated_at)"
+                " VALUES(?,?,?,?,?,?,?)",
+                (t["task_id"], idx, t["capability"], json.dumps(t.get("args", {}), sort_keys=True),
+                 json.dumps(list(t.get("depends_on", ()))), t.get("auth_context", "anonymous"), _now()))
+
     def plan(self) -> list[dict]:
         with self._lock:
             rows = self._db.execute("SELECT * FROM tasks ORDER BY idx").fetchall()
