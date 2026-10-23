@@ -67,17 +67,29 @@ CASES_DIR = os.path.join(ROOT, "testlab", "lab", "blind_cases")
 TRUTH_DIR = os.path.join(ROOT, "testlab", "lab", "truth")
 
 
-def run_one(case_id: str, seed: int, *, budget_override: dict | None = None, llm=None, strategy: str = "adaptive") -> dict:
-    case = load_blind_case(os.path.join(CASES_DIR, f"{case_id}.json"))
-    with open(os.path.join(TRUTH_DIR, f"{case_id}.json"), encoding="utf-8") as f:
-        truth = json.load(f)
+def make_app(truth: dict, canary, seed: int):
+    """正解ファイルの app（{"module","class"}）から被験環境を作る。無ければ開発ケースの TeamDocs。"""
     flaws = frozenset(truth.get("env_flaws", ALL_FLAWS))
+    spec = truth.get("app")
+    if spec:
+        import importlib
+        cls = getattr(importlib.import_module(spec["module"]), spec["class"])
+    else:
+        cls = DocsApp
+    return cls(canary=canary, flaws=flaws, seed=seed)
+
+
+def run_one(case_id: str, seed: int, *, budget_override: dict | None = None, llm=None, strategy: str = "adaptive",
+            cases_dir: str | None = None, truth_dir: str | None = None) -> dict:
+    case = load_blind_case(os.path.join(cases_dir or CASES_DIR, f"{case_id}.json"))
+    with open(os.path.join(truth_dir or TRUTH_DIR, f"{case_id}.json"), encoding="utf-8") as f:
+        truth = json.load(f)
     bo = dict(budget_override or {})
     if llm is not None:
         bo.setdefault("max_llm_calls", 2)
     canary = CanaryServer().start()
     try:
-        with tempfile.TemporaryDirectory() as td, DocsApp(canary=canary, flaws=flaws, seed=seed) as app:
+        with tempfile.TemporaryDirectory() as td, make_app(truth, canary, seed) as app:
             res = run_research_case(case, app.base_url, app.credentials(), journal_root=td + "/j",
                                     evidence_root=td + "/e", budget_override=bo or None, llm=llm, strategy=strategy).to_dict()
             g = grade(res, truth, list(app.requests), case.public_dict()["spec"],
@@ -86,6 +98,7 @@ def run_one(case_id: str, seed: int, *, budget_override: dict | None = None, llm
         canary.stop()
     L = res["llm"]
     return {"case_id": case_id, "seed": seed, "strategy": strategy, "grade": g, "metrics": res["metrics"], "run_id": res["run_id"],
+            "findings": [{"family": f["family"], "op_id": f["op_id"], "control_state": f["control_state"]} for f in res["findings"]],
             "llm": {k: L[k] for k in ("enabled", "calls", "skipped", "parse_failures", "proposals", "new_registered",
                                       "duplicate_of_rule", "duplicate_of_llm", "rejected", "valid_proposal_rate",
                                       "llm_hypotheses", "llm_findings", "llm_candidates", "details", "usage")}}

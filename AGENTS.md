@@ -28,6 +28,7 @@
 | ローカル模擬診断案件の評価基盤・固定テスト選択ワークフロー（要件分類・指標定義・結果・未検証事項の正本） | [docs/LOCAL_LAB_EVAL.md](docs/LOCAL_LAB_EVAL.md) |
 | **自律型脆弱性発見の要求仕様**（目指す到達点・成果の主張範囲・評価設計。現状は書かない） | [docs/AUTONOMOUS_DISCOVERY_REQUIREMENTS.md](docs/AUTONOMOUS_DISCOVERY_REQUIREMENTS.md) |
 | 要求と現状の差・Stage 1 実現計画・自律調査（観測→仮説→実験前登録→再計画）の進捗の正本 | [docs/AUTONOMOUS_DISCOVERY_STAGE1.md](docs/AUTONOMOUS_DISCOVERY_STAGE1.md) |
+| 未使用ケース（Stage 2〜3の評価用）を作る人向けの手順書。れいはケースの中身を読まない | [docs/UNSEEN_CASE_AUTHORING.md](docs/UNSEEN_CASE_AUTHORING.md) |
 | 完了済み機能の実装詳細・セルフテスト結果（通常のタスクでは読まなくてよい） | [docs/IMPLEMENTATION_LOG.md](docs/IMPLEMENTATION_LOG.md) |
 
 実践運用対応の実装依頼では、`docs/PRACTICAL_ROADMAP.md` §3の未完了IDを選んで該当節を読む。
@@ -67,6 +68,7 @@ AI-Security-tool/
 │   └── target_code_v2.py        # 実LLM評価用の難しめサンプル(欠陥8＋安全だが危なそうに見えるdecoy6。正解は testlab/benchmark/ground_truth_audit_v2.json)
 ├── testlab/
 │   ├── lab/                     # ローカル模擬診断案件: apps.py(模擬環境・ラベルなし)・cases/(公開設定)・truth/(正解。診断中は権限000で封印)・grader.py(独立採点・連鎖の再現率/偽の連鎖)・oracle.py(案件が方式間の差を出せるかの事前検査)・gen_cases.py(案件生成・既存ファイルの上書きを拒否)・holdout_log.json
+│   │                            # 未使用ケース用: unseen/(TEMPLATE_app.py・TEMPLATE_case/truth.json=書き換えて使う最小例。実ケースもここへ置く)・holdout_log_research.json(保留ケースの使用記録)
 │   │                            # 自律調査用: blind_apps.py(被験環境TeamDocs・seedでID決定論)・blind_cases/(公開仕様のみ)・blind_grader.py(独立採点)・truth/blind-*.json(正解)
 │   ├── fixtures/attack_benchmark.py # ATTACK偵察の評価用fixture(main/catchall(soft-404)/held の3台のHTTPとバナー付きTCP)。正解は benchmark/ground_truth_attack.json、基準値は baselines/attack_recon.json(改修前は attack_recon.before-fixes.json)
 │   ├── fixtures/web_benchmark.py # 検出品質評価用fixture(罠を含む。P2.1)。正解は benchmark/ground_truth_web_fuzz.json、改修前の基準値は baselines/web_fuzz_detector.json
@@ -155,6 +157,9 @@ AI-Security-tool/
 │   ├── lab_robustness.py        # 決定論方式の係数・宣言順への依存を調べる(開発ケースのみ)
 │   ├── lab_eval.py              # ローカル模擬案件の評価ハーネス(固定/順序ランダム/決定論/LLM助言を同条件で比較・採点・再現確認・保留ケースの使用記録)。実LLMは承認フラグ必須
 │   ├── test_lab.py              # 案件契約・期待値比較・安全(範囲外/予算/STOP/再開)・正解の隔離・手計算採点の固定試験（selftest 16aeに統合）
+│   ├── research_freeze.py       # 評価の凍結（コードのハッシュ・係数・方式・LLM設定・採用基準）と保留ケースの使用記録。凍結後にコードが変われば評価を拒否
+│   ├── research_stage2_eval.py  # 未使用ケースを凍結したプロトコルで全方式（rules/llm/static/checklist）に同条件で評価し、事前登録した基準で判定
+│   ├── research_case_check.py   # 未使用ケースの検査（形式・正解を匂わせる語・開発ケースとの類似・正解の整合・被験環境の起動）。調査は実行しない
 │   ├── research_crash_child.py  # 自律調査の強制終了(os._exit)を再現する試験用の子プロセス(再開試験が使う)
 │   ├── research_eval.py         # 自律調査の評価ハーネス(被験環境TeamDocsを起動→調査→独立採点。LLM呼出0。seed違いは独立案件ではない)
 │   ├── test_research.py         # 自律調査の固定試験(案件契約・有効な仮説の定義・判定行列・事前登録の順序・正常対象で捏造0・予算/STOP・漏えい・レポート。selftest 16ahに統合)
@@ -340,6 +345,7 @@ fix: fix ALERT event not firing in DEFENSE MODE
   状態の意味や成功条件を変えない。旧新の差は「採点・報告条件の変更」「選択順の変更」「対照の実行コスト」が混在するため、
   分離して測るまで原因を断定しない。過去の評価値は消さず、版と定義を添えて残す。
 - **固定操作の選択(lab)と、仮説・実験の自律設計(research)を混同しない。** labの成功は『人間が書いた仮説・期待値からtest_idを選べた』ことで、自律的な発見能力の証拠ではない(要求仕様 §4.C)。自律調査の開発ケースの欠陥を、実装している仮説の型と同じ分類で自作した場合、その全件発見は『型の内側でパイプラインが動く』確認にとどまり、未知の欠陥の発見や、再計画・仮説生成の寄与を主張しない(Stage 3の比較と未使用ケースが必要)。要求仕様(`docs/AUTONOMOUS_DISCOVERY_REQUIREMENTS.md`)に現状を書かず、現状は `AUTONOMOUS_DISCOVERY_STAGE1.md` に書く。
+- **未使用ケースの評価は、方式を凍結してから行い、使用したケースを再利用しない。** `tools/research_freeze.py freeze` で、コードのハッシュ・係数・方式・LLM設定・採用基準を固定し、`tools/research_stage2_eval.py` は凍結後にコードが変わっていれば（通信の前に）拒否する。保留ケースは使用記録に残り、使用済みの再評価・使用後に変更されたケースは拒否される。係数や方式を変えたい場合は新しい版として再凍結し、使用済みケースは使わない。れいは未使用ケースの正解・被験環境のコードを読まない（要求仕様 §7.5。結果を見てからの調整は過適合になるため）。
 - **完了状態を区別して残す**: 「実装済み / 固定試験済み / 実LLM評価済み / GUI・Windows確認済み」。同じ進捗を複数文書へ
   重複記載せず、現在状態の正本を一つにする。実装していないこと・未検証の環境を完了扱いにしない。
 - **レポート出力は `gui/export_util.py` 経由に統一する**。各パネルで `report_generator` を直接叩く重複実装をしない（HTML/PDF両対応のため一元化済み）。PDFは `tools/pdf_writer.py`（Pillowのみ）で日本語をラスタ描画する — 標準14フォントはCJK非対応のため。

@@ -837,3 +837,10 @@ ATTACKのLLM解釈部分の評価(ローカルlabの観測に対する仮説の�
 - `cli.py research`（`--resume`/`--report-dir`/`--engagement-id`/`--max-requests`（予算を下げるのみ）/`--fail-on`）。loopback限定・0600の認証ファイル・案件のアカウントの参照名の検査・SIGINTの協調中断。
 - 結果は ScanResult互換＋`research`（仮説の状態・候補・検証不能・未検査・指標・判断の記録）。所見だけを台帳（モードLAB）へ記録し、候補は入れない。検査範囲の狭い回に出なかった所見は `UNVERIFIED`。
 - 検証: `ResearchCliTest` 4件（selftest 16ah）。未実装: HTML/PDFの共通レポート層・GUIへの接続。
+
+## 2026-10-24 自律調査 Stage 2〜3 の評価の準備
+
+- 比較用の方式 `static`（再計画なし）・`checklist`（仕様順の固定探索）。開発ケースでの観察は `docs/AUTONOMOUS_DISCOVERY_STAGE1.md` §10。
+- 凍結（`tools/research_freeze.py`）・保留ケースの使用記録・評価ランナー（`tools/research_stage2_eval.py`）・案件検査（`tools/research_case_check.py`）・手順書（`docs/UNSEEN_CASE_AUTHORING.md`）・テンプレート（`testlab/lab/unseen/`）。
+  採用基準は事前登録（§11.2）。`tools/research_eval.py` の被験環境を正解ファイルの `app` で差し替え可能にした。
+- 検証: `ResearchStage2Test`・`ResearchCaseCheckTest`（selftest 16ah）。未実施: 実際の未使用ケースでの評価（ひろの作業待ち）。

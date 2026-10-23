@@ -95,6 +95,17 @@ class CaseContractTest(unittest.TestCase):
         bad(lambda d: d["spec"]["operations"][3].update(path="http://evil.test/x"), "絶対URL")
         bad(lambda d: d["spec"]["operations"][4]["access"].update(clause="S-4"), "clause重複")
 
+        def two_params(d):
+            op = d["spec"]["operations"][3]
+            op["path"] = "/api/docs/{doc_id}/{user_id}"
+            op["params"] = {"doc_id": {"object": "doc"}, "user_id": {"object": "user"}}
+        bad(two_params, "パスパラメータは1つまで")
+
+        def no_identity(d):
+            for o in d["spec"]["operations"]:
+                o.get("returns", {}).pop("identity", None)
+        bad(no_identity, "identity操作が必要")
+
 
 def synthetic_model(case_id="blind-docs-01"):
     """観測済みの状態を手で作る（alice=u1, bob=u2, carol=u3, admin=u4。文書: d1(alice, bobと共有), d2(alice), d3(bob)）。"""
@@ -961,6 +972,183 @@ class StrategyTest(unittest.TestCase):
         from core.autonomy.research_planner import Researcher
         with self.assertRaises(ValueError):
             Researcher(case, "http://127.0.0.1:1", None, None, lambda: False, strategy="random")
+
+
+class _Stage2Base(unittest.TestCase):
+    """仮の保留ケース2件（欠陥あり・正常版）を一時ディレクトリに作る。テンプレートの被験環境を使う。"""
+
+    def setUp(self):
+        import shutil
+        from tools import research_freeze as rf
+        self.rf = rf
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.cases, self.truth = os.path.join(self.tmp, "cases"), os.path.join(self.tmp, "truth")
+        os.makedirs(self.cases)
+        os.makedirs(self.truth)
+        unseen = os.path.join(ROOT, "testlab", "lab", "unseen")
+        with open(os.path.join(unseen, "TEMPLATE_case.json"), encoding="utf-8") as f:
+            base_case = json.load(f)
+        with open(os.path.join(unseen, "TEMPLATE_truth.json"), encoding="utf-8") as f:
+            base_truth = json.load(f)
+        for cid, clean in (("hold-a", False), ("hold-a-clean", True)):
+            c = dict(base_case, case_id=cid)
+            t = dict(base_truth)
+            if clean:
+                t = dict(base_truth, flaws=[], env_flaws=[])
+            for path, doc in ((os.path.join(self.cases, cid + ".json"), c), (os.path.join(self.truth, cid + ".json"), t)):
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(doc, f, ensure_ascii=False)
+        self.proto_path = os.path.join(self.tmp, "frozen.json")
+        proto = rf.default_protocol("test")
+        proto["seeds"], proto["llm_repeats"] = [0, 1], 1
+        rf.write_frozen(self.proto_path, proto)
+        self.log = os.path.join(self.tmp, "holdout_log.json")
+
+    def run_s2(self, ids=("hold-a", "hold-a-clean"), **kw):
+        from tools.research_stage2_eval import run_stage2
+        kw.setdefault("include_holdout", True)
+        kw.setdefault("cases_dir", self.cases)
+        kw.setdefault("truth_dir", self.truth)
+        return run_stage2(list(ids), protocol_path=self.proto_path, holdout_log=self.log, **kw)
+
+
+class ResearchStage2Test(_Stage2Base):
+    def test_all_methods_run_under_the_same_conditions_and_are_judged_by_the_preregistered_gate(self):
+        res = self.run_s2(llm_factory=lambda cfg: MockProposer("good"))
+        self.assertEqual(res["methods_run"], ["checklist", "llm", "rules", "static"])
+        self.assertEqual((res["n_cases"], res["n_runs"]), (2, 16))                     # 4方式 × 2案件 × 2シード
+        self.assertEqual(res["methods_skipped"], {})
+        for m in res["methods_run"]:
+            self.assertTrue(res["summary"][m]["safety_gate_ok"], m)                   # 偽陽性0・過剰な確定0・境界逸脱0・正常版で所見0
+            self.assertEqual(res["table"][m]["hold-a-clean"]["findings_on_clean"], 0)
+        self.assertEqual(res["table"]["rules"]["hold-a"]["recall"], 1.0)
+        self.assertIsNone(res["table"]["rules"]["hold-a-clean"]["recall"])              # 分母0はN/A
+        self.assertEqual(res["summary"]["rules"]["cases"], 2)
+        for k in ("llm_contribution", "replan_value", "prioritization_value", "safety"):
+            self.assertIn(k, res["verdict"])
+        self.assertIn("独立した案件ではない", res["note"])
+        self.assertEqual(res["verdict"]["llm_contribution"], "上乗せなし")                # モックは規則の型の内側のみ。差は0
+
+    def test_llm_method_is_skipped_without_approval_but_others_run(self):
+        res = self.run_s2()
+        self.assertEqual(res["methods_run"], ["checklist", "rules", "static"])
+        self.assertIn("llm", res["methods_skipped"])
+        self.assertIsNone(res["verdict"]["llm_contribution"])
+
+    def test_changed_code_after_the_freeze_is_refused_before_anything_runs(self):
+        with open(self.proto_path, encoding="utf-8") as f:
+            proto = json.load(f)
+        proto["system_fingerprint"]["sha"] = "0" * 64
+        proto["system_fingerprint"]["files"]["core/autonomy/research_planner.py"] = "deadbeef0000"
+        self.rf.write_frozen(self.proto_path, proto)
+        with self.assertRaises(self.rf.FreezeError) as cm:
+            self.run_s2()
+        self.assertIn("research_planner.py", str(cm.exception))
+        self.assertFalse(os.path.exists(self.log))                                     # 使用記録も書かれない
+
+    def test_verify_frozen_names_the_changed_file(self):
+        root = os.path.join(self.tmp, "code")
+        os.makedirs(root)
+        with open(os.path.join(root, "a.py"), "w") as f:
+            f.write("x = 1\n")
+        proto = dict(self.rf.default_protocol(), system_fingerprint=self.rf.system_fingerprint(["a.py"], root))
+        path = os.path.join(self.tmp, "p.json")
+        self.rf.write_frozen(path, proto)
+        self.rf.verify_frozen(path, files=["a.py"], root=root)
+        with open(os.path.join(root, "a.py"), "w") as f:
+            f.write("x = 2\n")
+        with self.assertRaises(self.rf.FreezeError) as cm:
+            self.rf.verify_frozen(path, files=["a.py"], root=root)
+        self.assertIn("a.py", str(cm.exception))
+
+    def test_holdout_needs_the_flag_records_use_and_blocks_reuse_and_modification(self):
+        with self.assertRaises(self.rf.FreezeError):
+            self.run_s2(include_holdout=False)
+        self.assertFalse(os.path.exists(self.log))
+        self.run_s2()
+        with open(self.log, encoding="utf-8") as f:
+            log = json.load(f)
+        self.assertEqual(sorted(log["cases"]), ["hold-a", "hold-a-clean"])
+        self.assertTrue(all(c["reuse_count"] == 0 and c["case_sha"] and c["truth_sha"] and c["app_sha"] for c in log["cases"].values()))
+        with self.assertRaises(self.rf.FreezeError) as cm:
+            self.run_s2()                                                              # 使用済みの再評価は拒否
+        self.assertIn("使用済み", str(cm.exception))
+        self.run_s2(ids=("hold-a",), allow_reuse=True)                                 # 明示すれば再利用できるが、記録される
+        with open(self.log, encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["cases"]["hold-a"]["reuse_count"], 1)
+        with open(os.path.join(self.truth, "hold-a.json"), "a") as f:
+            f.write(" ")
+        with self.assertRaises(self.rf.FreezeError) as cm:
+            self.run_s2(ids=("hold-a",), allow_reuse=True)
+        self.assertIn("変更されています", str(cm.exception))                              # 使用後に正解が変わったケースは評価しない
+
+    def test_all_cases_are_checked_before_any_use_is_recorded(self):
+        self.run_s2(ids=("hold-a",))
+        with self.assertRaises(self.rf.FreezeError):
+            self.run_s2(ids=("hold-a-clean", "hold-a"))                                # 2件目が使用済み → 1件目も記録しない
+        with open(self.log, encoding="utf-8") as f:
+            self.assertEqual(sorted(json.load(f)["cases"]), ["hold-a"])
+
+    def test_dev_cases_need_neither_the_flag_nor_a_use_record(self):
+        res = self.run_s2(ids=("blind-docs-clean",), include_holdout=False, cases_dir=CASES, truth_dir=TRUTH)
+        self.assertEqual(res["cases"]["blind-docs-clean"]["split"], "dev")
+        self.assertFalse(os.path.exists(self.log))
+
+
+class ResearchCaseCheckTest(_Stage2Base):
+    def check(self, mut_case=None, mut_truth=None, cid="hold-a"):
+        from tools.research_case_check import check
+        cp, tp = os.path.join(self.cases, cid + ".json"), os.path.join(self.truth, cid + ".json")
+        for path, mut in ((cp, mut_case), (tp, mut_truth)):
+            if mut:
+                with open(path, encoding="utf-8") as f:
+                    d = json.load(f)
+                mut(d)
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(d, f, ensure_ascii=False)
+        return check(cp, tp)
+
+    def test_template_passes_with_design_warnings(self):
+        errors, warns, info = self.check()
+        self.assertEqual(errors, [])
+        self.assertTrue(warns and info)
+
+    def test_leak_words_in_the_public_side_are_errors(self):
+        errors, *_ = self.check(mut_case=lambda d: d["spec"]["operations"][3]["access"].update(text="この操作は脆弱で、他人の貸出を取得できる"))
+        self.assertTrue([e for e in errors if "正解や解法を匂わせる語" in e], errors)
+
+    def test_dev_split_and_teamdocs_lookalikes_are_errors(self):
+        errors, *_ = self.check(mut_case=lambda d: d.update(split="dev"))
+        self.assertTrue([e for e in errors if "holdout" in e], errors)
+
+        def lookalike(d):
+            with open(os.path.join(CASES, "blind-docs-01.json"), encoding="utf-8") as fh:
+                d["spec"] = json.load(fh)["spec"]                                       # 名前や配置が開発ケースと同じ仕様
+        errors, *_ = self.check(mut_case=lookalike, cid="hold-a-clean")
+        self.assertTrue([e for e in errors if "似すぎています" in e], errors)
+
+    def test_truth_inconsistencies_are_errors(self):
+        errors, *_ = self.check(mut_truth=lambda t: t["flaws"].append(
+            {"flaw_id": "x", "family": "object_authz", "op_id": "loan_extend", "spec_grounded": True, "reachable": True}))
+        self.assertTrue([e for e in errors if "GET以外" in e], errors)
+        dup = {"flaw_id": "loan_idor", "family": "object_authz", "op_id": "loan_get", "spec_grounded": True, "reachable": True}
+        errors, *_ = self.check(mut_truth=lambda t: t["flaws"].extend([dup, dict(dup)]), cid="hold-a-clean")
+        self.assertTrue([e for e in errors if "重複" in e], errors)
+
+    def test_objects_whose_ids_cannot_be_observed_are_errors(self):
+        def drop_list(d):
+            d["spec"]["operations"] = [o for o in d["spec"]["operations"] if o["op_id"] != "loans_list"]
+        errors, *_ = self.check(mut_case=drop_list)
+        self.assertTrue([e for e in errors if "IDを観測する手段がありません" in e], errors)
+
+    def test_environment_contract_violations_are_errors(self):
+        def ghost(d):
+            d["accounts"]["ghost"] = {"ref": "cred:ghost", "privilege": "user"}
+        errors, *_ = self.check(mut_case=ghost)
+        self.assertTrue([e for e in errors if "roles" in e and "ghost" in e], errors)
+        errors, *_ = self.check(mut_truth=lambda t: t["app"].update(module="testlab.lab.unseen.does_not_exist"), cid="hold-a-clean")
+        self.assertTrue([e for e in errors if "読み込めません" in e], errors)
 
 
 class ResearchBoundaryTest(unittest.TestCase):

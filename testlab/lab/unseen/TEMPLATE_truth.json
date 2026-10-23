@@ -1,0 +1,14 @@
+{
+ "flaws": [
+  {"flaw_id": "loan_idor", "family": "object_authz", "op_id": "loan_get", "spec_grounded": true, "reachable": true}
+ ],
+ "non_flaws": [
+  {"family": "function_authz", "op_id": "staff_report", "note": "司書以外は403（正常）"},
+  {"family": "unauth_access", "op_id": "catalog", "note": "仕様上の公開（正常）"}
+ ],
+ "unverifiable": [
+  {"op_id": "loan_extend", "why": "POST(T3)の操作部品が無い"}
+ ],
+ "env_flaws": ["loan_idor"],
+ "app": {"module": "testlab.lab.unseen.TEMPLATE_app", "class": "App"}
+}

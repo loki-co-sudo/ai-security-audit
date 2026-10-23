@@ -113,6 +113,8 @@ def parse_blind_case(doc: dict) -> BlindCase:
         params = raw.get("params") or {}
         in_path = set(re.findall(r"\{([a-z][a-z0-9_]*)\}", path))
         _need(in_path == set(params), f"{oid}: pathの{{}}とparamsが一致しません")
+        _need(len(params) <= 1, f"{oid}: パスパラメータは1操作に1つまでです（入れ子のリソースは未対応。対象ごとに複数の経路が要る設計は、"
+                                "仮説が検証器で却下され、静かに検査範囲が減るため案件の読込時に拒否します）")
         for pn, pd in params.items():
             _need(_PARAM.match(pn) and pd.get("object") in objects, f"{oid}: paramsの型がobjectsにありません: {pn}")
         acc = raw.get("access") or {}
@@ -132,6 +134,8 @@ def parse_blind_case(doc: dict) -> BlindCase:
             _need(all(isinstance(f, str) and _FIELD.match(f) for f in rets["fields"]), f"{oid}: returns.fieldsが不正です")
         ops[oid] = SpecOperation(oid, method, path, dict(params), dict(acc), dict(rets))
     _need(ops, "operationsが必要です")
+    _need(any(o.method == "GET" and not o.params and o.returns.get("identity") for o in ops.values()),
+          "利用者自身のIDを返すGET操作（パラメータなし・returns.identity: true）が1つ以上必要です（ロールと利用者IDを観測できないと仮説を作れません）")
     b = doc.get("budget") or {}
     for k in ("max_requests", "max_seconds"):
         _need(isinstance(b.get(k), (int, float)) and b[k] >= 0, f"budget.{k}が必要です")

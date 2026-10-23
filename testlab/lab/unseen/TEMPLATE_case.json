@@ -1,0 +1,43 @@
+{
+ "schema": "ai-security-audit-blind-case",
+ "schema_version": "1",
+ "case_id": "template-library-01",
+ "split": "holdout",
+ "title": "【テンプレート】図書の貸出API",
+ "target_ref": "app:library",
+ "scope": {"allowed_hosts": ["127.0.0.1"], "excluded_paths": ["/logout"]},
+ "side_effects_allowed": ["T1", "T2"],
+ "accounts": {
+  "reader1": {"ref": "cred:reader1", "privilege": "user"},
+  "reader2": {"ref": "cred:reader2", "privilege": "user"},
+  "librarian": {"ref": "cred:librarian", "privilege": "admin"},
+  "user_expired": {"ref": "cred:user_expired", "privilege": "user"}
+ },
+ "spec": {
+  "title": "Library API",
+  "objects": {
+   "member": {"id_field": "id", "fields": ["id", "name"]},
+   "loan": {"id_field": "id", "owner_field": "member", "fields": ["id", "member", "title", "due"]}
+  },
+  "operations": [
+   {"op_id": "catalog", "method": "GET", "path": "/api/catalog",
+    "access": {"clause": "S-1", "kind": "public", "text": "蔵書の一覧は認証なしで見られる"},
+    "returns": {"fields": ["title"]}},
+   {"op_id": "me", "method": "GET", "path": "/api/me",
+    "access": {"clause": "S-2", "kind": "authenticated", "text": "ログイン中の会員自身の情報を返す"},
+    "returns": {"fields": ["id", "name"], "identity": true}},
+   {"op_id": "loans_list", "method": "GET", "path": "/api/loans",
+    "access": {"clause": "S-3", "kind": "own_list", "object": "loan", "text": "呼出し者自身の貸出だけを返す"},
+    "returns": {"object": "loan", "list": true, "fields": ["id", "member", "title", "due"]}},
+   {"op_id": "loan_get", "method": "GET", "path": "/api/loans/{loan_id}", "params": {"loan_id": {"object": "loan"}},
+    "access": {"clause": "S-4", "kind": "owner_only", "object": "loan", "param": "loan_id", "text": "貸出は借りた本人だけが取得できる"},
+    "returns": {"object": "loan", "fields": ["id", "member", "title", "due"], "object_key": "id"}},
+   {"op_id": "staff_report", "method": "GET", "path": "/api/staff/report",
+    "access": {"clause": "S-5", "kind": "role", "roles": ["admin"], "text": "集計は司書だけが取得できる"}},
+   {"op_id": "loan_extend", "method": "POST", "path": "/api/loans/{loan_id}/extend", "params": {"loan_id": {"object": "loan"}},
+    "access": {"clause": "S-6", "kind": "owner_only", "object": "loan", "param": "loan_id", "text": "貸出の延長は借りた本人だけができる"}}
+  ]
+ },
+ "budget": {"max_requests": 30, "max_seconds": 90, "max_llm_calls": 0},
+ "stop_conditions": {"min_value": 0.02}
+}
