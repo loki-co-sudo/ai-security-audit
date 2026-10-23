@@ -68,6 +68,19 @@ DEFAULT_PROBES = {
 }
 # XSSリフレクション判定に使うユニークマーカー
 _XSS_MARKER = "fzx9q7"
+# SSTIの追加確認が送信失敗・本文不完全で判定できなかった印(兆候ではなく、陰性の根拠でもない)
+UNCONFIRMED = object()
+
+
+def _inc(label: str, resp) -> str:
+    """応答が不完全なら 'ラベル:理由'、完全(またはNone)なら空。"""
+    if resp is not None and getattr(resp, "fz_truncated", False):
+        return f"{label}:{getattr(resp, 'fz_incomplete_reason', None) or 'incomplete'}"
+    return ""
+
+
+def join_incomplete(*parts: str) -> str | None:
+    return ",".join(x for x in parts if x) or None
 
 # 異常兆候の証拠として保持する応答本文の上限文字数（P1.2・メモリ膨張対策）。
 # EvidenceStore側にも独立した容量上限があるため、ここは呼び出し側へ渡す前の
@@ -161,7 +174,9 @@ class WebFuzzer:
           stopped         … 一部だけ試行してSTOP
           not_started     … 1つも試行しなかった(reasonは budget_exhausted / stopped)
           transport_error … 全試行が応答なし(応答を得られなかった)
-        同一カテゴリ内で一部だけ応答が得られなかった場合は completed のまま errors>0 で示す。
+          partial         … 兆候が無いまま、一部の応答なし・本文の不完全・ベースライン取得失敗・SSTI追加確認不能があった
+                            (陰性の根拠にしない。reasonに内訳)
+        最初の兆候で打ち切った completed(first_signal) は、兆候の観測であり陰性の主張ではない。
         """
         with self._fuzz_log_lock:
             return [dict(r) for r in self._fuzz_log]
@@ -528,11 +543,15 @@ class WebFuzzer:
         base_resp = self._send(url, method, base_fields)
         base_len  = len(base_resp.text) if base_resp is not None else 0
         base_body = base_resp.text if base_resp is not None else ""
+        base_problem = ("baseline_failed" if base_resp is None else
+                        f"baseline_incomplete:{base_resp.fz_incomplete_reason}" if getattr(base_resp, "fz_truncated", False)
+                        else "")
 
         out = []
         cats = list(probes.items())
         for idx, (category, payload_list) in enumerate(cats):
             planned, attempted, errors = len(payload_list), 0, 0
+            incomplete, unconfirmed = 0, 0
             first_signal = False
             for payload in payload_list:
                 if not self._budget_left() or self._stopped():
@@ -553,9 +572,14 @@ class WebFuzzer:
                         errors += 1
                     continue
                 attempted += 1
+                if getattr(resp, "fz_truncated", False):
+                    incomplete += 1                       # 本文が不完全。兆候が無くても陰性の根拠にしない
                 ev = self._detect(category, send_payload, resp, base_body, base_len)
                 if ev and category == "SSTI":
                     ev = self._confirm_ssti(url, method, base_fields, param, send_payload, base_body, ev)
+                    if ev is UNCONFIRMED:
+                        unconfirmed += 1
+                        ev = None
                 if ev:
                     out.append({
                         "url": url, "method": method, "param": param,
@@ -567,6 +591,13 @@ class WebFuzzer:
                         "response_headers": dict(resp.headers),
                         "response_body": resp.text[:_EVIDENCE_BODY_CAP],
                         "baseline_body": base_body[:_EVIDENCE_BODY_CAP],
+                        # 保存・報告へ不完全性を渡す(上流の切り詰め・途中切断を保存層だけでは判定できないため)
+                        "response_incomplete": join_incomplete(
+                            _inc("response", resp), _inc("baseline", base_resp),
+                            f"ssti_confirm:{ev[2]}" if len(ev) > 2 else "",
+                            "response:evidence_cap" if len(resp.text) > _EVIDENCE_BODY_CAP else "",
+                            "baseline:evidence_cap" if len(base_body) > _EVIDENCE_BODY_CAP else ""),
+                        "response_bytes_read": getattr(resp, "fz_bytes_read", 0),
                     })
                     self.log(f"  [!] {category} 兆候: {param}@{url}")
                     first_signal = True
@@ -578,7 +609,14 @@ class WebFuzzer:
                     self._record_unit(point, category, planned, attempted, errors, "transport_error",
                                       "all_attempts_failed")
                 else:
-                    self._record_unit(point, category, planned, attempted, errors, "completed")
+                    gaps = [x for x in (
+                        f"probes_failed={errors}/{attempted}" if errors else "",
+                        f"incomplete_bodies={incomplete}" if incomplete else "",
+                        f"ssti_unconfirmed={unconfirmed}" if unconfirmed else "", base_problem) if x]
+                    if gaps:
+                        self._record_unit(point, category, planned, attempted, errors, "partial", ",".join(gaps))
+                    else:
+                        self._record_unit(point, category, planned, attempted, errors, "completed")
             else:   # 最後の送信が予算切れで未送信になった場合(上のループ先頭の確認に掛からない)
                 status, reason = self._cutoff(attempted)
                 self._record_unit(point, category, planned, attempted, errors, status, reason)
@@ -587,7 +625,8 @@ class WebFuzzer:
     def _confirm_ssti(self, url, method, base_fields, param, payload, base_body, ev):
         """固定の49一致だけでは偶然(件数表示等)と区別できないため、別の算術式でも評価されるか追加確認する。
 
-        確認できない・確認できなかった場合は None(兆候にしない)。追加送信は予算に含まれる。
+        別式が評価されなければ None(兆候にしない)。確認の送信自体が失敗・不完全だった場合は UNCONFIRMED
+        (兆候にはしないが、陰性の根拠にもしない)。追加送信は予算に含まれる。
         """
         if "7*7" not in payload:
             return None
@@ -598,9 +637,13 @@ class WebFuzzer:
         fields = dict(base_fields)
         fields[param] = payload.replace("7*7", f"{a}*{b}")
         resp = self._send(url, method, fields)
-        if resp is None or want not in resp.text:
-            return None
-        return (ev[0], ev[1] + f" / 別式 {a}*{b}={want} も評価された")
+        if resp is None:
+            return UNCONFIRMED
+        cut = getattr(resp, "fz_truncated", False)
+        if want not in resp.text:
+            return UNCONFIRMED if cut else None
+        confirmed = (ev[0], ev[1] + f" / 別式 {a}*{b}={want} も評価された")
+        return confirmed + (getattr(resp, "fz_incomplete_reason", None) or "incomplete",) if cut else confirmed
 
     def _send(self, url, method, fields):
         if method == "POST":
@@ -665,6 +708,8 @@ class WebFuzzer:
                     "response_headers": dict(resp_b.headers),
                     "response_body": resp_b.text, "baseline_body": resp_a.text,
                     "basis": "expectation" if exp else "observed",
+                    "response_incomplete": join_incomplete(
+                        _inc("session_b", resp_b), _inc("session_a", resp_a), _inc("anonymous", resp_anon)),
                     "evidence": (
                         "期待上は拒否(b=deny)の第2セッションが、A対照が成功した同一URLへのGETで200・類似コンテンツを取得"
                         if exp else
@@ -711,6 +756,7 @@ class WebFuzzer:
                 # 証拠の主はアクセス権が無いはずのセッション(A)の応答、比較用が所有者(B)の通常応答
                 "response_headers": dict(resp_a.headers), "response_body": resp_a.text, "baseline_body": resp_b.text,
                 "basis": "expectation",
+                "response_incomplete": join_incomplete(_inc("session_a", resp_a), _inc("session_b", resp_b)),
                 "evidence": "逆方向: 期待上は拒否(a=deny)のセッションAが、所有者B対照が成功した同一URLへのGETで200・類似コンテンツを取得",
             })
             self.log(f"  [!] IDOR? 兆候(逆方向): {exp['param']}@{full_url}")

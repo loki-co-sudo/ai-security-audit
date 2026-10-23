@@ -1,0 +1,323 @@
+{
+ "schema": "ai-security-audit-lab-case",
+ "schema_version": "1",
+ "case_id": "lab-wiki-01",
+ "split": "dev",
+ "title": "模擬社内Wiki",
+ "target_ref": "app:wiki",
+ "scope": {
+  "allowed_hosts": [
+   "127.0.0.1"
+  ],
+  "excluded_paths": [
+   "/logout",
+   "/admin/reset"
+  ]
+ },
+ "side_effects_allowed": [
+  "T1",
+  "T2"
+ ],
+ "accounts": {
+  "user_a": "cred:user_a",
+  "user_b": "cred:user_b",
+  "user_expired": "cred:user_expired"
+ },
+ "features": [
+  {
+   "feature_id": "history",
+   "title": "編集履歴",
+   "description": "編集者の個人情報を公開しない"
+  },
+  {
+   "feature_id": "meta",
+   "title": "robots.txt",
+   "description": "秘密のパスを列挙しない"
+  },
+  {
+   "feature_id": "pages",
+   "title": "ページ",
+   "description": "内部ページは認証が必要"
+  },
+  {
+   "feature_id": "search",
+   "title": "検索",
+   "description": "入力値は無害化して表示する"
+  },
+  {
+   "feature_id": "spaces",
+   "title": "スペース出力",
+   "description": "スペースのメンバーだけがエクスポートできる(トップ→スペース一覧→エクスポートの順に辿る)"
+  }
+ ],
+ "hypotheses": [
+  {
+   "hypothesis_id": "h-history-leak",
+   "feature": "history",
+   "rule_id": "INFO_DISCLOSURE",
+   "title": "編集履歴が編集者のメールを公開しないか",
+   "prior_value": 0.5,
+   "severity_hint": "MEDIUM",
+   "remediation": "公開履歴から連絡先を除く"
+  },
+  {
+   "hypothesis_id": "h-robots",
+   "feature": "meta",
+   "rule_id": "INFO_DISCLOSURE",
+   "title": "robots.txtが秘密のパスを列挙しないか",
+   "prior_value": 0.2,
+   "severity_hint": "LOW",
+   "remediation": "機密パスをrobots.txtに書かない"
+  },
+  {
+   "hypothesis_id": "h-private-authz",
+   "feature": "pages",
+   "rule_id": "BROKEN_ACCESS_CONTROL",
+   "title": "内部ページが未ログインで見えないか",
+   "prior_value": 0.6,
+   "severity_hint": "HIGH",
+   "remediation": "内部ページに認証を要求する"
+  },
+  {
+   "hypothesis_id": "h-search-xss",
+   "feature": "search",
+   "rule_id": "XSS",
+   "title": "検索語が無害化されて表示されるか",
+   "prior_value": 0.4,
+   "severity_hint": "MEDIUM",
+   "remediation": "出力時にHTMLエスケープする"
+  },
+  {
+   "hypothesis_id": "h-space-export",
+   "feature": "spaces",
+   "rule_id": "BROKEN_ACCESS_CONTROL",
+   "title": "スペースのエクスポートを非メンバーが使えないか",
+   "prior_value": 0.7,
+   "severity_hint": "HIGH",
+   "remediation": "エクスポートにメンバー検査を追加する"
+  }
+ ],
+ "tests": [
+  {
+   "test_id": "t-hist-anon",
+   "feature": "history",
+   "hypothesis": "h-history-leak",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/pages/1/history",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.8,
+   "purpose": "公開履歴にメールが含まれないか",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "body_not_contains": [
+     "@"
+    ]
+   }
+  },
+  {
+   "test_id": "t-robots",
+   "feature": "meta",
+   "hypothesis": "h-robots",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/robots.txt",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "robots.txtの内容",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "body_not_contains": [
+     "secret",
+     "internal",
+     "admin"
+    ]
+   }
+  },
+  {
+   "test_id": "t-page-public",
+   "feature": "pages",
+   "hypothesis": "h-private-authz",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/pages",
+   "params": {
+    "id": "1"
+   },
+   "cost": 1,
+   "info_value": 0.2,
+   "purpose": "公開ページが取得できる(対照)",
+   "kind": "control",
+   "expect": {
+    "status": 200,
+    "body_contains": [
+     "Welcome"
+    ]
+   }
+  },
+  {
+   "test_id": "t-page-internal",
+   "feature": "pages",
+   "hypothesis": "h-private-authz",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/pages/internal",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.6,
+   "purpose": "内部ページが未ログインで拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     401,
+     403
+    ]
+   },
+   "inconclusive_statuses": []
+  },
+  {
+   "test_id": "t-search-plain",
+   "feature": "search",
+   "hypothesis": "h-search-xss",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/search",
+   "params": {
+    "q": "hello"
+   },
+   "cost": 1,
+   "info_value": 0.2,
+   "purpose": "通常の検索語が表示される(対照)",
+   "kind": "control",
+   "expect": {
+    "status": 200,
+    "body_contains": [
+     "hello"
+    ]
+   }
+  },
+  {
+   "test_id": "t-search-reflect",
+   "feature": "search",
+   "hypothesis": "h-search-xss",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/search",
+   "params": {
+    "q": "<script>1</script>"
+   },
+   "cost": 1,
+   "info_value": 0.6,
+   "purpose": "スクリプト断片がそのまま反射されないか",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "body_not_contains": [
+     "<script>1</script>"
+    ]
+   }
+  },
+  {
+   "test_id": "t-space-anon",
+   "feature": "spaces",
+   "hypothesis": "h-space-export",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/spaces/team/export",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.2,
+   "purpose": "未ログインで拒否されるか(対照)",
+   "kind": "control",
+   "expect": {
+    "status": [
+     401,
+     403
+    ]
+   },
+   "inconclusive_statuses": []
+  },
+  {
+   "test_id": "t-home",
+   "feature": "spaces",
+   "hypothesis": "h-space-export",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "トップのリンク構成を観測する",
+   "kind": "navigation",
+   "expect": {
+    "status": 200
+   }
+  },
+  {
+   "test_id": "t-spaces",
+   "feature": "spaces",
+   "hypothesis": "h-space-export",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/spaces",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "ログイン後のスペース一覧のリンク構成を観測する",
+   "kind": "navigation",
+   "expect": {
+    "status": 200
+   },
+   "unlocked_by": {
+    "test_id": "t-home",
+    "body_contains": "/spaces"
+   }
+  },
+  {
+   "test_id": "t-space-export",
+   "feature": "spaces",
+   "hypothesis": "h-space-export",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/spaces/team/export",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.9,
+   "purpose": "非メンバーがエクスポートできないか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ]
+   },
+   "unlocked_by": {
+    "test_id": "t-spaces",
+    "body_contains": "/spaces/team/export"
+   }
+  }
+ ],
+ "normal_behavior": [
+  "内部ページは認証が必要",
+  "robots.txtにはスペース一覧の入口が載る(仕様どおり)"
+ ],
+ "budget": {
+  "max_requests": 6,
+  "max_seconds": 60,
+  "max_llm_calls": 8,
+  "max_llm_input_chars": 8000
+ },
+ "stop_conditions": {
+  "min_score": 0.05,
+  "stop_when_all_hypotheses_resolved": true
+ },
+ "evidence": {
+  "save": true
+ },
+ "out_of_scope": [],
+ "notes": []
+}

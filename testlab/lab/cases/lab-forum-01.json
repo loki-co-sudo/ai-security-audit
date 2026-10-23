@@ -1,0 +1,313 @@
+{
+ "schema": "ai-security-audit-lab-case",
+ "schema_version": "1",
+ "case_id": "lab-forum-01",
+ "split": "dev",
+ "title": "模擬フォーラム",
+ "target_ref": "app:forum",
+ "scope": {
+  "allowed_hosts": [
+   "127.0.0.1"
+  ],
+  "excluded_paths": [
+   "/logout",
+   "/admin/reset"
+  ]
+ },
+ "side_effects_allowed": [
+  "T1",
+  "T2"
+ ],
+ "accounts": {
+  "user_a": "cred:user_a",
+  "user_b": "cred:user_b",
+  "user_expired": "cred:user_expired"
+ },
+ "features": [
+  {
+   "feature_id": "avatars",
+   "title": "アバター画像",
+   "description": "技術情報ヘッダーを出さない"
+  },
+  {
+   "feature_id": "moderation",
+   "title": "モデレーション画面",
+   "description": "モデレーターだけが利用できる"
+  },
+  {
+   "feature_id": "profile",
+   "title": "公開プロフィール",
+   "description": "メールアドレスを公開しない"
+  },
+  {
+   "feature_id": "search",
+   "title": "検索",
+   "description": "入力値は無害化して表示する"
+  },
+  {
+   "feature_id": "threads",
+   "title": "スレッド",
+   "description": "下書きは作成者だけが参照できる"
+  }
+ ],
+ "hypotheses": [
+  {
+   "hypothesis_id": "h-avatar-headers",
+   "feature": "avatars",
+   "rule_id": "INFO_DISCLOSURE",
+   "title": "画像応答が技術情報ヘッダーを出さないか",
+   "prior_value": 0.1,
+   "severity_hint": "LOW",
+   "remediation": "不要なヘッダーを削除する"
+  },
+  {
+   "hypothesis_id": "h-mod-authz",
+   "feature": "moderation",
+   "rule_id": "BROKEN_ACCESS_CONTROL",
+   "title": "モデレーション画面を一般利用者が使えないか",
+   "prior_value": 0.8,
+   "severity_hint": "HIGH",
+   "remediation": "モデレーター権限の検査を追加する"
+  },
+  {
+   "hypothesis_id": "h-profile-exposure",
+   "feature": "profile",
+   "rule_id": "EXCESSIVE_DATA_EXPOSURE",
+   "title": "公開プロフィールがメールを返さないか",
+   "prior_value": 0.2,
+   "severity_hint": "LOW",
+   "remediation": "公開項目を許可リストで制限する"
+  },
+  {
+   "hypothesis_id": "h-search-xss",
+   "feature": "search",
+   "rule_id": "XSS",
+   "title": "検索語が無害化されて表示されるか",
+   "prior_value": 0.3,
+   "severity_hint": "MEDIUM",
+   "remediation": "出力時にHTMLエスケープする"
+  },
+  {
+   "hypothesis_id": "h-thread-draft",
+   "feature": "threads",
+   "rule_id": "IDOR",
+   "title": "他人の下書きスレッドを参照できないか",
+   "prior_value": 0.8,
+   "severity_hint": "HIGH",
+   "remediation": "下書きは作成者だけに返す"
+  }
+ ],
+ "tests": [
+  {
+   "test_id": "t-avatar",
+   "feature": "avatars",
+   "hypothesis": "h-avatar-headers",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/avatars/1.png",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.2,
+   "purpose": "画像応答のヘッダー",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "header_absent": [
+     "X-Powered-By"
+    ]
+   }
+  },
+  {
+   "test_id": "t-mod-anon",
+   "feature": "moderation",
+   "hypothesis": "h-mod-authz",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/mod/queue",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "未ログインで拒否されるか(対照)",
+   "kind": "control",
+   "expect": {
+    "status": [
+     401,
+     403
+    ]
+   },
+   "inconclusive_statuses": []
+  },
+  {
+   "test_id": "t-mod-user",
+   "feature": "moderation",
+   "hypothesis": "h-mod-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/mod/queue",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.9,
+   "purpose": "一般利用者が拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ],
+    "body_not_contains": [
+     "queue"
+    ]
+   }
+  },
+  {
+   "test_id": "t-mod-user-b",
+   "feature": "moderation",
+   "hypothesis": "h-mod-authz",
+   "role": "user_b",
+   "method": "GET",
+   "path": "/mod/queue",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.5,
+   "purpose": "別の利用者でも拒否されるか(裏付け)",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ],
+    "body_not_contains": [
+     "queue"
+    ]
+   },
+   "corroborates": true
+  },
+  {
+   "test_id": "t-profile",
+   "feature": "profile",
+   "hypothesis": "h-profile-exposure",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/u/alice",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "公開プロフィールの内容",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "body_not_contains": [
+     "email"
+    ]
+   }
+  },
+  {
+   "test_id": "t-search-reflect",
+   "feature": "search",
+   "hypothesis": "h-search-xss",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/search",
+   "params": {
+    "q": "<script>1</script>"
+   },
+   "cost": 1,
+   "info_value": 0.5,
+   "purpose": "スクリプト断片がそのまま反射されないか",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "body_not_contains": [
+     "<script>1</script>"
+    ]
+   }
+  },
+  {
+   "test_id": "t-thread-public",
+   "feature": "threads",
+   "hypothesis": "h-thread-draft",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/threads",
+   "params": {
+    "id": "1"
+   },
+   "cost": 1,
+   "info_value": 0.2,
+   "purpose": "公開スレッドが取得できる(対照)",
+   "kind": "control",
+   "expect": {
+    "status": 200,
+    "body_contains": [
+     "title"
+    ]
+   }
+  },
+  {
+   "test_id": "t-thread-draft",
+   "feature": "threads",
+   "hypothesis": "h-thread-draft",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/threads",
+   "params": {
+    "id": "3"
+   },
+   "cost": 1,
+   "info_value": 0.9,
+   "purpose": "他人の下書きが拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ],
+    "body_not_contains": [
+     "draft"
+    ]
+   }
+  },
+  {
+   "test_id": "t-thread-draft-anon",
+   "feature": "threads",
+   "hypothesis": "h-thread-draft",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/threads",
+   "params": {
+    "id": "3"
+   },
+   "cost": 1,
+   "info_value": 0.4,
+   "purpose": "未ログインで下書きが拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     401,
+     403
+    ]
+   },
+   "inconclusive_statuses": []
+  }
+ ],
+ "normal_behavior": [
+  "下書きは作成者だけ",
+  "モデレーション画面はモデレーターのみ",
+  "公開プロフィールにメールは載らない"
+ ],
+ "budget": {
+  "max_requests": 6,
+  "max_seconds": 60,
+  "max_llm_calls": 8,
+  "max_llm_input_chars": 8000
+ },
+ "stop_conditions": {
+  "min_score": 0.05,
+  "stop_when_all_hypotheses_resolved": true
+ },
+ "evidence": {
+  "save": true
+ },
+ "out_of_scope": [],
+ "notes": []
+}

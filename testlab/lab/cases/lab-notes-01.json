@@ -1,0 +1,296 @@
+{
+ "schema": "ai-security-audit-lab-case",
+ "schema_version": "1",
+ "case_id": "lab-notes-01",
+ "split": "dev",
+ "title": "模擬ノートAPI",
+ "target_ref": "app:notes",
+ "scope": {
+  "allowed_hosts": [
+   "127.0.0.1"
+  ],
+  "excluded_paths": [
+   "/logout",
+   "/admin/reset"
+  ]
+ },
+ "side_effects_allowed": [
+  "T1",
+  "T2"
+ ],
+ "accounts": {
+  "user_a": "cred:user_a",
+  "user_b": "cred:user_b",
+  "user_expired": "cred:user_expired"
+ },
+ "features": [
+  {
+   "feature_id": "list",
+   "title": "ノート一覧",
+   "description": "利用者は自分のノートだけ一覧できる"
+  },
+  {
+   "feature_id": "detail",
+   "title": "ノート詳細",
+   "description": "所有者だけが参照できる"
+  },
+  {
+   "feature_id": "profile",
+   "title": "プロフィール",
+   "description": "必要最小限の項目だけ返す"
+  },
+  {
+   "feature_id": "errors",
+   "title": "エラー表示",
+   "description": "内部情報を返さない"
+  }
+ ],
+ "hypotheses": [
+  {
+   "hypothesis_id": "h-notes-list-authz",
+   "feature": "list",
+   "rule_id": "IDOR",
+   "title": "他人のノート一覧を取得できないか",
+   "prior_value": 0.8,
+   "severity_hint": "HIGH",
+   "remediation": "ownerパラメータを廃止しセッションの利用者で絞る"
+  },
+  {
+   "hypothesis_id": "h-notes-detail-authz",
+   "feature": "detail",
+   "rule_id": "IDOR",
+   "title": "他人のノート詳細を取得できないか",
+   "prior_value": 0.7,
+   "severity_hint": "HIGH",
+   "remediation": "詳細取得時に所有者を検査する"
+  },
+  {
+   "hypothesis_id": "h-profile-exposure",
+   "feature": "profile",
+   "rule_id": "EXCESSIVE_DATA_EXPOSURE",
+   "title": "プロフィールが不要な個人情報を返さないか",
+   "prior_value": 0.6,
+   "severity_hint": "MEDIUM",
+   "remediation": "応答項目を許可リストで制限する"
+  },
+  {
+   "hypothesis_id": "h-error-disclosure",
+   "feature": "errors",
+   "rule_id": "INFO_DISCLOSURE",
+   "title": "エラー応答にスタックトレース等が出ないか",
+   "prior_value": 0.4,
+   "severity_hint": "LOW",
+   "remediation": "エラー応答を汎用メッセージにする"
+  }
+ ],
+ "tests": [
+  {
+   "test_id": "t-list-own",
+   "feature": "list",
+   "hypothesis": "h-notes-list-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/api/notes",
+   "params": {
+    "owner": "user_a"
+   },
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "自分の一覧が取得できる(対照)",
+   "kind": "control",
+   "expect": {
+    "status": 200,
+    "body_contains": [
+     "grocery"
+    ]
+   }
+  },
+  {
+   "test_id": "t-list-cross",
+   "feature": "list",
+   "hypothesis": "h-notes-list-authz",
+   "role": "user_b",
+   "method": "GET",
+   "path": "/api/notes",
+   "params": {
+    "owner": "user_a"
+   },
+   "cost": 1,
+   "info_value": 0.9,
+   "purpose": "他人のownerを指定して拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ],
+    "body_not_contains": [
+     "grocery"
+    ]
+   }
+  },
+  {
+   "test_id": "t-note-anon",
+   "feature": "detail",
+   "hypothesis": "h-notes-detail-authz",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/api/notes/1",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.5,
+   "purpose": "未ログインで拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     401,
+     403
+    ]
+   },
+   "inconclusive_statuses": []
+  },
+  {
+   "test_id": "t-note-cross",
+   "feature": "detail",
+   "hypothesis": "h-notes-detail-authz",
+   "role": "user_b",
+   "method": "GET",
+   "path": "/api/notes/1",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.7,
+   "purpose": "他人の詳細が拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ],
+    "body_not_contains": [
+     "grocery"
+    ]
+   }
+  },
+  {
+   "test_id": "t-note-own",
+   "feature": "detail",
+   "hypothesis": "h-notes-detail-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/api/notes/1",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.2,
+   "purpose": "自分の詳細が取得できる(対照)",
+   "kind": "control",
+   "expect": {
+    "status": 200,
+    "body_contains": [
+     "grocery"
+    ]
+   }
+  },
+  {
+   "test_id": "t-profile",
+   "feature": "profile",
+   "hypothesis": "h-profile-exposure",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/api/profile",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.7,
+   "purpose": "不要な個人情報が含まれないか",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "body_not_contains": [
+     "ssn"
+    ]
+   }
+  },
+  {
+   "test_id": "t-profile-expired",
+   "feature": "profile",
+   "hypothesis": "h-profile-exposure",
+   "role": "user_expired",
+   "method": "GET",
+   "path": "/api/profile",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "期限切れセッションでの挙動",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "body_not_contains": [
+     "ssn"
+    ]
+   }
+  },
+  {
+   "test_id": "t-error-bad-id",
+   "feature": "errors",
+   "hypothesis": "h-error-disclosure",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/api/notes/abc",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.5,
+   "purpose": "不正IDで内部情報が出ないか",
+   "kind": "probe",
+   "expect": {
+    "status": 400,
+    "body_not_contains": [
+     "Traceback",
+     "File \""
+    ]
+   }
+  },
+  {
+   "test_id": "t-help-errors",
+   "feature": "errors",
+   "hypothesis": "h-error-disclosure",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/help/errors",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "ヘルプのエラー例ページ(仕様どおりの文言)",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "body_contains": [
+     "example only"
+    ]
+   }
+  }
+ ],
+ "normal_behavior": [
+  "ノートは所有者だけが参照できる",
+  "/help/errors はエラー表示例の説明ページで、実エラーではない"
+ ],
+ "budget": {
+  "max_requests": 6,
+  "max_seconds": 60,
+  "max_llm_calls": 8,
+  "max_llm_input_chars": 8000
+ },
+ "stop_conditions": {
+  "min_score": 0.05,
+  "stop_when_all_hypotheses_resolved": true
+ },
+ "evidence": {
+  "save": true
+ },
+ "out_of_scope": [
+  {
+   "feature": "list",
+   "title": "ノートの更新・削除の認可",
+   "reason": "状態を変更する操作(T3)で、固定テスト操作に含めない"
+  }
+ ],
+ "notes": []
+}

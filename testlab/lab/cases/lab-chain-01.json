@@ -1,0 +1,314 @@
+{
+ "schema": "ai-security-audit-lab-case",
+ "schema_version": "1",
+ "case_id": "lab-chain-01",
+ "split": "dev",
+ "title": "模擬ブログ(連鎖あり)",
+ "target_ref": "app:chainblog",
+ "scope": {
+  "allowed_hosts": [
+   "127.0.0.1"
+  ],
+  "excluded_paths": [
+   "/logout",
+   "/admin/reset"
+  ]
+ },
+ "side_effects_allowed": [
+  "T1",
+  "T2"
+ ],
+ "accounts": {
+  "user_a": "cred:user_a",
+  "user_b": "cred:user_b",
+  "user_expired": "cred:user_expired"
+ },
+ "features": [
+  {
+   "feature_id": "cookies",
+   "title": "Cookie",
+   "description": "セッションCookieはスクリプトから読めない"
+  },
+  {
+   "feature_id": "posts",
+   "title": "非公開投稿",
+   "description": "所有者だけが参照できる"
+  },
+  {
+   "feature_id": "preview",
+   "title": "プレビュー",
+   "description": "入力値は無害化して表示する"
+  },
+  {
+   "feature_id": "search",
+   "title": "検索",
+   "description": "入力値は無害化して表示する"
+  },
+  {
+   "feature_id": "users",
+   "title": "利用者一覧",
+   "description": "利用者の識別子を公開しない"
+  }
+ ],
+ "hypotheses": [
+  {
+   "hypothesis_id": "h-cookie-api",
+   "feature": "cookies",
+   "rule_id": "COOKIE_FLAGS",
+   "title": "API用CookieにHttpOnly/Secureが付くか",
+   "prior_value": 0.3,
+   "severity_hint": "MEDIUM",
+   "remediation": "Set-CookieにHttpOnly/Secureを付ける",
+   "provides": [
+    "cookie_script_readable"
+   ]
+  },
+  {
+   "hypothesis_id": "h-cookie-sid",
+   "feature": "cookies",
+   "rule_id": "COOKIE_FLAGS",
+   "title": "セッションCookieにHttpOnlyが付くか",
+   "prior_value": 0.4,
+   "severity_hint": "MEDIUM",
+   "remediation": "Set-CookieにHttpOnlyを付ける",
+   "provides": [
+    "cookie_script_readable"
+   ]
+  },
+  {
+   "hypothesis_id": "h-posts-idor",
+   "feature": "posts",
+   "rule_id": "IDOR",
+   "title": "他人の非公開投稿を参照できないか",
+   "prior_value": 0.7,
+   "severity_hint": "HIGH",
+   "remediation": "投稿取得時に所有者を照合する",
+   "provides": [
+    "read_other_user_object"
+   ]
+  },
+  {
+   "hypothesis_id": "h-preview-xss",
+   "feature": "preview",
+   "rule_id": "XSS",
+   "title": "プレビューが入力を無害化して表示するか",
+   "prior_value": 0.4,
+   "severity_hint": "MEDIUM",
+   "remediation": "出力時にHTMLエスケープする",
+   "provides": [
+    "xss_reflected"
+   ]
+  },
+  {
+   "hypothesis_id": "h-search-xss",
+   "feature": "search",
+   "rule_id": "XSS",
+   "title": "検索語が無害化されて表示されるか",
+   "prior_value": 0.5,
+   "severity_hint": "MEDIUM",
+   "remediation": "出力時にHTMLエスケープする",
+   "provides": [
+    "xss_reflected"
+   ]
+  },
+  {
+   "hypothesis_id": "h-user-list",
+   "feature": "users",
+   "rule_id": "INFO_DISCLOSURE",
+   "title": "利用者一覧が識別子を公開しないか",
+   "prior_value": 0.3,
+   "severity_hint": "LOW",
+   "remediation": "一覧を非公開にする",
+   "provides": [
+    "exposes_user_identifier"
+   ]
+  }
+ ],
+ "tests": [
+  {
+   "test_id": "t-api-cookie",
+   "feature": "cookies",
+   "hypothesis": "h-cookie-api",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/api/login",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.5,
+   "purpose": "API用Set-CookieのHttpOnly属性",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "header_contains": {
+     "Set-Cookie": "HttpOnly"
+    }
+   }
+  },
+  {
+   "test_id": "t-sid-cookie",
+   "feature": "cookies",
+   "hypothesis": "h-cookie-sid",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/login",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.6,
+   "purpose": "セッションCookieのHttpOnly属性",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "header_contains": {
+     "Set-Cookie": "HttpOnly"
+    }
+   }
+  },
+  {
+   "test_id": "t-post-own",
+   "feature": "posts",
+   "hypothesis": "h-posts-idor",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/posts",
+   "params": {
+    "uid": "user_a"
+   },
+   "cost": 1,
+   "info_value": 0.2,
+   "purpose": "自分の投稿が取得できる(対照)",
+   "kind": "control",
+   "expect": {
+    "status": 200,
+    "body_contains": [
+     "private"
+    ]
+   }
+  },
+  {
+   "test_id": "t-post-cross",
+   "feature": "posts",
+   "hypothesis": "h-posts-idor",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/posts",
+   "params": {
+    "uid": "user_b"
+   },
+   "cost": 1,
+   "info_value": 0.9,
+   "purpose": "他人の投稿が拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ],
+    "body_not_contains": [
+     "private"
+    ]
+   }
+  },
+  {
+   "test_id": "t-preview",
+   "feature": "preview",
+   "hypothesis": "h-preview-xss",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/preview",
+   "params": {
+    "text": "<script>1</script>"
+   },
+   "cost": 1,
+   "info_value": 0.6,
+   "purpose": "スクリプト断片がそのまま反射されないか",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "body_not_contains": [
+     "<script>1</script>"
+    ]
+   }
+  },
+  {
+   "test_id": "t-search-plain",
+   "feature": "search",
+   "hypothesis": "h-search-xss",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/search",
+   "params": {
+    "q": "hello"
+   },
+   "cost": 1,
+   "info_value": 0.2,
+   "purpose": "通常の検索語が表示される(対照)",
+   "kind": "control",
+   "expect": {
+    "status": 200,
+    "body_contains": [
+     "hello"
+    ]
+   }
+  },
+  {
+   "test_id": "t-search-reflect",
+   "feature": "search",
+   "hypothesis": "h-search-xss",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/search",
+   "params": {
+    "q": "<script>1</script>"
+   },
+   "cost": 1,
+   "info_value": 0.6,
+   "purpose": "スクリプト断片がそのまま反射されないか",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "body_not_contains": [
+     "<script>1</script>"
+    ]
+   }
+  },
+  {
+   "test_id": "t-users",
+   "feature": "users",
+   "hypothesis": "h-user-list",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/users",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.5,
+   "purpose": "利用者一覧が未ログインで拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     401,
+     403
+    ]
+   },
+   "inconclusive_statuses": []
+  }
+ ],
+ "normal_behavior": [
+  "非公開投稿は所有者だけ",
+  "検索・プレビューは入力を無害化して表示する"
+ ],
+ "budget": {
+  "max_requests": 6,
+  "max_seconds": 60,
+  "max_llm_calls": 8,
+  "max_llm_input_chars": 8000
+ },
+ "stop_conditions": {
+  "min_score": 0.05,
+  "stop_when_all_hypotheses_resolved": true
+ },
+ "evidence": {
+  "save": true
+ },
+ "out_of_scope": [],
+ "notes": []
+}

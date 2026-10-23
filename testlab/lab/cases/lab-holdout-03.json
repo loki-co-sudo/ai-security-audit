@@ -1,0 +1,304 @@
+{
+ "schema": "ai-security-audit-lab-case",
+ "schema_version": "1",
+ "case_id": "lab-holdout-03",
+ "split": "holdout",
+ "title": "模擬サポート窓口(保留)",
+ "target_ref": "app:support",
+ "scope": {
+  "allowed_hosts": [
+   "127.0.0.1"
+  ],
+  "excluded_paths": [
+   "/logout",
+   "/admin/reset"
+  ]
+ },
+ "side_effects_allowed": [
+  "T1",
+  "T2"
+ ],
+ "accounts": {
+  "user_a": "cred:user_a",
+  "user_b": "cred:user_b",
+  "user_expired": "cred:user_expired"
+ },
+ "features": [
+  {
+   "feature_id": "export",
+   "title": "チケットCSV",
+   "description": "自分のチケットだけ出力できる"
+  },
+  {
+   "feature_id": "kb",
+   "title": "ナレッジベース",
+   "description": "旧FAQは撤去済みで404を返す"
+  },
+  {
+   "feature_id": "notes",
+   "title": "担当者メモ",
+   "description": "担当者だけが参照できる"
+  },
+  {
+   "feature_id": "profile",
+   "title": "自分の情報",
+   "description": "有効なセッションで自分の情報を返す"
+  },
+  {
+   "feature_id": "stats",
+   "title": "統計",
+   "description": "管理者だけが参照できる"
+  }
+ ],
+ "hypotheses": [
+  {
+   "hypothesis_id": "h-export-scope",
+   "feature": "export",
+   "rule_id": "BROKEN_ACCESS_CONTROL",
+   "title": "CSV出力が他人のチケットを含まないか",
+   "prior_value": 0.4,
+   "severity_hint": "HIGH",
+   "remediation": "出力範囲を本人のチケットに限る"
+  },
+  {
+   "hypothesis_id": "h-kb-legacy",
+   "feature": "kb",
+   "rule_id": "BROKEN_ACCESS_CONTROL",
+   "title": "撤去済みの旧FAQが残っていないか",
+   "prior_value": 0.5,
+   "severity_hint": "MEDIUM",
+   "remediation": "旧FAQのルートを削除する"
+  },
+  {
+   "hypothesis_id": "h-notes-authz",
+   "feature": "notes",
+   "rule_id": "IDOR",
+   "title": "担当者メモを依頼者が参照できないか",
+   "prior_value": 0.7,
+   "severity_hint": "HIGH",
+   "remediation": "メモ取得に担当者権限の検査を追加する"
+  },
+  {
+   "hypothesis_id": "h-profile-session",
+   "feature": "profile",
+   "rule_id": "SESSION",
+   "title": "期限切れセッションで情報が返らないか",
+   "prior_value": 0.3,
+   "severity_hint": "MEDIUM",
+   "remediation": "期限切れトークンを拒否する"
+  },
+  {
+   "hypothesis_id": "h-stats-authz",
+   "feature": "stats",
+   "rule_id": "BROKEN_ACCESS_CONTROL",
+   "title": "統計を一般利用者が参照できないか",
+   "prior_value": 0.5,
+   "severity_hint": "MEDIUM",
+   "remediation": "管理者権限の検査を追加する"
+  }
+ ],
+ "tests": [
+  {
+   "test_id": "t-export-own",
+   "feature": "export",
+   "hypothesis": "h-export-scope",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/tickets/export.csv",
+   "params": {
+    "scope": "mine"
+   },
+   "cost": 1,
+   "info_value": 0.2,
+   "purpose": "自分のチケットが出力できる(対照)",
+   "kind": "control",
+   "expect": {
+    "status": 200,
+    "body_contains": [
+     "id"
+    ]
+   }
+  },
+  {
+   "test_id": "t-export-all",
+   "feature": "export",
+   "hypothesis": "h-export-scope",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/tickets/export.csv",
+   "params": {
+    "scope": "all"
+   },
+   "cost": 1,
+   "info_value": 0.8,
+   "purpose": "全件出力が拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ],
+    "body_not_contains": [
+     "user_b"
+    ]
+   }
+  },
+  {
+   "test_id": "t-kb-ctl",
+   "feature": "kb",
+   "hypothesis": "h-kb-legacy",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/kb/zz-none",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "存在しないパスが404を返す(環境の判別力の対照)",
+   "kind": "control",
+   "expect": {
+    "status": 404
+   },
+   "inconclusive_statuses": []
+  },
+  {
+   "test_id": "t-kb-legacy",
+   "feature": "kb",
+   "hypothesis": "h-kb-legacy",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/kb/old-faq",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.7,
+   "purpose": "旧FAQが404を返すか",
+   "kind": "probe",
+   "expect": {
+    "status": 404
+   },
+   "inconclusive_statuses": []
+  },
+  {
+   "test_id": "t-notes-a",
+   "feature": "notes",
+   "hypothesis": "h-notes-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/tickets/5/notes",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.9,
+   "purpose": "依頼者がメモを参照できないか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ],
+    "body_not_contains": [
+     "internal"
+    ]
+   }
+  },
+  {
+   "test_id": "t-notes-b",
+   "feature": "notes",
+   "hypothesis": "h-notes-authz",
+   "role": "user_b",
+   "method": "GET",
+   "path": "/tickets/5/notes",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.5,
+   "purpose": "別の利用者でも拒否されるか(裏付け)",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ],
+    "body_not_contains": [
+     "internal"
+    ]
+   },
+   "corroborates": true
+  },
+  {
+   "test_id": "t-me-a",
+   "feature": "profile",
+   "hypothesis": "h-profile-session",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/api/me",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "有効なセッションで自分の情報が返る",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "body_contains": [
+     "user_a"
+    ]
+   }
+  },
+  {
+   "test_id": "t-me-expired",
+   "feature": "profile",
+   "hypothesis": "h-profile-session",
+   "role": "user_expired",
+   "method": "GET",
+   "path": "/api/me",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.4,
+   "purpose": "期限切れセッションが拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": 401
+   },
+   "inconclusive_statuses": []
+  },
+  {
+   "test_id": "t-stats",
+   "feature": "stats",
+   "hypothesis": "h-stats-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/api/stats",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.8,
+   "purpose": "一般利用者が拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ],
+    "body_not_contains": [
+     "open_tickets"
+    ]
+   }
+  }
+ ],
+ "normal_behavior": [
+  "担当者メモは担当者のみ",
+  "統計は管理者のみ",
+  "旧FAQは撤去済み(404)"
+ ],
+ "budget": {
+  "max_requests": 5,
+  "max_seconds": 60,
+  "max_llm_calls": 8,
+  "max_llm_input_chars": 8000
+ },
+ "stop_conditions": {
+  "min_score": 0.05,
+  "stop_when_all_hypotheses_resolved": true
+ },
+ "evidence": {
+  "save": true
+ },
+ "out_of_scope": [],
+ "notes": []
+}

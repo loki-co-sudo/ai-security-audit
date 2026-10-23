@@ -1,0 +1,333 @@
+{
+ "schema": "ai-security-audit-lab-case",
+ "schema_version": "1",
+ "case_id": "lab-holdout-02",
+ "split": "holdout",
+ "title": "模擬在庫管理(保留)",
+ "target_ref": "app:inventory",
+ "scope": {
+  "allowed_hosts": [
+   "127.0.0.1"
+  ],
+  "excluded_paths": [
+   "/logout",
+   "/admin/reset"
+  ]
+ },
+ "side_effects_allowed": [
+  "T1",
+  "T2"
+ ],
+ "accounts": {
+  "user_a": "cred:user_a",
+  "user_b": "cred:user_b",
+  "user_expired": "cred:user_expired"
+ },
+ "features": [
+  {
+   "feature_id": "costs",
+   "title": "原価情報",
+   "description": "原価は管理者だけが参照できる"
+  },
+  {
+   "feature_id": "health",
+   "title": "稼働確認",
+   "description": "内部情報を返さない"
+  },
+  {
+   "feature_id": "labels",
+   "title": "ラベル印刷",
+   "description": "公開してよい項目だけ"
+  },
+  {
+   "feature_id": "stock",
+   "title": "倉庫別在庫",
+   "description": "利用者は自分の倉庫だけ参照できる"
+  },
+  {
+   "feature_id": "suppliers",
+   "title": "仕入先エクスポート",
+   "description": "購買担当だけが出力できる(トップ→仕入先一覧→エクスポートの順に辿る)"
+  }
+ ],
+ "hypotheses": [
+  {
+   "hypothesis_id": "h-cost-exposure",
+   "feature": "costs",
+   "rule_id": "EXCESSIVE_DATA_EXPOSURE",
+   "title": "商品情報が原価を返さないか",
+   "prior_value": 0.3,
+   "severity_hint": "MEDIUM",
+   "remediation": "応答項目を許可リストで制限する"
+  },
+  {
+   "hypothesis_id": "h-health-info",
+   "feature": "health",
+   "rule_id": "INFO_DISCLOSURE",
+   "title": "稼働確認が内部情報を返さないか",
+   "prior_value": 0.2,
+   "severity_hint": "LOW",
+   "remediation": "稼働確認の応答を最小化する"
+  },
+  {
+   "hypothesis_id": "h-label-info",
+   "feature": "labels",
+   "rule_id": "INFO_DISCLOSURE",
+   "title": "ラベルに仕入先情報が含まれないか",
+   "prior_value": 0.2,
+   "severity_hint": "LOW",
+   "remediation": "ラベルの項目を限定する"
+  },
+  {
+   "hypothesis_id": "h-stock-authz",
+   "feature": "stock",
+   "rule_id": "IDOR",
+   "title": "他人の倉庫の在庫を参照できないか",
+   "prior_value": 0.6,
+   "severity_hint": "HIGH",
+   "remediation": "倉庫取得時に所属を照合する"
+  },
+  {
+   "hypothesis_id": "h-supplier-export",
+   "feature": "suppliers",
+   "rule_id": "BROKEN_ACCESS_CONTROL",
+   "title": "仕入先エクスポートを一般利用者が使えないか",
+   "prior_value": 0.7,
+   "severity_hint": "HIGH",
+   "remediation": "購買権限の検査を追加する"
+  }
+ ],
+ "tests": [
+  {
+   "test_id": "t-item-ctl",
+   "feature": "costs",
+   "hypothesis": "h-cost-exposure",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/items",
+   "params": {
+    "id": "2"
+   },
+   "cost": 1,
+   "info_value": 0.2,
+   "purpose": "商品情報が取得できる(対照)",
+   "kind": "control",
+   "expect": {
+    "status": 200,
+    "body_contains": [
+     "name"
+    ]
+   }
+  },
+  {
+   "test_id": "t-item-cost",
+   "feature": "costs",
+   "hypothesis": "h-cost-exposure",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/items",
+   "params": {
+    "id": "1"
+   },
+   "cost": 1,
+   "info_value": 0.7,
+   "purpose": "原価が含まれないか",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "body_not_contains": [
+     "cost"
+    ]
+   }
+  },
+  {
+   "test_id": "t-health",
+   "feature": "health",
+   "hypothesis": "h-health-info",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/health",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "稼働確認の内容",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "body_not_contains": [
+     "version",
+     "internal"
+    ]
+   }
+  },
+  {
+   "test_id": "t-label",
+   "feature": "labels",
+   "hypothesis": "h-label-info",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/labels/print",
+   "params": {
+    "id": "1"
+   },
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "ラベルの内容",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "body_not_contains": [
+     "supplier"
+    ]
+   }
+  },
+  {
+   "test_id": "t-stock-own",
+   "feature": "stock",
+   "hypothesis": "h-stock-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/stock",
+   "params": {
+    "warehouse": "1"
+   },
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "自分の倉庫の在庫が取得できる(対照)",
+   "kind": "control",
+   "expect": {
+    "status": 200,
+    "body_contains": [
+     "units"
+    ]
+   }
+  },
+  {
+   "test_id": "t-stock-cross",
+   "feature": "stock",
+   "hypothesis": "h-stock-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/stock",
+   "params": {
+    "warehouse": "2"
+   },
+   "cost": 1,
+   "info_value": 0.9,
+   "purpose": "他人の倉庫の在庫が拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ],
+    "body_not_contains": [
+     "units"
+    ]
+   }
+  },
+  {
+   "test_id": "t-stock-cross-b",
+   "feature": "stock",
+   "hypothesis": "h-stock-authz",
+   "role": "user_b",
+   "method": "GET",
+   "path": "/stock",
+   "params": {
+    "warehouse": "1"
+   },
+   "cost": 1,
+   "info_value": 0.5,
+   "purpose": "逆方向でも拒否されるか(裏付け)",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ],
+    "body_not_contains": [
+     "units"
+    ]
+   },
+   "corroborates": true
+  },
+  {
+   "test_id": "t-home",
+   "feature": "suppliers",
+   "hypothesis": "h-supplier-export",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "トップのリンク構成を観測する",
+   "kind": "navigation",
+   "expect": {
+    "status": 200
+   }
+  },
+  {
+   "test_id": "t-suppliers",
+   "feature": "suppliers",
+   "hypothesis": "h-supplier-export",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/suppliers",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "仕入先一覧のリンク構成を観測する",
+   "kind": "navigation",
+   "expect": {
+    "status": 200
+   },
+   "unlocked_by": {
+    "test_id": "t-home",
+    "body_contains": "/suppliers"
+   }
+  },
+  {
+   "test_id": "t-supplier-export",
+   "feature": "suppliers",
+   "hypothesis": "h-supplier-export",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/suppliers/export",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.9,
+   "purpose": "一般利用者がエクスポートできないか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ]
+   },
+   "unlocked_by": {
+    "test_id": "t-suppliers",
+    "body_contains": "/suppliers/export"
+   }
+  }
+ ],
+ "normal_behavior": [
+  "倉庫の在庫は所属者だけ",
+  "仕入先エクスポートは購買担当のみ"
+ ],
+ "budget": {
+  "max_requests": 5,
+  "max_seconds": 60,
+  "max_llm_calls": 8,
+  "max_llm_input_chars": 8000
+ },
+ "stop_conditions": {
+  "min_score": 0.05,
+  "stop_when_all_hypotheses_resolved": true
+ },
+ "evidence": {
+  "save": true
+ },
+ "out_of_scope": [],
+ "notes": []
+}

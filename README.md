@@ -530,3 +530,34 @@ POSIX以外は権限の同等性を検証できないため、認証ファイル
 承認不足では匿名実行へ切り替えず、送信前に終了コード2で拒否します。
 承認は引数ハッシュに結び付け、5分間有効・一回限りです。再開でも新しい承認を発行します。
 第2セッションのIDOR比較には、別途 `--permit-t2` の明示が必要です。
+
+### ローカル模擬診断案件の評価（自律ワークフローの再現・測定）
+
+隔離されたローカルの模擬環境（`testlab/lab/`）を使い、固定テスト操作の選択方式を同じ条件で比較します。
+外部サービスへは一切接続せず、実LLMも既定では使いません。詳細・指標の定義・結果は
+[docs/LOCAL_LAB_EVAL.md](docs/LOCAL_LAB_EVAL.md) を参照してください。
+
+```bash
+# 開発用ケースで 固定計画 / 順序ランダム / 決定論的優先順位 / LLM助言(モック) を比較
+.venv/bin/python3 tools/lab_eval.py run --split dev --strategies fixed,fixed_random,deterministic,llm --llm mock-first
+
+# 保留ケース（実行すると「使用済み」として記録され、以後は未使用の保留ケースとして扱えません）
+.venv/bin/python3 tools/lab_eval.py run --split holdout --include-holdout
+```
+
+- 実行できるのは案件設定（`testlab/lab/cases/*.json`）に登録したGETの固定テスト操作だけです。LLMが選べるのは登録済みのテストIDのみで、リクエストやコマンドは作れません。
+- 正解データ（`testlab/lab/truth/`）は診断ワークフローの実行中は権限000で封印され、実行後に独立採点器が読みます。異常終了で封印が残った場合は `chmod 755 testlab/lab/truth` で戻します。
+- `--llm real` は `--approve-real-llm` と `--model` が必須です（費用は呼出数の上限で抑え、OpenRouterの使用額差を結果に記録）。推論モデルでは `--llm-max-tokens 800` 程度が必要です（200だと本文が空になります）。モックは実LLM評価ではありません。
+- 仮説に `provides` を付けた案件では、観測済みの不備の組合せ（連鎖）を**仮説**として報告します（規則は `core/autonomy/lab_chain.py`。実行も確認もしません）。係数・宣言順への依存は `python tools/lab_robustness.py` で調べられます。
+単一の案件をCLIから1回実行するには `lab` サブコマンドを使います（loopbackの模擬環境のみ。LLMは使いません）。
+
+```bash
+# 認証ファイル(0600)は {"cred:user_a": "<token>", ...} 形式。値は結果・ログに出力されません
+.venv/bin/python3 cli.py lab --case testlab/lab/cases/lab-chain-01.json --base-url http://127.0.0.1:PORT \
+  --creds-file creds.json --strategy deterministic --retry-transient --report-dir /tmp/lab-report
+```
+
+- 外部ネットワークを物理的に遮断して評価するには `tools/lab_eval.py run ... --isolate-net`（bubblewrapのネットワーク名前空間。loopbackのみ）、正解データをワークフローから別プロセス・別マウントで隔離するには `--isolate-truth` を付けます。bwrapが無い環境では黙って続行せず失敗します。
+- `--retry-transient 1` は、503/429等の一時的な失敗を理由付き（ジャーナルに `retry_scheduled`）で**1回だけ**再試行します（deterministic/llmのみ。401等の認証系は再試行しません）。
+- 終了コードは `scan` と同じ規則で、未判定・未実施が残る `partial` は 2 になります。
+- 結果は `reports/lab/eval_*/`（`eval.json` と案件別のMarkdownレポート・証拠）に保存されます。レポートの外部提出機能はありません。

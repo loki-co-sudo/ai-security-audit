@@ -1,0 +1,272 @@
+{
+ "schema": "ai-security-audit-lab-case",
+ "schema_version": "1",
+ "case_id": "lab-holdout-01",
+ "split": "holdout",
+ "title": "模擬チケット管理(保留)",
+ "target_ref": "app:tickets",
+ "scope": {
+  "allowed_hosts": [
+   "127.0.0.1"
+  ],
+  "excluded_paths": [
+   "/logout",
+   "/admin/reset"
+  ]
+ },
+ "side_effects_allowed": [
+  "T1",
+  "T2"
+ ],
+ "accounts": {
+  "user_a": "cred:user_a",
+  "user_b": "cred:user_b",
+  "user_expired": "cred:user_expired"
+ },
+ "features": [
+  {
+   "feature_id": "tickets",
+   "title": "チケット表示",
+   "description": "利用者は自分のチケットだけ参照できる"
+  },
+  {
+   "feature_id": "metrics",
+   "title": "内部メトリクス",
+   "description": "運用者のみ"
+  },
+  {
+   "feature_id": "reports",
+   "title": "週次レポート",
+   "description": "公開してよい集計のみ"
+  },
+  {
+   "feature_id": "assets",
+   "title": "静的ファイル",
+   "description": "技術情報を出さない"
+  }
+ ],
+ "hypotheses": [
+  {
+   "hypothesis_id": "h-ticket-authz",
+   "feature": "tickets",
+   "rule_id": "IDOR",
+   "title": "他人のチケットを参照できないか",
+   "prior_value": 0.8,
+   "severity_hint": "HIGH",
+   "remediation": "表示形式によらず所有者を検査する"
+  },
+  {
+   "hypothesis_id": "h-metrics-authz",
+   "feature": "metrics",
+   "rule_id": "BROKEN_ACCESS_CONTROL",
+   "title": "内部メトリクスを一般利用者が見られないか",
+   "prior_value": 0.7,
+   "severity_hint": "HIGH",
+   "remediation": "運用者権限の検査を追加する"
+  },
+  {
+   "hypothesis_id": "h-report-exposure",
+   "feature": "reports",
+   "rule_id": "INFO_DISCLOSURE",
+   "title": "公開レポートに秘密情報が含まれないか",
+   "prior_value": 0.3,
+   "severity_hint": "LOW",
+   "remediation": "集計値のみ返す"
+  },
+  {
+   "hypothesis_id": "h-asset-headers",
+   "feature": "assets",
+   "rule_id": "INFO_DISCLOSURE",
+   "title": "静的ファイルが技術情報ヘッダーを出さないか",
+   "prior_value": 0.2,
+   "severity_hint": "LOW",
+   "remediation": "不要なヘッダーを削除する"
+  }
+ ],
+ "tests": [
+  {
+   "test_id": "t-ticket-own",
+   "feature": "tickets",
+   "hypothesis": "h-ticket-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/tickets",
+   "params": {
+    "id": "7"
+   },
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "自分のチケットが取得できる(対照)",
+   "kind": "control",
+   "expect": {
+    "status": 200,
+    "body_contains": [
+     "printer"
+    ]
+   }
+  },
+  {
+   "test_id": "t-ticket-cross",
+   "feature": "tickets",
+   "hypothesis": "h-ticket-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/tickets",
+   "params": {
+    "id": "8"
+   },
+   "cost": 1,
+   "info_value": 0.8,
+   "purpose": "他人のチケットが拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ]
+   }
+  },
+  {
+   "test_id": "t-ticket-cross-summary",
+   "feature": "tickets",
+   "hypothesis": "h-ticket-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/tickets",
+   "params": {
+    "id": "8",
+    "view": "summary"
+   },
+   "cost": 1,
+   "info_value": 0.6,
+   "purpose": "別の表示形式でも拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ],
+    "body_not_contains": [
+     "reporter"
+    ]
+   },
+   "corroborates": true
+  },
+  {
+   "test_id": "t-metrics-a",
+   "feature": "metrics",
+   "hypothesis": "h-metrics-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/internal/metrics",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.6,
+   "purpose": "一般利用者(A)が拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ]
+   }
+  },
+  {
+   "test_id": "t-metrics-b",
+   "feature": "metrics",
+   "hypothesis": "h-metrics-authz",
+   "role": "user_b",
+   "method": "GET",
+   "path": "/internal/metrics",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.6,
+   "purpose": "一般利用者(B)が拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ]
+   }
+  },
+  {
+   "test_id": "t-metrics-anon",
+   "feature": "metrics",
+   "hypothesis": "h-metrics-authz",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/internal/metrics",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "未ログインで拒否されるか(対照)",
+   "kind": "control",
+   "expect": {
+    "status": [
+     401,
+     403
+    ]
+   },
+   "inconclusive_statuses": []
+  },
+  {
+   "test_id": "t-report",
+   "feature": "reports",
+   "hypothesis": "h-report-exposure",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/reports/weekly",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "公開レポートの内容",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "body_not_contains": [
+     "password",
+     "secret"
+    ]
+   }
+  },
+  {
+   "test_id": "t-logo-header",
+   "feature": "assets",
+   "hypothesis": "h-asset-headers",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/assets/logo.svg",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.2,
+   "purpose": "静的ファイルのヘッダー",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "header_absent": [
+     "X-Powered-By"
+    ]
+   }
+  }
+ ],
+ "normal_behavior": [
+  "チケットは所有者だけが参照できる",
+  "内部メトリクスは運用者のみ"
+ ],
+ "budget": {
+  "max_requests": 5,
+  "max_seconds": 60,
+  "max_llm_calls": 8,
+  "max_llm_input_chars": 8000
+ },
+ "stop_conditions": {
+  "min_score": 0.05,
+  "stop_when_all_hypotheses_resolved": true
+ },
+ "evidence": {
+  "save": true
+ },
+ "out_of_scope": [],
+ "notes": []
+}

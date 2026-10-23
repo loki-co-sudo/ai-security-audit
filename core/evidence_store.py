@@ -182,8 +182,11 @@ class EvidenceStore:
                            headers: dict | None = None, body: str = "",
                            baseline_body: str = "",
                            known_secrets: set[str] | None = None,
-                           action_id: str = "") -> str | None:
+                           action_id: str = "", source_incomplete: str | None = None) -> str | None:
         """HTTP証拠をマスクした上で保存し evidence_id を返す。
+
+        `source_incomplete`は上流で既に本文が不完全だった理由(途中切断・サイズ上限・呼び出し側の切り詰め等)。
+        この層では渡された文字列の長さしか分からないため、指定時は truncated=True にして理由を残す。
 
         件数上限・総容量上限に達している場合はNoneを返す（呼び出し側は
         「証拠保存を省略した」ことをcoverage/errorsへ反映すること）。
@@ -204,8 +207,9 @@ class EvidenceStore:
             baseline_excerpt=masked_baseline,
             timestamp=time.strftime("%Y-%m-%dT%H:%M:%S"),
             action_id=action_id,
-            truncated=len(body or "") > self.max_item_bytes
+            truncated=bool(source_incomplete) or len(body or "") > self.max_item_bytes
             or len(baseline_body or "") > self.max_item_bytes,
+            omitted_reason=f"上流で本文が不完全: {source_incomplete}" if source_incomplete else "",
         )
         return self._persist(ev, shrink_fields=("body_excerpt", "baseline_excerpt"))
 

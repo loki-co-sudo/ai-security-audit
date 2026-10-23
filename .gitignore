@@ -43,6 +43,7 @@ reports/engagements/
 reports/evidence/
 reports/live_eval/
 reports/runs/
+reports/lab/
 
 # スクリーンショット（開発用・ルート直下のみ除外）
 /screenshot_*.png

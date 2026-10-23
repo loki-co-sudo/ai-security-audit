@@ -310,7 +310,7 @@ class FuzzAgent(BaseAgent):
             fuzzer, triage_ran=True, triage_text=full,
             had_signals=bool(anomalies or idor_findings),
         )
-        errors = errors + evidence_errors + rejected
+        errors = errors + evidence_errors + rejected + self.incomplete_notes(anomalies, idor_findings, known_secrets)
         self._finish(sum(counts.values()), counts, target=base_url, t0=t0,
                     findings=findings, coverage=coverage, state=state, errors=errors)
 
@@ -447,7 +447,7 @@ class FuzzAgent(BaseAgent):
                 method=a["method"], url=a["url"], status=a.get("status"),
                 headers=a.get("response_headers") or {}, body=a.get("response_body", ""),
                 baseline_body=a.get("baseline_body", ""), known_secrets=known_secrets,
-                action_id=action_id,
+                action_id=action_id, source_incomplete=a.get("response_incomplete"),
             )
             if eid:
                 a["evidence_id"] = eid
@@ -457,7 +457,7 @@ class FuzzAgent(BaseAgent):
                 method=f["method"], url=f["url"], status=f.get("status_b"),
                 headers=f.get("response_headers") or {}, body=f.get("response_body", ""),
                 baseline_body=f.get("baseline_body", ""), known_secrets=known_secrets,
-                action_id=action_id,
+                action_id=action_id, source_incomplete=f.get("response_incomplete"),
             )
             if eid:
                 f["evidence_id"] = eid
@@ -465,6 +465,19 @@ class FuzzAgent(BaseAgent):
         errors = [f"証拠保存エラー: {e}" for e in store.save_errors]
         errors += [f"証拠保存を省略: {o}" for o in store.omissions]  # 上限到達を黙って捨てない
         return known, errors
+
+    @staticmethod
+    def incomplete_notes(anomalies: list[dict], idor_findings: list[dict], known_secrets: set[str]) -> list[str]:
+        """兆候の根拠になった応答(主応答・baseline・追加確認・IDORの各セッション)が不完全だった旨。
+
+        証拠保存のON/OFFと無関係に報告する。兆候は捨てず、観測を支持する根拠の制約として残す。URLはマスクする。"""
+        notes = []
+        for kind, items in (("異常", anomalies), ("IDOR", idor_findings)):
+            for x in items:
+                if x.get("response_incomplete"):
+                    url = redaction.mask_url(str(x.get("url", "")), known_secrets)
+                    notes.append(f"{kind}兆候の根拠応答が不完全: {x.get('method', 'GET')} {url} ({x['response_incomplete']})")
+        return notes
 
     @staticmethod
     def _build_summary(base_url, points, anomalies, idor_findings: list[dict] | None = None) -> str:

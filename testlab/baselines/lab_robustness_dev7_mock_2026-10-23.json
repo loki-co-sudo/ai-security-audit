@@ -1,0 +1,418 @@
+{
+ "cases": {
+  "lab-bank-01": {
+   "reachable": 2,
+   "random_mean": 1.55,
+   "fixed": 1,
+   "deterministic_original": 1,
+   "conditions": {
+    "noise:0.25": {
+     "det_mean": 1.0,
+     "det_min": 1,
+     "det_max": 1,
+     "draws_better_than_random": 0,
+     "draws_worse_than_random": 20,
+     "draws": 20,
+     "fp_mean": 0.0
+    },
+    "noise:0.5": {
+     "det_mean": 0.95,
+     "det_min": 0,
+     "det_max": 2,
+     "draws_better_than_random": 1,
+     "draws_worse_than_random": 19,
+     "draws": 20,
+     "fp_mean": 0.0
+    },
+    "noise:1.0": {
+     "det_mean": 1.0,
+     "det_min": 0,
+     "det_max": 2,
+     "draws_better_than_random": 4,
+     "draws_worse_than_random": 16,
+     "draws": 20,
+     "fp_mean": 0.0
+    },
+    "flat:0.0": {
+     "det_mean": 2.0,
+     "det_min": 2,
+     "det_max": 2,
+     "draws_better_than_random": 1,
+     "draws_worse_than_random": 0,
+     "draws": 1,
+     "fp_mean": 0.0
+    },
+    "shuffle_order:0.0": {
+     "det_mean": 1.0,
+     "det_min": 1,
+     "det_max": 1,
+     "draws_better_than_random": 0,
+     "draws_worse_than_random": 20,
+     "draws": 20,
+     "fp_mean": 0.0
+    }
+   }
+  },
+  "lab-billing-01": {
+   "reachable": 2,
+   "random_mean": 0.95,
+   "fixed": 1,
+   "deterministic_original": 1,
+   "conditions": {
+    "noise:0.25": {
+     "det_mean": 1.0,
+     "det_min": 1,
+     "det_max": 1,
+     "draws_better_than_random": 20,
+     "draws_worse_than_random": 0,
+     "draws": 20,
+     "fp_mean": 0.0
+    },
+    "noise:0.5": {
+     "det_mean": 1.0,
+     "det_min": 1,
+     "det_max": 1,
+     "draws_better_than_random": 20,
+     "draws_worse_than_random": 0,
+     "draws": 20,
+     "fp_mean": 0.15
+    },
+    "noise:1.0": {
+     "det_mean": 1.0,
+     "det_min": 1,
+     "det_max": 1,
+     "draws_better_than_random": 20,
+     "draws_worse_than_random": 0,
+     "draws": 20,
+     "fp_mean": 0.3
+    },
+    "flat:0.0": {
+     "det_mean": 1.0,
+     "det_min": 1,
+     "det_max": 1,
+     "draws_better_than_random": 1,
+     "draws_worse_than_random": 0,
+     "draws": 1,
+     "fp_mean": 0.0
+    },
+    "shuffle_order:0.0": {
+     "det_mean": 1.0,
+     "det_min": 1,
+     "det_max": 1,
+     "draws_better_than_random": 20,
+     "draws_worse_than_random": 0,
+     "draws": 20,
+     "fp_mean": 0.0
+    }
+   }
+  },
+  "lab-forum-01": {
+   "reachable": 2,
+   "random_mean": 1.65,
+   "fixed": 1,
+   "deterministic_original": 2,
+   "conditions": {
+    "noise:0.25": {
+     "det_mean": 2.0,
+     "det_min": 2,
+     "det_max": 2,
+     "draws_better_than_random": 20,
+     "draws_worse_than_random": 0,
+     "draws": 20,
+     "fp_mean": 0.0
+    },
+    "noise:0.5": {
+     "det_mean": 2.0,
+     "det_min": 2,
+     "det_max": 2,
+     "draws_better_than_random": 20,
+     "draws_worse_than_random": 0,
+     "draws": 20,
+     "fp_mean": 0.0
+    },
+    "noise:1.0": {
+     "det_mean": 1.85,
+     "det_min": 1,
+     "det_max": 2,
+     "draws_better_than_random": 17,
+     "draws_worse_than_random": 3,
+     "draws": 20,
+     "fp_mean": 0.0
+    },
+    "flat:0.0": {
+     "det_mean": 2.0,
+     "det_min": 2,
+     "det_max": 2,
+     "draws_better_than_random": 1,
+     "draws_worse_than_random": 0,
+     "draws": 1,
+     "fp_mean": 0.0
+    },
+    "shuffle_order:0.0": {
+     "det_mean": 2.0,
+     "det_min": 2,
+     "det_max": 2,
+     "draws_better_than_random": 20,
+     "draws_worse_than_random": 0,
+     "draws": 20,
+     "fp_mean": 0.0
+    }
+   }
+  },
+  "lab-notes-01": {
+   "reachable": 2,
+   "random_mean": 1.4,
+   "fixed": 2,
+   "deterministic_original": 2,
+   "conditions": {
+    "noise:0.25": {
+     "det_mean": 2.0,
+     "det_min": 2,
+     "det_max": 2,
+     "draws_better_than_random": 20,
+     "draws_worse_than_random": 0,
+     "draws": 20,
+     "fp_mean": 0.0
+    },
+    "noise:0.5": {
+     "det_mean": 2.0,
+     "det_min": 2,
+     "det_max": 2,
+     "draws_better_than_random": 20,
+     "draws_worse_than_random": 0,
+     "draws": 20,
+     "fp_mean": 0.0
+    },
+    "noise:1.0": {
+     "det_mean": 1.8,
+     "det_min": 0,
+     "det_max": 2,
+     "draws_better_than_random": 17,
+     "draws_worse_than_random": 3,
+     "draws": 20,
+     "fp_mean": 0.0
+    },
+    "flat:0.0": {
+     "det_mean": 1.0,
+     "det_min": 1,
+     "det_max": 1,
+     "draws_better_than_random": 0,
+     "draws_worse_than_random": 1,
+     "draws": 1,
+     "fp_mean": 0.0
+    },
+    "shuffle_order:0.0": {
+     "det_mean": 2.0,
+     "det_min": 2,
+     "det_max": 2,
+     "draws_better_than_random": 20,
+     "draws_worse_than_random": 0,
+     "draws": 20,
+     "fp_mean": 0.0
+    }
+   }
+  },
+  "lab-portal-01": {
+   "reachable": 3,
+   "random_mean": 2.1,
+   "fixed": 3,
+   "deterministic_original": 2,
+   "conditions": {
+    "noise:0.25": {
+     "det_mean": 1.8,
+     "det_min": 1,
+     "det_max": 2,
+     "draws_better_than_random": 0,
+     "draws_worse_than_random": 20,
+     "draws": 20,
+     "fp_mean": 0.0
+    },
+    "noise:0.5": {
+     "det_mean": 2.05,
+     "det_min": 1,
+     "det_max": 3,
+     "draws_better_than_random": 3,
+     "draws_worse_than_random": 17,
+     "draws": 20,
+     "fp_mean": 0.0
+    },
+    "noise:1.0": {
+     "det_mean": 2.05,
+     "det_min": 1,
+     "det_max": 3,
+     "draws_better_than_random": 3,
+     "draws_worse_than_random": 17,
+     "draws": 20,
+     "fp_mean": 0.0
+    },
+    "flat:0.0": {
+     "det_mean": 2.0,
+     "det_min": 2,
+     "det_max": 2,
+     "draws_better_than_random": 0,
+     "draws_worse_than_random": 1,
+     "draws": 1,
+     "fp_mean": 0.0
+    },
+    "shuffle_order:0.0": {
+     "det_mean": 2.0,
+     "det_min": 2,
+     "det_max": 2,
+     "draws_better_than_random": 0,
+     "draws_worse_than_random": 20,
+     "draws": 20,
+     "fp_mean": 0.0
+    }
+   }
+  },
+  "lab-shop-01": {
+   "reachable": 2,
+   "random_mean": 1.55,
+   "fixed": 1,
+   "deterministic_original": 2,
+   "conditions": {
+    "noise:0.25": {
+     "det_mean": 2.0,
+     "det_min": 2,
+     "det_max": 2,
+     "draws_better_than_random": 20,
+     "draws_worse_than_random": 0,
+     "draws": 20,
+     "fp_mean": 0.0
+    },
+    "noise:0.5": {
+     "det_mean": 2.0,
+     "det_min": 2,
+     "det_max": 2,
+     "draws_better_than_random": 20,
+     "draws_worse_than_random": 0,
+     "draws": 20,
+     "fp_mean": 0.0
+    },
+    "noise:1.0": {
+     "det_mean": 1.9,
+     "det_min": 1,
+     "det_max": 2,
+     "draws_better_than_random": 18,
+     "draws_worse_than_random": 2,
+     "draws": 20,
+     "fp_mean": 0.0
+    },
+    "flat:0.0": {
+     "det_mean": 2.0,
+     "det_min": 2,
+     "det_max": 2,
+     "draws_better_than_random": 1,
+     "draws_worse_than_random": 0,
+     "draws": 1,
+     "fp_mean": 0.0
+    },
+    "shuffle_order:0.0": {
+     "det_mean": 2.0,
+     "det_min": 2,
+     "det_max": 2,
+     "draws_better_than_random": 20,
+     "draws_worse_than_random": 0,
+     "draws": 20,
+     "fp_mean": 0.0
+    }
+   }
+  },
+  "lab-wiki-01": {
+   "reachable": 2,
+   "random_mean": 1.1,
+   "fixed": 1,
+   "deterministic_original": 2,
+   "conditions": {
+    "noise:0.25": {
+     "det_mean": 2.0,
+     "det_min": 2,
+     "det_max": 2,
+     "draws_better_than_random": 20,
+     "draws_worse_than_random": 0,
+     "draws": 20,
+     "fp_mean": 0.0
+    },
+    "noise:0.5": {
+     "det_mean": 1.85,
+     "det_min": 1,
+     "det_max": 2,
+     "draws_better_than_random": 17,
+     "draws_worse_than_random": 3,
+     "draws": 20,
+     "fp_mean": 0.0
+    },
+    "noise:1.0": {
+     "det_mean": 1.2,
+     "det_min": 0,
+     "det_max": 2,
+     "draws_better_than_random": 5,
+     "draws_worse_than_random": 15,
+     "draws": 20,
+     "fp_mean": 0.0
+    },
+    "flat:0.0": {
+     "det_mean": 1.0,
+     "det_min": 1,
+     "det_max": 1,
+     "draws_better_than_random": 0,
+     "draws_worse_than_random": 1,
+     "draws": 1,
+     "fp_mean": 0.0
+    },
+    "shuffle_order:0.0": {
+     "det_mean": 2.0,
+     "det_min": 2,
+     "det_max": 2,
+     "draws_better_than_random": 20,
+     "draws_worse_than_random": 0,
+     "draws": 20,
+     "fp_mean": 0.0
+    }
+   }
+  }
+ },
+ "overall": {
+  "reachable_total": 15,
+  "random_total_mean": 10.3,
+  "fixed_total": 10,
+  "deterministic_original_total": 12,
+  "conditions": {
+   "noise:0.25": {
+    "det_total_mean": 11.8,
+    "case_draws_better_than_random": 100,
+    "case_draws_worse_than_random": 40,
+    "case_draws": 140,
+    "fp_total_mean": 0.0
+   },
+   "noise:0.5": {
+    "det_total_mean": 11.85,
+    "case_draws_better_than_random": 101,
+    "case_draws_worse_than_random": 39,
+    "case_draws": 140,
+    "fp_total_mean": 0.15
+   },
+   "noise:1.0": {
+    "det_total_mean": 10.8,
+    "case_draws_better_than_random": 84,
+    "case_draws_worse_than_random": 56,
+    "case_draws": 140,
+    "fp_total_mean": 0.3
+   },
+   "flat:0.0": {
+    "det_total_mean": 11.0,
+    "case_draws_better_than_random": 4,
+    "case_draws_worse_than_random": 3,
+    "case_draws": 7,
+    "fp_total_mean": 0.0
+   },
+   "shuffle_order:0.0": {
+    "det_total_mean": 12.0,
+    "case_draws_better_than_random": 100,
+    "case_draws_worse_than_random": 40,
+    "case_draws": 140,
+    "fp_total_mean": 0.0
+   }
+  }
+ }
+}

@@ -1,0 +1,33 @@
+{
+ "schema": "ai-security-audit-lab-truth",
+ "schema_version": "1",
+ "case_id": "lab-holdout-02",
+ "split": "holdout",
+ "canary": "TRUTH-CANARY-b4ebb410cfffc169",
+ "flaws": [
+  {
+   "hypothesis_id": "h-cost-exposure",
+   "rule_id": "EXCESSIVE_DATA_EXPOSURE",
+   "reachable": true
+  },
+  {
+   "hypothesis_id": "h-stock-authz",
+   "rule_id": "IDOR",
+   "reachable": true
+  },
+  {
+   "hypothesis_id": "h-supplier-export",
+   "rule_id": "BROKEN_ACCESS_CONTROL",
+   "reachable": true
+  }
+ ],
+ "unreachable_flaws": [],
+ "non_flaws": [
+  {
+   "hypothesis_id": "h-health-info"
+  },
+  {
+   "hypothesis_id": "h-label-info"
+  }
+ ]
+}

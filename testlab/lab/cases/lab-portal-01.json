@@ -1,0 +1,295 @@
+{
+ "schema": "ai-security-audit-lab-case",
+ "schema_version": "1",
+ "case_id": "lab-portal-01",
+ "split": "dev",
+ "title": "模擬ポータル",
+ "target_ref": "app:portal",
+ "scope": {
+  "allowed_hosts": [
+   "127.0.0.1"
+  ],
+  "excluded_paths": [
+   "/logout",
+   "/admin/reset"
+  ]
+ },
+ "side_effects_allowed": [
+  "T1",
+  "T2"
+ ],
+ "accounts": {
+  "user_a": "cred:user_a",
+  "user_b": "cred:user_b",
+  "user_expired": "cred:user_expired"
+ },
+ "features": [
+  {
+   "feature_id": "cookie",
+   "title": "ログイン",
+   "description": "セッションCookieの属性"
+  },
+  {
+   "feature_id": "headers",
+   "title": "応答ヘッダー",
+   "description": "技術情報を出さない"
+  },
+  {
+   "feature_id": "redirect",
+   "title": "リダイレクト",
+   "description": "遷移先は自サイト内に限る"
+  },
+  {
+   "feature_id": "admin",
+   "title": "管理画面",
+   "description": "管理者だけが利用できる"
+  }
+ ],
+ "hypotheses": [
+  {
+   "hypothesis_id": "h-cookie-flags",
+   "feature": "cookie",
+   "rule_id": "COOKIE_FLAGS",
+   "title": "セッションCookieにHttpOnlyが付くか",
+   "prior_value": 0.5,
+   "severity_hint": "MEDIUM",
+   "remediation": "Set-CookieにHttpOnly/Secure/SameSiteを付ける"
+  },
+  {
+   "hypothesis_id": "h-tech-headers",
+   "feature": "headers",
+   "rule_id": "INFO_DISCLOSURE",
+   "title": "応答ヘッダーが技術情報を出さないか",
+   "prior_value": 0.3,
+   "severity_hint": "LOW",
+   "remediation": "X-Powered-By等を削除する"
+  },
+  {
+   "hypothesis_id": "h-open-redirect",
+   "feature": "redirect",
+   "rule_id": "OPEN_REDIRECT",
+   "title": "/redirが外部サイトへ遷移させないか",
+   "prior_value": 0.7,
+   "severity_hint": "MEDIUM",
+   "remediation": "遷移先を自サイト内の相対パスに限定する"
+  },
+  {
+   "hypothesis_id": "h-safe-redirect",
+   "feature": "redirect",
+   "rule_id": "OPEN_REDIRECT",
+   "title": "/safe-redirが外部サイトへ遷移させないか",
+   "prior_value": 0.6,
+   "severity_hint": "MEDIUM",
+   "remediation": "現状の検証を維持する"
+  },
+  {
+   "hypothesis_id": "h-admin-authz",
+   "feature": "admin",
+   "rule_id": "BROKEN_ACCESS_CONTROL",
+   "title": "管理画面を一般利用者が使えないか",
+   "prior_value": 0.7,
+   "severity_hint": "HIGH",
+   "remediation": "管理者権限の検査を維持する"
+  }
+ ],
+ "tests": [
+  {
+   "test_id": "t-login-cookie",
+   "feature": "cookie",
+   "hypothesis": "h-cookie-flags",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/login",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.6,
+   "purpose": "Set-CookieのHttpOnly属性",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "header_contains": {
+     "Set-Cookie": "HttpOnly"
+    }
+   }
+  },
+  {
+   "test_id": "t-home-headers",
+   "feature": "headers",
+   "hypothesis": "h-tech-headers",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.4,
+   "purpose": "技術情報ヘッダーの有無",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "header_absent": [
+     "X-Powered-By"
+    ]
+   }
+  },
+  {
+   "test_id": "t-static-headers",
+   "feature": "headers",
+   "hypothesis": "h-tech-headers",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/static/app.js",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.2,
+   "purpose": "静的ファイルのヘッダー(対照)",
+   "kind": "control",
+   "expect": {
+    "status": 200,
+    "header_absent": [
+     "X-Powered-By"
+    ]
+   }
+  },
+  {
+   "test_id": "t-redir-internal",
+   "feature": "redirect",
+   "hypothesis": "h-open-redirect",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/redir",
+   "params": {
+    "next": "/home"
+   },
+   "cost": 1,
+   "info_value": 0.2,
+   "purpose": "自サイト内への遷移が動作する(対照)",
+   "kind": "control",
+   "expect": {
+    "status": 302
+   },
+   "inconclusive_statuses": []
+  },
+  {
+   "test_id": "t-redir-external",
+   "feature": "redirect",
+   "hypothesis": "h-open-redirect",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/redir",
+   "params": {
+    "next": "http://evil.example.invalid/x"
+   },
+   "cost": 1,
+   "info_value": 0.9,
+   "purpose": "外部URLが拒否されるか(Locationを観測するだけで追跡しない)",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     400,
+     403
+    ]
+   },
+   "inconclusive_statuses": []
+  },
+  {
+   "test_id": "t-saferedir-external",
+   "feature": "redirect",
+   "hypothesis": "h-safe-redirect",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/safe-redir",
+   "params": {
+    "next": "http://evil.example.invalid/x"
+   },
+   "cost": 1,
+   "info_value": 0.6,
+   "purpose": "検証付きリダイレクトが外部URLを拒否するか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     400,
+     403
+    ]
+   },
+   "inconclusive_statuses": []
+  },
+  {
+   "test_id": "t-admin-anon",
+   "feature": "admin",
+   "hypothesis": "h-admin-authz",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/admin/panel",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.4,
+   "purpose": "未ログインで拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     302,
+     401,
+     403
+    ]
+   },
+   "inconclusive_statuses": []
+  },
+  {
+   "test_id": "t-admin-user",
+   "feature": "admin",
+   "hypothesis": "h-admin-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/admin/panel",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.7,
+   "purpose": "一般利用者が拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ]
+   }
+  },
+  {
+   "test_id": "t-admin-expired",
+   "feature": "admin",
+   "hypothesis": "h-admin-authz",
+   "role": "user_expired",
+   "method": "GET",
+   "path": "/admin/panel",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "期限切れセッションでの挙動",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ]
+   }
+  }
+ ],
+ "normal_behavior": [
+  "管理画面は管理者のみ",
+  "リダイレクトは自サイト内のみ"
+ ],
+ "budget": {
+  "max_requests": 6,
+  "max_seconds": 60,
+  "max_llm_calls": 8,
+  "max_llm_input_chars": 8000
+ },
+ "stop_conditions": {
+  "min_score": 0.05,
+  "stop_when_all_hypotheses_resolved": true
+ },
+ "evidence": {
+  "save": true
+ },
+ "out_of_scope": [],
+ "notes": []
+}

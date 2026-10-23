@@ -155,6 +155,20 @@ def parser():
                          help="stdoutの形式。mdはバグバウンティ提出用Markdown(既定json)")
         sub.add_argument("--engagement-id", help="指定すると完了した結果を所見台帳(reports/engagements/<id>)へ記録する")
         sub.add_argument("--ledger-root", default=LEDGER_ROOT, help=argparse.SUPPRESS)
+    lab = commands.add_parser("lab", help="ローカル模擬案件(loopbackのみ)の固定テスト選択ワークフローを1回実行する")
+    lab.add_argument("--case", required=True, help="案件設定JSON(testlab/lab/cases/*.json 等)")
+    lab.add_argument("--base-url", required=True, help="模擬環境のURL(127.0.0.1/localhostのみ)")
+    lab.add_argument("--creds-file", help='0600のJSON: {"cred:user_a": "<token>", ...}(案件の参照名→値)')
+    lab.add_argument("--strategy", choices=("fixed", "deterministic"), default="deterministic")
+    lab.add_argument("--retry-transient", action="store_true", help="一時的な失敗(503等)を理由付きで1回だけ再試行(deterministicのみ)")
+    lab.add_argument("--report-dir", help="証拠ハッシュ検証つきMarkdownレポートの出力先(外部へは送信しない)")
+    lab.add_argument("--evidence-root")
+    lab.add_argument("--journal-root", default=JOURNAL_ROOT)
+    lab.add_argument("--out", help="結果JSONの追加保存先")
+    lab.add_argument("--fail-on", choices=["none", *SEVERITIES], default="none")
+    lab.add_argument("--min-verification", choices=list(VERIFICATION_RANK), default="observed", help=MIN_VERIFICATION_HELP)
+    lab.add_argument("--engagement-id", help="指定すると結果を所見台帳へ記録する")
+    lab.add_argument("--ledger-root", default=LEDGER_ROOT, help=argparse.SUPPRESS)
     resume = commands.add_parser("resume")
     status = commands.add_parser("status")
     openapi = commands.add_parser("openapi", help="OpenAPI JSONのoperation一覧を表示する(通信しない)")
@@ -353,6 +367,56 @@ def openapi_list(path):
     return {"state": "completed", "errors": [], "findings": [], "operations": [o.to_dict() for o in ops]}
 
 
+def read_lab_creds(path):
+    """案件の参照名(cred:<名前>)→値のJSON。0600・実行ユーザー所有の通常ファイルのみ。値は結果・ログに出さない。"""
+    if not path:
+        return {}
+    if os.name != "posix":
+        raise CLIError("このOSでは認証ファイルの0600相当の権限を確認できません")
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, "r", encoding="utf-8") as f:
+        info = os.fstat(f.fileno())
+        if not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o600 or info.st_uid != os.getuid():
+            raise CLIError("認証ファイルは実行ユーザー所有の通常ファイル・権限0600が必要です")
+        raw = f.read(65537)
+    if len(raw) > 65536:
+        raise CLIError("認証ファイルが大きすぎます")
+    data = json.loads(raw)
+    if (not isinstance(data, dict) or not data or any(not re.fullmatch(r"cred:[a-z][a-z0-9_]{0,31}", str(k))
+                                                      or not isinstance(v, str) or not v for k, v in data.items())):
+        raise CLIError('認証ファイルは {"cred:<名前>": "<値>"} の形式にしてください')
+    return data
+
+
+def lab_command(args, creds):
+    """loopbackの模擬環境に対する固定テスト選択ワークフローの1回実行。LLMは使わない。結果はScanResult互換+labの詳細。"""
+    from urllib.parse import urlsplit
+    from core.autonomy.lab_case import LabCaseError, load_case
+    from core.autonomy.lab_report import write_report
+    from core.autonomy.lab_workflow import run_lab_case
+    host = urlsplit(args.base_url)
+    if host.scheme != "http" or host.hostname not in ("127.0.0.1", "localhost", "::1") or host.username or host.password:
+        raise CLIError("--base-urlはhttp://127.0.0.1(またはlocalhost)の模擬環境だけ指定できます")
+    try:
+        case = load_case(args.case)
+    except (OSError, ValueError, LabCaseError) as e:
+        raise CLIError(f"案件設定を読み込めません: {e}")
+    res = run_lab_case(case, args.base_url, creds, strategy=args.strategy, journal_root=args.journal_root,
+                       evidence_root=args.evidence_root, retry_transient=1 if args.retry_transient else 0)
+    d = res.to_dict()
+    result = {**d["scan_result"], "state": d["state"]}
+    result["lab"] = {"case_id": d["case_id"], "strategy": d["strategy"], "run_id": d["run_id"], "end_reason": d["end_reason"],
+                     "finish_reason": d["finish_reason"], "clean_finish": d["clean_finish"], "counters": d["counters"],
+                     "hypotheses": d["hypotheses"], "chains": d["chains"], "open_chains": d["open_chains"],
+                     "untested": d["untested"], "out_of_scope": d["out_of_scope"], "budget": d["budget"]}
+    if args.report_dir:
+        try:
+            result["lab"]["report"] = write_report(case, d, args.report_dir, evidence_root=args.evidence_root)
+        except OSError:
+            result.setdefault("errors", []).append("レポートの保存に失敗しました")
+    return result
+
+
 def ledger_command(args):
     """台帳の参照・更新コマンド。結果はJSON、問題はCLIError(failed/exit 2)。"""
     try:
@@ -378,7 +442,7 @@ def ledger_command(args):
 def record_ledger(args, engagement, result):
     """engagement_idが指定された場合だけ、完了した各scan結果を所見台帳へ追記し、レポート用の台帳ビューを付ける。台帳の失敗はscan結果を隠さない。"""
     eid = getattr(args, "engagement_id", None) or (engagement or {}).get("engagement_id")
-    if not eid or args.command != "scan":
+    if not eid or args.command not in ("scan", "lab"):
         return
     result["engagement_id"] = eid
     try:
@@ -435,7 +499,7 @@ def main(argv=None):
         args = parser().parse_args(argv)
         if getattr(args, "structured_output", False):
             config.set_runtime_override("llm_structured", True)
-        is_ledger = args.command in ("diff", "mark", "suppress", "findings", "openapi")
+        is_ledger = args.command in ("diff", "mark", "suppress", "findings", "openapi", "lab")
         is_audit = args.command == "scan" and args.mode in ("audit", "defense", "attack")
         if not is_ledger and (not is_audit or args.mode == "attack"):
             args.allow = check_rules(args.allow, "--allow")
@@ -448,6 +512,10 @@ def main(argv=None):
         out_validated = True
         if args.command == "openapi":
             result = openapi_list(args.file)
+        elif args.command == "lab":
+            creds = read_lab_creds(args.creds_file)
+            secrets = set(creds.values())
+            result = lab_command(args, creds)
         elif is_ledger:
             result = ledger_command(args)
         elif is_audit:

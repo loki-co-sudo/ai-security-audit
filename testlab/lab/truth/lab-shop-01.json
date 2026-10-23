@@ -1,0 +1,31 @@
+{
+ "schema": "ai-security-audit-lab-truth",
+ "schema_version": "1",
+ "case_id": "lab-shop-01",
+ "split": "dev",
+ "canary": "TRUTH-CANARY-0d0f3bf140634daf",
+ "flaws": [
+  {
+   "hypothesis_id": "h-orders-idor",
+   "rule_id": "IDOR",
+   "reachable": true
+  },
+  {
+   "hypothesis_id": "h-export-authz",
+   "rule_id": "BROKEN_ACCESS_CONTROL",
+   "reachable": true
+  }
+ ],
+ "unreachable_flaws": [],
+ "non_flaws": [
+  {
+   "hypothesis_id": "h-search-xss"
+  },
+  {
+   "hypothesis_id": "h-debug-leak"
+  },
+  {
+   "hypothesis_id": "h-health-info"
+  }
+ ]
+}

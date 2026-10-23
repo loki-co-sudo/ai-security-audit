@@ -1,0 +1,264 @@
+{
+ "schema": "ai-security-audit-lab-case",
+ "schema_version": "1",
+ "case_id": "lab-billing-01",
+ "split": "dev",
+ "title": "模擬請求システム",
+ "target_ref": "app:billing",
+ "scope": {
+  "allowed_hosts": [
+   "127.0.0.1"
+  ],
+  "excluded_paths": [
+   "/logout",
+   "/admin/reset"
+  ]
+ },
+ "side_effects_allowed": [
+  "T1",
+  "T2"
+ ],
+ "accounts": {
+  "user_a": "cred:user_a",
+  "user_b": "cred:user_b",
+  "user_expired": "cred:user_expired"
+ },
+ "features": [
+  {
+   "feature_id": "invoices",
+   "title": "請求書",
+   "description": "利用者は自分の請求書だけ参照できる"
+  },
+  {
+   "feature_id": "legacy",
+   "title": "旧管理画面",
+   "description": "撤去済みで404を返す"
+  },
+  {
+   "feature_id": "reports",
+   "title": "売上サマリー",
+   "description": "管理者だけが参照できる"
+  },
+  {
+   "feature_id": "session",
+   "title": "セッション",
+   "description": "有効なセッションで自分の情報を返す"
+  }
+ ],
+ "hypotheses": [
+  {
+   "hypothesis_id": "h-invoice-authz",
+   "feature": "invoices",
+   "rule_id": "IDOR",
+   "title": "他人の請求書を参照できないか",
+   "prior_value": 0.7,
+   "severity_hint": "HIGH",
+   "remediation": "請求書取得時に所有者を照合する"
+  },
+  {
+   "hypothesis_id": "h-legacy-admin",
+   "feature": "legacy",
+   "rule_id": "BROKEN_ACCESS_CONTROL",
+   "title": "撤去済みの旧管理画面が残っていないか",
+   "prior_value": 0.5,
+   "severity_hint": "HIGH",
+   "remediation": "旧管理画面のルートを削除する"
+  },
+  {
+   "hypothesis_id": "h-report-authz",
+   "feature": "reports",
+   "rule_id": "BROKEN_ACCESS_CONTROL",
+   "title": "売上サマリーを一般利用者が参照できないか",
+   "prior_value": 0.6,
+   "severity_hint": "HIGH",
+   "remediation": "管理者権限の検査を追加する"
+  },
+  {
+   "hypothesis_id": "h-session-expiry",
+   "feature": "session",
+   "rule_id": "SESSION",
+   "title": "期限切れのセッションで情報が返らないか",
+   "prior_value": 0.3,
+   "severity_hint": "MEDIUM",
+   "remediation": "期限切れトークンを拒否する"
+  }
+ ],
+ "tests": [
+  {
+   "test_id": "t-inv-own",
+   "feature": "invoices",
+   "hypothesis": "h-invoice-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/api/invoices/9001",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "自分の請求書が取得できる(対照)",
+   "kind": "control",
+   "expect": {
+    "status": 200,
+    "body_contains": [
+     "invoice"
+    ]
+   }
+  },
+  {
+   "test_id": "t-inv-cross",
+   "feature": "invoices",
+   "hypothesis": "h-invoice-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/api/invoices/9002",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.9,
+   "purpose": "他人の請求書が拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ],
+    "body_not_contains": [
+     "total"
+    ]
+   }
+  },
+  {
+   "test_id": "t-inv-cross-b",
+   "feature": "invoices",
+   "hypothesis": "h-invoice-authz",
+   "role": "user_b",
+   "method": "GET",
+   "path": "/api/invoices/9001",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.5,
+   "purpose": "逆方向でも拒否されるか(裏付け)",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ],
+    "body_not_contains": [
+     "total"
+    ]
+   },
+   "corroborates": true
+  },
+  {
+   "test_id": "t-legacy-ctl",
+   "feature": "legacy",
+   "hypothesis": "h-legacy-admin",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/zz-nonexistent",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "存在しないパスが404を返す(環境の判別力の対照)",
+   "kind": "control",
+   "expect": {
+    "status": 404
+   },
+   "inconclusive_statuses": []
+  },
+  {
+   "test_id": "t-legacy-probe",
+   "feature": "legacy",
+   "hypothesis": "h-legacy-admin",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/admin-legacy/",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.7,
+   "purpose": "旧管理画面のパスが404を返すか",
+   "kind": "probe",
+   "expect": {
+    "status": 404
+   },
+   "inconclusive_statuses": []
+  },
+  {
+   "test_id": "t-report-user",
+   "feature": "reports",
+   "hypothesis": "h-report-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/api/reports/summary",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.8,
+   "purpose": "一般利用者が拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ],
+    "body_not_contains": [
+     "revenue"
+    ]
+   }
+  },
+  {
+   "test_id": "t-me-a",
+   "feature": "session",
+   "hypothesis": "h-session-expiry",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/api/me",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "有効なセッションで自分の情報が返る",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "body_contains": [
+     "user_a"
+    ]
+   }
+  },
+  {
+   "test_id": "t-me-expired",
+   "feature": "session",
+   "hypothesis": "h-session-expiry",
+   "role": "user_expired",
+   "method": "GET",
+   "path": "/api/me",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.4,
+   "purpose": "期限切れセッションが拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": 401
+   },
+   "inconclusive_statuses": []
+  }
+ ],
+ "normal_behavior": [
+  "請求書は所有者だけ",
+  "売上サマリーは管理者のみ",
+  "旧管理画面は撤去済み(404)"
+ ],
+ "budget": {
+  "max_requests": 6,
+  "max_seconds": 60,
+  "max_llm_calls": 8,
+  "max_llm_input_chars": 8000
+ },
+ "stop_conditions": {
+  "min_score": 0.05,
+  "stop_when_all_hypotheses_resolved": true
+ },
+ "evidence": {
+  "save": true
+ },
+ "out_of_scope": [],
+ "notes": []
+}

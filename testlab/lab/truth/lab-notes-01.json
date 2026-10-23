@@ -1,0 +1,33 @@
+{
+ "schema": "ai-security-audit-lab-truth",
+ "schema_version": "1",
+ "case_id": "lab-notes-01",
+ "split": "dev",
+ "canary": "TRUTH-CANARY-79613c12d192cc29",
+ "flaws": [
+  {
+   "hypothesis_id": "h-notes-list-authz",
+   "rule_id": "IDOR",
+   "reachable": true
+  },
+  {
+   "hypothesis_id": "h-profile-exposure",
+   "rule_id": "EXCESSIVE_DATA_EXPOSURE",
+   "reachable": true
+  }
+ ],
+ "unreachable_flaws": [
+  {
+   "flaw_id": "unreach-notes-write",
+   "reason": "ノート更新の認可不備(POSTが必要)。固定テスト操作では検査できない"
+  }
+ ],
+ "non_flaws": [
+  {
+   "hypothesis_id": "h-notes-detail-authz"
+  },
+  {
+   "hypothesis_id": "h-error-disclosure"
+  }
+ ]
+}

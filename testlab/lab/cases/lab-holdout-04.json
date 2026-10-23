@@ -1,0 +1,356 @@
+{
+ "schema": "ai-security-audit-lab-case",
+ "schema_version": "1",
+ "case_id": "lab-holdout-04",
+ "split": "holdout",
+ "title": "模擬給与システム(保留)",
+ "target_ref": "app:payroll",
+ "scope": {
+  "allowed_hosts": [
+   "127.0.0.1"
+  ],
+  "excluded_paths": [
+   "/logout",
+   "/admin/reset"
+  ]
+ },
+ "side_effects_allowed": [
+  "T1",
+  "T2"
+ ],
+ "accounts": {
+  "user_a": "cred:user_a",
+  "user_b": "cred:user_b",
+  "user_expired": "cred:user_expired"
+ },
+ "features": [
+  {
+   "feature_id": "directory",
+   "title": "社員名簿",
+   "description": "人事担当だけが出力できる(トップ→人事→レポート→名簿の順に辿る)"
+  },
+  {
+   "feature_id": "help",
+   "title": "ヘルプ",
+   "description": "公開"
+  },
+  {
+   "feature_id": "payslips",
+   "title": "給与明細",
+   "description": "利用者は自分の明細だけ参照できる"
+  },
+  {
+   "feature_id": "summary",
+   "title": "年間サマリー",
+   "description": "利用者は自分の集計だけ参照できる"
+  },
+  {
+   "feature_id": "tax",
+   "title": "源泉徴収票",
+   "description": "利用者は自分の票だけ参照できる"
+  }
+ ],
+ "hypotheses": [
+  {
+   "hypothesis_id": "h-directory-authz",
+   "feature": "directory",
+   "rule_id": "BROKEN_ACCESS_CONTROL",
+   "title": "社員名簿を一般利用者が出力できないか",
+   "prior_value": 0.3,
+   "severity_hint": "HIGH",
+   "remediation": "人事権限の検査を追加する"
+  },
+  {
+   "hypothesis_id": "h-help-info",
+   "feature": "help",
+   "rule_id": "INFO_DISCLOSURE",
+   "title": "ヘルプに内部情報が含まれないか",
+   "prior_value": 0.2,
+   "severity_hint": "LOW",
+   "remediation": "公開項目に限定する"
+  },
+  {
+   "hypothesis_id": "h-payslip-authz",
+   "feature": "payslips",
+   "rule_id": "IDOR",
+   "title": "他人の給与明細を参照できないか",
+   "prior_value": 0.9,
+   "severity_hint": "HIGH",
+   "remediation": "明細取得時に所有者を照合する"
+  },
+  {
+   "hypothesis_id": "h-summary-scope",
+   "feature": "summary",
+   "rule_id": "IDOR",
+   "title": "年間サマリーが全社分を返さないか",
+   "prior_value": 0.2,
+   "severity_hint": "MEDIUM",
+   "remediation": "本人分の集計だけ返す"
+  },
+  {
+   "hypothesis_id": "h-tax-authz",
+   "feature": "tax",
+   "rule_id": "IDOR",
+   "title": "他人の源泉徴収票を参照できないか",
+   "prior_value": 0.6,
+   "severity_hint": "HIGH",
+   "remediation": "票取得時に所有者を照合する"
+  }
+ ],
+ "tests": [
+  {
+   "test_id": "t-home",
+   "feature": "directory",
+   "hypothesis": "h-directory-authz",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "トップのリンク構成を観測する",
+   "kind": "navigation",
+   "expect": {
+    "status": 200
+   }
+  },
+  {
+   "test_id": "t-hr",
+   "feature": "directory",
+   "hypothesis": "h-directory-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/hr",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "人事ページのリンク構成を観測する",
+   "kind": "navigation",
+   "expect": {
+    "status": 200
+   },
+   "unlocked_by": {
+    "test_id": "t-home",
+    "body_contains": "/hr"
+   }
+  },
+  {
+   "test_id": "t-hr-reports",
+   "feature": "directory",
+   "hypothesis": "h-directory-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/hr/reports",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "レポート一覧のリンク構成を観測する",
+   "kind": "navigation",
+   "expect": {
+    "status": 200
+   },
+   "unlocked_by": {
+    "test_id": "t-hr",
+    "body_contains": "/hr/reports"
+   }
+  },
+  {
+   "test_id": "t-directory",
+   "feature": "directory",
+   "hypothesis": "h-directory-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/hr/reports/directory.csv",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.9,
+   "purpose": "一般利用者が名簿を出力できないか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ]
+   },
+   "unlocked_by": {
+    "test_id": "t-hr-reports",
+    "body_contains": "directory.csv"
+   }
+  },
+  {
+   "test_id": "t-help",
+   "feature": "help",
+   "hypothesis": "h-help-info",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/help",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "ヘルプの内容",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "body_not_contains": [
+     "internal",
+     "password"
+    ]
+   }
+  },
+  {
+   "test_id": "t-slip-own",
+   "feature": "payslips",
+   "hypothesis": "h-payslip-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/api/payslips",
+   "params": {
+    "id": "1"
+   },
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "自分の明細が取得できる(対照)",
+   "kind": "control",
+   "expect": {
+    "status": 200,
+    "body_contains": [
+     "net_pay"
+    ]
+   }
+  },
+  {
+   "test_id": "t-slip-cross",
+   "feature": "payslips",
+   "hypothesis": "h-payslip-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/api/payslips",
+   "params": {
+    "id": "2"
+   },
+   "cost": 1,
+   "info_value": 0.9,
+   "purpose": "他人の明細が拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ],
+    "body_not_contains": [
+     "net_pay"
+    ]
+   }
+  },
+  {
+   "test_id": "t-slip-cross-b",
+   "feature": "payslips",
+   "hypothesis": "h-payslip-authz",
+   "role": "user_b",
+   "method": "GET",
+   "path": "/api/payslips",
+   "params": {
+    "id": "1"
+   },
+   "cost": 1,
+   "info_value": 0.6,
+   "purpose": "逆方向でも拒否されるか(裏付け)",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ],
+    "body_not_contains": [
+     "net_pay"
+    ]
+   },
+   "corroborates": true
+  },
+  {
+   "test_id": "t-summary",
+   "feature": "summary",
+   "hypothesis": "h-summary-scope",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/api/payslips/summary",
+   "params": {
+    "year": "2025"
+   },
+   "cost": 1,
+   "info_value": 0.7,
+   "purpose": "全社分の集計が含まれないか",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "body_not_contains": [
+     "company_total"
+    ]
+   }
+  },
+  {
+   "test_id": "t-tax-own",
+   "feature": "tax",
+   "hypothesis": "h-tax-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/api/tax",
+   "params": {
+    "id": "1"
+   },
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "自分の票が取得できる(対照)",
+   "kind": "control",
+   "expect": {
+    "status": 200,
+    "body_contains": [
+     "withheld"
+    ]
+   }
+  },
+  {
+   "test_id": "t-tax-cross",
+   "feature": "tax",
+   "hypothesis": "h-tax-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/api/tax",
+   "params": {
+    "id": "2"
+   },
+   "cost": 1,
+   "info_value": 0.8,
+   "purpose": "他人の票が拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ],
+    "body_not_contains": [
+     "withheld"
+    ]
+   }
+  }
+ ],
+ "normal_behavior": [
+  "給与明細・源泉徴収票は所有者だけ",
+  "社員名簿は人事のみ"
+ ],
+ "budget": {
+  "max_requests": 6,
+  "max_seconds": 60,
+  "max_llm_calls": 8,
+  "max_llm_input_chars": 8000
+ },
+ "stop_conditions": {
+  "min_score": 0.05,
+  "stop_when_all_hypotheses_resolved": true
+ },
+ "evidence": {
+  "save": true
+ },
+ "out_of_scope": [],
+ "notes": []
+}

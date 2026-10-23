@@ -84,6 +84,11 @@ class OriginRejected(Exception):
         self.reason = reason
 
 
+def new_session() -> requests.Session:
+    """送信用セッションの生成口(自律化モジュールがrequestsを直接使わないための窓口。送信はHttpTransport経由のみ)。"""
+    return requests.Session()
+
+
 @dataclass
 class RequestPolicy:
     """送信ポリシー（P0.2）。設定値をエージェント/GUIへ直書きせずここに集約する。"""
@@ -375,18 +380,26 @@ class HttpTransport:
 
         `stream=True`で送信するため、ここで明示的に読み切らないと接続が保持されたままになる。
         上限以内であれば通常の`.content`アクセスと同じ結果になる（切り詰めなし）。
-        打ち切った場合は `resp.fz_truncated = True` を付与する（P1.2の証拠に
-        「省略理由」として引き継ぐためのマーカー。現時点ではログ/証拠保存はしない）。
+        本文が完全でない場合は `resp.fz_truncated = True` と、理由 `resp.fz_incomplete_reason`
+        (size_cap / read_timeout / read_error)・読取量 `resp.fz_bytes_read` を付与する。呼び出し側は
+        不完全な本文に兆候が無いことを陰性の根拠にしない(実装レビュー R2)。
         """
         cap = self.policy.max_response_bytes
         resp.fz_truncated = False
+        resp.fz_incomplete_reason = None
+        resp.fz_bytes_read = 0
         if not cap or cap <= 0:
-            resp.content  # 通常どおり全文読み取り（アクセスした時点でrequestsが読む）
+            try:
+                resp.content  # 通常どおり全文読み取り（アクセスした時点でrequestsが読む）
+            except requests.RequestException:
+                resp.fz_truncated, resp.fz_incomplete_reason = True, "read_error"
+                resp._content = b""
+            resp.fz_bytes_read = len(resp._content) if isinstance(resp._content, bytes) else 0
             return
         chunks: list[bytes] = []
         total = 0
         start = self._clock()
-        truncated = False
+        reason = None
         try:
             for chunk in resp.iter_content(chunk_size=65536):
                 if not chunk:
@@ -394,16 +407,18 @@ class HttpTransport:
                 chunks.append(chunk)
                 total += len(chunk)
                 if total >= cap:
-                    truncated = True
+                    reason = "size_cap"
                     break
                 if self._clock() - start > self.policy.timeout:
-                    truncated = True  # 低速回線での読取引き延ばし対策（時間上限）
+                    reason = "read_timeout"  # 低速回線での読取引き延ばし対策（時間上限）
                     break
         except requests.RequestException:
-            pass
+            reason = "read_error"            # 途中切断。取れた分だけ残すが、完全な応答として扱わない
         finally:
             resp.close()
         body = b"".join(chunks)[:cap]
         resp._content = body
         resp._content_consumed = True
-        resp.fz_truncated = truncated
+        resp.fz_truncated = reason is not None
+        resp.fz_incomplete_reason = reason
+        resp.fz_bytes_read = len(body)

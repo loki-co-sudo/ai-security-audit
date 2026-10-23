@@ -1,0 +1,293 @@
+{
+ "schema": "ai-security-audit-lab-case",
+ "schema_version": "1",
+ "case_id": "lab-chain-02",
+ "split": "dev",
+ "title": "模擬ドキュメントサイト(連鎖と非連鎖)",
+ "target_ref": "app:chaindocs",
+ "scope": {
+  "allowed_hosts": [
+   "127.0.0.1"
+  ],
+  "excluded_paths": [
+   "/logout",
+   "/admin/reset"
+  ]
+ },
+ "side_effects_allowed": [
+  "T1",
+  "T2"
+ ],
+ "accounts": {
+  "user_a": "cred:user_a",
+  "user_b": "cred:user_b",
+  "user_expired": "cred:user_expired"
+ },
+ "features": [
+  {
+   "feature_id": "admin",
+   "title": "管理エクスポート",
+   "description": "管理者だけが利用できる"
+  },
+  {
+   "feature_id": "cookies",
+   "title": "Cookie",
+   "description": "セッションCookieはスクリプトから読めない"
+  },
+  {
+   "feature_id": "oldexport",
+   "title": "旧エクスポート",
+   "description": "撤去済みで利用できない"
+  },
+  {
+   "feature_id": "query",
+   "title": "検索",
+   "description": "入力値は無害化して表示する"
+  },
+  {
+   "feature_id": "robots",
+   "title": "robots.txt",
+   "description": "内部パスを列挙しない"
+  },
+  {
+   "feature_id": "sitemap",
+   "title": "sitemap.xml",
+   "description": "公開ページだけ列挙する"
+  }
+ ],
+ "hypotheses": [
+  {
+   "hypothesis_id": "h-admin-authz",
+   "feature": "admin",
+   "rule_id": "BROKEN_ACCESS_CONTROL",
+   "title": "管理エクスポートを未ログインで使えないか",
+   "prior_value": 0.6,
+   "severity_hint": "HIGH",
+   "remediation": "管理者権限の検査を維持する",
+   "provides": [
+    "missing_function_authz"
+   ]
+  },
+  {
+   "hypothesis_id": "h-cookie-ok",
+   "feature": "cookies",
+   "rule_id": "COOKIE_FLAGS",
+   "title": "セッションCookieにHttpOnlyが付くか",
+   "prior_value": 0.3,
+   "severity_hint": "MEDIUM",
+   "remediation": "現状の設定を維持する",
+   "provides": [
+    "cookie_script_readable"
+   ]
+  },
+  {
+   "hypothesis_id": "h-oldexport-authz",
+   "feature": "oldexport",
+   "rule_id": "BROKEN_ACCESS_CONTROL",
+   "title": "撤去済みの旧エクスポートが認可なしで使えないか",
+   "prior_value": 0.5,
+   "severity_hint": "HIGH",
+   "remediation": "旧エクスポートのルートを削除する",
+   "provides": [
+    "missing_function_authz"
+   ]
+  },
+  {
+   "hypothesis_id": "h-q-xss",
+   "feature": "query",
+   "rule_id": "XSS",
+   "title": "検索語が無害化されて表示されるか",
+   "prior_value": 0.4,
+   "severity_hint": "MEDIUM",
+   "remediation": "出力時にHTMLエスケープする",
+   "provides": [
+    "xss_reflected"
+   ]
+  },
+  {
+   "hypothesis_id": "h-robots-leak",
+   "feature": "robots",
+   "rule_id": "INFO_DISCLOSURE",
+   "title": "robots.txtが内部パスを列挙しないか",
+   "prior_value": 0.3,
+   "severity_hint": "LOW",
+   "remediation": "内部パスをrobots.txtに書かない",
+   "provides": [
+    "reveals_internal_path"
+   ]
+  },
+  {
+   "hypothesis_id": "h-sitemap-leak",
+   "feature": "sitemap",
+   "rule_id": "INFO_DISCLOSURE",
+   "title": "sitemap.xmlが内部パスを列挙しないか",
+   "prior_value": 0.2,
+   "severity_hint": "LOW",
+   "remediation": "公開ページだけを載せる",
+   "provides": [
+    "reveals_internal_path"
+   ]
+  }
+ ],
+ "tests": [
+  {
+   "test_id": "t-admin-anon",
+   "feature": "admin",
+   "hypothesis": "h-admin-authz",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/admin/export",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.7,
+   "purpose": "未ログインで管理エクスポートが拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     401,
+     403
+    ]
+   },
+   "inconclusive_statuses": []
+  },
+  {
+   "test_id": "t-login-cookie",
+   "feature": "cookies",
+   "hypothesis": "h-cookie-ok",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/login",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.5,
+   "purpose": "セッションCookieのHttpOnly属性",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "header_contains": {
+     "Set-Cookie": "HttpOnly"
+    }
+   }
+  },
+  {
+   "test_id": "t-old-anon",
+   "feature": "oldexport",
+   "hypothesis": "h-oldexport-authz",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/admin-old/export",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.8,
+   "purpose": "旧エクスポートが認可なしで使えないか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     401,
+     403,
+     404
+    ]
+   },
+   "inconclusive_statuses": []
+  },
+  {
+   "test_id": "t-q-plain",
+   "feature": "query",
+   "hypothesis": "h-q-xss",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/q",
+   "params": {
+    "s": "hello"
+   },
+   "cost": 1,
+   "info_value": 0.2,
+   "purpose": "通常の検索語が表示される(対照)",
+   "kind": "control",
+   "expect": {
+    "status": 200,
+    "body_contains": [
+     "hello"
+    ]
+   }
+  },
+  {
+   "test_id": "t-q-reflect",
+   "feature": "query",
+   "hypothesis": "h-q-xss",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/q",
+   "params": {
+    "s": "<script>1</script>"
+   },
+   "cost": 1,
+   "info_value": 0.6,
+   "purpose": "スクリプト断片がそのまま反射されないか",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "body_not_contains": [
+     "<script>1</script>"
+    ]
+   }
+  },
+  {
+   "test_id": "t-robots",
+   "feature": "robots",
+   "hypothesis": "h-robots-leak",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/robots.txt",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.5,
+   "purpose": "robots.txtが内部パスを含まないか",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "body_not_contains": [
+     "admin"
+    ]
+   }
+  },
+  {
+   "test_id": "t-sitemap",
+   "feature": "sitemap",
+   "hypothesis": "h-sitemap-leak",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/sitemap.xml",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.4,
+   "purpose": "sitemap.xmlが内部パスを含まないか",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "body_not_contains": [
+     "admin"
+    ]
+   }
+  }
+ ],
+ "normal_behavior": [
+  "管理エクスポートは管理者のみ",
+  "旧エクスポートは撤去済み"
+ ],
+ "budget": {
+  "max_requests": 5,
+  "max_seconds": 60,
+  "max_llm_calls": 8,
+  "max_llm_input_chars": 8000
+ },
+ "stop_conditions": {
+  "min_score": 0.05,
+  "stop_when_all_hypotheses_resolved": true
+ },
+ "evidence": {
+  "save": true
+ },
+ "out_of_scope": [],
+ "notes": []
+}

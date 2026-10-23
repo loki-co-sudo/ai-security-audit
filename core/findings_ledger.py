@@ -7,7 +7,6 @@ reports/engagements/<engagement_id>/events.jsonl に scan_recorded / finding_obs
 一致し、認証が確認できている場合だけ。LLM推論のモード(AUDIT/ATTACK/DEFENSE)、旧coverage、IDOR集約項目は常に UNVERIFIED。
 """
 from __future__ import annotations
-import fcntl
 import hashlib
 import json
 import os
@@ -16,10 +15,13 @@ import uuid
 from datetime import datetime
 from urllib.parse import urlsplit
 
+from core import file_lock
+
 SCHEMA_VERSION = "1"
 STATUSES = ("open", "fixed", "accepted-risk")
 _ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}")
-_FID_RE = re.compile(r"f_[0-9a-f]{16}")
+ID_VERSION = 2
+_FID_RE = re.compile(r"f2?_[0-9a-f]{16}")        # f_ = 旧形式(v1・hostのみ)、f2_ = v2(正規化origin)
 _CONCLUSIVE_AUTH = ("anonymous", "authenticated")
 DEFAULT_ROOT = os.path.join("reports", "engagements")
 
@@ -58,15 +60,47 @@ def unit_of(location: str) -> str | None:
     return f"{m.group(1)} {m.group(2)}" if m else None
 
 
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+
+
+def origin_of(target: str) -> str:
+    """URLなら scheme://host[:port](既定portは省略・小文字)。URLでなければ小文字化した文字列(コード監査のパス等)。"""
+    t = str(target or "")
+    if "://" not in t:
+        return t.lower()
+    try:
+        u = urlsplit(t)
+        scheme, host, port = u.scheme.lower(), (u.hostname or "").lower(), u.port
+    except ValueError:
+        return t.lower()
+    if not host:
+        return t.lower()
+    if ":" in host:
+        host = f"[{host}]"
+    return f"{scheme}://{host}" + (f":{port}" if port and port != _DEFAULT_PORTS.get(scheme) else "")
+
+
 def finding_id(engagement_id: str, target: str, rule_id: str, location: str, role: str) -> str:
+    """v2: 正規化origin(scheme/host/実効port)を含む。http/https・別portは別の所見として扱う(抑制も共有しない)。"""
+    key = "\x1f".join(["v2", engagement_id, origin_of(target), str(rule_id).strip().upper(),
+                       normalize_location(location), role])
+    return "f2_" + hashlib.sha256(key.encode()).hexdigest()[:16]
+
+
+def legacy_finding_id(engagement_id: str, target: str, rule_id: str, location: str, role: str) -> str:
+    """v1(netlocのみ・schemeを捨てる)。既存台帳の突合と移行候補の算出用。新規記録には使わない。"""
     origin = urlsplit(target).netloc.lower() if "://" in str(target) else str(target).lower()
     key = "\x1f".join([engagement_id, origin, str(rule_id).strip().upper(), normalize_location(location), role])
     return "f_" + hashlib.sha256(key.encode()).hexdigest()[:16]
 
 
-def _coverage_summary(coverage: list[dict]) -> tuple[list[str], list[str], str]:
-    """(全カテゴリtestedの検査単位, 認証context一覧, 認証役割)。粒度が足りないcoverageは単位を空にする。"""
+def _coverage_summary(coverage: list[dict]) -> tuple[list[str], list[str], str, dict[str, list[str]], dict[str, list[str]]]:
+    """(全カテゴリtestedの検査単位, 認証context一覧, 認証役割, 単位→計画されたカテゴリ, 単位→完了したカテゴリ)。
+
+    粒度が足りないcoverageは単位を空にする。カテゴリ集合を別に持つのは、行そのものが欠けた単位を『全カテゴリ検査済み』にしないため。"""
     units: dict[str, list[bool]] = {}
+    planned: dict[str, set[str]] = {}
+    done: dict[str, set[str]] = {}
     contexts: set[str] = set()
     for c in coverage or []:
         rule, ref = str(c.get("rule_id", "")), str(c.get("target_ref", ""))
@@ -76,9 +110,14 @@ def _coverage_summary(coverage: list[dict]) -> tuple[list[str], list[str], str]:
         if not rule.startswith("WEB_FUZZ_") or rule == "WEB_FUZZ_PROBE" or ref.startswith("("):
             continue
         u = f"{urlsplit(ref).path or '/'} {c.get('parameter', '')}"
-        units.setdefault(u, []).append(c.get("status") == "tested" and ctx in _CONCLUSIVE_AUTH)
+        ok = c.get("status") == "tested" and ctx in _CONCLUSIVE_AUTH
+        units.setdefault(u, []).append(ok)
+        planned.setdefault(u, set()).add(rule)
+        if ok:
+            done.setdefault(u, set()).add(rule)
     role = "authenticated" if "authenticated" in contexts else ("anonymous" if "anonymous" in contexts else "unknown")
-    return sorted(u for u, oks in units.items() if oks and all(oks)), sorted(contexts), role
+    return (sorted(u for u, oks in units.items() if oks and all(oks)), sorted(contexts), role,
+            {u: sorted(v) for u, v in planned.items()}, {u: sorted(v) for u, v in done.items()})
 
 
 class Ledger:
@@ -104,10 +143,9 @@ class Ledger:
                 assert isinstance(ev, dict)
             except (ValueError, AssertionError):
                 raise LedgerCorrupt(f"台帳の{i}行目が壊れています(途中行は自動回復しません)")
-            if ev.get("schema_version") != SCHEMA_VERSION:
-                raise LedgerCorrupt(f"台帳の{i}行目のschema_versionが未対応です")
-            if ev.get("engagement_id") != self.engagement_id:
-                raise LedgerCorrupt(f"台帳の{i}行目が別案件のイベントです")
+            why = self._invalid_reason(ev)
+            if why:
+                raise LedgerCorrupt(f"台帳の{i}行目: {why}")
             if ev.get("event_id") in seen:
                 warnings.append(f"重複イベントを無視しました: {ev.get('event_id')}")
                 continue
@@ -117,20 +155,37 @@ class Ledger:
             try:
                 ev = json.loads(tail.decode("utf-8"))
                 assert isinstance(ev, dict) and ev.get("event_id") not in seen
-                events.append(ev)
-                warnings.append("最終行に改行がありませんでした(読み取りは継続)")
             except (ValueError, AssertionError):
                 warnings.append("最終行が不完全なため無視しました(次回の追記時に取り除きます)")
+            else:
+                why = self._invalid_reason(ev)
+                if why:
+                    warnings.append(f"最終行を採用しませんでした({why}。次回の追記時に取り除きます)")
+                else:
+                    events.append(ev)
+                    warnings.append("最終行に改行がありませんでした(読み取りは継続)")
+        if any(e.get("type") == "finding_observed" and e.get("id_version", 1) < ID_VERSION for e in events):
+            warnings.append("旧形式(v1)の所見IDを含む台帳です。旧IDのstatus/抑制は新しいIDへ自動では引き継がれません"
+                            "(http/httpsなど複数originに分かれ得るため。移行は一対一と確認できたものだけをdry-runで確認して行う)")
         return events, warnings
+
+    def _invalid_reason(self, ev: dict) -> str | None:
+        """通常行と改行なし最終行で共通のイベント検証。妥当なら None。"""
+        if ev.get("schema_version") != SCHEMA_VERSION:
+            return "schema_versionが未対応です"
+        if ev.get("engagement_id") != self.engagement_id:
+            return "別案件のイベントです"
+        if not isinstance(ev.get("event_id"), str) or not ev["event_id"] or not isinstance(ev.get("type"), str):
+            return "必須キー(event_id/type)がありません"
+        return None
 
     def _append(self, events: list[dict]) -> None:
         os.makedirs(self.dir, mode=0o700, exist_ok=True)
-        lock = os.open(os.path.join(self.dir, "events.lock"), os.O_CREAT | os.O_RDWR, 0o600)
         try:
-            try:
-                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
-                raise LedgerBusy("別のプロセスが台帳へ書き込み中です。後でやり直してください")
+            lock = file_lock.acquire(os.path.join(self.dir, "events.lock"))
+        except file_lock.LockBusy:
+            raise LedgerBusy("別のプロセスが台帳へ書き込み中です。後でやり直してください")
+        try:
             self._repair_tail()
             existing = {e["event_id"] for e in self.read()[0]}
             fresh = [e for e in events if e["event_id"] not in existing]
@@ -144,7 +199,7 @@ class Ledger:
             finally:
                 os.close(fd)
         finally:
-            os.close(lock)
+            file_lock.release(lock)
 
     def _repair_tail(self) -> None:
         if not os.path.exists(self.path):
@@ -156,7 +211,8 @@ class Ledger:
         keep = data[: data.rfind(b"\n") + 1]
         tail = data[len(keep):]
         try:
-            ok = isinstance(json.loads(tail.decode("utf-8")), dict)
+            ev = json.loads(tail.decode("utf-8"))
+            ok = isinstance(ev, dict) and self._invalid_reason(ev) is None
         except ValueError:
             ok = False
         with open(self.path, "r+b") as f:
@@ -180,19 +236,20 @@ class Ledger:
         if not sid:
             raise LedgerError("scan_idがありません")
         mode, target = str(result.get("mode", "")), str(result.get("target", ""))
-        units, contexts, role = _coverage_summary(result.get("coverage") or [])
+        units, contexts, role, planned, done = _coverage_summary(result.get("coverage") or [])
         dv = str(result.get("detector_version", ""))
         evs = [self._event("scan_recorded", f"scan:{sid}", scan_id=sid, mode=mode, target=target,
                            state=result.get("state", ""), detector_version=dv, auth_role=role,
-                           auth_contexts=contexts, tested_units=units,
+                           auth_contexts=contexts, tested_units=units, tested_categories=done,
                            errors=list(result.get("errors") or [])[:20])]
         ids = []
         for f in result.get("findings") or []:
             fid = finding_id(self.engagement_id, target, f.get("rule_id", ""), f.get("location", ""), role)
             ids.append(fid)
-            evs.append(self._event("finding_observed", f"obs:{sid}:{fid}", scan_id=sid, finding_id=fid,
+            evs.append(self._event("finding_observed", f"obs:{sid}:{fid}", scan_id=sid, finding_id=fid, id_version=ID_VERSION,
                                    rule_id=f.get("rule_id", ""), location=f.get("location", ""),
                                    unit=unit_of(f.get("location", "")), severity=f.get("severity", ""),
+                                   unit_categories=planned.get(unit_of(f.get("location", "")) or "", []),
                                    verification_state=f.get("verification_state", ""), auth_role=role,
                                    detector_version=dv, mode=mode))
         self._append(evs)
@@ -308,7 +365,15 @@ class Ledger:
             if e["type"] == "finding_observed":
                 obs.setdefault(e["scan_id"], {})[e["finding_id"]] = e
         before, after = obs.get(before_scan, {}), obs.get(after_scan, {})
-        history = [(i, s) for i, s in scans.values() if i < ai and s["target"] == a["target"]]
+
+        def id_version(scan_id: str) -> int | None:
+            vs = {int(o.get("id_version", 1)) for o in obs.get(scan_id, {}).values()}
+            return max(vs) if vs else None            # 所見の無いscanはどの版とも比較できる
+        vb, va = id_version(before_scan), id_version(after_scan)
+        if vb and va and vb != va:
+            raise LedgerError(f"所見IDの版が異なるscan同士は比較できません(v{vb}とv{va}。旧IDは自動で新IDへ対応づけません)")
+        history = [(i, s) for i, s in scans.values() if i < ai and s["target"] == a["target"]
+                   and id_version(s["scan_id"]) in (None, va or vb or ID_VERSION)]
 
         def absent_proof(scan: dict, o: dict) -> str | None:
             """scan で o(過去の所見)が『検査されたが観測されなかった』と言えない理由。言えるなら None。"""
@@ -322,6 +387,11 @@ class Ledger:
                 return "認証役割が一致しない、または認証を確認できていない"
             if o["unit"] not in scan.get("tested_units", []):
                 return "同じ検査単位が全カテゴリ完了していない(未検査・予算切れ・失敗・旧coverage)"
+            need = set(o.get("unit_categories") or [])
+            if not need:
+                return "所見を観測したscanの検査カテゴリが記録されていない(旧形式)"
+            if not need <= set((scan.get("tested_categories") or {}).get(o["unit"], [])):
+                return "所見を観測したときのカテゴリが再検査で完了していない(カテゴリの欠落)"
             return None
 
         def last_definite(fid: str) -> str | None:

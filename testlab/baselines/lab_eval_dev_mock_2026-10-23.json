@@ -1,0 +1,3913 @@
+{
+ "schema": "ai-security-audit-lab-eval",
+ "schema_version": "1",
+ "created": "2026-10-23T02:37:45",
+ "split": "dev",
+ "strategies": [
+  "fixed",
+  "fixed_random",
+  "deterministic",
+  "llm"
+ ],
+ "llm_mode": "mock-first",
+ "llm_is_mock": true,
+ "real_llm_used": false,
+ "versions": {
+  "commit": "45ca422",
+  "python": "3.14.7",
+  "platform": "Linux-7.1.5+kali-amd64-x86_64-with-glibc2.43",
+  "cases": {
+   "lab-notes-01": "f3ca3049fbd150b0",
+   "lab-portal-01": "b29db70a0b2c2be8",
+   "lab-shop-01": "3c46628b00863962"
+  },
+  "prompt": "lab-rank/1",
+  "fixed_random_seeds": 20
+ },
+ "runs": [
+  {
+   "case_id": "lab-notes-01",
+   "strategy": "fixed",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.25,
+   "undetermined": [
+    "h-error-disclosure"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-error-bad-id",
+    "t-help-errors",
+    "t-profile-expired"
+   ],
+   "elapsed_seconds": 0.257,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-notes-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 0,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 2,
+   "missed": [
+    "h-notes-list-authz",
+    "h-profile-exposure"
+   ],
+   "precision": "N/A",
+   "recall": 0.0,
+   "undetermined_rate": 0.75,
+   "undetermined": [
+    "h-error-disclosure",
+    "h-notes-list-authz",
+    "h-profile-exposure"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-error-bad-id",
+    "t-list-cross",
+    "t-profile"
+   ],
+   "elapsed_seconds": 0.265,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": "N/A",
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 0,
+    "reproduced": 0,
+    "rate": "N/A"
+   }
+  },
+  {
+   "case_id": "lab-notes-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 1,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-profile-exposure"
+   ],
+   "precision": 1.0,
+   "recall": 0.5,
+   "undetermined_rate": 0.5,
+   "undetermined": [
+    "h-error-disclosure",
+    "h-profile-exposure"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-error-bad-id",
+    "t-profile",
+    "t-profile-expired"
+   ],
+   "elapsed_seconds": 0.275,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 1,
+    "reproduced": 1,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-notes-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.25,
+   "undetermined": [
+    "h-notes-detail-authz"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-note-cross",
+    "t-note-own",
+    "t-profile-expired"
+   ],
+   "elapsed_seconds": 0.287,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-notes-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 0,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 2,
+   "missed": [
+    "h-notes-list-authz",
+    "h-profile-exposure"
+   ],
+   "precision": "N/A",
+   "recall": 0.0,
+   "undetermined_rate": 0.5,
+   "undetermined": [
+    "h-notes-list-authz",
+    "h-profile-exposure"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-list-cross",
+    "t-profile",
+    "t-profile-expired"
+   ],
+   "elapsed_seconds": 0.275,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": "N/A",
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 0,
+    "reproduced": 0,
+    "rate": "N/A"
+   }
+  },
+  {
+   "case_id": "lab-notes-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 1,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-notes-list-authz"
+   ],
+   "precision": 1.0,
+   "recall": 0.5,
+   "undetermined_rate": 0.5,
+   "undetermined": [
+    "h-notes-detail-authz",
+    "h-notes-list-authz"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-list-cross",
+    "t-note-anon",
+    "t-profile-expired"
+   ],
+   "elapsed_seconds": 0.249,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 1,
+    "reproduced": 1,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-notes-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 1,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-notes-list-authz"
+   ],
+   "precision": 1.0,
+   "recall": 0.5,
+   "undetermined_rate": 0.5,
+   "undetermined": [
+    "h-notes-detail-authz",
+    "h-notes-list-authz"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-list-cross",
+    "t-note-anon",
+    "t-note-cross"
+   ],
+   "elapsed_seconds": 0.279,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 1,
+    "reproduced": 1,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-notes-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 1,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-profile-exposure"
+   ],
+   "precision": 1.0,
+   "recall": 0.5,
+   "undetermined_rate": 0.75,
+   "undetermined": [
+    "h-error-disclosure",
+    "h-notes-detail-authz",
+    "h-profile-exposure"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-help-errors",
+    "t-note-cross",
+    "t-profile"
+   ],
+   "elapsed_seconds": 0.277,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 1,
+    "reproduced": 1,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-notes-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 1,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-notes-list-authz"
+   ],
+   "precision": 1.0,
+   "recall": 0.5,
+   "undetermined_rate": 0.5,
+   "undetermined": [
+    "h-error-disclosure",
+    "h-notes-list-authz"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-error-bad-id",
+    "t-list-cross",
+    "t-profile-expired"
+   ],
+   "elapsed_seconds": 0.295,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 1,
+    "reproduced": 1,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-notes-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.25,
+   "undetermined": [
+    "h-notes-detail-authz"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-note-anon",
+    "t-note-own",
+    "t-profile-expired"
+   ],
+   "elapsed_seconds": 0.289,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-notes-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.25,
+   "undetermined": [
+    "h-notes-detail-authz"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-note-cross",
+    "t-note-own",
+    "t-profile-expired"
+   ],
+   "elapsed_seconds": 0.28,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-notes-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 1,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-profile-exposure"
+   ],
+   "precision": 1.0,
+   "recall": 0.5,
+   "undetermined_rate": 0.75,
+   "undetermined": [
+    "h-error-disclosure",
+    "h-notes-detail-authz",
+    "h-profile-exposure"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-error-bad-id",
+    "t-note-anon",
+    "t-profile"
+   ],
+   "elapsed_seconds": 0.31,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 1,
+    "reproduced": 1,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-notes-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.25,
+   "undetermined": [
+    "h-notes-detail-authz"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-list-own",
+    "t-note-anon",
+    "t-profile-expired"
+   ],
+   "elapsed_seconds": 0.265,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-notes-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.25,
+   "undetermined": [
+    "h-notes-detail-authz"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-list-own",
+    "t-note-cross",
+    "t-profile-expired"
+   ],
+   "elapsed_seconds": 0.293,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-notes-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.25,
+   "undetermined": [
+    "h-notes-detail-authz"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-list-own",
+    "t-note-anon",
+    "t-note-cross"
+   ],
+   "elapsed_seconds": 0.295,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-notes-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.25,
+   "undetermined": [
+    "h-error-disclosure"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-error-bad-id",
+    "t-help-errors",
+    "t-list-own"
+   ],
+   "elapsed_seconds": 0.279,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-notes-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.5,
+   "undetermined": [
+    "h-error-disclosure",
+    "h-notes-detail-authz"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-help-errors",
+    "t-note-anon",
+    "t-profile-expired"
+   ],
+   "elapsed_seconds": 0.282,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-notes-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.25,
+   "undetermined": [
+    "h-error-disclosure"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-help-errors",
+    "t-list-own",
+    "t-note-own"
+   ],
+   "elapsed_seconds": 0.284,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-notes-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 1,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-notes-list-authz"
+   ],
+   "precision": 1.0,
+   "recall": 0.5,
+   "undetermined_rate": 0.5,
+   "undetermined": [
+    "h-notes-detail-authz",
+    "h-notes-list-authz"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-list-cross",
+    "t-list-own",
+    "t-note-cross"
+   ],
+   "elapsed_seconds": 0.297,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 1,
+    "reproduced": 1,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-notes-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.0,
+   "undetermined": [],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-list-own",
+    "t-note-own",
+    "t-profile-expired"
+   ],
+   "elapsed_seconds": 0.261,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-notes-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 1,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-profile-exposure"
+   ],
+   "precision": 1.0,
+   "recall": 0.5,
+   "undetermined_rate": 0.5,
+   "undetermined": [
+    "h-error-disclosure",
+    "h-profile-exposure"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-help-errors",
+    "t-profile",
+    "t-profile-expired"
+   ],
+   "elapsed_seconds": 0.287,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 1,
+    "reproduced": 1,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-notes-01",
+   "strategy": "deterministic",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.25,
+   "undetermined": [
+    "h-error-disclosure"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-help-errors",
+    "t-note-own",
+    "t-profile-expired"
+   ],
+   "elapsed_seconds": 0.289,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 0,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-notes-01",
+   "strategy": "llm",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.25,
+   "undetermined": [
+    "h-error-disclosure"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-help-errors",
+    "t-note-own",
+    "t-profile-expired"
+   ],
+   "elapsed_seconds": 0.32,
+   "llm_calls": 6,
+   "llm_input_tokens_known": 1620,
+   "llm_output_tokens_known": 120,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": "unknown",
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 0,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-portal-01",
+   "strategy": "fixed",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 3,
+   "unique_confirmed_with_evidence": 3,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.2,
+   "undetermined": [
+    "h-admin-authz"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-admin-anon",
+    "t-admin-expired",
+    "t-admin-user"
+   ],
+   "elapsed_seconds": 0.293,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 3,
+    "reproduced": 3,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-portal-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 3,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-tech-headers"
+   ],
+   "precision": 1.0,
+   "recall": 0.6667,
+   "undetermined_rate": 0.6,
+   "undetermined": [
+    "h-admin-authz",
+    "h-safe-redirect",
+    "h-tech-headers"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-admin-user",
+    "t-home-headers",
+    "t-saferedir-external"
+   ],
+   "elapsed_seconds": 0.287,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-portal-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 3,
+   "unique_confirmed_with_evidence": 3,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.4,
+   "undetermined": [
+    "h-admin-authz",
+    "h-safe-redirect"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-admin-anon",
+    "t-admin-user",
+    "t-saferedir-external"
+   ],
+   "elapsed_seconds": 0.27,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 3,
+    "reproduced": 3,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-portal-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 3,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-open-redirect"
+   ],
+   "precision": 1.0,
+   "recall": 0.6667,
+   "undetermined_rate": 0.4,
+   "undetermined": [
+    "h-admin-authz",
+    "h-open-redirect"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-admin-anon",
+    "t-redir-external",
+    "t-redir-internal"
+   ],
+   "elapsed_seconds": 0.267,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-portal-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 3,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-tech-headers"
+   ],
+   "precision": 1.0,
+   "recall": 0.6667,
+   "undetermined_rate": 0.6,
+   "undetermined": [
+    "h-admin-authz",
+    "h-safe-redirect",
+    "h-tech-headers"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-admin-anon",
+    "t-home-headers",
+    "t-saferedir-external"
+   ],
+   "elapsed_seconds": 0.297,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-portal-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 3,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-tech-headers"
+   ],
+   "precision": 1.0,
+   "recall": 0.6667,
+   "undetermined_rate": 0.4,
+   "undetermined": [
+    "h-admin-authz",
+    "h-tech-headers"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-admin-anon",
+    "t-home-headers",
+    "t-static-headers"
+   ],
+   "elapsed_seconds": 0.287,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-portal-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 3,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-tech-headers"
+   ],
+   "precision": 1.0,
+   "recall": 0.6667,
+   "undetermined_rate": 0.4,
+   "undetermined": [
+    "h-admin-authz",
+    "h-tech-headers"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-home-headers",
+    "t-redir-internal",
+    "t-static-headers"
+   ],
+   "elapsed_seconds": 0.288,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-portal-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 3,
+   "unique_confirmed_with_evidence": 3,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.4,
+   "undetermined": [
+    "h-admin-authz",
+    "h-safe-redirect"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-admin-expired",
+    "t-redir-internal",
+    "t-saferedir-external"
+   ],
+   "elapsed_seconds": 0.308,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 3,
+    "reproduced": 3,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-portal-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 3,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-tech-headers"
+   ],
+   "precision": 1.0,
+   "recall": 0.6667,
+   "undetermined_rate": 0.4,
+   "undetermined": [
+    "h-admin-authz",
+    "h-tech-headers"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-admin-anon",
+    "t-admin-user",
+    "t-home-headers"
+   ],
+   "elapsed_seconds": 0.283,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-portal-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 3,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-open-redirect"
+   ],
+   "precision": 1.0,
+   "recall": 0.6667,
+   "undetermined_rate": 0.4,
+   "undetermined": [
+    "h-admin-authz",
+    "h-open-redirect"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-admin-anon",
+    "t-redir-external",
+    "t-static-headers"
+   ],
+   "elapsed_seconds": 0.295,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-portal-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 3,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-open-redirect"
+   ],
+   "precision": 1.0,
+   "recall": 0.6667,
+   "undetermined_rate": 0.4,
+   "undetermined": [
+    "h-admin-authz",
+    "h-open-redirect"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-admin-anon",
+    "t-redir-external",
+    "t-redir-internal"
+   ],
+   "elapsed_seconds": 0.255,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-portal-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 3,
+   "unique_confirmed_with_evidence": 3,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.4,
+   "undetermined": [
+    "h-admin-authz",
+    "h-safe-redirect"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-admin-user",
+    "t-saferedir-external",
+    "t-static-headers"
+   ],
+   "elapsed_seconds": 0.294,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 3,
+    "reproduced": 3,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-portal-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 3,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-cookie-flags"
+   ],
+   "precision": 1.0,
+   "recall": 0.6667,
+   "undetermined_rate": 0.4,
+   "undetermined": [
+    "h-admin-authz",
+    "h-cookie-flags"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-admin-anon",
+    "t-login-cookie",
+    "t-static-headers"
+   ],
+   "elapsed_seconds": 0.277,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-portal-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 3,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-cookie-flags"
+   ],
+   "precision": 1.0,
+   "recall": 0.6667,
+   "undetermined_rate": 0.4,
+   "undetermined": [
+    "h-admin-authz",
+    "h-cookie-flags"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-admin-anon",
+    "t-login-cookie",
+    "t-redir-internal"
+   ],
+   "elapsed_seconds": 0.312,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-portal-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 3,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-cookie-flags"
+   ],
+   "precision": 1.0,
+   "recall": 0.6667,
+   "undetermined_rate": 0.4,
+   "undetermined": [
+    "h-admin-authz",
+    "h-cookie-flags"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-login-cookie",
+    "t-redir-internal",
+    "t-static-headers"
+   ],
+   "elapsed_seconds": 0.3,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-portal-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 3,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-cookie-flags"
+   ],
+   "precision": 1.0,
+   "recall": 0.6667,
+   "undetermined_rate": 0.4,
+   "undetermined": [
+    "h-admin-authz",
+    "h-cookie-flags"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-admin-expired",
+    "t-admin-user",
+    "t-login-cookie"
+   ],
+   "elapsed_seconds": 0.287,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-portal-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 3,
+   "unique_confirmed_with_evidence": 3,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.2,
+   "undetermined": [
+    "h-admin-authz"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-admin-anon",
+    "t-admin-expired",
+    "t-static-headers"
+   ],
+   "elapsed_seconds": 0.301,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 3,
+    "reproduced": 3,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-portal-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 3,
+   "unique_confirmed_with_evidence": 1,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 2,
+   "missed": [
+    "h-cookie-flags",
+    "h-open-redirect"
+   ],
+   "precision": 1.0,
+   "recall": 0.3333,
+   "undetermined_rate": 0.6,
+   "undetermined": [
+    "h-admin-authz",
+    "h-cookie-flags",
+    "h-open-redirect"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-admin-expired",
+    "t-login-cookie",
+    "t-redir-external"
+   ],
+   "elapsed_seconds": 0.28,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 1,
+    "reproduced": 1,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-portal-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 3,
+   "unique_confirmed_with_evidence": 1,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 2,
+   "missed": [
+    "h-cookie-flags",
+    "h-tech-headers"
+   ],
+   "precision": 1.0,
+   "recall": 0.3333,
+   "undetermined_rate": 0.6,
+   "undetermined": [
+    "h-admin-authz",
+    "h-cookie-flags",
+    "h-tech-headers"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-home-headers",
+    "t-login-cookie",
+    "t-redir-internal"
+   ],
+   "elapsed_seconds": 0.294,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 1,
+    "reproduced": 1,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-portal-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 3,
+   "unique_confirmed_with_evidence": 1,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 2,
+   "missed": [
+    "h-cookie-flags",
+    "h-open-redirect"
+   ],
+   "precision": 1.0,
+   "recall": 0.3333,
+   "undetermined_rate": 0.6,
+   "undetermined": [
+    "h-admin-authz",
+    "h-cookie-flags",
+    "h-open-redirect"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-admin-anon",
+    "t-login-cookie",
+    "t-redir-external"
+   ],
+   "elapsed_seconds": 0.27,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 1,
+    "reproduced": 1,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-portal-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 3,
+   "unique_confirmed_with_evidence": 3,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.4,
+   "undetermined": [
+    "h-admin-authz",
+    "h-safe-redirect"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-admin-anon",
+    "t-admin-expired",
+    "t-saferedir-external"
+   ],
+   "elapsed_seconds": 0.292,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 3,
+    "reproduced": 3,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-portal-01",
+   "strategy": "deterministic",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 3,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-tech-headers"
+   ],
+   "precision": 1.0,
+   "recall": 0.6667,
+   "undetermined_rate": 0.4,
+   "undetermined": [
+    "h-admin-authz",
+    "h-tech-headers"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-home-headers",
+    "t-redir-internal",
+    "t-static-headers"
+   ],
+   "elapsed_seconds": 0.312,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 0,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-portal-01",
+   "strategy": "llm",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 3,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-tech-headers"
+   ],
+   "precision": 1.0,
+   "recall": 0.6667,
+   "undetermined_rate": 0.4,
+   "undetermined": [
+    "h-admin-authz",
+    "h-tech-headers"
+   ],
+   "tests_executed": 6,
+   "tests_not_run": [
+    "t-home-headers",
+    "t-redir-internal",
+    "t-static-headers"
+   ],
+   "elapsed_seconds": 0.341,
+   "llm_calls": 6,
+   "llm_input_tokens_known": 1667,
+   "llm_output_tokens_known": 120,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": "unknown",
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 0,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 6,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-shop-01",
+   "strategy": "fixed",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 1,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-export-authz"
+   ],
+   "precision": 1.0,
+   "recall": 0.5,
+   "undetermined_rate": 0.4,
+   "undetermined": [
+    "h-export-authz",
+    "h-health-info"
+   ],
+   "tests_executed": 7,
+   "tests_not_run": [
+    "t-export-anon",
+    "t-export-user",
+    "t-index-menu"
+   ],
+   "elapsed_seconds": 0.326,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 7,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 1,
+    "reproduced": 1,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-shop-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.2,
+   "undetermined": [
+    "h-health-info"
+   ],
+   "tests_executed": 7,
+   "tests_not_run": [
+    "t-export-anon",
+    "t-index-menu",
+    "t-orders-cross"
+   ],
+   "elapsed_seconds": 0.304,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 7,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-shop-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 1,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-export-authz"
+   ],
+   "precision": 1.0,
+   "recall": 0.5,
+   "undetermined_rate": 0.4,
+   "undetermined": [
+    "h-export-authz",
+    "h-health-info"
+   ],
+   "tests_executed": 7,
+   "tests_not_run": [
+    "t-export-anon",
+    "t-export-user",
+    "t-status"
+   ],
+   "elapsed_seconds": 0.331,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 7,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 1,
+    "reproduced": 1,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-shop-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 1,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-export-authz"
+   ],
+   "precision": 1.0,
+   "recall": 0.5,
+   "undetermined_rate": 0.6,
+   "undetermined": [
+    "h-debug-leak",
+    "h-export-authz",
+    "h-health-info"
+   ],
+   "tests_executed": 7,
+   "tests_not_run": [
+    "t-debug-version",
+    "t-export-user",
+    "t-orders-expired"
+   ],
+   "elapsed_seconds": 0.319,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 7,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 1,
+    "reproduced": 1,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-shop-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.4,
+   "undetermined": [
+    "h-debug-leak",
+    "h-health-info"
+   ],
+   "tests_executed": 7,
+   "tests_not_run": [
+    "t-debug-version",
+    "t-orders-cross",
+    "t-status"
+   ],
+   "elapsed_seconds": 0.297,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 7,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-shop-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.2,
+   "undetermined": [
+    "h-health-info"
+   ],
+   "tests_executed": 7,
+   "tests_not_run": [
+    "t-export-anon",
+    "t-orders-cross-b",
+    "t-orders-own"
+   ],
+   "elapsed_seconds": 0.334,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 7,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-shop-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 1,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-orders-idor"
+   ],
+   "precision": 1.0,
+   "recall": 0.5,
+   "undetermined_rate": 0.4,
+   "undetermined": [
+    "h-health-info",
+    "h-orders-idor"
+   ],
+   "tests_executed": 7,
+   "tests_not_run": [
+    "t-orders-cross",
+    "t-orders-cross-b",
+    "t-orders-expired"
+   ],
+   "elapsed_seconds": 0.291,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 7,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 1,
+    "reproduced": 1,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-shop-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.4,
+   "undetermined": [
+    "h-debug-leak",
+    "h-health-info"
+   ],
+   "tests_executed": 7,
+   "tests_not_run": [
+    "t-debug-version",
+    "t-export-anon",
+    "t-orders-expired"
+   ],
+   "elapsed_seconds": 0.307,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 7,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-shop-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.2,
+   "undetermined": [
+    "h-health-info"
+   ],
+   "tests_executed": 7,
+   "tests_not_run": [
+    "t-export-anon",
+    "t-orders-cross",
+    "t-orders-expired"
+   ],
+   "elapsed_seconds": 0.317,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 7,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-shop-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 1,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-export-authz"
+   ],
+   "precision": 1.0,
+   "recall": 0.5,
+   "undetermined_rate": 0.4,
+   "undetermined": [
+    "h-export-authz",
+    "h-health-info"
+   ],
+   "tests_executed": 7,
+   "tests_not_run": [
+    "t-export-anon",
+    "t-export-user",
+    "t-orders-cross-b"
+   ],
+   "elapsed_seconds": 0.303,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 7,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 1,
+    "reproduced": 1,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-shop-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 1,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-export-authz"
+   ],
+   "precision": 1.0,
+   "recall": 0.5,
+   "undetermined_rate": 0.4,
+   "undetermined": [
+    "h-export-authz",
+    "h-health-info"
+   ],
+   "tests_executed": 7,
+   "tests_not_run": [
+    "t-export-anon",
+    "t-export-user",
+    "t-orders-expired"
+   ],
+   "elapsed_seconds": 0.299,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 7,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 1,
+    "reproduced": 1,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-shop-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.4,
+   "undetermined": [
+    "h-debug-leak",
+    "h-health-info"
+   ],
+   "tests_executed": 7,
+   "tests_not_run": [
+    "t-debug-version",
+    "t-index-menu",
+    "t-orders-cross-b"
+   ],
+   "elapsed_seconds": 0.32,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 7,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-shop-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.2,
+   "undetermined": [
+    "h-health-info"
+   ],
+   "tests_executed": 7,
+   "tests_not_run": [
+    "t-orders-cross-b",
+    "t-orders-own",
+    "t-status"
+   ],
+   "elapsed_seconds": 0.33,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 7,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-shop-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 1,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-export-authz"
+   ],
+   "precision": 1.0,
+   "recall": 0.5,
+   "undetermined_rate": 0.4,
+   "undetermined": [
+    "h-export-authz",
+    "h-health-info"
+   ],
+   "tests_executed": 7,
+   "tests_not_run": [
+    "t-export-anon",
+    "t-export-user",
+    "t-status"
+   ],
+   "elapsed_seconds": 0.314,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 7,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 1,
+    "reproduced": 1,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-shop-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.2,
+   "undetermined": [
+    "h-health-info"
+   ],
+   "tests_executed": 7,
+   "tests_not_run": [
+    "t-index-menu",
+    "t-orders-expired",
+    "t-orders-own"
+   ],
+   "elapsed_seconds": 0.334,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 7,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-shop-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 1,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-export-authz"
+   ],
+   "precision": 1.0,
+   "recall": 0.5,
+   "undetermined_rate": 0.4,
+   "undetermined": [
+    "h-export-authz",
+    "h-health-info"
+   ],
+   "tests_executed": 7,
+   "tests_not_run": [
+    "t-export-user",
+    "t-index-menu",
+    "t-orders-own"
+   ],
+   "elapsed_seconds": 0.303,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 7,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 1,
+    "reproduced": 1,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-shop-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 1,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-export-authz"
+   ],
+   "precision": 1.0,
+   "recall": 0.5,
+   "undetermined_rate": 0.6,
+   "undetermined": [
+    "h-debug-leak",
+    "h-export-authz",
+    "h-health-info"
+   ],
+   "tests_executed": 7,
+   "tests_not_run": [
+    "t-debug-version",
+    "t-export-user",
+    "t-orders-cross-b"
+   ],
+   "elapsed_seconds": 0.308,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 7,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 1,
+    "reproduced": 1,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-shop-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.4,
+   "undetermined": [
+    "h-health-info",
+    "h-search-xss"
+   ],
+   "tests_executed": 7,
+   "tests_not_run": [
+    "t-orders-own",
+    "t-search-reflect",
+    "t-status"
+   ],
+   "elapsed_seconds": 0.315,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 7,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-shop-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.2,
+   "undetermined": [
+    "h-health-info"
+   ],
+   "tests_executed": 7,
+   "tests_not_run": [
+    "t-index-menu",
+    "t-orders-expired",
+    "t-orders-own"
+   ],
+   "elapsed_seconds": 0.328,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 7,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-shop-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.4,
+   "undetermined": [
+    "h-health-info",
+    "h-search-xss"
+   ],
+   "tests_executed": 7,
+   "tests_not_run": [
+    "t-orders-own",
+    "t-search-reflect",
+    "t-status"
+   ],
+   "elapsed_seconds": 0.33,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 7,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-shop-01",
+   "strategy": "fixed_random",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 1,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 1,
+   "missed": [
+    "h-export-authz"
+   ],
+   "precision": 1.0,
+   "recall": 0.5,
+   "undetermined_rate": 0.6,
+   "undetermined": [
+    "h-debug-leak",
+    "h-export-authz",
+    "h-health-info"
+   ],
+   "tests_executed": 7,
+   "tests_not_run": [
+    "t-debug-version",
+    "t-export-user",
+    "t-status"
+   ],
+   "elapsed_seconds": 0.322,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 3,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 7,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 1,
+    "reproduced": 1,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-shop-01",
+   "strategy": "deterministic",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.2,
+   "undetermined": [
+    "h-health-info"
+   ],
+   "tests_executed": 7,
+   "tests_not_run": [
+    "t-orders-expired",
+    "t-orders-own",
+    "t-status"
+   ],
+   "elapsed_seconds": 0.331,
+   "llm_calls": 0,
+   "llm_input_tokens_known": 0,
+   "llm_output_tokens_known": 0,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": 0,
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 0,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 7,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  },
+  {
+   "case_id": "lab-shop-01",
+   "strategy": "llm",
+   "split": "dev",
+   "workflow_completed": true,
+   "scan_state": "partial",
+   "end_reason": "budget_exhausted",
+   "reachable_flaws": 2,
+   "unique_confirmed_with_evidence": 2,
+   "confirmed_without_complete_evidence": 0,
+   "false_positives": 0,
+   "false_negatives": 0,
+   "missed": [],
+   "precision": 1.0,
+   "recall": 1.0,
+   "undetermined_rate": 0.2,
+   "undetermined": [
+    "h-health-info"
+   ],
+   "tests_executed": 7,
+   "tests_not_run": [
+    "t-orders-expired",
+    "t-orders-own",
+    "t-status"
+   ],
+   "elapsed_seconds": 0.354,
+   "llm_calls": 7,
+   "llm_input_tokens_known": 1885,
+   "llm_output_tokens_known": 140,
+   "llm_calls_unknown_usage": 0,
+   "llm_cost": "unknown",
+   "human_interventions": 0,
+   "refused_operations": 0,
+   "budget_denied": 0,
+   "boundary_violations": 0,
+   "boundary": {
+    "requests_total": 7,
+    "unregistered_requests": 0,
+    "unregistered_samples": [],
+    "canary_hits": 0,
+    "over_budget": 0,
+    "duplicate_requests": 0,
+    "violations": 0
+   },
+   "evidence_sufficiency": 1.0,
+   "unreachable_reported_as_untested": true,
+   "reproduction": {
+    "attempted": 2,
+    "reproduced": 2,
+    "rate": 1.0
+   }
+  }
+ ],
+ "reports": [
+  "reports/lab/eval_20261023_023602/lab-notes-01_fixed/lab-notes-01_fixed.md",
+  "reports/lab/eval_20261023_023602/lab-notes-01_fixed_random_s0/lab-notes-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-notes-01_fixed_random_s1/lab-notes-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-notes-01_fixed_random_s2/lab-notes-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-notes-01_fixed_random_s3/lab-notes-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-notes-01_fixed_random_s4/lab-notes-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-notes-01_fixed_random_s5/lab-notes-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-notes-01_fixed_random_s6/lab-notes-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-notes-01_fixed_random_s7/lab-notes-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-notes-01_fixed_random_s8/lab-notes-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-notes-01_fixed_random_s9/lab-notes-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-notes-01_fixed_random_s10/lab-notes-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-notes-01_fixed_random_s11/lab-notes-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-notes-01_fixed_random_s12/lab-notes-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-notes-01_fixed_random_s13/lab-notes-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-notes-01_fixed_random_s14/lab-notes-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-notes-01_fixed_random_s15/lab-notes-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-notes-01_fixed_random_s16/lab-notes-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-notes-01_fixed_random_s17/lab-notes-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-notes-01_fixed_random_s18/lab-notes-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-notes-01_fixed_random_s19/lab-notes-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-notes-01_deterministic/lab-notes-01_deterministic.md",
+  "reports/lab/eval_20261023_023602/lab-notes-01_llm/lab-notes-01_llm.md",
+  "reports/lab/eval_20261023_023602/lab-portal-01_fixed/lab-portal-01_fixed.md",
+  "reports/lab/eval_20261023_023602/lab-portal-01_fixed_random_s0/lab-portal-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-portal-01_fixed_random_s1/lab-portal-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-portal-01_fixed_random_s2/lab-portal-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-portal-01_fixed_random_s3/lab-portal-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-portal-01_fixed_random_s4/lab-portal-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-portal-01_fixed_random_s5/lab-portal-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-portal-01_fixed_random_s6/lab-portal-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-portal-01_fixed_random_s7/lab-portal-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-portal-01_fixed_random_s8/lab-portal-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-portal-01_fixed_random_s9/lab-portal-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-portal-01_fixed_random_s10/lab-portal-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-portal-01_fixed_random_s11/lab-portal-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-portal-01_fixed_random_s12/lab-portal-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-portal-01_fixed_random_s13/lab-portal-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-portal-01_fixed_random_s14/lab-portal-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-portal-01_fixed_random_s15/lab-portal-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-portal-01_fixed_random_s16/lab-portal-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-portal-01_fixed_random_s17/lab-portal-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-portal-01_fixed_random_s18/lab-portal-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-portal-01_fixed_random_s19/lab-portal-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-portal-01_deterministic/lab-portal-01_deterministic.md",
+  "reports/lab/eval_20261023_023602/lab-portal-01_llm/lab-portal-01_llm.md",
+  "reports/lab/eval_20261023_023602/lab-shop-01_fixed/lab-shop-01_fixed.md",
+  "reports/lab/eval_20261023_023602/lab-shop-01_fixed_random_s0/lab-shop-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-shop-01_fixed_random_s1/lab-shop-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-shop-01_fixed_random_s2/lab-shop-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-shop-01_fixed_random_s3/lab-shop-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-shop-01_fixed_random_s4/lab-shop-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-shop-01_fixed_random_s5/lab-shop-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-shop-01_fixed_random_s6/lab-shop-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-shop-01_fixed_random_s7/lab-shop-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-shop-01_fixed_random_s8/lab-shop-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-shop-01_fixed_random_s9/lab-shop-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-shop-01_fixed_random_s10/lab-shop-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-shop-01_fixed_random_s11/lab-shop-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-shop-01_fixed_random_s12/lab-shop-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-shop-01_fixed_random_s13/lab-shop-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-shop-01_fixed_random_s14/lab-shop-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-shop-01_fixed_random_s15/lab-shop-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-shop-01_fixed_random_s16/lab-shop-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-shop-01_fixed_random_s17/lab-shop-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-shop-01_fixed_random_s18/lab-shop-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-shop-01_fixed_random_s19/lab-shop-01_fixed_random.md",
+  "reports/lab/eval_20261023_023602/lab-shop-01_deterministic/lab-shop-01_deterministic.md",
+  "reports/lab/eval_20261023_023602/lab-shop-01_llm/lab-shop-01_llm.md"
+ ],
+ "aggregate": {
+  "fixed": {
+   "cases": 3,
+   "runs": 3,
+   "workflow_completion_rate": 1.0,
+   "unique_confirmed_with_evidence": 6.0,
+   "false_positives": 0.0,
+   "false_negatives": 1.0,
+   "reachable_flaws": 7.0,
+   "precision": 1.0,
+   "recall": 0.8571,
+   "undetermined_rate_mean": 0.2833,
+   "tests_executed": 19.0,
+   "elapsed_seconds": 0.876,
+   "llm_calls": 0.0,
+   "llm_cost": 0,
+   "human_interventions": 0.0,
+   "refused_operations": 0.0,
+   "budget_denied": 9.0,
+   "boundary_violations": 0,
+   "evidence_sufficiency_mean": 1.0,
+   "reproduction_rate": 1.0
+  },
+  "fixed_random": {
+   "cases": 3,
+   "runs": 60,
+   "workflow_completion_rate": 1.0,
+   "unique_confirmed_with_evidence": 5.05,
+   "false_positives": 0.0,
+   "false_negatives": 1.95,
+   "reachable_flaws": 7.0,
+   "precision": 1.0,
+   "recall": 0.7214,
+   "undetermined_rate_mean": 0.4075,
+   "tests_executed": 19.0,
+   "elapsed_seconds": 0.8837,
+   "llm_calls": 0.0,
+   "llm_cost": 0,
+   "human_interventions": 0.0,
+   "refused_operations": 0.0,
+   "budget_denied": 9.0,
+   "boundary_violations": 0,
+   "evidence_sufficiency_mean": 1.0,
+   "reproduction_rate": 1.0
+  },
+  "deterministic": {
+   "cases": 3,
+   "runs": 3,
+   "workflow_completion_rate": 1.0,
+   "unique_confirmed_with_evidence": 6.0,
+   "false_positives": 0.0,
+   "false_negatives": 1.0,
+   "reachable_flaws": 7.0,
+   "precision": 1.0,
+   "recall": 0.8571,
+   "undetermined_rate_mean": 0.2833,
+   "tests_executed": 19.0,
+   "elapsed_seconds": 0.932,
+   "llm_calls": 0.0,
+   "llm_cost": 0,
+   "human_interventions": 0.0,
+   "refused_operations": 0.0,
+   "budget_denied": 0.0,
+   "boundary_violations": 0,
+   "evidence_sufficiency_mean": 1.0,
+   "reproduction_rate": 1.0
+  },
+  "llm": {
+   "cases": 3,
+   "runs": 3,
+   "workflow_completion_rate": 1.0,
+   "unique_confirmed_with_evidence": 6.0,
+   "false_positives": 0.0,
+   "false_negatives": 1.0,
+   "reachable_flaws": 7.0,
+   "precision": 1.0,
+   "recall": 0.8571,
+   "undetermined_rate_mean": 0.2833,
+   "tests_executed": 19.0,
+   "elapsed_seconds": 1.015,
+   "llm_calls": 19.0,
+   "llm_cost": "unknown",
+   "human_interventions": 0.0,
+   "refused_operations": 0.0,
+   "budget_denied": 0.0,
+   "boundary_violations": 0,
+   "evidence_sufficiency_mean": 1.0,
+   "reproduction_rate": 1.0
+  }
+ }
+}

@@ -1,0 +1,28 @@
+{
+ "schema": "ai-security-audit-lab-truth",
+ "schema_version": "1",
+ "case_id": "lab-billing-01",
+ "split": "dev",
+ "canary": "TRUTH-CANARY-a1158777e40796af",
+ "flaws": [
+  {
+   "hypothesis_id": "h-invoice-authz",
+   "rule_id": "IDOR",
+   "reachable": true
+  },
+  {
+   "hypothesis_id": "h-report-authz",
+   "rule_id": "BROKEN_ACCESS_CONTROL",
+   "reachable": true
+  }
+ ],
+ "unreachable_flaws": [],
+ "non_flaws": [
+  {
+   "hypothesis_id": "h-legacy-admin"
+  },
+  {
+   "hypothesis_id": "h-session-expiry"
+  }
+ ]
+}

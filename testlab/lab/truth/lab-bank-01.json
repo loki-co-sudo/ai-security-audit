@@ -1,0 +1,36 @@
+{
+ "schema": "ai-security-audit-lab-truth",
+ "schema_version": "1",
+ "case_id": "lab-bank-01",
+ "split": "dev",
+ "canary": "TRUTH-CANARY-ee6150fcbf6fd17a",
+ "flaws": [
+  {
+   "hypothesis_id": "h-limits-authz",
+   "rule_id": "IDOR",
+   "reachable": true
+  },
+  {
+   "hypothesis_id": "h-receipt-auth",
+   "rule_id": "BROKEN_ACCESS_CONTROL",
+   "reachable": true
+  }
+ ],
+ "unreachable_flaws": [
+  {
+   "flaw_id": "unreach-bank-transfer",
+   "reason": "送金の認可・CSRF不備(POSTが必要)。固定テスト操作では検査できない"
+  }
+ ],
+ "non_flaws": [
+  {
+   "hypothesis_id": "h-acct-authz"
+  },
+  {
+   "hypothesis_id": "h-stmt-authz"
+  },
+  {
+   "hypothesis_id": "h-rates-info"
+  }
+ ]
+}

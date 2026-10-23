@@ -1,0 +1,244 @@
+{
+ "evaluations": [
+  {
+   "case_id": "lab-holdout-01",
+   "commit": "45ca422+dirty",
+   "timestamp": "2026-10-23T02:38:31",
+   "strategies": [
+    "fixed",
+    "fixed_random",
+    "deterministic",
+    "llm"
+   ],
+   "fingerprint": "d90c43c80835b766"
+  },
+  {
+   "case_id": "lab-holdout-01",
+   "commit": "45ca422+dirty",
+   "timestamp": "2026-10-23T02:52:17",
+   "strategies": [
+    "llm"
+   ],
+   "fingerprint": "d90c43c80835b766"
+  },
+  {
+   "case_id": "lab-holdout-01",
+   "commit": "45ca422+dirty",
+   "timestamp": "2026-10-23T03:00:09",
+   "strategies": [
+    "llm"
+   ],
+   "fingerprint": "d90c43c80835b766"
+  },
+  {
+   "case_id": "lab-holdout-01",
+   "commit": "45ca422+dirty",
+   "timestamp": "2026-10-23T19:28:35",
+   "strategies": [
+    "fixed",
+    "fixed_random",
+    "deterministic",
+    "llm"
+   ],
+   "fingerprint": "d90c43c80835b766"
+  },
+  {
+   "case_id": "lab-holdout-02",
+   "commit": "45ca422+dirty",
+   "timestamp": "2026-10-23T19:29:09",
+   "strategies": [
+    "fixed",
+    "fixed_random",
+    "deterministic",
+    "llm"
+   ],
+   "fingerprint": "800f693c5b8f4019"
+  },
+  {
+   "case_id": "lab-holdout-03",
+   "commit": "45ca422+dirty",
+   "timestamp": "2026-10-23T19:29:44",
+   "strategies": [
+    "fixed",
+    "fixed_random",
+    "deterministic",
+    "llm"
+   ],
+   "fingerprint": "d00c1bbbf7b0b4d2"
+  },
+  {
+   "case_id": "lab-holdout-04",
+   "commit": "45ca422+dirty",
+   "timestamp": "2026-10-23T19:30:16",
+   "strategies": [
+    "fixed",
+    "fixed_random",
+    "deterministic",
+    "llm"
+   ],
+   "fingerprint": "16bd5144ea5747ab"
+  },
+  {
+   "case_id": "lab-holdout-05",
+   "commit": "45ca422+dirty",
+   "timestamp": "2026-10-23T19:30:50",
+   "strategies": [
+    "fixed",
+    "fixed_random",
+    "deterministic",
+    "llm"
+   ],
+   "fingerprint": "7c4cec5ea8c740d9"
+  },
+  {
+   "case_id": "lab-holdout-01",
+   "commit": "45ca422+dirty",
+   "timestamp": "2026-10-23T19:32:32",
+   "strategies": [
+    "llm"
+   ],
+   "fingerprint": "d90c43c80835b766"
+  },
+  {
+   "case_id": "lab-holdout-02",
+   "commit": "45ca422+dirty",
+   "timestamp": "2026-10-23T19:33:14",
+   "strategies": [
+    "llm"
+   ],
+   "fingerprint": "800f693c5b8f4019"
+  },
+  {
+   "case_id": "lab-holdout-03",
+   "commit": "45ca422+dirty",
+   "timestamp": "2026-10-23T19:34:27",
+   "strategies": [
+    "llm"
+   ],
+   "fingerprint": "d00c1bbbf7b0b4d2"
+  },
+  {
+   "case_id": "lab-holdout-04",
+   "commit": "45ca422+dirty",
+   "timestamp": "2026-10-23T19:35:26",
+   "strategies": [
+    "llm"
+   ],
+   "fingerprint": "16bd5144ea5747ab"
+  },
+  {
+   "case_id": "lab-holdout-05",
+   "commit": "45ca422+dirty",
+   "timestamp": "2026-10-23T19:37:12",
+   "strategies": [
+    "llm"
+   ],
+   "fingerprint": "7c4cec5ea8c740d9"
+  },
+  {
+   "case_id": "lab-holdout-01",
+   "commit": "45ca422+dirty",
+   "timestamp": "2026-10-23T19:37:50",
+   "strategies": [
+    "llm"
+   ],
+   "fingerprint": "d90c43c80835b766"
+  },
+  {
+   "case_id": "lab-holdout-02",
+   "commit": "45ca422+dirty",
+   "timestamp": "2026-10-23T19:38:27",
+   "strategies": [
+    "llm"
+   ],
+   "fingerprint": "800f693c5b8f4019"
+  },
+  {
+   "case_id": "lab-holdout-03",
+   "commit": "45ca422+dirty",
+   "timestamp": "2026-10-23T19:39:02",
+   "strategies": [
+    "llm"
+   ],
+   "fingerprint": "d00c1bbbf7b0b4d2"
+  },
+  {
+   "case_id": "lab-holdout-04",
+   "commit": "45ca422+dirty",
+   "timestamp": "2026-10-23T19:39:46",
+   "strategies": [
+    "llm"
+   ],
+   "fingerprint": "16bd5144ea5747ab"
+  },
+  {
+   "case_id": "lab-holdout-05",
+   "commit": "45ca422+dirty",
+   "timestamp": "2026-10-23T19:40:45",
+   "strategies": [
+    "llm"
+   ],
+   "fingerprint": "7c4cec5ea8c740d9"
+  },
+  {
+   "case_id": "lab-holdout-01",
+   "commit": "45ca422+dirty",
+   "timestamp": "2026-10-23T20:44:22",
+   "strategies": [
+    "fixed",
+    "fixed_random",
+    "deterministic",
+    "llm"
+   ],
+   "fingerprint": "d90c43c80835b766"
+  },
+  {
+   "case_id": "lab-holdout-02",
+   "commit": "45ca422+dirty",
+   "timestamp": "2026-10-23T20:44:55",
+   "strategies": [
+    "fixed",
+    "fixed_random",
+    "deterministic",
+    "llm"
+   ],
+   "fingerprint": "800f693c5b8f4019"
+  },
+  {
+   "case_id": "lab-holdout-03",
+   "commit": "45ca422+dirty",
+   "timestamp": "2026-10-23T20:45:29",
+   "strategies": [
+    "fixed",
+    "fixed_random",
+    "deterministic",
+    "llm"
+   ],
+   "fingerprint": "d00c1bbbf7b0b4d2"
+  },
+  {
+   "case_id": "lab-holdout-04",
+   "commit": "45ca422+dirty",
+   "timestamp": "2026-10-23T20:46:02",
+   "strategies": [
+    "fixed",
+    "fixed_random",
+    "deterministic",
+    "llm"
+   ],
+   "fingerprint": "16bd5144ea5747ab"
+  },
+  {
+   "case_id": "lab-holdout-05",
+   "commit": "45ca422+dirty",
+   "timestamp": "2026-10-23T20:46:36",
+   "strategies": [
+    "fixed",
+    "fixed_random",
+    "deterministic",
+    "llm"
+   ],
+   "fingerprint": "7c4cec5ea8c740d9"
+  }
+ ]
+}

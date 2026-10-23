@@ -1,0 +1,407 @@
+{
+ "schema": "ai-security-audit-lab-case",
+ "schema_version": "1",
+ "case_id": "lab-holdout-05",
+ "split": "holdout",
+ "title": "模擬ショップ(連鎖3種・保留)",
+ "target_ref": "app:chainshop",
+ "scope": {
+  "allowed_hosts": [
+   "127.0.0.1"
+  ],
+  "excluded_paths": [
+   "/logout",
+   "/admin/reset"
+  ]
+ },
+ "side_effects_allowed": [
+  "T1",
+  "T2"
+ ],
+ "accounts": {
+  "user_a": "cred:user_a",
+  "user_b": "cred:user_b",
+  "user_expired": "cred:user_expired"
+ },
+ "features": [
+  {
+   "feature_id": "admin",
+   "title": "管理コンソール",
+   "description": "管理者だけが利用できる"
+  },
+  {
+   "feature_id": "comments",
+   "title": "コメント",
+   "description": "入力値は無害化して表示する"
+  },
+  {
+   "feature_id": "invoices",
+   "title": "請求書",
+   "description": "所有者だけが参照できる"
+  },
+  {
+   "feature_id": "members",
+   "title": "会員一覧",
+   "description": "会員の識別子を公開しない"
+  },
+  {
+   "feature_id": "notes",
+   "title": "メモ",
+   "description": "入力値は無害化して表示する"
+  },
+  {
+   "feature_id": "prefs",
+   "title": "設定Cookie",
+   "description": "Cookieはスクリプトから読めない"
+  },
+  {
+   "feature_id": "session",
+   "title": "セッション",
+   "description": "セッションCookieはスクリプトから読めない"
+  },
+  {
+   "feature_id": "sitemap",
+   "title": "サイトマップ",
+   "description": "内部パスを列挙しない"
+  },
+  {
+   "feature_id": "tools",
+   "title": "内部ツール",
+   "description": "運用者だけが利用できる"
+  }
+ ],
+ "hypotheses": [
+  {
+   "hypothesis_id": "h-admin-authz",
+   "feature": "admin",
+   "rule_id": "BROKEN_ACCESS_CONTROL",
+   "title": "管理コンソールを一般利用者が使えないか",
+   "prior_value": 0.6,
+   "severity_hint": "HIGH",
+   "remediation": "管理者権限の検査を維持する",
+   "provides": [
+    "missing_function_authz"
+   ]
+  },
+  {
+   "hypothesis_id": "h-comment-xss",
+   "feature": "comments",
+   "rule_id": "XSS",
+   "title": "コメント欄が入力を無害化して表示するか",
+   "prior_value": 0.4,
+   "severity_hint": "MEDIUM",
+   "remediation": "出力時にHTMLエスケープする",
+   "provides": [
+    "xss_reflected"
+   ]
+  },
+  {
+   "hypothesis_id": "h-invoice-idor",
+   "feature": "invoices",
+   "rule_id": "IDOR",
+   "title": "他人の請求書を参照できないか",
+   "prior_value": 0.7,
+   "severity_hint": "HIGH",
+   "remediation": "請求書取得時に所有者を照合する",
+   "provides": [
+    "read_other_user_object"
+   ]
+  },
+  {
+   "hypothesis_id": "h-member-list",
+   "feature": "members",
+   "rule_id": "INFO_DISCLOSURE",
+   "title": "会員一覧が識別子を公開しないか",
+   "prior_value": 0.3,
+   "severity_hint": "LOW",
+   "remediation": "一覧を非公開にする",
+   "provides": [
+    "exposes_user_identifier"
+   ]
+  },
+  {
+   "hypothesis_id": "h-notes-xss",
+   "feature": "notes",
+   "rule_id": "XSS",
+   "title": "メモ欄が入力を無害化して表示するか",
+   "prior_value": 0.4,
+   "severity_hint": "MEDIUM",
+   "remediation": "現状のエスケープを維持する",
+   "provides": [
+    "xss_reflected"
+   ]
+  },
+  {
+   "hypothesis_id": "h-prefs-cookie",
+   "feature": "prefs",
+   "rule_id": "COOKIE_FLAGS",
+   "title": "設定CookieにHttpOnlyが付くか",
+   "prior_value": 0.3,
+   "severity_hint": "LOW",
+   "remediation": "現状の設定を維持する",
+   "provides": [
+    "cookie_script_readable"
+   ]
+  },
+  {
+   "hypothesis_id": "h-session-cookie",
+   "feature": "session",
+   "rule_id": "COOKIE_FLAGS",
+   "title": "セッションCookieにHttpOnlyが付くか",
+   "prior_value": 0.4,
+   "severity_hint": "MEDIUM",
+   "remediation": "Set-CookieにHttpOnlyを付ける",
+   "provides": [
+    "cookie_script_readable"
+   ]
+  },
+  {
+   "hypothesis_id": "h-sitemap-leak",
+   "feature": "sitemap",
+   "rule_id": "INFO_DISCLOSURE",
+   "title": "サイトマップが内部パスを列挙しないか",
+   "prior_value": 0.3,
+   "severity_hint": "LOW",
+   "remediation": "内部パスを載せない",
+   "provides": [
+    "reveals_internal_path"
+   ]
+  },
+  {
+   "hypothesis_id": "h-tools-authz",
+   "feature": "tools",
+   "rule_id": "BROKEN_ACCESS_CONTROL",
+   "title": "内部ツールを認可なしで使えないか",
+   "prior_value": 0.5,
+   "severity_hint": "HIGH",
+   "remediation": "運用者権限の検査を追加する",
+   "provides": [
+    "missing_function_authz"
+   ]
+  }
+ ],
+ "tests": [
+  {
+   "test_id": "t-admin",
+   "feature": "admin",
+   "hypothesis": "h-admin-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/admin/console",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.6,
+   "purpose": "一般利用者が管理コンソールを使えないか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ]
+   }
+  },
+  {
+   "test_id": "t-comment",
+   "feature": "comments",
+   "hypothesis": "h-comment-xss",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/comments",
+   "params": {
+    "c": "<script>1</script>"
+   },
+   "cost": 1,
+   "info_value": 0.6,
+   "purpose": "スクリプト断片がそのまま反射されないか",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "body_not_contains": [
+     "<script>1</script>"
+    ]
+   }
+  },
+  {
+   "test_id": "t-invoice-own",
+   "feature": "invoices",
+   "hypothesis": "h-invoice-idor",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/invoices",
+   "params": {
+    "member": "user_a"
+   },
+   "cost": 1,
+   "info_value": 0.2,
+   "purpose": "自分の請求書が取得できる(対照)",
+   "kind": "control",
+   "expect": {
+    "status": 200,
+    "body_contains": [
+     "inv-user_a"
+    ]
+   }
+  },
+  {
+   "test_id": "t-invoice-cross",
+   "feature": "invoices",
+   "hypothesis": "h-invoice-idor",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/invoices",
+   "params": {
+    "member": "user_b"
+   },
+   "cost": 1,
+   "info_value": 0.9,
+   "purpose": "他人の請求書が拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ],
+    "body_not_contains": [
+     "inv-user_b"
+    ]
+   }
+  },
+  {
+   "test_id": "t-members",
+   "feature": "members",
+   "hypothesis": "h-member-list",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/members.csv",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.5,
+   "purpose": "会員一覧が未ログインで拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     401,
+     403
+    ]
+   },
+   "inconclusive_statuses": []
+  },
+  {
+   "test_id": "t-note",
+   "feature": "notes",
+   "hypothesis": "h-notes-xss",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/notes",
+   "params": {
+    "n": "<script>1</script>"
+   },
+   "cost": 1,
+   "info_value": 0.5,
+   "purpose": "スクリプト断片がそのまま反射されないか",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "body_not_contains": [
+     "<script>1</script>"
+    ]
+   }
+  },
+  {
+   "test_id": "t-prefs",
+   "feature": "prefs",
+   "hypothesis": "h-prefs-cookie",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/prefs",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.4,
+   "purpose": "設定CookieのHttpOnly属性",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "header_contains": {
+     "Set-Cookie": "HttpOnly"
+    }
+   }
+  },
+  {
+   "test_id": "t-session",
+   "feature": "session",
+   "hypothesis": "h-session-cookie",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/session",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.6,
+   "purpose": "セッションCookieのHttpOnly属性",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "header_contains": {
+     "Set-Cookie": "HttpOnly"
+    }
+   }
+  },
+  {
+   "test_id": "t-sitemap",
+   "feature": "sitemap",
+   "hypothesis": "h-sitemap-leak",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/sitemap",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.5,
+   "purpose": "サイトマップが内部パスを含まないか",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "body_not_contains": [
+     "internal"
+    ]
+   }
+  },
+  {
+   "test_id": "t-tools",
+   "feature": "tools",
+   "hypothesis": "h-tools-authz",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/internal/tools",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.8,
+   "purpose": "内部ツールが認可なしで使えないか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     401,
+     403
+    ]
+   },
+   "inconclusive_statuses": []
+  }
+ ],
+ "normal_behavior": [
+  "管理コンソールは管理者のみ",
+  "請求書は所有者のみ"
+ ],
+ "budget": {
+  "max_requests": 7,
+  "max_seconds": 60,
+  "max_llm_calls": 8,
+  "max_llm_input_chars": 8000
+ },
+ "stop_conditions": {
+  "min_score": 0.05,
+  "stop_when_all_hypotheses_resolved": true
+ },
+ "evidence": {
+  "save": true
+ },
+ "out_of_scope": [],
+ "notes": []
+}

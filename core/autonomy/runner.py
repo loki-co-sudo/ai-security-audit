@@ -65,12 +65,18 @@ class ScriptedRunner:
                  is_stopped: Callable[[], bool], budget: BudgetLedger, plan: list[PlanTask],
                  store: RunStore | None = None, resumed: bool = False,
                  restore_cb: Callable[[PlanTask, dict], None] | None = None,
-                 retry_unknown: frozenset = frozenset()):
+                 retry_unknown: frozenset = frozenset(),
+                 selector: Callable[["RunOutcome"], "tuple[str | None, str]"] | None = None):
+        """selector(任意): 次に実行するtask_idと理由を返す。(None, 終了理由)で終了し、未選択の残りは
+        `not_selected:<理由>` でスキップ(未検査として残す)。未指定なら従来どおり計画順に全件を実行する。
+        selectorが選べるのは計画に登録済みのタスクだけで、選んだタスクも通常どおりGateを通る。"""
+        self.selector = selector
         self.gate, self.journal, self.registry = gate, journal, registry
         self.executors, self.is_stopped, self.budget, self.plan = executors, is_stopped, budget, plan
         self.store, self.resumed, self.restore_cb = store, resumed, restore_cb
         self.retry_unknown = frozenset(retry_unknown)
         self.outcome = RunOutcome()
+        self.finish_reason = ""
         self._rows: dict[str, dict] = store.tasks() if (store is not None and resumed) else {}
         self._plan_by_id = {t.task_id: t for t in plan}
         self._sessions_done: set[str] = set()    # このプロセスで(再)適用したセッション系タスク
@@ -101,12 +107,52 @@ class ScriptedRunner:
                 out.tasks[t.task_id] = TaskRecord(TaskState.PENDING)
         except (JournalError, RunStoreError, sqlite3.Error) as e:
             return self._halt_audit(f"開始を記録できません: {e}")
+        if self.selector is None:
+            for t in self.plan:
+                if out.audit_failed:
+                    break
+                self._run_task(t)
+        else:
+            self._run_selected()
+        self._decide_end_reason()
+        return out
+
+    def _run_selected(self) -> None:
+        out = self.outcome
+        finish = "frontier_empty"
+        for t in self.plan:                                # 再開: 完了済みの出力を計画順に復元してから選択を始める
+            row = self._rows.get(t.task_id)
+            if row is not None and row["state"] in ("done", "exhausted"):
+                self._run_task(t)
+        while not out.audit_failed:
+            if self.is_stopped():
+                finish = "stopped"
+                break
+            pending = [t for t in self.plan if out.tasks[t.task_id].state == TaskState.PENDING]
+            if not pending:
+                break
+            tid, why = self.selector(out)
+            if tid is None:
+                finish = why
+                break
+            t = self._plan_by_id.get(tid)
+            if t is None or out.tasks[tid].state != TaskState.PENDING:
+                # 計画外・実行済みの選択は実行せず、選択を止める(selector側の不具合を黙殺しない)
+                out.errors.append(f"selectorが無効なタスクを選びました: {tid}")
+                finish = "selector_error"
+                break
+            try:
+                self.journal.append("task_selected", task_id=tid, reason=str(why)[:300])
+            except JournalError as e:
+                self._halt_audit(f"選択を記録できません: {e}")
+                break
+            self._run_task(t)
+        self.finish_reason = finish
         for t in self.plan:
             if out.audit_failed:
                 break
-            self._run_task(t)
-        self._decide_end_reason()
-        return out
+            if out.tasks[t.task_id].state == TaskState.PENDING:
+                self._skip(t, f"not_selected:{finish}")
 
     def _run_task(self, t: PlanTask) -> None:
         out, rec = self.outcome, self.outcome.tasks[t.task_id]
@@ -241,6 +287,8 @@ class ScriptedRunner:
         reasons = {r.reason for r in out.tasks.values()}
         if out.audit_failed:
             out.end_reason = "policy_halt"
+        elif self.finish_reason.startswith("budget"):
+            out.end_reason = "budget_exhausted"
         elif "stopped" in reasons or self.is_stopped():
             out.end_reason = "stopped"
         elif any(r.startswith("budget.") for rr in reasons for r in rr.split(",")) or any(

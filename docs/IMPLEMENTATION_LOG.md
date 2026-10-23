@@ -747,3 +747,48 @@ ATTACKのLLM解釈部分の評価(ローカルlabの観測に対する仮説の�
 `core/structured_output.py`(スキーマ・マーカー形式への変換・無害化・`/api/chat`呼出し)、`LLMClient.complete_structured`、`BaseAgent._stream_llm(structured=)`/`_structured_llm`(AUDIT標準・プロジェクト、WEB FUZZ(両経路)、ATTACK、DEFENSEの主要な解釈呼出しが対象。検証パスと攻撃シナリオの文章生成は従来どおり)、`config`の`llm_structured`/`llm_structured_num_ctx`と`set_runtime_override`、設定ダイアログの欄、CLIの`--structured-output`、`live_eval.py --base-url/--structured`。失敗の注記は`BaseAgent._llm_notes`→`_finalize`でerrorsへ。
 試験: `tools/test_structured_output.py`(偽のOllamaサーバーで要求の中身・失敗の明示・OFF時は従来どおり・CLIフラグ・マーカー注入の無害化・設定検証。selftest 16ag)、`tools/test_gui_layout.py`の`StructuredSettingsTest`、`tools/test_unparsed_output.py`(壊れたブロックの追加)、`tools/test_live_eval.py`(`CountingStructuredTest`)。
 併せて修正: `unparsed_output_note`が「STARTだけの壊れたブロック」を素通りしていた不具合(実測で発覚)、構造化呼出しが評価のカウントに入らず無効と誤判定される不具合。実測結果は docs/PRACTICAL_ROADMAP.md 付録。huginnやrei-secは変更していない。
+
+## 2026-10-23 ローカル模擬診断案件の評価基盤と固定テスト選択ワークフロー
+設計・結果・判定は [LOCAL_LAB_EVAL.md](LOCAL_LAB_EVAL.md)。案件契約(`core/autonomy/lab_case.py`)・ワークフロー(`lab_workflow.py`)・レポート(`lab_report.py`)・
+`ScriptedRunner(selector=)`(追加のみ)・`http_transport.new_session()`・模擬環境と独立採点(`testlab/lab/`)・評価ハーネス(`tools/lab_eval.py`)。
+開発3件＋保留1件で、固定計画/順序ランダム/決定論/LLM助言(モック)を同条件で比較: 決定論はランダム順より良い(6 vs 5.05)が、宣言順の固定計画とは同等(6 vs 6、案件ごとには逆の差)。境界逸脱0。
+試験: `tools/test_lab.py` 50件（selftest 16ae）。実LLM評価・ネットワーク層の隔離・labの所見台帳連携は未実施/未実装。
+**学び**: 既存の静的検査(`test_fuzz_autonomy`の「新モジュールが直接送信しない」)に新モジュールが`requests.`/`urllib`で引っかかった。検査を緩めず、`new_session()`を窓口にし、表示用クエリ文字列は自前で組み立てた。
+
+追記(同日): glm-5.3-flashで実LLM評価(4案件×3周・約$0.008)。`max_tokens=200`だと推論トークンで上限を使い切り助言の42%が空返答→800で1%。選択結果は決定論と同一でLLMの上積みは測れず。`llm_max_tokens`を追加。詳細は LOCAL_LAB_EVAL.md §6.1。
+
+## 2026-10-23 ローカル模擬診断: 案件拡充・対照ルール修正・頑健性評価・連鎖検出の初期版
+設計・結果・判定は [LOCAL_LAB_EVAL.md](LOCAL_LAB_EVAL.md) §6.2〜6.4。
+- 案件を開発9件・保留5件に拡充（機械的な宣言順規則・`testlab/lab/gen_cases.py`・到達可能性検査`oracle.py`・事前登録の予測）。予測は4件とも方向が当たり、決定論の優位は案件設計で逆転しうる（bank）ことを確認。
+- `hyp_status`の不備を修正（`lab-workflow/2`）: 全パス200の環境で対照が逸脱しても探査の逸脱を`supported`にしていた偽陽性。修正前後のベースラインを別名で保存。
+- `tools/lab_robustness.py`: 決定論は宣言順に依存せず、係数のσ≤0.5のずれには強いが、σ=1.0でランダム並みに落ちる。flat（係数なし）でも11.0/15で優位の多くは構造由来。
+- 連鎖（`core/autonomy/lab_chain.py`・`lab-workflow/3`）: 仮説の`provides`＋3規則で連鎖を`hypothesized`として報告（実行・確認なし）。連鎖案件3件（開発2・保留1）と採点（連鎖の再現率・偽の連鎖）を追加。開発9件で決定論3/3、固定0/3。
+未実施: 保留ケース02〜05の実行（修正後ワークフローでは未評価）、実LLM再評価、ネットワーク層隔離、再試行、台帳連携。
+
+## 2026-10-23 ローカル模擬診断: 隔離・再試行・台帳・CLI・実LLM再評価（ステップ3〜5）
+
+- 隔離: `tools/lab_isolation.py`/`lab_worker.py`（bwrapのネットワーク名前空間と正解ディレクトリのマウント隠蔽）。`--bind / /` のため汎用サンドボックスではない。
+- 一時的な失敗の再試行（`retry_transient=1`、既定OFF、`lab-workflow/4`）と所見台帳への記録（LABは不在の証明にしない）。`cli.py lab`（loopback限定・LLMなし）。
+- 実LLM（開発9件×3回、3モデル、合計約0.073ドル）: 決定論への上乗せなし。詳細は `docs/LOCAL_LAB_EVAL.md` §6.7。
+- 検証: `tools.test_lab` 74件OK、`SELFTEST_NON_LLM_ONLY=1` 176 PASS / 0 FAIL / 5 SKIP。
+- 未実装: GUI・WEB FUZZ経路への統合（ステップ6）、保留02〜05の評価。
+- 2026-10-23 追記: 中位モデル(glm-5.3・mimo-v2.6-pro)の評価と、LLM選択への対照先行ガード2案(5a/5b)を試行。偽陽性は消えたが再現率が全モデルで低下したため不採用、`lab-workflow/4`に戻した。詳細は `docs/LOCAL_LAB_EVAL.md` §6.8。
+- 2026-10-23 追記: 保留5件を `lab-workflow/4` で1回評価。再現率の順序は開発と同じ向きだが、決定論・LLMの偽陽性が保留03で1.0(対照が予算内に実行されず)。ワークフロー・ケースは変更せず。詳細は `docs/LOCAL_LAB_EVAL.md` §6.9。
+
+## 2026-10-23 実装レビュー（docs/IMPLEMENTATION_REVIEW_2026-10-23.md）への対応（R1〜R5）
+
+- R1: 台帳が観測時のカテゴリ集合（`unit_categories`）と再検査で完了したカテゴリ（`tested_categories`）を記録し、カテゴリ欠落・空集合・旧形式は `UNVERIFIED`。未対応: method・プローブ内容の指紋の比較（カテゴリ名までしか見ない）。
+- R2: `HttpTransport` が不完全な本文に `fz_incomplete_reason`（size_cap/read_timeout/read_error）・`fz_bytes_read` を付与。WebFuzzerの兆候へ `response_incomplete` を渡し、`EvidenceStore.save_http_evidence(source_incomplete=)` で証拠を `truncated` にし、`errors` に「証拠の本文が不完全」を残す。共有 `last_error` 依存の見直しは未対応。
+- R3: 兆候が無いまま一部のプローブ失敗・本文不完全・ベースライン失敗・SSTI追加確認不能があったカテゴリは `partial`（coverageはSKIPPED扱い＝不在の根拠にならない）。最初の兆候による早期終了（first_signal）は従来どおり。`fuzz_log` の status に `partial` が増える契約変更。
+- R4: `core/file_lock.py`（flock / msvcrt）を台帳が使う。Windows実機は未検証、CIにWindows試験は未追加。Run Journalの既存ロック実装は変更していない。
+- R5: 通常行と改行なし最終行で同じ検証（`_invalid_reason`）。
+- 未着手（判断が必要）: R6（所見IDのorigin・認証context。ID変更は既存抑制の移行を伴う）、R7（GUIスレッドの台帳I/O）、レビュー §4 の D0（対照未確認の報告状態）・DNS接続先拘束・通常レポートの証拠健全性。
+- 検証: `tools.test_findings_ledger`（26件）・`tools.test_fuzz_execution_record`（18件）OK、`SELFTEST_NON_LLM_ONLY=1` 176 PASS / 0 FAIL / 5 SKIP。
+
+## 2026-10-23 レビュー再検査（F1/F2）・R6・D0への対応
+
+- F1: 不完全な根拠応答の通知（`FuzzAgent.incomplete_notes`）はURLをマスクし、証拠保存のON/OFFと無関係に通常経路・自律経路の `errors` へ出す。
+- F2: 主応答・baseline・SSTI追加確認・IDOR（順/逆方向）それぞれの不完全性を `response_incomplete`（例 `baseline:read_error`）として保持。証拠は `truncated`＋理由。SSTIの追加確認が部分本文で肯定の場合は兆候を残し制約を付ける。
+- R6: 所見IDをv2（`f2_`・正規化origin=scheme/host/実効port）に変更。旧v1イベントは上書きせず、警告・自動継承なし・版が違うscan同士のdiffは拒否。`legacy_finding_id()` は移行候補算出用（移行ツールは未実装、旧台帳が見つかった場合にdry-run前提で行う）。認証context IDは未導入。
+- D0: `LabState.control_state`・`unverified_deviation`・`candidates`・二系列採点（`lab-workflow/5`）。詳細と結果は `docs/LOCAL_LAB_EVAL.md` §6.10。
+- 未着手: 通常レポートの証拠健全性表示、新規の未使用ケースでの評価、R7/GUI、R1のmethod・プローブ指紋。

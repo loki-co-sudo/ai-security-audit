@@ -282,6 +282,7 @@ class AutonomousFuzzAgent(FuzzAgent):
                 errors = [*errors, *fuzzer.seed_rejected]
                 if state == ScanState.COMPLETED.value:
                     state = ScanState.PARTIAL.value
+            errors = [*errors, *FuzzAgent.incomplete_notes(ctx.anomalies, ctx.idor_findings, known_secrets)]
             errors = [mask(e) for e in errors]        # 例外メッセージ等に混入した機密値を最終結果へ出さない
             audit_end_errors = runner.close_run(state=state, errors=errors)   # 通常Actionから独立した終了処理
             errors += audit_end_errors
@@ -513,7 +514,7 @@ class AutonomousFuzzAgent(FuzzAgent):
             errors.append(f"POST注入点{posts}件は個別承認が無いため未検査です")
         unfinished = [u for u in ctx.fuzz_log if u["status"] != "completed"]
         if unfinished:
-            errors.append(f"検査単位{len(unfinished)}件が未完了です(予算切れ・中断・通信失敗)")
+            errors.append(f"検査単位{len(unfinished)}件が未完了です(予算切れ・中断・通信失敗・応答の欠落や不完全)")
         if ctx.anomalies and ctx.full is not None and not ctx.full.strip() and "triage" in done:
             errors.append("AIトリアージが空応答でした（LLM呼び出し失敗の可能性）")
         incomplete = (posts or unfinished or auth_gaps or any(

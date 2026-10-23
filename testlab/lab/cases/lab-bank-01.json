@@ -1,0 +1,418 @@
+{
+ "schema": "ai-security-audit-lab-case",
+ "schema_version": "1",
+ "case_id": "lab-bank-01",
+ "split": "dev",
+ "title": "模擬オンラインバンク",
+ "target_ref": "app:bank",
+ "scope": {
+  "allowed_hosts": [
+   "127.0.0.1"
+  ],
+  "excluded_paths": [
+   "/logout",
+   "/admin/reset"
+  ]
+ },
+ "side_effects_allowed": [
+  "T1",
+  "T2"
+ ],
+ "accounts": {
+  "user_a": "cred:user_a",
+  "user_b": "cred:user_b",
+  "user_expired": "cred:user_expired"
+ },
+ "features": [
+  {
+   "feature_id": "accounts",
+   "title": "口座残高",
+   "description": "利用者は自分の口座だけ参照できる"
+  },
+  {
+   "feature_id": "limits",
+   "title": "利用限度額",
+   "description": "利用者は自分の口座の限度額だけ参照できる"
+  },
+  {
+   "feature_id": "rates",
+   "title": "為替レート",
+   "description": "公開情報(誰でも参照できる)"
+  },
+  {
+   "feature_id": "receipts",
+   "title": "領収書",
+   "description": "ログインした所有者だけが取得できる"
+  },
+  {
+   "feature_id": "statements",
+   "title": "取引明細",
+   "description": "利用者は自分の口座だけ参照できる"
+  }
+ ],
+ "hypotheses": [
+  {
+   "hypothesis_id": "h-acct-authz",
+   "feature": "accounts",
+   "rule_id": "IDOR",
+   "title": "他人の口座残高を参照できないか",
+   "prior_value": 0.9,
+   "severity_hint": "HIGH",
+   "remediation": "口座取得時に所有者を照合する"
+  },
+  {
+   "hypothesis_id": "h-stmt-authz",
+   "feature": "statements",
+   "rule_id": "IDOR",
+   "title": "他人の取引明細を参照できないか",
+   "prior_value": 0.8,
+   "severity_hint": "HIGH",
+   "remediation": "明細取得時に所有者を照合する"
+  },
+  {
+   "hypothesis_id": "h-limits-authz",
+   "feature": "limits",
+   "rule_id": "IDOR",
+   "title": "他人の利用限度額を参照できないか",
+   "prior_value": 0.2,
+   "severity_hint": "MEDIUM",
+   "remediation": "限度額取得時に所有者を照合する"
+  },
+  {
+   "hypothesis_id": "h-receipt-auth",
+   "feature": "receipts",
+   "rule_id": "BROKEN_ACCESS_CONTROL",
+   "title": "領収書が未ログインで取得できないか",
+   "prior_value": 0.15,
+   "severity_hint": "MEDIUM",
+   "remediation": "領収書取得に認証と所有者検査を追加する"
+  },
+  {
+   "hypothesis_id": "h-rates-info",
+   "feature": "rates",
+   "rule_id": "INFO_DISCLOSURE",
+   "title": "公開レートに内部情報が含まれないか",
+   "prior_value": 0.4,
+   "severity_hint": "LOW",
+   "remediation": "公開項目を許可リストで制限する"
+  }
+ ],
+ "tests": [
+  {
+   "test_id": "t-acct-own",
+   "feature": "accounts",
+   "hypothesis": "h-acct-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/api/accounts",
+   "params": {
+    "id": "1"
+   },
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "自分の口座が取得できる(対照)",
+   "kind": "control",
+   "expect": {
+    "status": 200,
+    "body_contains": [
+     "balance"
+    ]
+   }
+  },
+  {
+   "test_id": "t-acct-cross",
+   "feature": "accounts",
+   "hypothesis": "h-acct-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/api/accounts",
+   "params": {
+    "id": "2"
+   },
+   "cost": 1,
+   "info_value": 0.9,
+   "purpose": "他人の口座IDで拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ],
+    "body_not_contains": [
+     "balance"
+    ]
+   }
+  },
+  {
+   "test_id": "t-acct-cross-b",
+   "feature": "accounts",
+   "hypothesis": "h-acct-authz",
+   "role": "user_b",
+   "method": "GET",
+   "path": "/api/accounts",
+   "params": {
+    "id": "1"
+   },
+   "cost": 1,
+   "info_value": 0.6,
+   "purpose": "逆方向でも拒否されるか(裏付け)",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ],
+    "body_not_contains": [
+     "balance"
+    ]
+   },
+   "corroborates": true
+  },
+  {
+   "test_id": "t-limits-own",
+   "feature": "limits",
+   "hypothesis": "h-limits-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/api/limits",
+   "params": {
+    "acct": "1"
+   },
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "自分の限度額が取得できる(対照)",
+   "kind": "control",
+   "expect": {
+    "status": 200,
+    "body_contains": [
+     "daily_limit"
+    ]
+   }
+  },
+  {
+   "test_id": "t-limits-cross",
+   "feature": "limits",
+   "hypothesis": "h-limits-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/api/limits",
+   "params": {
+    "acct": "2"
+   },
+   "cost": 1,
+   "info_value": 0.6,
+   "purpose": "他人の口座の限度額が拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ],
+    "body_not_contains": [
+     "daily_limit"
+    ]
+   }
+  },
+  {
+   "test_id": "t-limits-cross-b",
+   "feature": "limits",
+   "hypothesis": "h-limits-authz",
+   "role": "user_b",
+   "method": "GET",
+   "path": "/api/limits",
+   "params": {
+    "acct": "1"
+   },
+   "cost": 1,
+   "info_value": 0.5,
+   "purpose": "逆方向でも拒否されるか(裏付け)",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ],
+    "body_not_contains": [
+     "daily_limit"
+    ]
+   },
+   "corroborates": true
+  },
+  {
+   "test_id": "t-rates",
+   "feature": "rates",
+   "hypothesis": "h-rates-info",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/api/rates",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.4,
+   "purpose": "公開レートの内容",
+   "kind": "probe",
+   "expect": {
+    "status": 200,
+    "body_not_contains": [
+     "internal",
+     "key"
+    ]
+   }
+  },
+  {
+   "test_id": "t-receipt-user",
+   "feature": "receipts",
+   "hypothesis": "h-receipt-auth",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/receipts/1001",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.2,
+   "purpose": "ログイン利用者が領収書を取得できる(対照)",
+   "kind": "control",
+   "expect": {
+    "status": 200,
+    "body_contains": [
+     "receipt"
+    ]
+   }
+  },
+  {
+   "test_id": "t-receipt-anon",
+   "feature": "receipts",
+   "hypothesis": "h-receipt-auth",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/receipts/1001",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.6,
+   "purpose": "未ログインで拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     401,
+     403
+    ]
+   },
+   "inconclusive_statuses": []
+  },
+  {
+   "test_id": "t-receipt-anon-2",
+   "feature": "receipts",
+   "hypothesis": "h-receipt-auth",
+   "role": "anonymous",
+   "method": "GET",
+   "path": "/receipts/1002",
+   "params": {},
+   "cost": 1,
+   "info_value": 0.5,
+   "purpose": "別の領収書でも拒否されるか(裏付け)",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     401,
+     403
+    ]
+   },
+   "inconclusive_statuses": [],
+   "corroborates": true
+  },
+  {
+   "test_id": "t-stmt-own",
+   "feature": "statements",
+   "hypothesis": "h-stmt-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/api/statements",
+   "params": {
+    "acct": "1"
+   },
+   "cost": 1,
+   "info_value": 0.3,
+   "purpose": "自分の明細が取得できる(対照)",
+   "kind": "control",
+   "expect": {
+    "status": 200,
+    "body_contains": [
+     "statement"
+    ]
+   }
+  },
+  {
+   "test_id": "t-stmt-cross",
+   "feature": "statements",
+   "hypothesis": "h-stmt-authz",
+   "role": "user_a",
+   "method": "GET",
+   "path": "/api/statements",
+   "params": {
+    "acct": "2"
+   },
+   "cost": 1,
+   "info_value": 0.8,
+   "purpose": "他人の口座の明細が拒否されるか",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ],
+    "body_not_contains": [
+     "statement"
+    ]
+   }
+  },
+  {
+   "test_id": "t-stmt-cross-b",
+   "feature": "statements",
+   "hypothesis": "h-stmt-authz",
+   "role": "user_b",
+   "method": "GET",
+   "path": "/api/statements",
+   "params": {
+    "acct": "1"
+   },
+   "cost": 1,
+   "info_value": 0.6,
+   "purpose": "逆方向でも拒否されるか(裏付け)",
+   "kind": "probe",
+   "expect": {
+    "status": [
+     403,
+     404
+    ],
+    "body_not_contains": [
+     "statement"
+    ]
+   },
+   "corroborates": true
+  }
+ ],
+ "normal_behavior": [
+  "口座・明細・限度額は所有者だけが参照できる",
+  "領収書はログインした所有者だけ",
+  "為替レートは公開"
+ ],
+ "budget": {
+  "max_requests": 6,
+  "max_seconds": 60,
+  "max_llm_calls": 8,
+  "max_llm_input_chars": 8000
+ },
+ "stop_conditions": {
+  "min_score": 0.05,
+  "stop_when_all_hypotheses_resolved": true
+ },
+ "evidence": {
+  "save": true
+ },
+ "out_of_scope": [
+  {
+   "feature": "accounts",
+   "title": "送金の認可・CSRF",
+   "reason": "状態を変更する操作(T3)で、固定テスト操作に含めない"
+  }
+ ],
+ "notes": []
+}

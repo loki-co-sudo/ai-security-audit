@@ -14,6 +14,8 @@
 
 ### 最初に読むもの
 
+実装・計画の改善候補と再現確認: [2026-10-23 実装レビュー](docs/IMPLEMENTATION_REVIEW_2026-10-23.md)。提案段階であり、修正・完了判定は未実施。
+
 | 目的 | ドキュメント |
 |---|---|
 | マルチモデル（STRONG/FAST）ルーティング＆推論エフォートの設計・**継続実装ガイド** | [docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md) |
@@ -23,6 +25,7 @@
 | WEB FUZZ をバグバウンティで使う際の具体的な運用フロー | [docs/BOUNTY_WEBFUZZ_WORKFLOW.md](docs/BOUNTY_WEBFUZZ_WORKFLOW.md) |
 | 次の実装順序・対象ファイル・データ契約・受け入れ条件の正本（P0〜P4） | [docs/PRACTICAL_ROADMAP.md](docs/PRACTICAL_ROADMAP.md) |
 | 自律完結型への発展（設計書・Phase A詳細設計・**実装計画と進捗の正本**）。自律化の実装依頼ではまず実装計画を読む | [docs/AUTONOMOUS_IMPLEMENTATION_PLAN.md](docs/AUTONOMOUS_IMPLEMENTATION_PLAN.md) / [docs/AUTONOMOUS_PLATFORM_DESIGN.md](docs/AUTONOMOUS_PLATFORM_DESIGN.md) / [docs/AUTONOMOUS_PHASE_A_DESIGN.md](docs/AUTONOMOUS_PHASE_A_DESIGN.md) |
+| ローカル模擬診断案件の評価基盤・固定テスト選択ワークフロー（要件分類・指標定義・結果・未検証事項の正本） | [docs/LOCAL_LAB_EVAL.md](docs/LOCAL_LAB_EVAL.md) |
 | 完了済み機能の実装詳細・セルフテスト結果（通常のタスクでは読まなくてよい） | [docs/IMPLEMENTATION_LOG.md](docs/IMPLEMENTATION_LOG.md) |
 
 実践運用対応の実装依頼では、`docs/PRACTICAL_ROADMAP.md` §3の未完了IDを選んで該当節を読む。
@@ -48,7 +51,7 @@
 
 ```
 AI-Security-tool/
-├── cli.py                       # scan fuzz/audit/defense/attack・resume・status。JSON stdout・進捗stderr・0600認証ファイル。fuzzは--engagement(IDOR期待権限表・除外)/--targets-file、attackは--allow必須でscope_mode=block固定
+├── cli.py                       # scan fuzz/audit/defense/attack・resume・status・lab(loopback模擬案件の1回実行)。JSON stdout・進捗stderr・0600認証ファイル。fuzzは--engagement(IDOR期待権限表・除外)/--targets-file、attackは--allow必須でscope_mode=block固定
 ├── main.py                      # エントリポイント。スプラッシュ表示→遅延ロード→App起動
 ├── config.json                  # 実行時LLM設定（gitignore済み。APIキーを含む可能性あり）
 ├── requirements.txt             # pip install -r requirements.txt
@@ -61,6 +64,7 @@ AI-Security-tool/
 │   ├── target_code_v3.py        # 評価用の難しめサンプル(欠陥8＋対応する安全版decoy8。正解は ground_truth_audit_v3.json)
 │   └── target_code_v2.py        # 実LLM評価用の難しめサンプル(欠陥8＋安全だが危なそうに見えるdecoy6。正解は testlab/benchmark/ground_truth_audit_v2.json)
 ├── testlab/
+│   ├── lab/                     # ローカル模擬診断案件: apps.py(模擬環境・ラベルなし)・cases/(公開設定)・truth/(正解。診断中は権限000で封印)・grader.py(独立採点・連鎖の再現率/偽の連鎖)・oracle.py(案件が方式間の差を出せるかの事前検査)・gen_cases.py(案件生成・既存ファイルの上書きを拒否)・holdout_log.json
 │   ├── fixtures/attack_benchmark.py # ATTACK偵察の評価用fixture(main/catchall(soft-404)/held の3台のHTTPとバナー付きTCP)。正解は benchmark/ground_truth_attack.json、基準値は baselines/attack_recon.json(改修前は attack_recon.before-fixes.json)
 │   ├── fixtures/web_benchmark.py # 検出品質評価用fixture(罠を含む。P2.1)。正解は benchmark/ground_truth_web_fuzz.json、改修前の基準値は baselines/web_fuzz_detector.json
 │   ├── vuln_server.py           # 手動確認用の模擬脆弱サーバー
@@ -87,6 +91,7 @@ AI-Security-tool/
 │   ├── http_transport.py        # P0.1/P0.2: WEB FUZZ全送信経路の唯一の送信口。normalize_origin()・HttpTransport（同一origin検査・共有予算・手動リダイレクト制御・RequestPolicyでレート/429リトライ/STOP中断/応答サイズ上限）。TLS設定・認証状態判定はtools/web_fuzzer.py側
 │   ├── engagement.py            # P3.1の一部: 案件設定の検証。IDOR期待権限表 parse_idor_expectations()と、GUI入力用の1行形式 parse_expectation_lines()/format_expectation_lines()のみ（秘密値を含めない）
 │   ├── scan_runner.py           # P3.1: GUI非依存のスキャン実行層(ATTACK/AUDIT/DEFENSEの1回実行・WEB FUZZの対象ごと実行run_fuzz_targets・入力検査・aggregate・結果マスク)。cli.pyから使う
+│   ├── file_lock.py             # 非ブロッキング排他ロック(POSIX flock / Windows msvcrt)。台帳が使う(Windows実機は未検証)
 │   ├── findings_ledger.py       # P3.2: 案件別(report_view()でレポート用の読み取り専用ビュー)の追記式所見台帳(JSONL)・差分(NEW/PERSISTING/NOT_OBSERVED/REGRESSED/UNVERIFIED)・対応status・期限付き抑制。不在は検査済みの証拠がある場合だけNOT_OBSERVED
 │   ├── findings.py              # P1.1: 構造化所見・実行ライフサイクルのデータ契約。ScanResult/Finding/CoverageItem/ScanState/VerificationState/CoverageStatus（dataclass/Enum）
 │   ├── redaction.py             # P1.2: 証拠のマスキング。mask_headers()/mask_url()/mask_body()（既知の機密値の完全一致＋キー名ヒューリスティック）、mask_value()でsha256先頭12文字付与
@@ -100,7 +105,11 @@ AI-Security-tool/
 │       ├── actions.py           # CapabilitySpec/Action/ApprovalGrant等の型(mutating=T3のみ・秘密値を引数に取らない)
 │       ├── policy_gate.py       # 実行前の決定論Gate(スコープ・副作用クラス・予算・重複・承認)。判断はジャーナルへ先に記録しfail closed
 │       ├── budget.py            # Run予算(リクエストはHttpTransportの計数を参照・時間・LLMは呼出前に予約)
-│       └── task_graph.py        # TaskState(exhausted/unknown_outcome含む)とジャーナルからの状態再構築
+│       ├── task_graph.py        # TaskState(exhausted/unknown_outcome含む)とジャーナルからの状態再構築
+│       ├── lab_case.py          # ローカル模擬診断案件の設定契約(GETの固定テスト操作・loopback限定・秘密値/正解ラベル拒否)。設計・結果・判定は docs/LOCAL_LAB_EVAL.md
+│       ├── lab_workflow.py      # 固定テスト操作をcapability(T1/T2)化し Observe→Classify→Prioritize→Execute→Evaluate→Replan を実行。LLMは登録済みtest_idの選択助言のみ
+│       ├── lab_chain.py         # 小さな不備の組合せ(連鎖)の候補を決定論規則で作る。仮説(hypothesized)として報告し実行・確認しない
+│       └── lab_report.py        # 証拠ハッシュ検証つきMarkdownレポート(外部提出なし・連鎖の仮説節つき)
 ├── agents/
 │   ├── base_agent.py            # 抽象基底クラス。threading.Eventで停止管理、EventBusヘルパー群、_check_scope()（スコープガード）
 │   ├── audit_agent.py           # CODE AUDITエージェント（7ステップ。ASTプリプロセッサ＋並列CVE照合＋FP検証強化）
@@ -132,6 +141,12 @@ AI-Security-tool/
 │   ├── autonomy_crash_child.py  # 強制終了(os._exit)を再現する試験用の子プロセス
 │   ├── test_fuzz_resume.py      # 中断・再開の固定試験（実プロセスkill×全タスク×5位置。selftest 16uに統合）
 │   ├── test_run_store.py        # RunStoreの固定試験（selftest 16tに統合）
+│   ├── lab_isolation.py         # bwrapによる隔離補助(ネットワーク名前空間・正解ディレクトリのマウント隠蔽)。無い環境では黙って続行せず失敗
+│   ├── lab_worker.py            # 隔離されたワークフロー実行用の子プロセス(正解は読まない)
+│   ├── lab_robustness.py        # 決定論方式の係数・宣言順への依存を調べる(開発ケースのみ)
+│   ├── lab_eval.py              # ローカル模擬案件の評価ハーネス(固定/順序ランダム/決定論/LLM助言を同条件で比較・採点・再現確認・保留ケースの使用記録)。実LLMは承認フラグ必須
+│   ├── test_lab.py              # 案件契約・期待値比較・安全(範囲外/予算/STOP/再開)・正解の隔離・手計算採点の固定試験（selftest 16aeに統合）
+│   ├── lab_crash_child.py       # 上記の再開試験用に os._exit を再現する子プロセス
 │   ├── test_policy_gate.py      # 上記autonomy型・Gate・予算・タスク状態の固定試験（selftest 16pに統合）
 │   ├── test_evidence_provenance.py # 証拠の由来情報(content_sha256/action_id/masking_version/truncated)とverify()の固定試験（selftest 16oに統合）
 │   ├── live_eval.py             # P2.1: 実LLM評価ハーネス(AUDIT)。ヒント除去・複数回・呼出し上限・config非変更。結果は参考値で本番品質ではない
@@ -430,6 +445,9 @@ validation error記録が残る。JSON出力も未実装。P1.2全体を完了�
 2026-10-22: 自律完結型への発展（`docs/AUTONOMOUS_*.md`）のPhase A（Run Journal・Policy Gate・WEB FUZZ新経路・
 認証の役割別承認・LLM呼出の事前制限）を実装。進捗と次の単位は `docs/AUTONOMOUS_IMPLEMENTATION_PLAN.md` が正本
 （PRACTICAL_ROADMAPの順序は置き換えていない）。B1〜B4（クラッシュ復旧・ヘッドレスCLI）も実装・検証済み。次はP1.2残検証・P2.1本体。
+
+2026-10-23: ローカル模擬診断案件の評価基盤と、固定テスト操作を選ぶ自律ワークフロー（決定論＋LLM助言）を実装
+（`docs/LOCAL_LAB_EVAL.md` が正本）。その後、連鎖の仮説検出・再試行・`cli.py lab`・bwrap隔離・複数モデルの実LLM評価・保留5件の評価まで実施（結果は同文書 §6.5〜6.9。LLM助言は決定論を超えず、決定論の偽陽性は保留で1.0）。GUI・WEB FUZZ経路への統合は未実装。
 
 P0.1・P0.2・P1.1は完了済み。実装詳細・セルフテスト結果は
 [docs/IMPLEMENTATION_LOG.md](docs/IMPLEMENTATION_LOG.md) を参照。

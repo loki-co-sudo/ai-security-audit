@@ -3043,11 +3043,14 @@ def test_policy_gate():
 def test_fuzz_execution_record():
     _section("16q. TOOLS — WebFuzzer 検査単位の実行記録(Phase A 順5)")
     import unittest
-    from tools.test_fuzz_execution_record import FuzzExecutionRecordTest
+    from tools.test_fuzz_execution_record import FuzzExecutionRecordTest, IncompleteObservationTest, TransportIncompleteTest, IncompleteEvidencePathsTest
     result = unittest.TestResult()
-    unittest.defaultTestLoader.loadTestsFromTestCase(FuzzExecutionRecordTest).run(result)
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
+                               for c in (FuzzExecutionRecordTest, IncompleteObservationTest, TransportIncompleteTest,
+                                IncompleteEvidencePathsTest))
+    suite.run(result)
     if result.wasSuccessful():
-        _ok("Fuzz execution record", f"{result.testsRun} tests: 予算0/途中枯渇/ちょうど完遂/STOP/通信失敗")
+        _ok("Fuzz execution record", f"{result.testsRun} tests: 予算0/途中枯渇/ちょうど完遂/STOP/通信失敗/不完全な観測(partial)/途中切断")
     else:
         _ng("Fuzz execution record", str(result.errors + result.failures))
 
@@ -3142,7 +3145,7 @@ def test_findings_ledger():
     from tools import test_findings_ledger as t
     result = unittest.TestResult()
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c)
-                               for c in (t.IdentityTest, t.DiffTest, t.StatusSuppressionTest, t.FileIntegrityTest))
+                               for c in (t.IdentityTest, t.DiffTest, t.StatusSuppressionTest, t.FileIntegrityTest, t.ReviewR1R5Test, t.ReviewR6Test))
     suite.run(result)
     if result.wasSuccessful():
         _ok("FindingsLedger", f"{result.testsRun} tests: 差分状態/未検証の扱い/抑制期限/案件分離/破損・重複・同時writer")
@@ -3217,6 +3220,22 @@ def test_unparsed_output():
         _ok("UnparsedOutput", f"{result.testsRun} tests: 長い出力でマーカー無し=partial(標準/LangGraph/FUZZ/ATTACK)・DEFENSEは注記のみ・短い問題なしは影響なし")
     else:
         _ng("UnparsedOutput", str(result.errors + result.failures))
+
+
+def test_lab_eval():
+    _section("16ae. LAB — ローカル模擬診断案件の評価基盤・自律ワークフロー(docs/LOCAL_LAB_EVAL.md)")
+    import unittest
+    from tools import test_lab as t
+    result = unittest.TestResult()
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c) for c in (
+        t.CaseContractTest, t.EvaluateTest, t.StateAndSelectionTest, t.WorkflowE2ETest, t.LlmSelectionTest,
+        t.SafetyTest, t.IsolationTest, t.GraderTest, t.ResumeTest, t.MatrixTest))
+    suite.run(result)
+    if result.wasSuccessful():
+        _ok("Lab", f"{result.testsRun} tests: 案件契約/期待値比較/未判定の扱い/選択/LLM選択の拒否/安全境界(範囲外・予算・STOP)/"
+                   "正解の隔離/手計算の採点/クラッシュ再開/比較マトリクス(モックLLM。実LLM評価ではない)")
+    else:
+        _ng("Lab", str(result.errors + result.failures))
 
 
 def test_gui_ledger_ops():
@@ -3420,6 +3439,7 @@ def main():
     test_log_watcher_realworld()
     test_code_index()
     test_cli()
+    test_lab_eval()
     test_audit_evidence()
     test_defense_evidence()
     test_flag_routes()
