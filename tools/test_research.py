@@ -749,6 +749,115 @@ class ResearchResumeTest(unittest.TestCase):
             self.assertNotIn(tok, dump)
 
 
+class ResearchCliTest(unittest.TestCase):
+    CASE = os.path.join(CASES, "blind-docs-01.json")
+
+    def _cli(self, *args):
+        import subprocess
+        p = subprocess.run([sys.executable, os.path.join(ROOT, "cli.py"), "research", *args], capture_output=True, text=True,
+                           timeout=180, cwd=ROOT)
+        return p.returncode, p.stdout, p.stderr
+
+    @staticmethod
+    def _creds(td, app, mode=0o600, drop=None):
+        path = os.path.join(td, "creds.json")
+        c = {k: v for k, v in app.credentials().items() if k != drop}
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(c, f)
+        os.chmod(path, mode)
+        return path
+
+    def _app(self, seed=3):
+        return DocsApp(seed=seed, flaws=frozenset(truth_of("blind-docs-01")["env_flaws"]))
+
+    def test_cli_runs_and_reports_without_leaking_tokens(self):
+        with tempfile.TemporaryDirectory() as td, self._app() as app:
+            rc, out, err = self._cli("--case", self.CASE, "--base-url", app.base_url, "--creds-file", self._creds(td, app),
+                                     "--journal-root", td + "/j", "--evidence-root", td + "/e", "--report-dir", td + "/r")
+            toks = list(app.credentials().values())
+            doc = json.loads(out)
+            self.assertEqual(rc, 2, err[-300:])                       # 検証不能・未検査・候補があるのでpartial=exit 2（scanと同じ規則）
+            self.assertEqual(doc["state"], "partial")
+            R = doc["research"]
+            self.assertEqual({f["rule_id"] for f in doc["findings"]}, {"ACCESS_CONTROL", "EXCESSIVE_DATA_EXPOSURE", "IDOR"})
+            self.assertEqual({d["op_id"] for d in R["finding_details"]}, {"admin_audit", "user_get", "doc_comments"})   # 根拠付きだけ。候補は含めない
+            self.assertEqual({c["op_id"] for c in R["candidates"]}, {"doc_export"})
+            self.assertEqual([u["op_id"] for u in R["unverifiable"]], ["doc_update"])
+            self.assertIn("T3", R["unverifiable"][0]["needed_capability"])
+            self.assertTrue(R["not_examined"] and R["resumable"])
+            self.assertTrue(all(f["evidence_complete"] for f in R["finding_details"]))
+            self.assertTrue(R["decision_log"] and R["metrics"]["prereg_violations"] == [])
+            for t in toks:
+                self.assertNotIn(t, out)
+                self.assertNotIn(t, err)
+            self.assertTrue(os.path.exists(R["report"]))
+            self.assertEqual(os.stat(R["report"]).st_mode & 0o777, 0o600)
+            with open(R["report"], encoding="utf-8") as f:
+                self.assertIn("未レビュー", f.read())
+
+    def test_cli_rejects_unsafe_inputs_before_sending_anything(self):
+        rc, out, _ = self._cli("--case", self.CASE, "--base-url", "http://example.com:80")
+        self.assertEqual((rc, json.loads(out)["state"]), (2, "failed"))
+        with tempfile.TemporaryDirectory() as td, self._app() as app:
+            for kw, word in (({"mode": 0o644}, "0600"), ({"drop": "cred:bob"}, "参照名")):
+                rc, out, _ = self._cli("--case", self.CASE, "--base-url", app.base_url, "--creds-file", self._creds(td, app, **kw))
+                self.assertEqual(rc, 2)
+                self.assertIn(word, json.loads(out)["errors"][0])
+            rc, out, _ = self._cli("--case", self.CASE, "--base-url", app.base_url, "--creds-file", self._creds(td, app),
+                                   "--max-requests", "41")
+            self.assertEqual(rc, 2)                                   # 予算の拡張はCLIからはできない
+            self.assertEqual(len(app.requests), 0)
+
+    def test_cli_ledger_records_findings_not_candidates_and_never_proves_absence(self):
+        from core.findings_ledger import Ledger
+        with tempfile.TemporaryDirectory() as td, self._app() as app:
+            args = ["--case", self.CASE, "--base-url", app.base_url, "--creds-file", self._creds(td, app), "--evidence-root", td + "/e",
+                    "--engagement-id", "research-cli", "--ledger-root", td + "/led"]
+            rc1, out1, _ = self._cli(*args, "--journal-root", td + "/j1")
+            rc2, out2, _ = self._cli(*args, "--journal-root", td + "/j2", "--max-requests", "12")      # 検査範囲が狭い2回目
+            d1, d2 = json.loads(out1), json.loads(out2)
+            self.assertEqual(d1["engagement_id"], "research-cli")
+            led = Ledger("research-cli", td + "/led")
+            listed = led.findings(False)
+            loc1, loc2 = {f["location"] for f in d1["findings"]}, {f["location"] for f in d2["findings"]}
+            self.assertEqual({f["location"] for f in listed["findings"]}, loc1 | loc2)            # 所見は台帳に残る
+            self.assertTrue(loc1 and not [f for f in listed["findings"] if "doc_export" in f["location"]])   # 候補は入らない
+            diff = led.diff(d1["scan_id"], d2["scan_id"], False)
+            count = {}
+            for i in diff["items"]:
+                count[i["state"]] = count.get(i["state"], 0) + 1
+            self.assertNotIn("NOT_OBSERVED", count)                    # モードLABの『見つからなかった』を不在の根拠にしない
+            self.assertEqual(count.get("PERSISTING", 0), len(loc1 & loc2))
+            self.assertEqual(count.get("UNVERIFIED", 0), len(loc1 - loc2))      # 検査範囲が狭い回に出なかった所見は未検証
+
+    def test_cli_resume_after_a_crash(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as td, self._app() as app:
+            jr = td + "/j"
+            base = run_case("blind-docs-01", seed=3)[0]                 # 同じseedなら実験の順序は同じ
+            crash = "after_send:" + [e["exp_id"] for e in base["experiments"]][20]
+            spec = {"case_path": self.CASE, "base_url": app.base_url, "creds": app.credentials(), "journal_root": jr,
+                    "evidence_root": td + "/e", "crash": crash}
+            p = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "research_crash_child.py"), json.dumps(spec)],
+                               capture_output=True, text=True, timeout=120)
+            self.assertEqual(p.returncode, 137, p.stderr[-400:])
+            before = [(r["role"], r["path"]) for r in app.requests]
+            rid = os.listdir(jr)[0]
+            rc, out, err = self._cli("--case", self.CASE, "--base-url", app.base_url, "--creds-file", self._creds(td, app),
+                                     "--journal-root", jr, "--evidence-root", td + "/e", "--resume", rid)
+            doc = json.loads(out)
+            self.assertNotEqual(doc["state"], "failed", doc["errors"])
+            self.assertEqual(doc["research"]["run_id"], rid)
+            self.assertEqual(len(doc["research"]["resume"]["unknown_outcome"]), 1)
+            after = [(r["role"], r["path"]) for r in app.requests]
+            self.assertEqual(set(after[len(before):]) & set(before), set())      # 再送しない
+            self.assertLessEqual(len(after), 40)
+            # 終了済みのRunは再開できない
+            rc2, out2, _ = self._cli("--case", self.CASE, "--base-url", app.base_url, "--creds-file", self._creds(td, app),
+                                     "--journal-root", jr, "--evidence-root", td + "/e", "--resume", rid)
+            self.assertEqual((rc2, json.loads(out2)["state"]), (2, "failed"))
+
+
 class ResearchBoundaryTest(unittest.TestCase):
     def test_budget_exhaustion_ends_with_reason_and_leaves_unexamined(self):
         res, ev, info, g, _ = run_case(budget_override={"max_requests": 14})

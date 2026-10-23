@@ -568,3 +568,20 @@ POSIX以外は権限の同等性を検証できないため、認証ファイル
 - JSON出力の `lab.candidates` は、逸脱は観測したが必要な対照が未実施の仮説（状態 `deviation_unverified`・逸脱内容・証拠参照・未実施の対照）です。**所見(`findings`)・所見台帳には入りません**（候補が無ければ空リスト。`--report-dir` の有無に依存しません）。`lab.finding_details` は所見ごとに、根拠一式（逸脱probeと通った対照）の保存証拠が揃っているか（`evidence_complete`・`evidence_missing_test_ids`）と、本文が不完全だった観測の制約（`observation_limits`）を示します。
 - 終了コードは `scan` と同じ規則で、未判定・未実施が残る `partial` は 2 になります。
 - 結果は `reports/lab/eval_*/`（`eval.json` と案件別のMarkdownレポート・証拠）に保存されます。レポートの外部提出機能はありません。
+
+### 自律調査（`research`・実験的）
+
+公開仕様（操作・アクセス条件の条項・返却項目）とアカウントだけから、仮説・対照・期待値を**システムが作り**、予測を実験前に記録して調査する流れです。loopbackの被験環境専用で、LLMは使いません。
+仕様は閉じた語彙のJSONで与えます（仮説・検査手順・期待値・正解ラベルは置けません。`testlab/lab/blind_cases/*.json` を参照）。要求と現状は `docs/AUTONOMOUS_DISCOVERY_REQUIREMENTS.md` / `docs/AUTONOMOUS_DISCOVERY_STAGE1.md`。
+
+```bash
+.venv/bin/python3 cli.py research --case testlab/lab/blind_cases/blind-docs-01.json --base-url http://127.0.0.1:PORT \
+  --creds-file creds.json --report-dir /tmp/research-report [--engagement-id ID]
+# 中断したRunの再開（案件・対象・予算が開始時と同じであること。完了済みの実験は再送せず、結果不明の実験は再実行しません）
+.venv/bin/python3 cli.py research --case ... --base-url ... --creds-file creds.json --resume run_xxxxxxxxxxxx
+```
+
+- 認証ファイル(0600)は案件の全アカウントの `cred:<名前>` を含める必要があります。`--max-requests` は案件の予算を**下げる**ことだけができます。
+- JSON出力の `research` に、仮説ごとの状態（`supported`/`refuted`/`unverified_deviation`/`undetermined`/`unverifiable`/`not_examined`）、`candidates`（逸脱は観測したが確定していないもの。**所見・台帳には入りません**）、`unverifiable`（必要な能力つき）、`not_examined`、`unknowns`、指標、判断の記録（`decision_log`）が入ります。
+- `--engagement-id` を付けると所見を台帳へ記録します。モードは `LAB` 扱いで、後の実行で見つからなかった所見は `NOT_OBSERVED` ではなく `UNVERIFIED` になります。
+- 終了コードは `scan` と同じ規則です（検証不能・未検査・候補が残る `partial` は 2）。`--report-dir` には、根拠・事前登録した予測・対照・証拠の整合性/完全性・未確認・レビュー状態を載せた編集可能なMarkdownを0600で書きます（外部へは送信しません）。

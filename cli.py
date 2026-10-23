@@ -43,6 +43,13 @@ def nonnegative(value):
     return n
 
 
+def positive_int(value):
+    n = int(value)
+    if n < 1:
+        raise argparse.ArgumentTypeError("1以上を指定してください")
+    return n
+
+
 def positive_rate(value):
     n = float(value)
     if not 0 < n <= 1000:
@@ -171,6 +178,20 @@ def parser():
     lab.add_argument("--min-verification", choices=list(VERIFICATION_RANK), default="observed", help=MIN_VERIFICATION_HELP)
     lab.add_argument("--engagement-id", help="指定すると結果を所見台帳へ記録する")
     lab.add_argument("--ledger-root", default=LEDGER_ROOT, help=argparse.SUPPRESS)
+    research = commands.add_parser("research", help="ローカル被験環境(loopbackのみ)に対する自律調査(仮説の具体化→予測の事前登録→実験→再計画)を1回実行する")
+    research.add_argument("--case", required=True, help="自律調査の案件設定JSON(testlab/lab/blind_cases/*.json 等。仮説・検査手順・期待値は置けない)")
+    research.add_argument("--base-url", required=True, help="被験環境のURL(127.0.0.1/localhostのみ)")
+    research.add_argument("--creds-file", help='0600のJSON: {"cred:alice": "<token>", ...}(案件の参照名→値)')
+    research.add_argument("--resume", metavar="RUN_ID", help="中断したRunを再開する(案件・対象・予算が開始時と同じであること。結果不明の実験は再実行しない)")
+    research.add_argument("--max-requests", type=positive_int, help="案件設定の予算(リクエスト数)を下げる。再開時は開始時と同じ値を指定する")
+    research.add_argument("--report-dir", help="編集可能なMarkdownレポートドラフトの出力先(外部へは送信しない)")
+    research.add_argument("--evidence-root")
+    research.add_argument("--journal-root", default=JOURNAL_ROOT)
+    research.add_argument("--out", help="結果JSONの追加保存先")
+    research.add_argument("--fail-on", choices=["none", *SEVERITIES], default="none")
+    research.add_argument("--min-verification", choices=list(VERIFICATION_RANK), default="observed", help=MIN_VERIFICATION_HELP)
+    research.add_argument("--engagement-id", help="指定すると結果を所見台帳へ記録する")
+    research.add_argument("--ledger-root", default=LEDGER_ROOT, help=argparse.SUPPRESS)
     resume = commands.add_parser("resume")
     status = commands.add_parser("status")
     openapi = commands.add_parser("openapi", help="OpenAPI JSONのoperation一覧を表示する(通信しない)")
@@ -425,6 +446,57 @@ def lab_command(args, creds):
     return result
 
 
+def research_command(args, creds, was_interrupted):
+    """loopbackの被験環境に対する自律調査の1回実行（または再開）。LLMは使わない（CLIには公開していない）。
+    結果はScanResult互換。研究の詳細（仮説の状態・候補・検証不能・未検査・指標）は result["research"] に出す。"""
+    from urllib.parse import urlsplit
+    from core.autonomy.lab_case import LabCaseError
+    from core.autonomy.research_case import load_blind_case
+    from core.autonomy.research_loop import run_research_case
+    from core.autonomy.research_report import render_markdown as render_research_report
+    host = urlsplit(args.base_url)
+    if host.scheme != "http" or host.hostname not in ("127.0.0.1", "localhost", "::1") or host.username or host.password:
+        raise CLIError("--base-urlはhttp://127.0.0.1(またはlocalhost)の被験環境だけ指定できます")
+    try:
+        case = load_blind_case(args.case)
+    except (OSError, ValueError, LabCaseError) as e:
+        raise CLIError(f"案件設定を読み込めません: {e}")
+    missing = sorted(a.ref for a in case.accounts.values() if a.ref not in creds)
+    if missing and not args.resume:
+        raise CLIError(f"認証ファイルに案件のアカウントの参照名がありません: {missing}")
+    override = {"max_requests": args.max_requests} if args.max_requests else None
+    if override and override["max_requests"] > case.budget["max_requests"]:
+        raise CLIError("--max-requestsは案件設定の予算より大きくできません（予算の拡張は案件設定で行い、確認してから）")
+    res = run_research_case(case, args.base_url, creds, journal_root=args.journal_root, evidence_root=args.evidence_root,
+                            is_stopped=was_interrupted, budget_override=override, resume_run_id=args.resume)
+    d = res.to_dict()
+    result = {**d["scan_result"], "state": d["state"]}
+    result["research"] = {
+        "case_id": d["case_id"], "run_id": d["run_id"], "end_reason": d["end_reason"], "finish_reason": d["finish_reason"],
+        "clean_finish": d["clean_finish"], "resumable": d["resumable"], "resume": d["resume"], "counters": d["counters"],
+        "metrics": d["metrics"], "budget": d["budget"], "versions": d["versions"],
+        "hypotheses": [{k: h[k] for k in ("hypothesis_id", "family", "op_id", "probe_role", "state", "reason", "control_state",
+                                          "grounded", "source", "prediction_sha")} for h in d["hypotheses"]],
+        # 候補=逸脱は観測したが確定していない（対照未実施・期待値が推定 等）。findings・台帳には入れない（候補なしは空リスト）
+        "candidates": d["candidates"], "refuted": [r["hypothesis_id"] for r in d["refuted"]], "undetermined": d["undetermined"],
+        "unverifiable": d["unverifiable"], "not_examined": d["not_examined"], "unknowns": d["unknowns"],
+        "finding_details": [{k: f.get(k) for k in ("hypothesis_id", "family", "op_id", "control_state", "evidence_complete",
+                                                  "evidence_missing", "prediction_sha", "registered_seq")} for f in d["findings"]],
+        "rejected": d["rejected"], "decision_log": d["decision_log"]}
+    if args.report_dir:
+        try:
+            out = Path(args.report_dir)
+            out.mkdir(parents=True, exist_ok=True)
+            path = out / f"research-{d['run_id']}.md"
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(render_research_report(d, evidence_root=args.evidence_root))
+            result["research"]["report"] = str(path)
+        except OSError:
+            result.setdefault("errors", []).append("レポートの保存に失敗しました")
+    return result
+
+
 def ledger_command(args):
     """台帳の参照・更新コマンド。結果はJSON、問題はCLIError(failed/exit 2)。"""
     try:
@@ -450,7 +522,7 @@ def ledger_command(args):
 def record_ledger(args, engagement, result):
     """engagement_idが指定された場合だけ、完了した各scan結果を所見台帳へ追記し、レポート用の台帳ビューを付ける。台帳の失敗はscan結果を隠さない。"""
     eid = getattr(args, "engagement_id", None) or (engagement or {}).get("engagement_id")
-    if not eid or args.command not in ("scan", "lab"):
+    if not eid or args.command not in ("scan", "lab", "research"):
         return
     result["engagement_id"] = eid
     try:
@@ -507,7 +579,7 @@ def main(argv=None):
         args = parser().parse_args(argv)
         if getattr(args, "structured_output", False):
             config.set_runtime_override("llm_structured", True)
-        is_ledger = args.command in ("diff", "mark", "suppress", "findings", "openapi", "lab")
+        is_ledger = args.command in ("diff", "mark", "suppress", "findings", "openapi", "lab", "research")
         is_audit = args.command == "scan" and args.mode in ("audit", "defense", "attack")
         if not is_ledger and (not is_audit or args.mode == "attack"):
             args.allow = check_rules(args.allow, "--allow")
@@ -524,6 +596,10 @@ def main(argv=None):
             creds = read_lab_creds(args.creds_file)
             secrets = set(creds.values())
             result = lab_command(args, creds)
+        elif args.command == "research":
+            creds = read_lab_creds(args.creds_file)
+            secrets = set(creds.values())
+            result = research_command(args, creds, lambda: interrupted)
         elif is_ledger:
             result = ledger_command(args)
         elif is_audit:
