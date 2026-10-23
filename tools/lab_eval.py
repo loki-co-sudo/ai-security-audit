@@ -73,11 +73,11 @@ class TimedLLM:
         self.errors: list[str] = []
         self.input_tokens = self.output_tokens = 0
 
-    def complete(self, messages, max_tokens=None, usage_out=None):
+    def complete(self, messages, max_tokens=None, usage_out=None, extra_body=None):
         t0 = time.time()
         u: dict = {}
         try:
-            return self._c.complete(messages, max_tokens=max_tokens, usage_out=u)
+            return self._c.complete(messages, max_tokens=max_tokens, usage_out=u, extra_body=extra_body)
         except Exception as e:      # noqa: BLE001
             self.errors.append(type(e).__name__)
             raise

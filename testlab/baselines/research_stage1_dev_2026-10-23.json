@@ -1,0 +1,663 @@
+{
+ "runs": [
+  {
+   "case_id": "blind-docs-01",
+   "seed": 0,
+   "grade": {
+    "case_id": "blind-docs-01",
+    "truth_flaws_reachable_grounded": 3,
+    "true_positive_units": 3,
+    "false_negative_flaws": [],
+    "recall": 1.0,
+    "precision": 1.0,
+    "reported_units": 3,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [
+     [
+      "object_authz",
+      "doc_export"
+     ]
+    ],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 1,
+    "redundant_confirmations": 1,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {
+     "audit_bfla": 29,
+     "user_exposure": 16,
+     "comments_bola": 11
+    },
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 55,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 29,
+    "supported": 4,
+    "unverified_deviation": 3,
+    "refuted": 22,
+    "undetermined": 0,
+    "unverifiable": 1,
+    "not_examined": 25,
+    "hypothesis_to_finding_rate": 0.1379,
+    "control_rate": 1.0,
+    "control_denominator": 23,
+    "evidence_complete_rate": 1.0,
+    "prereg_violations": [],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_5f3523f67898"
+  },
+  {
+   "case_id": "blind-docs-01",
+   "seed": 1,
+   "grade": {
+    "case_id": "blind-docs-01",
+    "truth_flaws_reachable_grounded": 3,
+    "true_positive_units": 3,
+    "false_negative_flaws": [],
+    "recall": 1.0,
+    "precision": 1.0,
+    "reported_units": 3,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [
+     [
+      "object_authz",
+      "doc_export"
+     ]
+    ],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 1,
+    "redundant_confirmations": 4,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {
+     "audit_bfla": 27,
+     "user_exposure": 17,
+     "comments_bola": 11
+    },
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 55,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 30,
+    "supported": 7,
+    "unverified_deviation": 3,
+    "refuted": 20,
+    "undetermined": 0,
+    "unverifiable": 1,
+    "not_examined": 24,
+    "hypothesis_to_finding_rate": 0.2333,
+    "control_rate": 1.0,
+    "control_denominator": 24,
+    "evidence_complete_rate": 1.0,
+    "prereg_violations": [],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_ccd3dbfba21a"
+  },
+  {
+   "case_id": "blind-docs-01",
+   "seed": 2,
+   "grade": {
+    "case_id": "blind-docs-01",
+    "truth_flaws_reachable_grounded": 3,
+    "true_positive_units": 3,
+    "false_negative_flaws": [],
+    "recall": 1.0,
+    "precision": 1.0,
+    "reported_units": 3,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [
+     [
+      "object_authz",
+      "doc_export"
+     ]
+    ],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 1,
+    "redundant_confirmations": 3,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {
+     "audit_bfla": 28,
+     "user_exposure": 17,
+     "comments_bola": 11
+    },
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 55,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 30,
+    "supported": 6,
+    "unverified_deviation": 3,
+    "refuted": 21,
+    "undetermined": 0,
+    "unverifiable": 1,
+    "not_examined": 24,
+    "hypothesis_to_finding_rate": 0.2,
+    "control_rate": 1.0,
+    "control_denominator": 24,
+    "evidence_complete_rate": 1.0,
+    "prereg_violations": [],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_b5f27f6fa238"
+  },
+  {
+   "case_id": "blind-docs-01",
+   "seed": 3,
+   "grade": {
+    "case_id": "blind-docs-01",
+    "truth_flaws_reachable_grounded": 3,
+    "true_positive_units": 3,
+    "false_negative_flaws": [],
+    "recall": 1.0,
+    "precision": 1.0,
+    "reported_units": 3,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [
+     [
+      "object_authz",
+      "doc_export"
+     ]
+    ],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 1,
+    "redundant_confirmations": 4,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {
+     "audit_bfla": 27,
+     "user_exposure": 17,
+     "comments_bola": 11
+    },
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 55,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 30,
+    "supported": 7,
+    "unverified_deviation": 3,
+    "refuted": 20,
+    "undetermined": 0,
+    "unverifiable": 1,
+    "not_examined": 24,
+    "hypothesis_to_finding_rate": 0.2333,
+    "control_rate": 1.0,
+    "control_denominator": 24,
+    "evidence_complete_rate": 1.0,
+    "prereg_violations": [],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_91d5b4a8387b"
+  },
+  {
+   "case_id": "blind-docs-01",
+   "seed": 4,
+   "grade": {
+    "case_id": "blind-docs-01",
+    "truth_flaws_reachable_grounded": 3,
+    "true_positive_units": 3,
+    "false_negative_flaws": [],
+    "recall": 1.0,
+    "precision": 1.0,
+    "reported_units": 3,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [
+     [
+      "object_authz",
+      "doc_export"
+     ]
+    ],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 1,
+    "redundant_confirmations": 4,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {
+     "audit_bfla": 28,
+     "user_exposure": 17,
+     "comments_bola": 11
+    },
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 55,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 30,
+    "supported": 7,
+    "unverified_deviation": 3,
+    "refuted": 20,
+    "undetermined": 0,
+    "unverifiable": 1,
+    "not_examined": 24,
+    "hypothesis_to_finding_rate": 0.2333,
+    "control_rate": 1.0,
+    "control_denominator": 24,
+    "evidence_complete_rate": 1.0,
+    "prereg_violations": [],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_8e09c3e5dc69"
+  },
+  {
+   "case_id": "blind-docs-clean",
+   "seed": 0,
+   "grade": {
+    "case_id": "blind-docs-clean",
+    "truth_flaws_reachable_grounded": 0,
+    "true_positive_units": 0,
+    "false_negative_flaws": [],
+    "recall": null,
+    "precision": null,
+    "reported_units": 0,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 0,
+    "redundant_confirmations": 0,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {},
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 55,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 27,
+    "supported": 0,
+    "unverified_deviation": 0,
+    "refuted": 27,
+    "undetermined": 0,
+    "unverifiable": 1,
+    "not_examined": 27,
+    "hypothesis_to_finding_rate": 0.0,
+    "control_rate": 1.0,
+    "control_denominator": 21,
+    "evidence_complete_rate": null,
+    "prereg_violations": [],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_aa293fd7923d"
+  },
+  {
+   "case_id": "blind-docs-clean",
+   "seed": 1,
+   "grade": {
+    "case_id": "blind-docs-clean",
+    "truth_flaws_reachable_grounded": 0,
+    "true_positive_units": 0,
+    "false_negative_flaws": [],
+    "recall": null,
+    "precision": null,
+    "reported_units": 0,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 0,
+    "redundant_confirmations": 0,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {},
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 55,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 29,
+    "supported": 0,
+    "unverified_deviation": 0,
+    "refuted": 29,
+    "undetermined": 0,
+    "unverifiable": 1,
+    "not_examined": 25,
+    "hypothesis_to_finding_rate": 0.0,
+    "control_rate": 1.0,
+    "control_denominator": 23,
+    "evidence_complete_rate": null,
+    "prereg_violations": [],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_f826286c744c"
+  },
+  {
+   "case_id": "blind-docs-clean",
+   "seed": 2,
+   "grade": {
+    "case_id": "blind-docs-clean",
+    "truth_flaws_reachable_grounded": 0,
+    "true_positive_units": 0,
+    "false_negative_flaws": [],
+    "recall": null,
+    "precision": null,
+    "reported_units": 0,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 0,
+    "redundant_confirmations": 0,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {},
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 55,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 29,
+    "supported": 0,
+    "unverified_deviation": 0,
+    "refuted": 29,
+    "undetermined": 0,
+    "unverifiable": 1,
+    "not_examined": 25,
+    "hypothesis_to_finding_rate": 0.0,
+    "control_rate": 1.0,
+    "control_denominator": 23,
+    "evidence_complete_rate": null,
+    "prereg_violations": [],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_1431b9c32966"
+  },
+  {
+   "case_id": "blind-docs-clean",
+   "seed": 3,
+   "grade": {
+    "case_id": "blind-docs-clean",
+    "truth_flaws_reachable_grounded": 0,
+    "true_positive_units": 0,
+    "false_negative_flaws": [],
+    "recall": null,
+    "precision": null,
+    "reported_units": 0,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 0,
+    "redundant_confirmations": 0,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {},
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 55,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 29,
+    "supported": 0,
+    "unverified_deviation": 0,
+    "refuted": 29,
+    "undetermined": 0,
+    "unverifiable": 1,
+    "not_examined": 25,
+    "hypothesis_to_finding_rate": 0.0,
+    "control_rate": 1.0,
+    "control_denominator": 23,
+    "evidence_complete_rate": null,
+    "prereg_violations": [],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_a62f133689aa"
+  },
+  {
+   "case_id": "blind-docs-clean",
+   "seed": 4,
+   "grade": {
+    "case_id": "blind-docs-clean",
+    "truth_flaws_reachable_grounded": 0,
+    "true_positive_units": 0,
+    "false_negative_flaws": [],
+    "recall": null,
+    "precision": null,
+    "reported_units": 0,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 0,
+    "redundant_confirmations": 0,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {},
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 55,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 29,
+    "supported": 0,
+    "unverified_deviation": 0,
+    "refuted": 29,
+    "undetermined": 0,
+    "unverifiable": 1,
+    "not_examined": 25,
+    "hypothesis_to_finding_rate": 0.0,
+    "control_rate": 1.0,
+    "control_denominator": 23,
+    "evidence_complete_rate": null,
+    "prereg_violations": [],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_8e27fb2cb597"
+  }
+ ],
+ "n_cases": 2,
+ "n_runs": 10,
+ "boundary_violations_total": 0,
+ "note": "seed違いは独立した未知案件ではない。LLM呼出0・外部通信0。"
+}

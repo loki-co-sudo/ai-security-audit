@@ -1,0 +1,61 @@
+{
+ "flaws": [
+  {
+   "flaw_id": "comments_bola",
+   "family": "object_authz",
+   "op_id": "doc_comments",
+   "spec_grounded": true,
+   "reachable": true
+  },
+  {
+   "flaw_id": "user_exposure",
+   "family": "field_exposure",
+   "op_id": "user_get",
+   "spec_grounded": true,
+   "reachable": true
+  },
+  {
+   "flaw_id": "audit_bfla",
+   "family": "function_authz",
+   "op_id": "admin_audit",
+   "spec_grounded": true,
+   "reachable": true
+  },
+  {
+   "flaw_id": "export_bola",
+   "family": "object_authz",
+   "op_id": "doc_export",
+   "spec_grounded": false,
+   "reachable": true
+  }
+ ],
+ "non_flaws": [
+  {
+   "family": "object_authz",
+   "op_id": "doc_get",
+   "note": "共有先(bob)が読めるのは仕様どおり。他は403"
+  },
+  {
+   "family": "function_authz",
+   "op_id": "admin_stats",
+   "note": "非管理者に403"
+  },
+  {
+   "family": "unauth_access",
+   "op_id": "*",
+   "note": "未認証は全て401(health は仕様上の公開)"
+  }
+ ],
+ "unverifiable": [
+  {
+   "op_id": "doc_update",
+   "why": "POST(T3)の操作部品が無い"
+  }
+ ],
+ "env_flaws": [
+  "comments_bola",
+  "user_exposure",
+  "audit_bfla",
+  "export_bola"
+ ]
+}

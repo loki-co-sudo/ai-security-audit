@@ -1,0 +1,17 @@
+{
+ "flaws": [],
+ "non_flaws": [
+  {
+   "family": "*",
+   "op_id": "*",
+   "note": "全操作が仕様どおり"
+  }
+ ],
+ "unverifiable": [
+  {
+   "op_id": "doc_update",
+   "why": "POST(T3)の操作部品が無い"
+  }
+ ],
+ "env_flaws": []
+}

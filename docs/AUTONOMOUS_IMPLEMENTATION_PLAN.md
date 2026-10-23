@@ -79,3 +79,7 @@ M1の合格条件（追加）: ジャーナルを読めば、任意の所見か�
 2026-10-23: ローカル模擬案件での固定テスト選択(C0相当の決定論的優先順位＋C1相当のLLM助言)を `docs/LOCAL_LAB_EVAL.md` として先行実装した
 (Phase Cの着手条件「P2.1の基準値取得後」に対し、WEB FUZZ以外の実LLM評価が未了のため、ローカル限定・モックLLMまでに留めた)。
 `ScriptedRunner` へ後方互換の `selector` を追加。実LLM評価は実施済み（`docs/LOCAL_LAB_EVAL.md` §6.7〜6.9。決定論への上乗せは確認できず）。
+
+2026-10-23（追補）: 目標を「自律的な仮説形成・実験設計・再計画による発見能力の実証」へ更新した（[要求仕様](AUTONOMOUS_DISCOVERY_REQUIREMENTS.md)）。
+上記のlabは人間が仮説・期待値を書く**実行基盤の検証**で、この要求の実証ではない。要求との差・Stage 1の計画と進捗は
+[AUTONOMOUS_DISCOVERY_STAGE1.md](AUTONOMOUS_DISCOVERY_STAGE1.md) を正とする（U1=観測→仮説の具体化→予測の事前登録→再計画を実装・固定試験済み。再開U3は本書のB2/B3の拡張として未着手）。

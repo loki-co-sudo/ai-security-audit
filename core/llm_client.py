@@ -192,14 +192,16 @@ class LLMClient:
 
     # ── 非ストリーミング API ───────────────────────────────
     def complete(self, messages: list[dict], max_tokens: int | None = None,
-                 usage_out: dict | None = None) -> str:
+                 usage_out: dict | None = None, extra_body: dict | None = None) -> str:
         """LLMを一括呼び出しし、完全なレスポンス文字列を返す。
 
         `max_tokens`は指定時のみAPIへ渡す。`usage_out`（任意のdict）が渡されたら、応答に使用量が
         含まれる場合のみ input_tokens / output_tokens を書き込む（含まれなければ空のまま。
-        呼び出し側は取得不能を0として扱ってはならない）。
+        呼び出し側は取得不能を0として扱ってはならない）。`extra_body`は任意（プロバイダ固有の追加パラメータ）。
         """
         extra = {} if max_tokens is None else {"max_tokens": max_tokens}
+        if extra_body:                      # プロバイダ固有の追加パラメータ（例: OpenRouterのreasoning）。未指定なら従来どおり
+            extra["extra_body"] = extra_body
         response = self._client.chat.completions.create(
             model=self.model,
             messages=messages,

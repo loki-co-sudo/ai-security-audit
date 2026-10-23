@@ -802,3 +802,22 @@ ATTACKのLLM解釈部分の評価(ローカルlabの観測に対する仮説の�
 - AGENTS.md §3 に、レビューで繰り返し見つかった作業傾向（経路の端から端までの追跡・根拠一式の検査・機密漏えい検査・テストPASSと契約の区別・指標と判定の混同禁止・完了状態の区別）を追記。
 - 状態: 実装済み・固定試験済み（`tools.test_lab` 92件ほか）。未実施: 実LLM再測定、GUI目視、Windows実機、HTMLの目視。残課題: R7（GUI非同期化）、R1のmethod・プローブ指紋、D0の旧新差の分離分析、新規未使用ケースの評価。
 - 2026-10-23 再レビュー対応: `LAB_ENGINE_VERSION` を `lab-workflow/6` へ（旧版Runの再開は拒否）。形式不正の証拠参照を `invalid_reference` として全形式に残す。4パネルに結果状態・注意の表示（`gui/result_notice.py`）。テストのファイル閉じ忘れを整理（`-W error::ResourceWarning` で `tools.test_lab` 93件OK）。未着手: GUI出力処理・台帳I/Oの非同期化（R7、独立作業）、旧新判定の差分分析。
+
+## 2026-10-23 自律調査 Stage 1 の U1（観測→仮説→実験前登録→再計画）
+
+要求仕様 `docs/AUTONOMOUS_DISCOVERY_REQUIREMENTS.md` を保存し、現状との差・Stage 1 計画・結果を `docs/AUTONOMOUS_DISCOVERY_STAGE1.md` に整理。
+- 追加: `core/autonomy/research_{case,model,hypothesis,planner,loop,report}.py`、`ScriptedRunner` の `add_task`/`on_idle`（追加のみ・既定は従来動作・RunStoreとは併用不可）。
+  被験環境 `testlab/lab/blind_apps.py`（TeamDocs）・`blind_cases/`（公開仕様のみ）・`blind_grader.py`（独立採点）・`truth/blind-*.json`、`tools/research_eval.py`、`tools/test_research.py`（selftest 16ah）。
+- 移した研究判断: 仮説の具体化、対照の設計、期待値の根拠付け（仕様条項＋観測した所有関係。仕様に記載がなければ推定として確定しない）、予測と反証条件の事前登録、
+  観測に応じた次の実験の選択、検証不能（必要な能力つき）・未検査・候補・未判定の区別。仮説の型は規則5種で、型の外の仮説（LLM提案）は未実装。
+- 結果（開発2件×seed5通り・LLM呼出0）: 根拠付き3欠陥を全実行で再現・偽陽性0・境界逸脱0、期待値が推定の欠陥は候補止まり、正常対象で所見0。開発ケースの欠陥は私が型と同じ分類で作ったため、
+  未知ケースの発見能力の証拠ではない。保存: `testlab/baselines/research_stage1_dev_2026-10-23.json`。
+- 未実装: 再開（resumable=false）、LLM提案、重複確認の抑制、`cli.py research`・所見台帳・共通レポート層。未実証: 未使用ケース、固定的手法との比較、実LLM。
+
+## 2026-10-23 自律調査 U2（LLMによる仮説提案）
+
+- 追加: `core/autonomy/research_llm.py`（閉じた語彙の提案→検証器→事前登録。期待値・拒否ステータス・対照はLLMが指定できない）、判定語彙 `list_visibility`（規則5型が提案しない型）、
+  被験環境の欠陥 `list_leak` と開発ケース `blind-docs-02/03`、`tools/research_eval.py` の `--llm none|mock|real`（承認フラグ必須）。`LLMClient.complete` に任意の `extra_body`（既定は従来動作）。
+- 固定試験: `tools/test_research.py` 49件。変異（条項一致・無害化・検証器の迂回）が検出されることを確認。
+- 実LLM（`z-ai/glm-5.3-flash`・開発ケースのみ）: 条件A（`max_tokens=800`）は推論で全トークンを使い切り48/48失敗。条件B（`reasoning.effort=low`）は有効率56%・偽陽性0だが、
+  `list_leak` は0/12（`admin` への提案が0/24）で規則のみに上乗せなし。結果と事前予測の照合は `docs/AUTONOMOUS_DISCOVERY_STAGE1.md` §6。保存: `testlab/baselines/research_u2_*.json`。

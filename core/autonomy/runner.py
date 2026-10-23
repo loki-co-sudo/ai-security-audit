@@ -66,11 +66,17 @@ class ScriptedRunner:
                  store: RunStore | None = None, resumed: bool = False,
                  restore_cb: Callable[[PlanTask, dict], None] | None = None,
                  retry_unknown: frozenset = frozenset(),
-                 selector: Callable[["RunOutcome"], "tuple[str | None, str]"] | None = None):
+                 selector: Callable[["RunOutcome"], "tuple[str | None, str]"] | None = None,
+                 on_idle: Callable[["RunOutcome"], "list[PlanTask]"] | None = None):
         """selector(任意): 次に実行するtask_idと理由を返す。(None, 終了理由)で終了し、未選択の残りは
         `not_selected:<理由>` でスキップ(未検査として残す)。未指定なら従来どおり計画順に全件を実行する。
-        selectorが選べるのは計画に登録済みのタスクだけで、選んだタスクも通常どおりGateを通る。"""
+        selectorが選べるのは計画に登録済みのタスクだけで、選んだタスクも通常どおりGateを通る。
+        on_idle(任意・selectorと併用): 実行待ちが無くなったときに呼ばれ、観測に基づく追加タスクを返す(空なら終了)。
+        追加タスクも通常どおり task_added を記録し Gate を通る。RunStoreとは併用できない(再開は未対応)。"""
         self.selector = selector
+        self.on_idle = on_idle
+        if on_idle is not None and (selector is None or store is not None):
+            raise ValueError("on_idleはselectorが必要で、RunStoreとは併用できません(動的に追加した計画の再開は未対応)")
         self.gate, self.journal, self.registry = gate, journal, registry
         self.executors, self.is_stopped, self.budget, self.plan = executors, is_stopped, budget, plan
         self.store, self.resumed, self.restore_cb = store, resumed, restore_cb
@@ -129,6 +135,15 @@ class ScriptedRunner:
                 finish = "stopped"
                 break
             pending = [t for t in self.plan if out.tasks[t.task_id].state == TaskState.PENDING]
+            if not pending and self.on_idle is not None:
+                try:
+                    added = self.on_idle(out) or []
+                    for nt in added:
+                        self.add_task(nt)
+                except (JournalError, ValueError) as e:
+                    self._halt_audit(f"追加タスクを記録できません: {e}")
+                    break
+                pending = [t for t in self.plan if out.tasks[t.task_id].state == TaskState.PENDING]
             if not pending:
                 break
             tid, why = self.selector(out)
@@ -153,6 +168,18 @@ class ScriptedRunner:
                 break
             if out.tasks[t.task_id].state == TaskState.PENDING:
                 self._skip(t, f"not_selected:{finish}")
+
+    def add_task(self, t: PlanTask) -> None:
+        """実行中に計画へタスクを追加する(観測に基づく再計画用)。追加の事実を先にジャーナルへ記録する。"""
+        if t.task_id in self._plan_by_id:
+            raise ValueError(f"task_idが重複しています: {t.task_id}")
+        if self.store is not None:
+            raise ValueError("RunStoreを使うRunへは動的にタスクを追加できません")
+        self.journal.append("task_added", task_id=t.task_id, capability=t.capability,
+                            depends_on=list(t.depends_on), dynamic=True)
+        self.plan.append(t)
+        self._plan_by_id[t.task_id] = t
+        self.outcome.tasks[t.task_id] = TaskRecord(TaskState.PENDING)
 
     def _run_task(self, t: PlanTask) -> None:
         out, rec = self.outcome, self.outcome.tasks[t.task_id]

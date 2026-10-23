@@ -1,0 +1,55 @@
+{
+ "flaws": [
+  {
+   "flaw_id": "list_leak",
+   "family": "list_scope",
+   "op_id": "docs_list",
+   "spec_grounded": true,
+   "reachable": true
+  },
+  {
+   "flaw_id": "comments_bola",
+   "family": "object_authz",
+   "op_id": "doc_comments",
+   "spec_grounded": true,
+   "reachable": true
+  }
+ ],
+ "non_flaws": [
+  {
+   "family": "object_authz",
+   "op_id": "doc_get",
+   "note": "共有先(bob)が読めるのは仕様どおり"
+  },
+  {
+   "family": "function_authz",
+   "op_id": "admin_stats",
+   "note": "非管理者に403"
+  },
+  {
+   "family": "function_authz",
+   "op_id": "admin_audit",
+   "note": "非管理者に403"
+  },
+  {
+   "family": "field_exposure",
+   "op_id": "user_get",
+   "note": "仕様どおり(id,name)"
+  },
+  {
+   "family": "object_authz",
+   "op_id": "doc_export",
+   "note": "所有者以外は403"
+  }
+ ],
+ "unverifiable": [
+  {
+   "op_id": "doc_update",
+   "why": "POST(T3)の操作部品が無い"
+  }
+ ],
+ "env_flaws": [
+  "list_leak",
+  "comments_bola"
+ ]
+}

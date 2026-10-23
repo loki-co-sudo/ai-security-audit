@@ -26,6 +26,8 @@
 | 次の実装順序・対象ファイル・データ契約・受け入れ条件の正本（P0〜P4） | [docs/PRACTICAL_ROADMAP.md](docs/PRACTICAL_ROADMAP.md) |
 | 自律完結型への発展（設計書・Phase A詳細設計・**実装計画と進捗の正本**）。自律化の実装依頼ではまず実装計画を読む | [docs/AUTONOMOUS_IMPLEMENTATION_PLAN.md](docs/AUTONOMOUS_IMPLEMENTATION_PLAN.md) / [docs/AUTONOMOUS_PLATFORM_DESIGN.md](docs/AUTONOMOUS_PLATFORM_DESIGN.md) / [docs/AUTONOMOUS_PHASE_A_DESIGN.md](docs/AUTONOMOUS_PHASE_A_DESIGN.md) |
 | ローカル模擬診断案件の評価基盤・固定テスト選択ワークフロー（要件分類・指標定義・結果・未検証事項の正本） | [docs/LOCAL_LAB_EVAL.md](docs/LOCAL_LAB_EVAL.md) |
+| **自律型脆弱性発見の要求仕様**（目指す到達点・成果の主張範囲・評価設計。現状は書かない） | [docs/AUTONOMOUS_DISCOVERY_REQUIREMENTS.md](docs/AUTONOMOUS_DISCOVERY_REQUIREMENTS.md) |
+| 要求と現状の差・Stage 1 実現計画・自律調査（観測→仮説→実験前登録→再計画）の進捗の正本 | [docs/AUTONOMOUS_DISCOVERY_STAGE1.md](docs/AUTONOMOUS_DISCOVERY_STAGE1.md) |
 | 完了済み機能の実装詳細・セルフテスト結果（通常のタスクでは読まなくてよい） | [docs/IMPLEMENTATION_LOG.md](docs/IMPLEMENTATION_LOG.md) |
 
 実践運用対応の実装依頼では、`docs/PRACTICAL_ROADMAP.md` §3の未完了IDを選んで該当節を読む。
@@ -65,6 +67,7 @@ AI-Security-tool/
 │   └── target_code_v2.py        # 実LLM評価用の難しめサンプル(欠陥8＋安全だが危なそうに見えるdecoy6。正解は testlab/benchmark/ground_truth_audit_v2.json)
 ├── testlab/
 │   ├── lab/                     # ローカル模擬診断案件: apps.py(模擬環境・ラベルなし)・cases/(公開設定)・truth/(正解。診断中は権限000で封印)・grader.py(独立採点・連鎖の再現率/偽の連鎖)・oracle.py(案件が方式間の差を出せるかの事前検査)・gen_cases.py(案件生成・既存ファイルの上書きを拒否)・holdout_log.json
+│   │                            # 自律調査用: blind_apps.py(被験環境TeamDocs・seedでID決定論)・blind_cases/(公開仕様のみ)・blind_grader.py(独立採点)・truth/blind-*.json(正解)
 │   ├── fixtures/attack_benchmark.py # ATTACK偵察の評価用fixture(main/catchall(soft-404)/held の3台のHTTPとバナー付きTCP)。正解は benchmark/ground_truth_attack.json、基準値は baselines/attack_recon.json(改修前は attack_recon.before-fixes.json)
 │   ├── fixtures/web_benchmark.py # 検出品質評価用fixture(罠を含む。P2.1)。正解は benchmark/ground_truth_web_fuzz.json、改修前の基準値は baselines/web_fuzz_detector.json
 │   ├── vuln_server.py           # 手動確認用の模擬脆弱サーバー
@@ -109,7 +112,13 @@ AI-Security-tool/
 │       ├── lab_case.py          # ローカル模擬診断案件の設定契約(GETの固定テスト操作・loopback限定・秘密値/正解ラベル拒否)。設計・結果・判定は docs/LOCAL_LAB_EVAL.md
 │       ├── lab_workflow.py      # 固定テスト操作をcapability(T1/T2)化し Observe→Classify→Prioritize→Execute→Evaluate→Replan を実行。LLMは登録済みtest_idの選択助言のみ
 │       ├── lab_chain.py         # 小さな不備の組合せ(連鎖)の候補を決定論規則で作る。仮説(hypothesized)として報告し実行・確認しない
-│       └── lab_report.py        # 証拠ハッシュ検証つきMarkdownレポート(外部提出なし・連鎖の仮説節つき)
+│       ├── lab_report.py        # 証拠ハッシュ検証つきMarkdownレポート(外部提出なし・連鎖の仮説節つき)
+│       ├── research_case.py     # 自律調査(Stage 1)の案件設定: 公開仕様＋アカウント＋範囲＋予算だけ。仮説/検査手順/期待値/正解ラベルは置けない(拒否)
+│       ├── research_model.py    # Target Model: 仕様＋観測(利用者ID・所有/共有)を出典つきで保持。取得失敗は unknowns へ
+│       ├── research_hypothesis.py # 仮説の具体化(規則5型)・予測と反証条件・有効な仮説の定義(validate)・判定(hyp_state)。設計は docs/AUTONOMOUS_DISCOVERY_STAGE1.md
+│       ├── research_planner.py  # Researcher: 観測の取り込み・仮説の事前登録(Journal)・価値順の実験選択・再計画(通信しない)
+│       ├── research_loop.py     # run_research_case(): 既存Runner/Gate/Journal/予算/証拠を再利用した実行・結果組立。LLM呼出0・GETのみ・再開は未対応
+│       └── research_report.py   # 編集可能なMarkdownレポートドラフト(根拠・予測・対照・証拠の整合性/完全性・未確認・検証不能・レビュー状態)
 ├── agents/
 │   ├── base_agent.py            # 抽象基底クラス。threading.Eventで停止管理、EventBusヘルパー群、_check_scope()（スコープガード）
 │   ├── audit_agent.py           # CODE AUDITエージェント（7ステップ。ASTプリプロセッサ＋並列CVE照合＋FP検証強化）
@@ -146,6 +155,8 @@ AI-Security-tool/
 │   ├── lab_robustness.py        # 決定論方式の係数・宣言順への依存を調べる(開発ケースのみ)
 │   ├── lab_eval.py              # ローカル模擬案件の評価ハーネス(固定/順序ランダム/決定論/LLM助言を同条件で比較・採点・再現確認・保留ケースの使用記録)。実LLMは承認フラグ必須
 │   ├── test_lab.py              # 案件契約・期待値比較・安全(範囲外/予算/STOP/再開)・正解の隔離・手計算採点の固定試験（selftest 16aeに統合）
+│   ├── research_eval.py         # 自律調査の評価ハーネス(被験環境TeamDocsを起動→調査→独立採点。LLM呼出0。seed違いは独立案件ではない)
+│   ├── test_research.py         # 自律調査の固定試験(案件契約・有効な仮説の定義・判定行列・事前登録の順序・正常対象で捏造0・予算/STOP・漏えい・レポート。selftest 16ahに統合)
 │   ├── lab_crash_child.py       # 上記の再開試験用に os._exit を再現する子プロセス
 │   ├── test_policy_gate.py      # 上記autonomy型・Gate・予算・タスク状態の固定試験（selftest 16pに統合）
 │   ├── test_evidence_provenance.py # 証拠の由来情報(content_sha256/action_id/masking_version/truncated)とverify()の固定試験（selftest 16oに統合）
@@ -327,6 +338,7 @@ fix: fix ALERT event not firing in DEFENSE MODE
 - **指標の改善と判定の正確さを混同しない**。未確認を未確認とすることで数値が下がるのは正しい挙動。数値を戻すために
   状態の意味や成功条件を変えない。旧新の差は「採点・報告条件の変更」「選択順の変更」「対照の実行コスト」が混在するため、
   分離して測るまで原因を断定しない。過去の評価値は消さず、版と定義を添えて残す。
+- **固定操作の選択(lab)と、仮説・実験の自律設計(research)を混同しない。** labの成功は『人間が書いた仮説・期待値からtest_idを選べた』ことで、自律的な発見能力の証拠ではない(要求仕様 §4.C)。自律調査の開発ケースの欠陥を、実装している仮説の型と同じ分類で自作した場合、その全件発見は『型の内側でパイプラインが動く』確認にとどまり、未知の欠陥の発見や、再計画・仮説生成の寄与を主張しない(Stage 3の比較と未使用ケースが必要)。要求仕様(`docs/AUTONOMOUS_DISCOVERY_REQUIREMENTS.md`)に現状を書かず、現状は `AUTONOMOUS_DISCOVERY_STAGE1.md` に書く。
 - **完了状態を区別して残す**: 「実装済み / 固定試験済み / 実LLM評価済み / GUI・Windows確認済み」。同じ進捗を複数文書へ
   重複記載せず、現在状態の正本を一つにする。実装していないこと・未検証の環境を完了扱いにしない。
 - **レポート出力は `gui/export_util.py` 経由に統一する**。各パネルで `report_generator` を直接叩く重複実装をしない（HTML/PDF両対応のため一元化済み）。PDFは `tools/pdf_writer.py`（Pillowのみ）で日本語をラスタ描画する — 標準14フォントはCJK非対応のため。
@@ -423,7 +435,6 @@ fix: fix ALERT event not firing in DEFENSE MODE
      このPCでは他のセキュリティツールを並行開発中のため、グローバル環境・他プロジェクトの
      ファイル/ポート/プロセスに影響を与えない。
 3. 【修正】失敗したらエラーログを読み、原因を特定して直し、手順2へ戻る。
-
 停止条件:
 - 【成功】上記の最低ラインを満たしたときだけ「完了」と報告する。**通過した出力（末尾）を証拠として添える**。
 - 【上限】ループは最大 **5 回**。使い切ったら止めて、何が残っているかを報告する。
@@ -465,6 +476,8 @@ validation error記録が残る。JSON出力も未実装。P1.2全体を完了�
 
 2026-10-23: ローカル模擬診断案件の評価基盤と、固定テスト操作を選ぶ自律ワークフロー（決定論＋LLM助言）を実装
 （`docs/LOCAL_LAB_EVAL.md` が正本）。その後、連鎖の仮説検出・再試行・`cli.py lab`・bwrap隔離・複数モデルの実LLM評価・保留5件の評価まで実施（結果は同文書 §6.5〜6.9。LLM助言は決定論を超えず、決定論の偽陽性は保留で1.0）。GUI・WEB FUZZ経路への統合は未実装。
+
+2026-10-23: 自律調査 Stage 1 の U1（観測→仮説の具体化→予測の事前登録→実験→評価→再計画→報告、LLM呼出0）を実装・固定試験済み（開発ケース2件×seed5通りで根拠付き3欠陥を再現・正常対象で所見0・境界逸脱0。未知ケース・実LLM・比較は未実施）。要求と現状の差・次の単位は `docs/AUTONOMOUS_DISCOVERY_STAGE1.md` が正本。同日のU2（LLMが仮説を提案し、検証器と決定論の判定器を通ったものだけを事前登録。`research_llm.py`）は機構を固定試験済み・`z-ai/glm-5.3-flash`で開発ケースを評価済みだが、規則のみに対する上乗せは確認できなかった（再開・CLI/台帳は未実装）。
 
 P0.1・P0.2・P1.1は完了済み。実装詳細・セルフテスト結果は
 [docs/IMPLEMENTATION_LOG.md](docs/IMPLEMENTATION_LOG.md) を参照。

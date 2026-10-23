@@ -4,6 +4,10 @@
 進捗の正本は本書。上位設計は [AUTONOMOUS_PLATFORM_DESIGN.md](AUTONOMOUS_PLATFORM_DESIGN.md)、
 既存基盤は [AUTONOMOUS_IMPLEMENTATION_PLAN.md](AUTONOMOUS_IMPLEMENTATION_PLAN.md)（Phase A/B）。
 
+> **位置付け（2026-10-23追記）**: 本書のlabは「人間が書いた仮説・固定テスト・期待値の中から次の操作を選ぶ」**実行基盤・方式比較の評価基盤**である。
+> 観測から仮説と実験を作る能力は別で、[AUTONOMOUS_DISCOVERY_STAGE1.md](AUTONOMOUS_DISCOVERY_STAGE1.md)（要求: [AUTONOMOUS_DISCOVERY_REQUIREMENTS.md](AUTONOMOUS_DISCOVERY_REQUIREMENTS.md)）で扱う。
+> 本書の成功を自律的な発見能力の実証として扱わない。
+
 ## 1. 範囲
 
 隔離されたローカルの模擬案件に対し、**登録済みの固定テスト操作**と既存の観測だけで、

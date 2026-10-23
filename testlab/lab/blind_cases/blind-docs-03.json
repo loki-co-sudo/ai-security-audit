@@ -1,0 +1,277 @@
+{
+ "schema": "ai-security-audit-blind-case",
+ "schema_version": "1",
+ "case_id": "blind-docs-03",
+ "split": "dev",
+ "title": "TeamDocs(自律調査・開発ケース: 一覧の漏えい＋管理者専用＋項目)",
+ "target_ref": "app:teamdocs",
+ "scope": {
+  "allowed_hosts": [
+   "127.0.0.1"
+  ],
+  "excluded_paths": [
+   "/logout"
+  ]
+ },
+ "side_effects_allowed": [
+  "T1",
+  "T2"
+ ],
+ "accounts": {
+  "alice": {
+   "ref": "cred:alice",
+   "privilege": "user"
+  },
+  "bob": {
+   "ref": "cred:bob",
+   "privilege": "user"
+  },
+  "carol": {
+   "ref": "cred:carol",
+   "privilege": "user"
+  },
+  "admin": {
+   "ref": "cred:admin",
+   "privilege": "admin"
+  },
+  "user_expired": {
+   "ref": "cred:user_expired",
+   "privilege": "user"
+  }
+ },
+ "spec": {
+  "title": "TeamDocs API",
+  "objects": {
+   "user": {
+    "id_field": "id",
+    "fields": [
+     "id",
+     "name"
+    ]
+   },
+   "doc": {
+    "id_field": "id",
+    "owner_field": "owner",
+    "shared_field": "shared_with",
+    "fields": [
+     "id",
+     "title",
+     "owner",
+     "shared_with",
+     "body"
+    ]
+   }
+  },
+  "operations": [
+   {
+    "op_id": "health",
+    "method": "GET",
+    "path": "/api/health",
+    "access": {
+     "clause": "S-1",
+     "kind": "public",
+     "text": "ヘルスチェックは認証なしで呼べる"
+    },
+    "returns": {
+     "fields": [
+      "status"
+     ]
+    }
+   },
+   {
+    "op_id": "me",
+    "method": "GET",
+    "path": "/api/me",
+    "access": {
+     "clause": "S-2",
+     "kind": "authenticated",
+     "text": "ログイン中の利用者自身の情報(id,name,email)を返す"
+    },
+    "returns": {
+     "fields": [
+      "id",
+      "name",
+      "email"
+     ],
+     "identity": true
+    }
+   },
+   {
+    "op_id": "docs_list",
+    "method": "GET",
+    "path": "/api/docs",
+    "access": {
+     "clause": "S-3",
+     "kind": "own_list",
+     "object": "doc",
+     "text": "呼出し者が所有する、または共有された文書の一覧だけを返す"
+    },
+    "returns": {
+     "object": "doc",
+     "list": true,
+     "fields": [
+      "id",
+      "title",
+      "owner",
+      "shared_with"
+     ]
+    }
+   },
+   {
+    "op_id": "doc_get",
+    "method": "GET",
+    "path": "/api/docs/{doc_id}",
+    "params": {
+     "doc_id": {
+      "object": "doc"
+     }
+    },
+    "access": {
+     "clause": "S-4",
+     "kind": "owner_or_shared",
+     "object": "doc",
+     "param": "doc_id",
+     "text": "文書は所有者と共有先の利用者だけが取得できる。それ以外は拒否する"
+    },
+    "returns": {
+     "object": "doc",
+     "fields": [
+      "id",
+      "title",
+      "owner",
+      "shared_with",
+      "body"
+     ],
+     "object_key": "id"
+    }
+   },
+   {
+    "op_id": "doc_comments",
+    "method": "GET",
+    "path": "/api/docs/{doc_id}/comments",
+    "params": {
+     "doc_id": {
+      "object": "doc"
+     }
+    },
+    "access": {
+     "clause": "S-5",
+     "kind": "owner_or_shared",
+     "object": "doc",
+     "param": "doc_id",
+     "text": "コメントは、その文書を閲覧できる利用者(所有者と共有先)だけが取得できる"
+    },
+    "returns": {
+     "list": true,
+     "fields": [
+      "doc_id",
+      "author",
+      "text"
+     ],
+     "object_key": "doc_id"
+    }
+   },
+   {
+    "op_id": "doc_export",
+    "method": "GET",
+    "path": "/api/docs/{doc_id}/export",
+    "params": {
+     "doc_id": {
+      "object": "doc"
+     }
+    },
+    "access": {
+     "clause": "S-6",
+     "kind": "unspecified",
+     "param": "doc_id",
+     "object": "doc",
+     "text": "文書をMarkdownで書き出す(アクセス条件の記載なし)"
+    },
+    "returns": {
+     "fields": [
+      "doc_id",
+      "format",
+      "content"
+     ],
+     "object_key": "doc_id"
+    }
+   },
+   {
+    "op_id": "doc_update",
+    "method": "POST",
+    "path": "/api/docs/{doc_id}",
+    "params": {
+     "doc_id": {
+      "object": "doc"
+     }
+    },
+    "access": {
+     "clause": "S-7",
+     "kind": "owner_only",
+     "object": "doc",
+     "param": "doc_id",
+     "text": "文書の更新は所有者だけができる"
+    }
+   },
+   {
+    "op_id": "user_get",
+    "method": "GET",
+    "path": "/api/users/{user_id}",
+    "params": {
+     "user_id": {
+      "object": "user"
+     }
+    },
+    "access": {
+     "clause": "S-8",
+     "kind": "authenticated",
+     "object": "user",
+     "param": "user_id",
+     "text": "認証済みの利用者は、他の利用者の公開プロフィール(id,name)を参照できる"
+    },
+    "returns": {
+     "object": "user",
+     "fields": [
+      "id",
+      "name"
+     ],
+     "object_key": "id"
+    }
+   },
+   {
+    "op_id": "admin_stats",
+    "method": "GET",
+    "path": "/api/admin/stats",
+    "access": {
+     "clause": "S-9",
+     "kind": "role",
+     "roles": [
+      "admin"
+     ],
+     "text": "集計情報は管理者だけが取得できる"
+    }
+   },
+   {
+    "op_id": "admin_audit",
+    "method": "GET",
+    "path": "/api/admin/audit",
+    "access": {
+     "clause": "S-10",
+     "kind": "role",
+     "roles": [
+      "admin"
+     ],
+     "text": "監査ログは管理者だけが取得できる"
+    }
+   }
+  ]
+ },
+ "budget": {
+  "max_requests": 40,
+  "max_seconds": 90,
+  "max_llm_calls": 0
+ },
+ "stop_conditions": {
+  "min_value": 0.02
+ }
+}

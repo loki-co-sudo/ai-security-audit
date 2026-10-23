@@ -1,0 +1,5641 @@
+{
+ "runs": [
+  {
+   "case_id": "blind-docs-01",
+   "seed": 0,
+   "grade": {
+    "case_id": "blind-docs-01",
+    "truth_flaws_reachable_grounded": 3,
+    "true_positive_units": 3,
+    "false_negative_flaws": [],
+    "recall": 1.0,
+    "precision": 1.0,
+    "reported_units": 3,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [
+     [
+      "object_authz",
+      "doc_export"
+     ]
+    ],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 1,
+    "redundant_confirmations": 1,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {
+     "audit_bfla": 29,
+     "user_exposure": 16,
+     "comments_bola": 11
+    },
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 56,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 30,
+    "supported": 4,
+    "unverified_deviation": 3,
+    "refuted": 22,
+    "undetermined": 1,
+    "unverifiable": 1,
+    "not_examined": 25,
+    "hypothesis_to_finding_rate": 0.1333,
+    "control_rate": 1.0,
+    "control_denominator": 23,
+    "evidence_complete_rate": 1.0,
+    "prereg_violations": [
+     "h:list_scope:docs_list:bob"
+    ],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_81cdfe9ff815",
+   "llm": {
+    "enabled": true,
+    "calls": 2,
+    "skipped": 0,
+    "parse_failures": 0,
+    "proposals": 16,
+    "new_registered": 1,
+    "duplicate_of_rule": 6,
+    "duplicate_of_llm": 0,
+    "rejected": {
+     "params_mismatch": 4,
+     "expectation_not_supported_by_spec_or_observation": 5
+    },
+    "valid_proposal_rate": 0.4375,
+    "llm_hypotheses": [
+     "h:list_scope:docs_list:bob"
+    ],
+    "llm_findings": [],
+    "llm_candidates": [],
+    "details": [
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "carol",
+      "status": "rejected",
+      "reason": "params_mismatch",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "params_mismatch",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "doc_export",
+      "probe_role": "admin",
+      "status": "rejected",
+      "reason": "params_mismatch",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "docs_list",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:docs_list:alice"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "health",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "me",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "user_get",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "params_mismatch",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "me",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:me:-"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_export:carol:d_67a9c378"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_get",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_get:carol:d_67a9c378"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_comments",
+      "probe_role": "bob",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_comments:bob:d_d4713d60"
+     },
+     {
+      "phase": "observed",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "bob",
+      "status": "new",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:bob"
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "user_get",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:function_authz:admin_stats:carol"
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "doc_export",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     }
+    ],
+    "usage": [
+     {
+      "input_tokens": 989,
+      "output_tokens": 477
+     },
+     {
+      "input_tokens": 1125,
+      "output_tokens": 724
+     }
+    ]
+   },
+   "repeat": 0
+  },
+  {
+   "case_id": "blind-docs-01",
+   "seed": 0,
+   "grade": {
+    "case_id": "blind-docs-01",
+    "truth_flaws_reachable_grounded": 3,
+    "true_positive_units": 3,
+    "false_negative_flaws": [],
+    "recall": 1.0,
+    "precision": 1.0,
+    "reported_units": 3,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [
+     [
+      "object_authz",
+      "doc_export"
+     ]
+    ],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 1,
+    "redundant_confirmations": 1,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {
+     "audit_bfla": 29,
+     "user_exposure": 16,
+     "comments_bola": 11
+    },
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 56,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 30,
+    "supported": 4,
+    "unverified_deviation": 3,
+    "refuted": 23,
+    "undetermined": 0,
+    "unverifiable": 1,
+    "not_examined": 25,
+    "hypothesis_to_finding_rate": 0.1333,
+    "control_rate": 1.0,
+    "control_denominator": 23,
+    "evidence_complete_rate": 1.0,
+    "prereg_violations": [],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_db97ca377a3b",
+   "llm": {
+    "enabled": true,
+    "calls": 2,
+    "skipped": 0,
+    "parse_failures": 0,
+    "proposals": 16,
+    "new_registered": 1,
+    "duplicate_of_rule": 9,
+    "duplicate_of_llm": 1,
+    "rejected": {
+     "params_mismatch": 2,
+     "expectation_not_supported_by_spec_or_observation": 3
+    },
+    "valid_proposal_rate": 0.6875,
+    "llm_hypotheses": [
+     "h:list_scope:docs_list:bob"
+    ],
+    "llm_findings": [],
+    "llm_candidates": [],
+    "details": [
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "carol",
+      "status": "rejected",
+      "reason": "params_mismatch",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "params_mismatch",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:admin_audit:-"
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "me",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:me:-"
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "docs_list",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:docs_list:-"
+     },
+     {
+      "phase": "spec",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "bob",
+      "status": "new",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:bob"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "docs_list",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:docs_list:alice"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_export:carol:d_67a9c378"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_get",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_get:carol:d_67a9c378"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_comments",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_comments:carol:d_67a9c378"
+     },
+     {
+      "phase": "observed",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "bob",
+      "status": "duplicate_of_llm",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:bob"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:admin_stats:-"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:function_authz:admin_audit:alice"
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "doc_export",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     }
+    ],
+    "usage": [
+     {
+      "input_tokens": 989,
+      "output_tokens": 492
+     },
+     {
+      "input_tokens": 1125,
+      "output_tokens": 622
+     }
+    ]
+   },
+   "repeat": 1
+  },
+  {
+   "case_id": "blind-docs-01",
+   "seed": 1,
+   "grade": {
+    "case_id": "blind-docs-01",
+    "truth_flaws_reachable_grounded": 3,
+    "true_positive_units": 3,
+    "false_negative_flaws": [],
+    "recall": 1.0,
+    "precision": 1.0,
+    "reported_units": 3,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [
+     [
+      "object_authz",
+      "doc_export"
+     ]
+    ],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 1,
+    "redundant_confirmations": 4,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {
+     "audit_bfla": 27,
+     "user_exposure": 17,
+     "comments_bola": 11
+    },
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 56,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 31,
+    "supported": 7,
+    "unverified_deviation": 3,
+    "refuted": 21,
+    "undetermined": 0,
+    "unverifiable": 1,
+    "not_examined": 24,
+    "hypothesis_to_finding_rate": 0.2258,
+    "control_rate": 1.0,
+    "control_denominator": 24,
+    "evidence_complete_rate": 1.0,
+    "prereg_violations": [],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_c0f965abc135",
+   "llm": {
+    "enabled": true,
+    "calls": 2,
+    "skipped": 0,
+    "parse_failures": 0,
+    "proposals": 16,
+    "new_registered": 1,
+    "duplicate_of_rule": 8,
+    "duplicate_of_llm": 0,
+    "rejected": {
+     "expectation_not_supported_by_spec_or_observation": 6,
+     "op_method_not_approved": 1
+    },
+    "valid_proposal_rate": 0.5625,
+    "llm_hypotheses": [
+     "h:list_scope:docs_list:bob"
+    ],
+    "llm_findings": [],
+    "llm_candidates": [],
+    "details": [
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "me",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:me:-"
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "me",
+      "probe_role": "user_expired",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "docs_list",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:docs_list:-"
+     },
+     {
+      "phase": "spec",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "bob",
+      "status": "new",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:bob"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "docs_list",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:docs_list:alice"
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "admin_stats",
+      "probe_role": "admin",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "bob",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_export:bob:d_612e7696"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_get",
+      "probe_role": "bob",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_get:bob:d_612e7696"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_update",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "op_method_not_approved",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_comments",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_comments:carol:d_78e51061"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:function_authz:admin_stats:alice"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "user_get",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:user_get:u_2265b1f5"
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "user_get",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     }
+    ],
+    "usage": [
+     {
+      "input_tokens": 989,
+      "output_tokens": 620
+     },
+     {
+      "input_tokens": 1129,
+      "output_tokens": 549
+     }
+    ]
+   },
+   "repeat": 0
+  },
+  {
+   "case_id": "blind-docs-01",
+   "seed": 1,
+   "grade": {
+    "case_id": "blind-docs-01",
+    "truth_flaws_reachable_grounded": 3,
+    "true_positive_units": 3,
+    "false_negative_flaws": [],
+    "recall": 1.0,
+    "precision": 1.0,
+    "reported_units": 3,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [
+     [
+      "object_authz",
+      "doc_export"
+     ]
+    ],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 1,
+    "redundant_confirmations": 4,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {
+     "audit_bfla": 27,
+     "user_exposure": 17,
+     "comments_bola": 11
+    },
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 57,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 32,
+    "supported": 7,
+    "unverified_deviation": 3,
+    "refuted": 21,
+    "undetermined": 1,
+    "unverifiable": 1,
+    "not_examined": 24,
+    "hypothesis_to_finding_rate": 0.2188,
+    "control_rate": 1.0,
+    "control_denominator": 24,
+    "evidence_complete_rate": 1.0,
+    "prereg_violations": [
+     "h:list_scope:docs_list:bob"
+    ],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_9774c80a9eca",
+   "llm": {
+    "enabled": true,
+    "calls": 2,
+    "skipped": 0,
+    "parse_failures": 0,
+    "proposals": 16,
+    "new_registered": 2,
+    "duplicate_of_rule": 8,
+    "duplicate_of_llm": 0,
+    "rejected": {
+     "params_mismatch": 2,
+     "expectation_not_supported_by_spec_or_observation": 4
+    },
+    "valid_proposal_rate": 0.625,
+    "llm_hypotheses": [
+     "h:list_scope:docs_list:bob",
+     "h:list_scope:docs_list:carol"
+    ],
+    "llm_findings": [],
+    "llm_candidates": [],
+    "details": [
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "params_mismatch",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "me",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:me:-"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "me",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:me:alice"
+     },
+     {
+      "phase": "spec",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "carol",
+      "status": "new",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:carol"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "docs_list",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:docs_list:alice"
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:admin_audit:-"
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "user_get",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "params_mismatch",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "bob",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_export:bob:d_612e7696"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_comments",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_comments:alice:d_a6cecc1b"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_get",
+      "probe_role": "bob",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_get:bob:d_78e51061"
+     },
+     {
+      "phase": "observed",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "bob",
+      "status": "new",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:bob"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "me",
+      "probe_role": "user_expired",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "user_get",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:function_authz:admin_audit:alice"
+     }
+    ],
+    "usage": [
+     {
+      "input_tokens": 989,
+      "output_tokens": 503
+     },
+     {
+      "input_tokens": 1129,
+      "output_tokens": 588
+     }
+    ]
+   },
+   "repeat": 1
+  },
+  {
+   "case_id": "blind-docs-01",
+   "seed": 2,
+   "grade": {
+    "case_id": "blind-docs-01",
+    "truth_flaws_reachable_grounded": 3,
+    "true_positive_units": 3,
+    "false_negative_flaws": [],
+    "recall": 1.0,
+    "precision": 1.0,
+    "reported_units": 3,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [
+     [
+      "object_authz",
+      "doc_export"
+     ]
+    ],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 1,
+    "redundant_confirmations": 3,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {
+     "audit_bfla": 28,
+     "user_exposure": 17,
+     "comments_bola": 11
+    },
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 56,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 31,
+    "supported": 6,
+    "unverified_deviation": 3,
+    "refuted": 21,
+    "undetermined": 1,
+    "unverifiable": 1,
+    "not_examined": 24,
+    "hypothesis_to_finding_rate": 0.1935,
+    "control_rate": 1.0,
+    "control_denominator": 24,
+    "evidence_complete_rate": 1.0,
+    "prereg_violations": [
+     "h:list_scope:docs_list:bob"
+    ],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_8a4678d29eb1",
+   "llm": {
+    "enabled": true,
+    "calls": 2,
+    "skipped": 0,
+    "parse_failures": 0,
+    "proposals": 16,
+    "new_registered": 1,
+    "duplicate_of_rule": 8,
+    "duplicate_of_llm": 0,
+    "rejected": {
+     "params_mismatch": 2,
+     "expectation_not_supported_by_spec_or_observation": 5
+    },
+    "valid_proposal_rate": 0.5625,
+    "llm_hypotheses": [
+     "h:list_scope:docs_list:bob"
+    ],
+    "llm_findings": [],
+    "llm_candidates": [],
+    "details": [
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "params_mismatch",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "params_mismatch",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "carol",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "carol",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "me",
+      "probe_role": "user_expired",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "me",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:me:-"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "me",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:me:alice"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "docs_list",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:docs_list:alice"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_export:carol:d_cf1822ff"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:function_authz:admin_stats:alice"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:function_authz:admin_audit:alice"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_get",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_get:carol:d_cf1822ff"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_comments",
+      "probe_role": "bob",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_comments:bob:d_da94e3e8"
+     },
+     {
+      "phase": "observed",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "bob",
+      "status": "new",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:bob"
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "doc_export",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     }
+    ],
+    "usage": [
+     {
+      "input_tokens": 989,
+      "output_tokens": 436
+     },
+     {
+      "input_tokens": 1123,
+      "output_tokens": 590
+     }
+    ]
+   },
+   "repeat": 0
+  },
+  {
+   "case_id": "blind-docs-01",
+   "seed": 2,
+   "grade": {
+    "case_id": "blind-docs-01",
+    "truth_flaws_reachable_grounded": 3,
+    "true_positive_units": 3,
+    "false_negative_flaws": [],
+    "recall": 1.0,
+    "precision": 1.0,
+    "reported_units": 3,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [
+     [
+      "object_authz",
+      "doc_export"
+     ]
+    ],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 1,
+    "redundant_confirmations": 3,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {
+     "audit_bfla": 28,
+     "user_exposure": 17,
+     "comments_bola": 11
+    },
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 57,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 32,
+    "supported": 6,
+    "unverified_deviation": 3,
+    "refuted": 22,
+    "undetermined": 1,
+    "unverifiable": 1,
+    "not_examined": 24,
+    "hypothesis_to_finding_rate": 0.1875,
+    "control_rate": 1.0,
+    "control_denominator": 24,
+    "evidence_complete_rate": 1.0,
+    "prereg_violations": [
+     "h:list_scope:docs_list:bob"
+    ],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_98178a0a9e4c",
+   "llm": {
+    "enabled": true,
+    "calls": 2,
+    "skipped": 0,
+    "parse_failures": 0,
+    "proposals": 16,
+    "new_registered": 2,
+    "duplicate_of_rule": 8,
+    "duplicate_of_llm": 0,
+    "rejected": {
+     "expectation_not_supported_by_spec_or_observation": 6
+    },
+    "valid_proposal_rate": 0.625,
+    "llm_hypotheses": [
+     "h:list_scope:docs_list:alice",
+     "h:list_scope:docs_list:bob"
+    ],
+    "llm_findings": [],
+    "llm_candidates": [],
+    "details": [
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:admin_stats:-"
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:admin_audit:-"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "me",
+      "probe_role": "user_expired",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "me",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:me:-"
+     },
+     {
+      "phase": "spec",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "alice",
+      "status": "new",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:alice"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "docs_list",
+      "probe_role": "carol",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_export:carol:d_ab73738f"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_get",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_get:alice:d_ab73738f"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_comments",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_comments:alice:d_ab73738f"
+     },
+     {
+      "phase": "observed",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "bob",
+      "status": "new",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:bob"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "docs_list",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:docs_list:-"
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "user_get",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "me",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:me:alice"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_get",
+      "probe_role": "user_expired",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     }
+    ],
+    "usage": [
+     {
+      "input_tokens": 989,
+      "output_tokens": 507
+     },
+     {
+      "input_tokens": 1123,
+      "output_tokens": 711
+     }
+    ]
+   },
+   "repeat": 1
+  },
+  {
+   "case_id": "blind-docs-02",
+   "seed": 0,
+   "grade": {
+    "case_id": "blind-docs-02",
+    "truth_flaws_reachable_grounded": 2,
+    "true_positive_units": 1,
+    "false_negative_flaws": [
+     "list_leak"
+    ],
+    "recall": 0.5,
+    "precision": 1.0,
+    "reported_units": 1,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 0,
+    "redundant_confirmations": 1,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {
+     "comments_bola": 11
+    },
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 55,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 29,
+    "supported": 2,
+    "unverified_deviation": 0,
+    "refuted": 27,
+    "undetermined": 0,
+    "unverifiable": 1,
+    "not_examined": 25,
+    "hypothesis_to_finding_rate": 0.069,
+    "control_rate": 1.0,
+    "control_denominator": 23,
+    "evidence_complete_rate": 1.0,
+    "prereg_violations": [],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_5f90b55f848a",
+   "llm": {
+    "enabled": true,
+    "calls": 2,
+    "skipped": 0,
+    "parse_failures": 1,
+    "proposals": 8,
+    "new_registered": 0,
+    "duplicate_of_rule": 6,
+    "duplicate_of_llm": 0,
+    "rejected": {
+     "expectation_not_supported_by_spec_or_observation": 2
+    },
+    "valid_proposal_rate": 0.75,
+    "llm_hypotheses": [],
+    "llm_findings": [],
+    "llm_candidates": [],
+    "details": [
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_export:carol:d_67a9c378"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:doc_export:d_67a9c378"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_get",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_get:carol:d_67a9c378"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_comments",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_comments:carol:d_c8a70639"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_get",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:function_authz:admin_stats:alice"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "user_expired",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "me",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:me:alice"
+     }
+    ],
+    "usage": [
+     {
+      "input_tokens": 989,
+      "output_tokens": 800
+     },
+     {
+      "input_tokens": 1125,
+      "output_tokens": 598
+     }
+    ]
+   },
+   "repeat": 0
+  },
+  {
+   "case_id": "blind-docs-02",
+   "seed": 0,
+   "grade": {
+    "case_id": "blind-docs-02",
+    "truth_flaws_reachable_grounded": 2,
+    "true_positive_units": 1,
+    "false_negative_flaws": [
+     "list_leak"
+    ],
+    "recall": 0.5,
+    "precision": 1.0,
+    "reported_units": 1,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 0,
+    "redundant_confirmations": 1,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {
+     "comments_bola": 11
+    },
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 56,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 30,
+    "supported": 2,
+    "unverified_deviation": 0,
+    "refuted": 27,
+    "undetermined": 1,
+    "unverifiable": 1,
+    "not_examined": 25,
+    "hypothesis_to_finding_rate": 0.0667,
+    "control_rate": 1.0,
+    "control_denominator": 23,
+    "evidence_complete_rate": 1.0,
+    "prereg_violations": [
+     "h:list_scope:docs_list:bob"
+    ],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_2a3e0ac4e06b",
+   "llm": {
+    "enabled": true,
+    "calls": 2,
+    "skipped": 0,
+    "parse_failures": 0,
+    "proposals": 16,
+    "new_registered": 1,
+    "duplicate_of_rule": 3,
+    "duplicate_of_llm": 0,
+    "rejected": {
+     "params_mismatch": 3,
+     "expectation_not_supported_by_spec_or_observation": 9
+    },
+    "valid_proposal_rate": 0.25,
+    "llm_hypotheses": [
+     "h:list_scope:docs_list:bob"
+    ],
+    "llm_findings": [],
+    "llm_candidates": [],
+    "details": [
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "params_mismatch",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "doc_export",
+      "probe_role": "admin",
+      "status": "rejected",
+      "reason": "params_mismatch",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "health",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "me",
+      "probe_role": "user_expired",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "me",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:me:-"
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "user_get",
+      "probe_role": "carol",
+      "status": "rejected",
+      "reason": "params_mismatch",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_export:carol:d_67a9c378"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_get",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_comments",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "user_get",
+      "probe_role": "user_expired",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:function_authz:admin_stats:alice"
+     },
+     {
+      "phase": "observed",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "bob",
+      "status": "new",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:bob"
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "me",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     }
+    ],
+    "usage": [
+     {
+      "input_tokens": 989,
+      "output_tokens": 560
+     },
+     {
+      "input_tokens": 1125,
+      "output_tokens": 550
+     }
+    ]
+   },
+   "repeat": 1
+  },
+  {
+   "case_id": "blind-docs-02",
+   "seed": 1,
+   "grade": {
+    "case_id": "blind-docs-02",
+    "truth_flaws_reachable_grounded": 2,
+    "true_positive_units": 1,
+    "false_negative_flaws": [
+     "list_leak"
+    ],
+    "recall": 0.5,
+    "precision": 1.0,
+    "reported_units": 1,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 0,
+    "redundant_confirmations": 2,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {
+     "comments_bola": 11
+    },
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 56,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 31,
+    "supported": 3,
+    "unverified_deviation": 0,
+    "refuted": 28,
+    "undetermined": 0,
+    "unverifiable": 1,
+    "not_examined": 24,
+    "hypothesis_to_finding_rate": 0.0968,
+    "control_rate": 1.0,
+    "control_denominator": 24,
+    "evidence_complete_rate": 1.0,
+    "prereg_violations": [],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_55442982a12d",
+   "llm": {
+    "enabled": true,
+    "calls": 2,
+    "skipped": 0,
+    "parse_failures": 0,
+    "proposals": 16,
+    "new_registered": 1,
+    "duplicate_of_rule": 6,
+    "duplicate_of_llm": 0,
+    "rejected": {
+     "expectation_not_supported_by_spec_or_observation": 9
+    },
+    "valid_proposal_rate": 0.4375,
+    "llm_hypotheses": [
+     "h:list_scope:docs_list:carol"
+    ],
+    "llm_findings": [],
+    "llm_candidates": [],
+    "details": [
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "me",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:me:-"
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "me",
+      "probe_role": "user_expired",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "docs_list",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:docs_list:alice"
+     },
+     {
+      "phase": "spec",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "carol",
+      "status": "new",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:carol"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "health",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "admin_stats",
+      "probe_role": "admin",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "bob",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_export:bob:d_612e7696"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_get",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_get:carol:d_78e51061"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_comments",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "user_get",
+      "probe_role": "user_expired",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "user_get",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "me",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:me:alice"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "bob",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:function_authz:admin_stats:bob"
+     }
+    ],
+    "usage": [
+     {
+      "input_tokens": 989,
+      "output_tokens": 512
+     },
+     {
+      "input_tokens": 1129,
+      "output_tokens": 456
+     }
+    ]
+   },
+   "repeat": 0
+  },
+  {
+   "case_id": "blind-docs-02",
+   "seed": 1,
+   "grade": {
+    "case_id": "blind-docs-02",
+    "truth_flaws_reachable_grounded": 2,
+    "true_positive_units": 1,
+    "false_negative_flaws": [
+     "list_leak"
+    ],
+    "recall": 0.5,
+    "precision": 1.0,
+    "reported_units": 1,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 0,
+    "redundant_confirmations": 2,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {
+     "comments_bola": 11
+    },
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 56,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 31,
+    "supported": 3,
+    "unverified_deviation": 0,
+    "refuted": 28,
+    "undetermined": 0,
+    "unverifiable": 1,
+    "not_examined": 24,
+    "hypothesis_to_finding_rate": 0.0968,
+    "control_rate": 1.0,
+    "control_denominator": 24,
+    "evidence_complete_rate": 1.0,
+    "prereg_violations": [],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_0b32dcfbd469",
+   "llm": {
+    "enabled": true,
+    "calls": 2,
+    "skipped": 0,
+    "parse_failures": 0,
+    "proposals": 16,
+    "new_registered": 1,
+    "duplicate_of_rule": 9,
+    "duplicate_of_llm": 0,
+    "rejected": {
+     "expectation_not_supported_by_spec_or_observation": 5,
+     "op_method_not_approved": 1
+    },
+    "valid_proposal_rate": 0.625,
+    "llm_hypotheses": [
+     "h:list_scope:docs_list:carol"
+    ],
+    "llm_findings": [],
+    "llm_candidates": [],
+    "details": [
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:admin_audit:-"
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "me",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:me:-"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "me",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:me:alice"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "docs_list",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:docs_list:alice"
+     },
+     {
+      "phase": "spec",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "carol",
+      "status": "new",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:carol"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "health",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:function_authz:admin_audit:alice"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "bob",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:function_authz:admin_stats:bob"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_get",
+      "probe_role": "bob",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_get:bob:d_612e7696"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_comments",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_comments:carol:d_78e51061"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_update",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "op_method_not_approved",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "me",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:me:alice"
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "doc_export",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "user_get",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     }
+    ],
+    "usage": [
+     {
+      "input_tokens": 989,
+      "output_tokens": 451
+     },
+     {
+      "input_tokens": 1129,
+      "output_tokens": 586
+     }
+    ]
+   },
+   "repeat": 1
+  },
+  {
+   "case_id": "blind-docs-02",
+   "seed": 2,
+   "grade": {
+    "case_id": "blind-docs-02",
+    "truth_flaws_reachable_grounded": 2,
+    "true_positive_units": 1,
+    "false_negative_flaws": [
+     "list_leak"
+    ],
+    "recall": 0.5,
+    "precision": 1.0,
+    "reported_units": 1,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 0,
+    "redundant_confirmations": 2,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {
+     "comments_bola": 11
+    },
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 56,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 31,
+    "supported": 3,
+    "unverified_deviation": 0,
+    "refuted": 28,
+    "undetermined": 0,
+    "unverifiable": 1,
+    "not_examined": 24,
+    "hypothesis_to_finding_rate": 0.0968,
+    "control_rate": 1.0,
+    "control_denominator": 24,
+    "evidence_complete_rate": 1.0,
+    "prereg_violations": [],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_6a34ac826730",
+   "llm": {
+    "enabled": true,
+    "calls": 2,
+    "skipped": 0,
+    "parse_failures": 0,
+    "proposals": 16,
+    "new_registered": 1,
+    "duplicate_of_rule": 8,
+    "duplicate_of_llm": 1,
+    "rejected": {
+     "params_mismatch": 3,
+     "expectation_not_supported_by_spec_or_observation": 3
+    },
+    "valid_proposal_rate": 0.625,
+    "llm_hypotheses": [
+     "h:list_scope:docs_list:bob"
+    ],
+    "llm_findings": [],
+    "llm_candidates": [],
+    "details": [
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "doc_export",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "params_mismatch",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "params_mismatch",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "docs_list",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:docs_list:alice"
+     },
+     {
+      "phase": "spec",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "bob",
+      "status": "new",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:bob"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "me",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:me:alice"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "user_get",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "params_mismatch",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "me",
+      "probe_role": "user_expired",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_export:carol:d_cf1822ff"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:doc_export:d_ab73738f"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_get",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_get:carol:d_cf1822ff"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_comments",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_comments:carol:d_ab73738f"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:function_authz:admin_stats:alice"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "bob",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:function_authz:admin_audit:bob"
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "user_get",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "bob",
+      "status": "duplicate_of_llm",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:bob"
+     }
+    ],
+    "usage": [
+     {
+      "input_tokens": 989,
+      "output_tokens": 517
+     },
+     {
+      "input_tokens": 1123,
+      "output_tokens": 636
+     }
+    ]
+   },
+   "repeat": 0
+  },
+  {
+   "case_id": "blind-docs-02",
+   "seed": 2,
+   "grade": {
+    "case_id": "blind-docs-02",
+    "truth_flaws_reachable_grounded": 2,
+    "true_positive_units": 1,
+    "false_negative_flaws": [
+     "list_leak"
+    ],
+    "recall": 0.5,
+    "precision": 1.0,
+    "reported_units": 1,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 0,
+    "redundant_confirmations": 2,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {
+     "comments_bola": 11
+    },
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 57,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 32,
+    "supported": 3,
+    "unverified_deviation": 0,
+    "refuted": 28,
+    "undetermined": 1,
+    "unverifiable": 1,
+    "not_examined": 24,
+    "hypothesis_to_finding_rate": 0.0938,
+    "control_rate": 1.0,
+    "control_denominator": 24,
+    "evidence_complete_rate": 1.0,
+    "prereg_violations": [
+     "h:list_scope:docs_list:bob"
+    ],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_0346bda36984",
+   "llm": {
+    "enabled": true,
+    "calls": 2,
+    "skipped": 0,
+    "parse_failures": 0,
+    "proposals": 16,
+    "new_registered": 2,
+    "duplicate_of_rule": 7,
+    "duplicate_of_llm": 0,
+    "rejected": {
+     "expectation_not_supported_by_spec_or_observation": 7
+    },
+    "valid_proposal_rate": 0.5625,
+    "llm_hypotheses": [
+     "h:list_scope:docs_list:alice",
+     "h:list_scope:docs_list:bob"
+    ],
+    "llm_findings": [],
+    "llm_candidates": [],
+    "details": [
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "docs_list",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:docs_list:-"
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:admin_audit:-"
+     },
+     {
+      "phase": "spec",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "alice",
+      "status": "new",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:alice"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "me",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:me:alice"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "docs_list",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "me",
+      "probe_role": "user_expired",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_export:carol:d_ab73738f"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_get",
+      "probe_role": "bob",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_get:bob:d_cf1822ff"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_comments",
+      "probe_role": "bob",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_comments:bob:d_cf1822ff"
+     },
+     {
+      "phase": "observed",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "bob",
+      "status": "new",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:bob"
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "doc_export",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:function_authz:admin_stats:alice"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "me",
+      "probe_role": "user_expired",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     }
+    ],
+    "usage": [
+     {
+      "input_tokens": 989,
+      "output_tokens": 644
+     },
+     {
+      "input_tokens": 1123,
+      "output_tokens": 619
+     }
+    ]
+   },
+   "repeat": 1
+  },
+  {
+   "case_id": "blind-docs-03",
+   "seed": 0,
+   "grade": {
+    "case_id": "blind-docs-03",
+    "truth_flaws_reachable_grounded": 3,
+    "true_positive_units": 2,
+    "false_negative_flaws": [
+     "list_leak"
+    ],
+    "recall": 0.6667,
+    "precision": 1.0,
+    "reported_units": 2,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 0,
+    "redundant_confirmations": 0,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {
+     "audit_bfla": 34,
+     "user_exposure": 17
+    },
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 55,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 27,
+    "supported": 2,
+    "unverified_deviation": 0,
+    "refuted": 25,
+    "undetermined": 0,
+    "unverifiable": 1,
+    "not_examined": 27,
+    "hypothesis_to_finding_rate": 0.0741,
+    "control_rate": 1.0,
+    "control_denominator": 21,
+    "evidence_complete_rate": 1.0,
+    "prereg_violations": [],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_366cbf60108e",
+   "llm": {
+    "enabled": true,
+    "calls": 2,
+    "skipped": 0,
+    "parse_failures": 1,
+    "proposals": 8,
+    "new_registered": 0,
+    "duplicate_of_rule": 4,
+    "duplicate_of_llm": 0,
+    "rejected": {
+     "expectation_not_supported_by_spec_or_observation": 4
+    },
+    "valid_proposal_rate": 0.5,
+    "llm_hypotheses": [],
+    "llm_findings": [],
+    "llm_candidates": [],
+    "details": [
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_export:carol:d_67a9c378"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_get",
+      "probe_role": "bob",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_get:bob:d_d4713d60"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_comments",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_comments",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_comments:carol:d_67a9c378"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "me",
+      "probe_role": "user_expired",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "docs_list",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:docs_list:alice"
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "user_get",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     }
+    ],
+    "usage": [
+     {
+      "input_tokens": 989,
+      "output_tokens": 800
+     },
+     {
+      "input_tokens": 1125,
+      "output_tokens": 563
+     }
+    ]
+   },
+   "repeat": 0
+  },
+  {
+   "case_id": "blind-docs-03",
+   "seed": 0,
+   "grade": {
+    "case_id": "blind-docs-03",
+    "truth_flaws_reachable_grounded": 3,
+    "true_positive_units": 2,
+    "false_negative_flaws": [
+     "list_leak"
+    ],
+    "recall": 0.6667,
+    "precision": 1.0,
+    "reported_units": 2,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 0,
+    "redundant_confirmations": 0,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {
+     "audit_bfla": 34,
+     "user_exposure": 17
+    },
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 56,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 28,
+    "supported": 2,
+    "unverified_deviation": 0,
+    "refuted": 26,
+    "undetermined": 0,
+    "unverifiable": 1,
+    "not_examined": 27,
+    "hypothesis_to_finding_rate": 0.0714,
+    "control_rate": 1.0,
+    "control_denominator": 21,
+    "evidence_complete_rate": 1.0,
+    "prereg_violations": [],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_1325b6ae74f8",
+   "llm": {
+    "enabled": true,
+    "calls": 2,
+    "skipped": 0,
+    "parse_failures": 0,
+    "proposals": 16,
+    "new_registered": 1,
+    "duplicate_of_rule": 7,
+    "duplicate_of_llm": 0,
+    "rejected": {
+     "expectation_not_supported_by_spec_or_observation": 7,
+     "op_method_not_approved": 1
+    },
+    "valid_proposal_rate": 0.5,
+    "llm_hypotheses": [
+     "h:list_scope:docs_list:bob"
+    ],
+    "llm_findings": [],
+    "llm_candidates": [],
+    "details": [
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "me",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:me:-"
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "docs_list",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:docs_list:-"
+     },
+     {
+      "phase": "spec",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "bob",
+      "status": "new",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:bob"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "docs_list",
+      "probe_role": "carol",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "me",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:me:alice"
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "health",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_export:carol:d_c8a70639"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_get",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_get:carol:d_67a9c378"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_comments",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_update",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "op_method_not_approved",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:function_authz:admin_stats:alice"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "user_get",
+      "probe_role": "user_expired",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "me",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:me:alice"
+     }
+    ],
+    "usage": [
+     {
+      "input_tokens": 989,
+      "output_tokens": 626
+     },
+     {
+      "input_tokens": 1125,
+      "output_tokens": 495
+     }
+    ]
+   },
+   "repeat": 1
+  },
+  {
+   "case_id": "blind-docs-03",
+   "seed": 1,
+   "grade": {
+    "case_id": "blind-docs-03",
+    "truth_flaws_reachable_grounded": 3,
+    "true_positive_units": 2,
+    "false_negative_flaws": [
+     "list_leak"
+    ],
+    "recall": 0.6667,
+    "precision": 1.0,
+    "reported_units": 2,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 0,
+    "redundant_confirmations": 0,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {
+     "audit_bfla": 31,
+     "user_exposure": 19
+    },
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 56,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 30,
+    "supported": 2,
+    "unverified_deviation": 0,
+    "refuted": 28,
+    "undetermined": 0,
+    "unverifiable": 1,
+    "not_examined": 25,
+    "hypothesis_to_finding_rate": 0.0667,
+    "control_rate": 1.0,
+    "control_denominator": 23,
+    "evidence_complete_rate": 1.0,
+    "prereg_violations": [],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_24c273da68bd",
+   "llm": {
+    "enabled": true,
+    "calls": 2,
+    "skipped": 0,
+    "parse_failures": 0,
+    "proposals": 16,
+    "new_registered": 1,
+    "duplicate_of_rule": 9,
+    "duplicate_of_llm": 1,
+    "rejected": {
+     "params_mismatch": 2,
+     "expectation_not_supported_by_spec_or_observation": 3
+    },
+    "valid_proposal_rate": 0.6875,
+    "llm_hypotheses": [
+     "h:list_scope:docs_list:bob"
+    ],
+    "llm_findings": [],
+    "llm_candidates": [],
+    "details": [
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "doc_export",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "params_mismatch",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "carol",
+      "status": "rejected",
+      "reason": "params_mismatch",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "bob",
+      "status": "new",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:bob"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "docs_list",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:docs_list:alice"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "me",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:me:alice"
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "me",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:me:-"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "bob",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_export:bob:d_612e7696"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_get",
+      "probe_role": "bob",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_get:bob:d_612e7696"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_comments",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_comments:carol:d_a6cecc1b"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:function_authz:admin_stats:alice"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:admin_audit:-"
+     },
+     {
+      "phase": "observed",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "bob",
+      "status": "duplicate_of_llm",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:bob"
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "user_get",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:user_get:alice"
+     }
+    ],
+    "usage": [
+     {
+      "input_tokens": 989,
+      "output_tokens": 586
+     },
+     {
+      "input_tokens": 1129,
+      "output_tokens": 651
+     }
+    ]
+   },
+   "repeat": 0
+  },
+  {
+   "case_id": "blind-docs-03",
+   "seed": 1,
+   "grade": {
+    "case_id": "blind-docs-03",
+    "truth_flaws_reachable_grounded": 3,
+    "true_positive_units": 2,
+    "false_negative_flaws": [
+     "list_leak"
+    ],
+    "recall": 0.6667,
+    "precision": 1.0,
+    "reported_units": 2,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 0,
+    "redundant_confirmations": 0,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {
+     "audit_bfla": 31,
+     "user_exposure": 19
+    },
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 56,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 30,
+    "supported": 2,
+    "unverified_deviation": 0,
+    "refuted": 27,
+    "undetermined": 1,
+    "unverifiable": 1,
+    "not_examined": 25,
+    "hypothesis_to_finding_rate": 0.0667,
+    "control_rate": 1.0,
+    "control_denominator": 23,
+    "evidence_complete_rate": 1.0,
+    "prereg_violations": [
+     "h:list_scope:docs_list:carol"
+    ],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_50782d262cec",
+   "llm": {
+    "enabled": true,
+    "calls": 2,
+    "skipped": 0,
+    "parse_failures": 0,
+    "proposals": 16,
+    "new_registered": 1,
+    "duplicate_of_rule": 9,
+    "duplicate_of_llm": 0,
+    "rejected": {
+     "expectation_not_supported_by_spec_or_observation": 5,
+     "params_mismatch": 1
+    },
+    "valid_proposal_rate": 0.625,
+    "llm_hypotheses": [
+     "h:list_scope:docs_list:carol"
+    ],
+    "llm_findings": [],
+    "llm_candidates": [],
+    "details": [
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:admin_audit:-"
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "me",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:me:-"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "me",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:me:alice"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "user_get",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "params_mismatch",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "health",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "docs_list",
+      "probe_role": "carol",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "bob",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_export:bob:d_78e51061"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:doc_export:d_612e7696"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_get",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_get:carol:d_78e51061"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_comments",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_comments:carol:d_78e51061"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:function_authz:admin_stats:alice"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "user_expired",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "carol",
+      "status": "new",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:carol"
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "me",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:me:alice"
+     }
+    ],
+    "usage": [
+     {
+      "input_tokens": 989,
+      "output_tokens": 462
+     },
+     {
+      "input_tokens": 1129,
+      "output_tokens": 489
+     }
+    ]
+   },
+   "repeat": 1
+  },
+  {
+   "case_id": "blind-docs-03",
+   "seed": 2,
+   "grade": {
+    "case_id": "blind-docs-03",
+    "truth_flaws_reachable_grounded": 3,
+    "true_positive_units": 2,
+    "false_negative_flaws": [
+     "list_leak"
+    ],
+    "recall": 0.6667,
+    "precision": 1.0,
+    "reported_units": 2,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 0,
+    "redundant_confirmations": 0,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {
+     "audit_bfla": 32,
+     "user_exposure": 19
+    },
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 56,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 30,
+    "supported": 2,
+    "unverified_deviation": 0,
+    "refuted": 27,
+    "undetermined": 1,
+    "unverifiable": 1,
+    "not_examined": 25,
+    "hypothesis_to_finding_rate": 0.0667,
+    "control_rate": 1.0,
+    "control_denominator": 23,
+    "evidence_complete_rate": 1.0,
+    "prereg_violations": [
+     "h:list_scope:docs_list:carol"
+    ],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_dace68e76542",
+   "llm": {
+    "enabled": true,
+    "calls": 2,
+    "skipped": 0,
+    "parse_failures": 0,
+    "proposals": 16,
+    "new_registered": 1,
+    "duplicate_of_rule": 7,
+    "duplicate_of_llm": 0,
+    "rejected": {
+     "params_mismatch": 2,
+     "param_not_observed": 1,
+     "expectation_not_supported_by_spec_or_observation": 4,
+     "op_method_not_approved": 1
+    },
+    "valid_proposal_rate": 0.5,
+    "llm_hypotheses": [
+     "h:list_scope:docs_list:carol"
+    ],
+    "llm_findings": [],
+    "llm_candidates": [],
+    "details": [
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "params_mismatch",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "doc_export",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "params_mismatch",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "docs_list",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:docs_list:alice"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "me",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:me:alice"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "user_get",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "param_not_observed",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "me",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:me:-"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_export:carol:d_ab73738f"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_get",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_get:carol:d_cf1822ff"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_comments",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_comments:carol:d_bc688778"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_update",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "op_method_not_approved",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:function_authz:admin_stats:alice"
+     },
+     {
+      "phase": "observed",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "carol",
+      "status": "new",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:carol"
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "docs_list",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     }
+    ],
+    "usage": [
+     {
+      "input_tokens": 989,
+      "output_tokens": 491
+     },
+     {
+      "input_tokens": 1123,
+      "output_tokens": 512
+     }
+    ]
+   },
+   "repeat": 0
+  },
+  {
+   "case_id": "blind-docs-03",
+   "seed": 2,
+   "grade": {
+    "case_id": "blind-docs-03",
+    "truth_flaws_reachable_grounded": 3,
+    "true_positive_units": 2,
+    "false_negative_flaws": [
+     "list_leak"
+    ],
+    "recall": 0.6667,
+    "precision": 1.0,
+    "reported_units": 2,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 0,
+    "redundant_confirmations": 0,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {
+     "audit_bfla": 32,
+     "user_exposure": 19
+    },
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 55,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 29,
+    "supported": 2,
+    "unverified_deviation": 0,
+    "refuted": 27,
+    "undetermined": 0,
+    "unverifiable": 1,
+    "not_examined": 25,
+    "hypothesis_to_finding_rate": 0.069,
+    "control_rate": 1.0,
+    "control_denominator": 23,
+    "evidence_complete_rate": 1.0,
+    "prereg_violations": [],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_965bf697171b",
+   "llm": {
+    "enabled": true,
+    "calls": 2,
+    "skipped": 0,
+    "parse_failures": 0,
+    "proposals": 16,
+    "new_registered": 0,
+    "duplicate_of_rule": 11,
+    "duplicate_of_llm": 0,
+    "rejected": {
+     "params_mismatch": 2,
+     "expectation_not_supported_by_spec_or_observation": 2,
+     "op_method_not_approved": 1
+    },
+    "valid_proposal_rate": 0.6875,
+    "llm_hypotheses": [],
+    "llm_findings": [],
+    "llm_candidates": [],
+    "details": [
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "params_mismatch",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "params_mismatch",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:admin_audit:-"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "docs_list",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:docs_list:alice"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "me",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:me:alice"
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "me",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:me:-"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_export:carol:d_ab73738f"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:doc_export:d_ab73738f"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_get",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_get:carol:d_ab73738f"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_comments",
+      "probe_role": "bob",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_comments:bob:d_cf1822ff"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_update",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "op_method_not_approved",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:function_authz:admin_stats:alice"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:admin_audit:-"
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "me",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:me:alice"
+     }
+    ],
+    "usage": [
+     {
+      "input_tokens": 989,
+      "output_tokens": 455
+     },
+     {
+      "input_tokens": 1123,
+      "output_tokens": 515
+     }
+    ]
+   },
+   "repeat": 1
+  },
+  {
+   "case_id": "blind-docs-clean",
+   "seed": 0,
+   "grade": {
+    "case_id": "blind-docs-clean",
+    "truth_flaws_reachable_grounded": 0,
+    "true_positive_units": 0,
+    "false_negative_flaws": [],
+    "recall": null,
+    "precision": null,
+    "reported_units": 0,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 0,
+    "redundant_confirmations": 0,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {},
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 55,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 27,
+    "supported": 0,
+    "unverified_deviation": 0,
+    "refuted": 27,
+    "undetermined": 0,
+    "unverifiable": 1,
+    "not_examined": 27,
+    "hypothesis_to_finding_rate": 0.0,
+    "control_rate": 1.0,
+    "control_denominator": 21,
+    "evidence_complete_rate": null,
+    "prereg_violations": [],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_e2ca88da5d58",
+   "llm": {
+    "enabled": true,
+    "calls": 2,
+    "skipped": 0,
+    "parse_failures": 1,
+    "proposals": 8,
+    "new_registered": 0,
+    "duplicate_of_rule": 4,
+    "duplicate_of_llm": 0,
+    "rejected": {
+     "expectation_not_supported_by_spec_or_observation": 3,
+     "op_method_not_approved": 1
+    },
+    "valid_proposal_rate": 0.5,
+    "llm_hypotheses": [],
+    "llm_findings": [],
+    "llm_candidates": [],
+    "details": [
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_export:carol:d_67a9c378"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_get",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_get:carol:d_67a9c378"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_comments",
+      "probe_role": "bob",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_comments:bob:d_d4713d60"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_update",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "op_method_not_approved",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:function_authz:admin_stats:alice"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "user_expired",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "docs_list",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     }
+    ],
+    "usage": [
+     {
+      "input_tokens": 989,
+      "output_tokens": 800
+     },
+     {
+      "input_tokens": 1125,
+      "output_tokens": 538
+     }
+    ]
+   },
+   "repeat": 0
+  },
+  {
+   "case_id": "blind-docs-clean",
+   "seed": 0,
+   "grade": {
+    "case_id": "blind-docs-clean",
+    "truth_flaws_reachable_grounded": 0,
+    "true_positive_units": 0,
+    "false_negative_flaws": [],
+    "recall": null,
+    "precision": null,
+    "reported_units": 0,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 0,
+    "redundant_confirmations": 0,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {},
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 56,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 28,
+    "supported": 0,
+    "unverified_deviation": 0,
+    "refuted": 28,
+    "undetermined": 0,
+    "unverifiable": 1,
+    "not_examined": 27,
+    "hypothesis_to_finding_rate": 0.0,
+    "control_rate": 1.0,
+    "control_denominator": 21,
+    "evidence_complete_rate": null,
+    "prereg_violations": [],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_8f411c60b786",
+   "llm": {
+    "enabled": true,
+    "calls": 2,
+    "skipped": 0,
+    "parse_failures": 0,
+    "proposals": 16,
+    "new_registered": 1,
+    "duplicate_of_rule": 9,
+    "duplicate_of_llm": 1,
+    "rejected": {
+     "expectation_not_supported_by_spec_or_observation": 4,
+     "op_method_not_approved": 1
+    },
+    "valid_proposal_rate": 0.6875,
+    "llm_hypotheses": [
+     "h:list_scope:docs_list:bob"
+    ],
+    "llm_findings": [],
+    "llm_candidates": [],
+    "details": [
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "me",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:me:-"
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:admin_audit:-"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "docs_list",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "bob",
+      "status": "new",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:bob"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "me",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:me:alice"
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "docs_list",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:docs_list:-"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_export:carol:d_67a9c378"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_get",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_get:carol:d_c8a70639"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_comments",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_comments:carol:d_67a9c378"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:doc_export:d_67a9c378"
+     },
+     {
+      "phase": "observed",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "bob",
+      "status": "duplicate_of_llm",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:bob"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_update",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "op_method_not_approved",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "me",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:me:alice"
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "doc_comments",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     }
+    ],
+    "usage": [
+     {
+      "input_tokens": 989,
+      "output_tokens": 523
+     },
+     {
+      "input_tokens": 1125,
+      "output_tokens": 526
+     }
+    ]
+   },
+   "repeat": 1
+  },
+  {
+   "case_id": "blind-docs-clean",
+   "seed": 1,
+   "grade": {
+    "case_id": "blind-docs-clean",
+    "truth_flaws_reachable_grounded": 0,
+    "true_positive_units": 0,
+    "false_negative_flaws": [],
+    "recall": null,
+    "precision": null,
+    "reported_units": 0,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 0,
+    "redundant_confirmations": 0,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {},
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 57,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 31,
+    "supported": 0,
+    "unverified_deviation": 0,
+    "refuted": 30,
+    "undetermined": 1,
+    "unverifiable": 1,
+    "not_examined": 25,
+    "hypothesis_to_finding_rate": 0.0,
+    "control_rate": 1.0,
+    "control_denominator": 23,
+    "evidence_complete_rate": null,
+    "prereg_violations": [
+     "h:list_scope:docs_list:bob"
+    ],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_95ad517d07b5",
+   "llm": {
+    "enabled": true,
+    "calls": 2,
+    "skipped": 0,
+    "parse_failures": 0,
+    "proposals": 16,
+    "new_registered": 2,
+    "duplicate_of_rule": 7,
+    "duplicate_of_llm": 0,
+    "rejected": {
+     "params_mismatch": 3,
+     "expectation_not_supported_by_spec_or_observation": 4
+    },
+    "valid_proposal_rate": 0.5625,
+    "llm_hypotheses": [
+     "h:list_scope:docs_list:bob",
+     "h:list_scope:docs_list:carol"
+    ],
+    "llm_findings": [],
+    "llm_candidates": [],
+    "details": [
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "params_mismatch",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "params_mismatch",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:admin_stats:-"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "docs_list",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:docs_list:alice"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "user_get",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "params_mismatch",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "carol",
+      "status": "new",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:carol"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "me",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "bob",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_export:bob:d_612e7696"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_comments",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_comments:carol:d_7311d8a3"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_get",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_get:carol:d_78e51061"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:function_authz:admin_stats:alice"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:admin_audit:-"
+     },
+     {
+      "phase": "observed",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "bob",
+      "status": "new",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:bob"
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "doc_get",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     }
+    ],
+    "usage": [
+     {
+      "input_tokens": 989,
+      "output_tokens": 505
+     },
+     {
+      "input_tokens": 1129,
+      "output_tokens": 543
+     }
+    ]
+   },
+   "repeat": 0
+  },
+  {
+   "case_id": "blind-docs-clean",
+   "seed": 1,
+   "grade": {
+    "case_id": "blind-docs-clean",
+    "truth_flaws_reachable_grounded": 0,
+    "true_positive_units": 0,
+    "false_negative_flaws": [],
+    "recall": null,
+    "precision": null,
+    "reported_units": 0,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 0,
+    "redundant_confirmations": 0,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {},
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 56,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 30,
+    "supported": 0,
+    "unverified_deviation": 0,
+    "refuted": 30,
+    "undetermined": 0,
+    "unverifiable": 1,
+    "not_examined": 25,
+    "hypothesis_to_finding_rate": 0.0,
+    "control_rate": 1.0,
+    "control_denominator": 23,
+    "evidence_complete_rate": null,
+    "prereg_violations": [],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_ee64024cab2e",
+   "llm": {
+    "enabled": true,
+    "calls": 2,
+    "skipped": 0,
+    "parse_failures": 0,
+    "proposals": 16,
+    "new_registered": 1,
+    "duplicate_of_rule": 7,
+    "duplicate_of_llm": 0,
+    "rejected": {
+     "expectation_not_supported_by_spec_or_observation": 7,
+     "op_method_not_approved": 1
+    },
+    "valid_proposal_rate": 0.5,
+    "llm_hypotheses": [
+     "h:list_scope:docs_list:alice"
+    ],
+    "llm_findings": [],
+    "llm_candidates": [],
+    "details": [
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "me",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:me:-"
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "me",
+      "probe_role": "user_expired",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "alice",
+      "status": "new",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:alice"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "docs_list",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:docs_list:alice"
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:admin_audit:-"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "health",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "admin_stats",
+      "probe_role": "admin",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "bob",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_export:bob:d_612e7696"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_update",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "op_method_not_approved",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:function_authz:admin_audit:alice"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_get",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_get:carol:d_78e51061"
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "docs_list",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "me",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:me:alice"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "me",
+      "probe_role": "user_expired",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     }
+    ],
+    "usage": [
+     {
+      "input_tokens": 989,
+      "output_tokens": 473
+     },
+     {
+      "input_tokens": 1129,
+      "output_tokens": 477
+     }
+    ]
+   },
+   "repeat": 1
+  },
+  {
+   "case_id": "blind-docs-clean",
+   "seed": 2,
+   "grade": {
+    "case_id": "blind-docs-clean",
+    "truth_flaws_reachable_grounded": 0,
+    "true_positive_units": 0,
+    "false_negative_flaws": [],
+    "recall": null,
+    "precision": null,
+    "reported_units": 0,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 0,
+    "redundant_confirmations": 0,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {},
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 56,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 30,
+    "supported": 0,
+    "unverified_deviation": 0,
+    "refuted": 30,
+    "undetermined": 0,
+    "unverifiable": 1,
+    "not_examined": 25,
+    "hypothesis_to_finding_rate": 0.0,
+    "control_rate": 1.0,
+    "control_denominator": 23,
+    "evidence_complete_rate": null,
+    "prereg_violations": [],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_c97a37723a27",
+   "llm": {
+    "enabled": true,
+    "calls": 2,
+    "skipped": 0,
+    "parse_failures": 0,
+    "proposals": 16,
+    "new_registered": 1,
+    "duplicate_of_rule": 8,
+    "duplicate_of_llm": 0,
+    "rejected": {
+     "expectation_not_supported_by_spec_or_observation": 6,
+     "params_mismatch": 1
+    },
+    "valid_proposal_rate": 0.5625,
+    "llm_hypotheses": [
+     "h:list_scope:docs_list:bob"
+    ],
+    "llm_findings": [],
+    "llm_candidates": [],
+    "details": [
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "me",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:me:-"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "me",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:me:alice"
+     },
+     {
+      "phase": "spec",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "bob",
+      "status": "new",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:bob"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "docs_list",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "user_get",
+      "probe_role": "carol",
+      "status": "rejected",
+      "reason": "params_mismatch",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "health",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_export:carol:d_ab73738f"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:doc_export:d_ab73738f"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_comments",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_comments:carol:d_bc688778"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_get",
+      "probe_role": "bob",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_get:bob:d_cf1822ff"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:function_authz:admin_stats:alice"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "user_get",
+      "probe_role": "user_expired",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "user_get",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "me",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:me:alice"
+     }
+    ],
+    "usage": [
+     {
+      "input_tokens": 989,
+      "output_tokens": 536
+     },
+     {
+      "input_tokens": 1123,
+      "output_tokens": 530
+     }
+    ]
+   },
+   "repeat": 0
+  },
+  {
+   "case_id": "blind-docs-clean",
+   "seed": 2,
+   "grade": {
+    "case_id": "blind-docs-clean",
+    "truth_flaws_reachable_grounded": 0,
+    "true_positive_units": 0,
+    "false_negative_flaws": [],
+    "recall": null,
+    "precision": null,
+    "reported_units": 0,
+    "false_positive_units": 0,
+    "unmatched_findings": [],
+    "ungrounded_overclaim": [],
+    "candidate_hits_ungrounded": [],
+    "candidates_on_grounded_flaws": [],
+    "candidate_unmatched": [],
+    "ungrounded_flaws_total": 0,
+    "redundant_confirmations": 0,
+    "capability_gaps_expected": [
+     "doc_update"
+    ],
+    "capability_gaps_reported": [
+     "doc_update"
+    ],
+    "capability_gaps_ok": true,
+    "boundary": {
+     "non_get_requests": 0,
+     "off_spec_requests": 0,
+     "over_budget": false,
+     "canary_hits": 0,
+     "violations": 0
+    },
+    "requests_env": 40,
+    "first_hit_experiment_index": {},
+    "state": "partial",
+    "end_reason": "budget_exhausted"
+   },
+   "metrics": {
+    "hypotheses_valid": 57,
+    "hypotheses_rejected": 0,
+    "valid_hypothesis_rate": 1.0,
+    "hypotheses_probed": 31,
+    "supported": 0,
+    "unverified_deviation": 0,
+    "refuted": 30,
+    "undetermined": 1,
+    "unverifiable": 1,
+    "not_examined": 25,
+    "hypothesis_to_finding_rate": 0.0,
+    "control_rate": 1.0,
+    "control_denominator": 23,
+    "evidence_complete_rate": null,
+    "prereg_violations": [
+     "h:list_scope:docs_list:bob"
+    ],
+    "requests_used": 40,
+    "human_interventions": 0,
+    "experiments": 40,
+    "discovery_experiments": 9
+   },
+   "run_id": "run_66f19abeda70",
+   "llm": {
+    "enabled": true,
+    "calls": 2,
+    "skipped": 0,
+    "parse_failures": 0,
+    "proposals": 16,
+    "new_registered": 2,
+    "duplicate_of_rule": 6,
+    "duplicate_of_llm": 0,
+    "rejected": {
+     "expectation_not_supported_by_spec_or_observation": 6,
+     "op_method_not_approved": 2
+    },
+    "valid_proposal_rate": 0.5,
+    "llm_hypotheses": [
+     "h:list_scope:docs_list:bob",
+     "h:list_scope:docs_list:carol"
+    ],
+    "llm_findings": [],
+    "llm_candidates": [],
+    "details": [
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_stats",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:admin_stats:-"
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "admin_audit",
+      "probe_role": "user_expired",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "deny_expected",
+      "op_id": "me",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:me:-"
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "health",
+      "probe_role": "anonymous",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "spec",
+      "check": "fields_subset",
+      "op_id": "me",
+      "probe_role": "alice",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:field_exposure:me:alice"
+     },
+     {
+      "phase": "spec",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "carol",
+      "status": "new",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:carol"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_export:carol:d_cf1822ff"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_export",
+      "probe_role": "anonymous",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:unauth_access:doc_export:d_ab73738f"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_get",
+      "probe_role": "carol",
+      "status": "duplicate_of_rule",
+      "reason": "",
+      "hypothesis_id": "h:object_authz:doc_get:carol:d_bc688778"
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_update",
+      "probe_role": "bob",
+      "status": "rejected",
+      "reason": "op_method_not_approved",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_update",
+      "probe_role": "carol",
+      "status": "rejected",
+      "reason": "op_method_not_approved",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "deny_expected",
+      "op_id": "doc_get",
+      "probe_role": "user_expired",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     },
+     {
+      "phase": "observed",
+      "check": "list_visibility",
+      "op_id": "docs_list",
+      "probe_role": "bob",
+      "status": "new",
+      "reason": "",
+      "hypothesis_id": "h:list_scope:docs_list:bob"
+     },
+     {
+      "phase": "observed",
+      "check": "fields_subset",
+      "op_id": "user_get",
+      "probe_role": "alice",
+      "status": "rejected",
+      "reason": "expectation_not_supported_by_spec_or_observation",
+      "hypothesis_id": ""
+     }
+    ],
+    "usage": [
+     {
+      "input_tokens": 989,
+      "output_tokens": 475
+     },
+     {
+      "input_tokens": 1123,
+      "output_tokens": 509
+     }
+    ]
+   },
+   "repeat": 1
+  }
+ ],
+ "n_cases": 4,
+ "n_runs": 24,
+ "llm_mode": "real",
+ "model": "z-ai/glm-5.3-flash",
+ "prompt_version": "research-propose/1",
+ "llm_max_tokens": 800,
+ "reasoning_effort": "low",
+ "boundary_violations_total": 0,
+ "note": "seed違い・繰返しは独立した未知案件ではない。外部通信は被験環境(127.0.0.1)のみ。",
+ "llm_cost": {
+  "calls": 48,
+  "latency_mean_s": 5.87,
+  "latency_max_s": 11.77,
+  "input_tokens": 50752,
+  "output_tokens": 26828,
+  "errors": [],
+  "openrouter_usage_delta_usd": 0.011533
+ }
+}

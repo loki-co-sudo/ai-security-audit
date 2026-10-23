@@ -3240,6 +3240,23 @@ def test_lab_eval():
         _ng("Lab", str(result.errors + result.failures))
 
 
+def test_research_stage1():
+    _section("16ah. RESEARCH — 自律調査 Stage 1（観測→仮説の事前登録→実験→評価→再計画。LLM呼出0・docs/AUTONOMOUS_DISCOVERY_STAGE1.md）")
+    import unittest
+    from tools import test_research as t
+    result = unittest.TestResult()
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c) for c in (
+        t.CaseContractTest, t.HypothesisLogicTest, t.RunnerExtensionTest, t.ResearchE2ETest, t.ResearchBoundaryTest,
+        t.ResearchReportTest, t.ListVisibilityCheckTest, t.ResearchLlmTest))
+    suite.run(result)
+    if result.wasSuccessful():
+        _ok("Research", f"{result.testsRun} tests: 案件契約(仮説/期待値を置けない)/有効な仮説の定義/判定行列(対照・根拠の有無)/"
+                        "観測で変わる実験/予測の事前登録の順序/正常対象で捏造0/対照欠落は未確認/予算枯渇・STOP/漏えい非混入/検証不能の理由"
+                        "（パイプラインの確認であり、未知ケースでの発見能力の証拠ではない）")
+    else:
+        _ng("Research", str(result.errors + result.failures))
+
+
 def test_gui_ledger_ops():
     _section("16ad. GUI LEDGER — 案件ID→所見台帳の記録・状態/抑制の操作(Tk不要・P3.2)")
     import unittest
@@ -3442,6 +3459,7 @@ def main():
     test_code_index()
     test_cli()
     test_lab_eval()
+    test_research_stage1()
     test_audit_evidence()
     test_defense_evidence()
     test_flag_routes()
