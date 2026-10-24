@@ -649,7 +649,8 @@ U4（重複確認の抑制）は§9で完了。凍結条件・評価ランナー
 | `frozen_protocol_stage3.json` | 次の評価用の最初の凍結（プロトコル版2・`/4`） | 旧（§14.1で置き換え） |
 | `frozen_protocol_stage3_r2.json` | 同・報告専用の出力を追加（プロトコル版2・`/4`） | 旧（§15で調査動作が変わったため置き換え） |
 | `frozen_protocol_stage4.json` | 次の未使用ケース評価用の最初の凍結（プロトコル版3・`research-stage1/5`） | 旧（凍結ツールの上書き防止を足して stage4_r2 へ置き換え。未使用） |
-| `frozen_protocol_stage4_r2.json` | 同・凍結ツールの上書き防止と案内の修正のみ追加（調査の判断・方式・予算・採用基準は同一） | **有効**（下に凍結の記録） |
+| `frozen_protocol_stage4_r2.json` | 同・凍結ツールの上書き防止と案内の修正のみ追加（調査の判断・方式・予算・採用基準は同一） | 旧（§15.9 の追跡可能な記録を足して stage4_r3 へ置き換え。未使用） |
+| `frozen_protocol_stage4_r3.json` | 同・所見ごとの証拠の出どころ／検証が未実行の理由を保存記録から追跡できる報告と用語の区別を追加（調査の判断・方式・予算・LLM設定・採用基準は同一。受入基準の本文は変えず、報告の項目 `traceability` を追加） | **有効** |
 
 **凍結（実施済み・§下の再凍結で stage4_r2 に置き換え）**: `testlab/baselines/frozen_protocol_stage4.json`（プロトコル版 `stage2-protocol/3`・調査システムの版 `research-stage1/5`・凍結時のgit `4d039512a2`・コードのハッシュ `463b96eb99db18c4`・ケース受領前）。方式は §14 の6つ（`rules`／`llm`／`adaptive_nodedup`／`static`／`static_dedup`／`checklist`）、予算は案件設定の単一段階、シード 0,1,2、LLMは各2回、採用基準は §11.2＋§14。評価コマンド:
 `tools/research_stage2_eval.py --cases <ID一覧> --protocol testlab/baselines/frozen_protocol_stage4.json --include-holdout --approve-real-llm --model z-ai/glm-5.3-flash --out <結果ファイル>`
@@ -687,3 +688,5 @@ U4（重複確認の抑制）は§9で完了。凍結条件・評価ランナー
 - 結果ファイル・記録には欠陥ID・操作名が含まれる。報告前に開かず、件数だけを集計して報告する（AGENTS.md）。
 
 **5. 再凍結**: 上記は報告・記録の変更で、調査の判断（実験の選択・仮説・判定・係数・方式・予算・LLM設定・採用基準）は変えていない。凍結の記録は §15.8 の表を参照（`frozen_protocol_stage4_r3.json`）。
+
+**再凍結（実施済み・有効）**: `testlab/baselines/frozen_protocol_stage4_r3.json`（プロトコル版 `stage2-protocol/3`・調査システムの版 `research-stage1/5`・凍結時のgit `107498a7e8`・コードのハッシュ `2bd94f22ee2b55e6`・ケース受領前）。stage4_r2 との差は、報告・記録のコード（`blind_grader.py`／`research_eval.py`／`research_stage2_eval.py`／`research_loop.py`／`research_report.py`）と、報告項目 `traceability` の追加だけ。**評価コマンドの `--protocol` は `testlab/baselines/frozen_protocol_stage4_r3.json`**（上の stage4／stage4_r2 の記述中のコマンドも、この名前に読み替える）。
