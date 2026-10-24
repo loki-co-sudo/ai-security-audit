@@ -1,0 +1,46 @@
+{
+  "author": "Codex, separate from the Claude implementation agent. Prior development reports and implementation review context were available; this is not a fully independent external evaluation.",
+  "purpose": "Private authorship and fixture validation record, not evaluation output.",
+  "case_ids": [
+    "unseen-amber-23",
+    "unseen-amber-51",
+    "unseen-amber-86"
+  ],
+  "protocol_at_authoring": "testlab/baselines/frozen_protocol_stage4_r3.json",
+  "frozen_system_sha": "2bd94f22ee2b55e6b8798e6e86e080da68704db9c33a7ef58fc1a6123bc6a339",
+  "checks": {
+    "structure": "All three exit 0. The normal counterpart alone has the expected fewer-than-three-flaws warning.",
+    "author_command": ".venv/bin/python3 -m testlab.lab.unseen_author.amber.amber_author_check",
+    "assertions": 38446,
+    "app_configurations": 99,
+    "http_requests": 396,
+    "seed_values": [
+      7,
+      19,
+      43
+    ],
+    "scope": "All enabled-flaw subsets, role/operation/object matrix, documented response fields, author-only oracle for unspecified routes, ID observability, no GET state mutation, HTTP credential handling and non-GET rejection, paired public contract equality.",
+    "research_runs": 0,
+    "grader_runs": 0,
+    "llm_calls": 0,
+    "full_selftest": "Not run: only isolated case-authoring checks were authorized; research/evaluation workflows were not invoked."
+  },
+  "limitations": [
+    "Two distinct domain models plus a paired normal counterpart, not three independent domains.",
+    "Synthetic author-defined defects do not establish real-world zero-day discovery.",
+    "reachable means possible through published GET operations and observable IDs, not support by every frozen hypothesis type.",
+    "No human author-side manual review has been performed; code and specification were reviewed by Codex.",
+    "These cases intentionally exercise the published capability contract. Prior reports are known to the author; evaluate as an exploratory separate-author holdout, not a blind external benchmark."
+  ],
+  "files_sha256": {
+    "testlab/lab/blind_cases/unseen-amber-23.json": "dd31cd0ea31afb49afba91fb3050a233a862c6832432d54d2d97e371c15cd2e2",
+    "testlab/lab/blind_cases/unseen-amber-51.json": "17792cc40fe7174e8bf649efda7201c194aff704e8585b6189c623f64dacbc0a",
+    "testlab/lab/blind_cases/unseen-amber-86.json": "62affa5f0230be329d0025198b13c6d2bf9278102d9bab35826ea9d461fc3d89",
+    "testlab/lab/truth/unseen-amber-23.json": "c3c18cfd8d98b85188ff855007f5413f6448e720778a30d93d91fe9177c78876",
+    "testlab/lab/truth/unseen-amber-51.json": "39d2316008d8d8b655ff7fe5b1a3ebaf5dffcb018a4fd511422af7dbf85a18dc",
+    "testlab/lab/truth/unseen-amber-86.json": "e90a5ac2d665ad237d220ae6e5c2d56cd2e120e6158f4bfdeb2c475b97631db2",
+    "testlab/lab/unseen/amber_learning.py": "d443a869a4cb4e4539da1709377bb5b85dd84851cfb313b322ea08eb981424ea",
+    "testlab/lab/unseen/amber_shelter.py": "117aac75918a291b080dcb3bbc210bc624724b01f6de9c0e29170aed19dbc8ad",
+    "testlab/lab/unseen_author/amber/amber_author_check.py": "5f9a5f740ec3c7b4d3417987b6b3f93f3f85123039dde195ae67cbffdb6312e4"
+  }
+}

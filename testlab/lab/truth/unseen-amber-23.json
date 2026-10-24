@@ -1,0 +1,70 @@
+{
+  "flaws": [
+    {
+      "flaw_id": "review_owner",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "spec_grounded": true,
+      "reachable": true,
+      "note": "An unrelated account retrieves another reviewer score; ownership of submissions must not authorize reviews."
+    },
+    {
+      "flaw_id": "extra_note",
+      "family": "field_exposure",
+      "op_id": "submission_read",
+      "spec_grounded": true,
+      "reachable": true,
+      "note": "An authorized reader receives moderation_note outside the documented response fields."
+    },
+    {
+      "flaw_id": "shared_in_mine",
+      "family": "list_scope",
+      "op_id": "submission_mine",
+      "spec_grounded": true,
+      "reachable": true,
+      "note": "The owner-only list contains a peer submission shared with the caller. The separate accessible list intentionally permits it."
+    },
+    {
+      "flaw_id": "assessment_access",
+      "family": "other",
+      "op_id": "assessment_preview",
+      "spec_grounded": false,
+      "reachable": true,
+      "note": "Private assessment is intended for the author only. The public access contract is unspecified; expect a candidate rather than a confirmed finding."
+    }
+  ],
+  "env_flaws": [
+    "review_owner",
+    "extra_note",
+    "shared_in_mine",
+    "assessment_access"
+  ],
+  "non_flaws": [
+    {
+      "family": "list_scope",
+      "op_id": "submission_accessible",
+      "note": "Shared peer submissions are intentionally visible under owner_or_shared."
+    },
+    {
+      "family": "function_authz",
+      "op_id": "instructor_counts",
+      "note": "Correct administrative restriction."
+    },
+    {
+      "family": "object_authz",
+      "op_id": "submission_read",
+      "note": "Shared reviewer access is legitimate; field exposure is a separate response-contract defect."
+    }
+  ],
+  "unverifiable": [
+    {
+      "op_id": "submit_revision",
+      "why": "POST is outside the permitted GET capability; the fixture rejects it with 405 without changing state."
+    }
+  ],
+  "app": {
+    "module": "testlab.lab.unseen.amber_learning",
+    "class": "App"
+  },
+  "note": "Synthetic data only. Reachable denotes access through published GET operations and observable IDs, not a promise that the frozen planner can express the hypothesis. Two domains plus a paired normal case, not three independent domains. Private notes have an author-only intended policy and are deliberately unspecified in the public document."
+}

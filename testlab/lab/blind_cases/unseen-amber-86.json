@@ -1,0 +1,304 @@
+{
+  "schema": "ai-security-audit-blind-case",
+  "schema_version": "1",
+  "case_id": "unseen-amber-86",
+  "split": "holdout",
+  "title": "Animal placement service",
+  "target_ref": "app:shelter",
+  "scope": {
+    "allowed_hosts": [
+      "127.0.0.1"
+    ],
+    "excluded_paths": [
+      "/logout"
+    ]
+  },
+  "side_effects_allowed": [
+    "T1",
+    "T2"
+  ],
+  "accounts": {
+    "member_a": {
+      "ref": "cred:member_a",
+      "privilege": "user"
+    },
+    "member_b": {
+      "ref": "cred:member_b",
+      "privilege": "user"
+    },
+    "member_c": {
+      "ref": "cred:member_c",
+      "privilege": "user"
+    },
+    "coordinator": {
+      "ref": "cred:coordinator",
+      "privilege": "admin"
+    },
+    "user_expired": {
+      "ref": "cred:user_expired",
+      "privilege": "user"
+    }
+  },
+  "spec": {
+    "title": "Shelter API",
+    "objects": {
+      "application": {
+        "id_field": "id",
+        "owner_field": "applicant",
+        "fields": [
+          "id",
+          "applicant",
+          "animal",
+          "status"
+        ]
+      },
+      "placement": {
+        "id_field": "id",
+        "owner_field": "carer",
+        "fields": [
+          "id",
+          "carer",
+          "application_id",
+          "animal",
+          "days"
+        ]
+      }
+    },
+    "operations": [
+      {
+        "op_id": "animal_catalog",
+        "method": "GET",
+        "path": "/shelter/animals",
+        "access": {
+          "clause": "S-1",
+          "kind": "public",
+          "text": "Animal names and species are publicly available."
+        },
+        "returns": {
+          "fields": [
+            "animal",
+            "species"
+          ]
+        }
+      },
+      {
+        "op_id": "member_identity",
+        "method": "GET",
+        "path": "/shelter/identity",
+        "access": {
+          "clause": "S-2",
+          "kind": "authenticated",
+          "text": "Return the current account identity."
+        },
+        "returns": {
+          "fields": [
+            "id",
+            "name"
+          ],
+          "identity": true
+        }
+      },
+      {
+        "op_id": "application_list",
+        "method": "GET",
+        "path": "/shelter/applications",
+        "access": {
+          "clause": "S-3",
+          "kind": "own_list",
+          "text": "Return only the caller own applications. Coordinators use this endpoint under the same ownership restriction.",
+          "object": "application",
+          "visible_to": "owner"
+        },
+        "returns": {
+          "fields": [
+            "id",
+            "applicant",
+            "animal",
+            "status"
+          ],
+          "object": "application",
+          "list": true
+        }
+      },
+      {
+        "op_id": "application_read",
+        "method": "GET",
+        "path": "/shelter/applications/{item_id}",
+        "access": {
+          "clause": "S-4",
+          "kind": "owner_only",
+          "text": "Only the applicant may read the application. Being assigned the associated placement does not grant access.",
+          "object": "application",
+          "param": "item_id"
+        },
+        "params": {
+          "item_id": {
+            "object": "application"
+          }
+        },
+        "returns": {
+          "fields": [
+            "id",
+            "applicant",
+            "animal",
+            "status"
+          ],
+          "object": "application",
+          "object_key": "id"
+        }
+      },
+      {
+        "op_id": "placement_list",
+        "method": "GET",
+        "path": "/shelter/placements",
+        "access": {
+          "clause": "S-5",
+          "kind": "own_list",
+          "text": "Return only placements assigned to the caller as carer. Application ownership does not grant access.",
+          "object": "placement",
+          "visible_to": "owner"
+        },
+        "returns": {
+          "fields": [
+            "id",
+            "carer",
+            "application_id",
+            "animal",
+            "days"
+          ],
+          "object": "placement",
+          "list": true
+        }
+      },
+      {
+        "op_id": "placement_read",
+        "method": "GET",
+        "path": "/shelter/placements/{item_id}",
+        "access": {
+          "clause": "S-6",
+          "kind": "owner_only",
+          "text": "Only the assigned carer may retrieve this placement; coordinators have no override.",
+          "object": "placement",
+          "param": "item_id"
+        },
+        "params": {
+          "item_id": {
+            "object": "placement"
+          }
+        },
+        "returns": {
+          "fields": [
+            "id",
+            "carer",
+            "application_id",
+            "animal",
+            "days"
+          ],
+          "object": "placement",
+          "object_key": "id"
+        }
+      },
+      {
+        "op_id": "capacity_summary",
+        "method": "GET",
+        "path": "/shelter/capacity",
+        "access": {
+          "clause": "S-7",
+          "kind": "authenticated",
+          "text": "All authenticated accounts may read capacity counts; anonymous callers may not."
+        },
+        "returns": {
+          "fields": [
+            "occupied",
+            "capacity"
+          ]
+        }
+      },
+      {
+        "op_id": "management_totals",
+        "method": "GET",
+        "path": "/shelter/management/totals",
+        "access": {
+          "clause": "S-8",
+          "kind": "role",
+          "text": "Only coordinators with administrative privilege may read application and care-day totals.",
+          "roles": [
+            "admin"
+          ]
+        },
+        "returns": {
+          "fields": [
+            "applications",
+            "care_days"
+          ]
+        }
+      },
+      {
+        "op_id": "management_policy",
+        "method": "GET",
+        "path": "/shelter/management/policy",
+        "access": {
+          "clause": "S-9",
+          "kind": "role",
+          "text": "Only coordinators with administrative privilege may read review settings.",
+          "roles": [
+            "admin"
+          ]
+        },
+        "returns": {
+          "fields": [
+            "review_days"
+          ]
+        }
+      },
+      {
+        "op_id": "household_view",
+        "method": "GET",
+        "path": "/shelter/applications/{item_id}/household",
+        "access": {
+          "clause": "S-10",
+          "kind": "unspecified",
+          "text": "Household annotation service. This specification does not define its access conditions."
+        },
+        "params": {
+          "item_id": {
+            "object": "application"
+          }
+        },
+        "returns": {
+          "fields": [
+            "id",
+            "household"
+          ],
+          "object": "application",
+          "object_key": "id"
+        }
+      },
+      {
+        "op_id": "application_withdraw",
+        "method": "POST",
+        "path": "/shelter/applications/{item_id}/withdraw",
+        "access": {
+          "clause": "S-11",
+          "kind": "owner_only",
+          "text": "Only the applicant may withdraw an application.",
+          "object": "application",
+          "param": "item_id"
+        },
+        "params": {
+          "item_id": {
+            "object": "application"
+          }
+        }
+      }
+    ]
+  },
+  "budget": {
+    "max_requests": 40,
+    "max_seconds": 90,
+    "max_llm_calls": 2
+  },
+  "stop_conditions": {
+    "min_value": 0.02
+  }
+}

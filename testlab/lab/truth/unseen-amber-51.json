@@ -1,0 +1,32 @@
+{
+  "flaws": [],
+  "env_flaws": [],
+  "non_flaws": [
+    {
+      "family": "object_authz",
+      "op_id": "application_read",
+      "note": "A carer can observe application_id in their placement but cannot retrieve another applicant record."
+    },
+    {
+      "family": "function_authz",
+      "op_id": "management_policy",
+      "note": "Correct administrative restriction."
+    },
+    {
+      "family": "unauth_access",
+      "op_id": "animal_catalog",
+      "note": "Public animal information is intentional."
+    }
+  ],
+  "unverifiable": [
+    {
+      "op_id": "application_withdraw",
+      "why": "POST is outside the permitted GET capability; the fixture rejects it with 405 without changing state."
+    }
+  ],
+  "app": {
+    "module": "testlab.lab.unseen.amber_shelter",
+    "class": "App"
+  },
+  "note": "Synthetic data only. Reachable denotes access through published GET operations and observable IDs, not a promise that the frozen planner can express the hypothesis. Two domains plus a paired normal case, not three independent domains. Private notes have an author-only intended policy and are deliberately unspecified in the public document."
+}
