@@ -297,7 +297,8 @@ def _llm_summary(researcher, ledger, findings, candidates) -> dict:
                                                                            / st["proposals"], 4) if st["proposals"] else None),
             "llm_hypotheses": sorted(llm_hyps), "llm_findings": sorted(f["hypothesis_id"] for f in findings if f["hypothesis_id"] in llm_hyps),
             "llm_candidates": sorted(c["hypothesis_id"] for c in candidates if c["hypothesis_id"] in llm_hyps),
-            "details": st["details"], "usage": st["usage"], "ledger": ledger.llm_usage_summary()}
+            "details": st["details"], "calls_detail": st["calls_detail"], "usage": st["usage"],
+            "ledger": ledger.llm_usage_summary()}
 
 
 def _assemble(case, researcher, outcome, runner, sr, run_id, counters, ledger, evidence, mask, budget, phash):

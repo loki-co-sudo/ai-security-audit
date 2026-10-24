@@ -1044,6 +1044,33 @@ class ResearchStage2Test(_Stage2Base):
         self.assertIn("独立した案件ではない", res["note"])
         self.assertEqual(res["verdict"]["llm_contribution"], "上乗せなし")                # モックは規則の型の内側のみ。差は0
 
+    def test_llm_stage_rejection_is_classified_and_persisted_through_run_stage2(self):
+        """LLMの提案が仮説の具体化で却下された欠陥は、『仮説なし』ではなく『具体化で却下』と分類され、実行ごとの記録に残る。"""
+        truth_path = os.path.join(self.truth, "hold-a.json")
+        with open(truth_path, encoding="utf-8") as f:
+            truth = json.load(f)
+        truth["flaws"].append({"flaw_id": "ls", "family": "list_scope", "op_id": "loans_list", "spec_grounded": True, "reachable": True})
+        with open(truth_path, "w", encoding="utf-8") as f:
+            json.dump(truth, f)
+
+        class Proposer:
+            def complete(self, messages, max_tokens=None, usage_out=None):
+                if usage_out is not None:
+                    usage_out.update({"input_tokens": 10, "output_tokens": 10})
+                return json.dumps({"proposals": [{"check": "list_visibility", "op_id": "loans_list", "probe_role": "nobody",
+                                                  "basis_clause": "S-3", "rationale": "x"}]})
+        res = self.run_s2(ids=("hold-a",), llm_factory=lambda cfg: Proposer())
+        llm_cell = res["scope_report"]["llm"]["family:list_scope"]
+        self.assertEqual(llm_cell["categories"], {"rejected_at_concretization": 2})                    # 件数は（欠陥×実行）: 2シード × 1繰返し
+        self.assertEqual(res["scope_report"]["llm"]["reasons"]["rejected_at_concretization:role_unknown"], 2)
+        rules_cell = res["scope_report"]["rules"]["family:list_scope"]
+        self.assertEqual(rules_cell["categories"], {"no_hypothesis_for_family": 2})                    # 規則には list_scope が無い（LLMを使わない実行）
+        rec = [r for r in res["runs_compact"] if r["method"] == "llm"]
+        self.assertEqual(len(rec), 2)
+        self.assertTrue(all(r["diagnosis"]["ls"]["category"] == "rejected_at_concretization" for r in rec))
+        self.assertTrue(all(r["llm"]["rejected"].get("role_unknown", 0) >= 1 and r["llm"]["calls_detail"] for r in rec))
+        self.assertIsNone([r for r in res["runs_compact"] if r["method"] == "rules"][0]["llm"])
+
     def test_llm_method_is_skipped_without_approval_but_others_run(self):
         res = self.run_s2()
         self.assertEqual(res["methods_run"], ["adaptive_nodedup", "checklist", "rules", "static", "static_dedup"])

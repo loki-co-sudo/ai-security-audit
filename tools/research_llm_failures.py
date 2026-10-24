@@ -30,12 +30,6 @@ sys.path.insert(0, ROOT)
 
 from testlab.lab.blind_grader import diagnose  # noqa: E402
 
-CHECK_FAMILIES = {"list_visibility": {"list_scope"}, "fields_subset": {"field_exposure"},
-                  "deny_expected": {"object_authz", "function_authz", "unauth_access", "mutation_authz"}}
-HYPOTHESIS_EXISTS = {"found_evidence_complete", "found_evidence_incomplete", "overclaimed", "candidate_only", "control_incomplete",
-                     "examined_no_deviation", "registered_not_examined", "unverifiable", "registered_no_outcome"}
-
-
 def llm_summary(events: list) -> dict:
     """ジャーナルの llm_proposals イベントを、呼出単位に要約する。"""
     calls = []
@@ -54,49 +48,9 @@ def llm_summary(events: list) -> dict:
 
 
 def classify(result: dict, events: list, truth: dict, *, llm_enabled: bool = True) -> dict:
-    """flaw_id -> {category, detail, family}。detail は理由コード（なければ空）。"""
-    base = diagnose(result, truth)
-    calls = llm_summary(events)["calls"]
-    out = {}
-    for f in truth["flaws"]:
-        d = base[f["flaw_id"]]
-        cat, detail = d["category"], ""
-        if cat in ("candidate_only", "control_incomplete"):                  # 仮説はあるが確定しなかった理由コード（例: probe_preexisting）
-            pool = result["candidates"] if cat == "candidate_only" else result["undetermined"]
-            hid = next((h["hypothesis_id"] for h in result["hypotheses"] if (h["family"], h["op_id"]) == (f["family"], f["op_id"])
-                        and any(x["hypothesis_id"] == h["hypothesis_id"] for x in pool)), None)
-            detail = next((str(x.get("reason", ""))[:60] for x in pool if x["hypothesis_id"] == hid), "")
-        if cat in HYPOTHESIS_EXISTS or cat == "family_outside_system":
-            out[f["flaw_id"]] = {"category": cat, "detail": detail, "family": f["family"], "reachable": f["reachable"], "spec_grounded": f["spec_grounded"]}
-            continue
-        if not llm_enabled or not calls:
-            cat = "llm_not_used"
-        elif all(c["outcome"] == "budget_denied" for c in calls):
-            cat = "llm_budget_denied"
-        else:
-            parsed = [c for c in calls if c["outcome"] == "parsed"]
-            if not parsed:
-                bad = [c for c in calls if c["outcome"] in ("unparsed", "call_failed")]
-                cat = "llm_call_failed" if all(c["outcome"] == "call_failed" for c in bad) else "llm_reply_unparsed"
-                detail = bad[0]["reason"] if bad else ""
-            else:
-                about = [r for c in parsed for r in c["results"] if r.get("op_id") == f["op_id"]]
-                fits = [r for r in about if f["family"] in CHECK_FAMILIES.get(r.get("check"), set())]
-                if not about:
-                    cat = "llm_no_proposal_for_op"
-                    # 同じ実行に解析失敗の呼出しがあれば区別する（提案しなかったのか、解析失敗で提案を失った可能性があるのか）
-                    detail = "with_unparsed_call" if any(c["outcome"] == "unparsed" for c in calls) else ""
-                elif not fits:
-                    cat = "llm_proposed_other_check_only"
-                else:
-                    rej = [r for r in fits if r.get("status") == "rejected"]
-                    r0 = rej[0] if rej else fits[0]
-                    reason = r0.get("reason", "")
-                    cat = "rejected_by_validator" if reason.startswith("validator:") else "rejected_at_concretization"
-                    detail = reason[:60]
-        out[f["flaw_id"]] = {"category": cat, "detail": detail, "family": f["family"], "reachable": f["reachable"],
-                             "spec_grounded": f["spec_grounded"]}
-    return out
+    """flaw_id -> {category, detail, family, ...}。分類の本体は testlab.lab.blind_grader.diagnose（実行の結果にも同じ分類が付く）。
+    この事後分析は、ジャーナルのイベントから呼出しの要約を作って渡す（評価済みの実行には呼出しごとの記録が無かったため）。"""
+    return diagnose(result, truth, calls=llm_summary(events)["calls"] if llm_enabled else None)
 
 
 def aggregate(rows: list) -> dict:

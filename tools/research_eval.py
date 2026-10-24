@@ -110,7 +110,7 @@ def run_one(case_id: str, seed: int, *, budget_override: dict | None = None, llm
             "findings": [{"family": f["family"], "op_id": f["op_id"], "control_state": f["control_state"]} for f in res["findings"]],
             "llm": {k: L[k] for k in ("enabled", "calls", "skipped", "parse_failures", "proposals", "new_registered",
                                       "duplicate_of_rule", "duplicate_of_llm", "rejected", "valid_proposal_rate",
-                                      "llm_hypotheses", "llm_findings", "llm_candidates", "details", "usage")}}
+                                      "llm_hypotheses", "llm_findings", "llm_candidates", "details", "calls_detail", "usage")}}
 
 
 def main() -> int:

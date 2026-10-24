@@ -151,7 +151,7 @@ def aggregate(runs: list, proto: dict, info: dict, skipped: dict, elapsed: float
             "system_sha": sha[:16], "methods_run": sorted(table), "methods_skipped": skipped, "n_cases": len(info), "n_runs": len(runs),
             "cases": {cid: {"split": i["split"], "clean": i["clean"]} for cid, i in info.items()},
             "table": table, "summary": summary, "verdict": verdict, "found_only_by_method_not_rules": unique,
-            "llm_usage": llm_usage(runs, proto),
+            "llm_usage": llm_usage(runs, proto), "runs_compact": runs_compact(runs),
             "scope_report": scope_report(runs), "report_definitions": REPORT_DEFINITIONS,
             "acceptance_text": proto["acceptance"], "elapsed_s": elapsed,
             "note": "案件数と実行数は別。同じ環境のシード違い・LLMの繰返しは独立した案件ではない。結果を見てからの基準・係数・ケースの変更は使用済みとして扱う。"}
@@ -169,7 +169,10 @@ REPORT_DEFINITIONS = {
     "categories": "found_evidence_complete=所見あり・証拠一式あり／found_evidence_incomplete=所見ありだが証拠不足／overclaimed=推定の欠陥を確定／"
                   "candidate_only=逸脱を観測したが確定せず／control_incomplete=対照が完了せず判定不能／examined_no_deviation=実験したが逸脱を観測せず／"
                   "registered_not_examined=仮説は登録したが実験に至らず／validator_rejected=検証器が却下／unverifiable=検証不能として残した／registered_no_outcome=仮説は登録済みだが結果の状態なし(記録の欠落)／"
-                  "no_hypothesis_for_family=同じ操作の別の型の仮説のみ／no_hypothesis=その操作の仮説なし／family_outside_system=欠陥の型がシステムの語彙に無い",
+                  "no_hypothesis_for_family=同じ操作の別の型の仮説のみ(LLMを使わない実行)／no_hypothesis=その操作の仮説なし(LLMを使わない実行)／"
+                  "llm_not_used／llm_budget_denied／llm_call_failed／llm_reply_unparsed(解析失敗)／llm_no_proposal_for_op(解析できた返答に提案なし)／"
+                  "llm_proposed_other_check_only(検査型が合わない提案だけ)／rejected_at_concretization(仮説の具体化で却下。理由コードは reasons)／"
+                  "rejected_by_validator(検証器で却下)／family_outside_system=欠陥の型がシステムの語彙に無い。LLMを使う方式の『仮説なし』は上のLLM段階の分類に分かれる",
     "unit": "カウントは（欠陥 × 実行）の対。案件数ではない。3案件・2ドメイン、うち2案件は同一環境の欠陥あり/なしの対で独立ではない"}
 
 
@@ -195,11 +198,30 @@ def scope_report(runs: list) -> dict:
                 cell = m.setdefault(t, {"flaw_runs": 0, "categories": {}})
                 cell["flaw_runs"] += 1
                 cell["categories"][d["category"]] = cell["categories"].get(d["category"], 0) + 1
+    for r in runs:
+        for d in r["diagnosis"].values():
+            if d.get("detail") and d["reachable"]:
+                key = f"{d['category']}:{d['detail']}"
+                reasons = out[r["method"]].setdefault("_reasons", {})
+                reasons[key] = reasons.get(key, 0) + 1
     for m in out.values():
+        m["reasons"] = m.pop("_reasons", {})
         for t, cell in m.items():
+            if t == "reasons":
+                continue
             ok = cell["categories"].get("found_evidence_complete", 0) + cell["categories"].get("found_evidence_incomplete", 0)
             cell["found_rate"] = round(ok / cell["flaw_runs"], 4) if cell["flaw_runs"] and t not in ("ungrounded", "unreachable") else None
     return out
+
+
+def runs_compact(runs: list) -> list:
+    """実行ごとの記録（欠陥ごとの分類と理由・LLM呼出しごとの結果・具体化で却下された理由）。結果の事後分析を、この記録だけでできるようにする。
+    欠陥ID・操作名を含むので、結果を開く前に件数だけを集計して報告する（AGENTS.md）。"""
+    return [{"method": r["method"], "case_id": r["case_id"], "seed": r["seed"], "repeat": r["repeat"],
+             "diagnosis": r["diagnosis"],
+             "llm": {"calls_detail": r["llm"].get("calls_detail"), "rejected": r["llm"].get("rejected"),
+                     "proposals": r["llm"].get("proposals"), "new_registered": r["llm"].get("new_registered")} if r["llm"]["enabled"] else None}
+            for r in runs]
 
 
 def _diff(summary: dict, a: str, b: str) -> dict | None:

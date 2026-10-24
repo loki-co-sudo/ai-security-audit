@@ -72,7 +72,7 @@ class Researcher:
         self._order: list | None = None               # 比較用の方式（static/checklist）が最初の選択時に固定する仮説の順序
         self._llm_done: set[str] = set()
         self.llm_stats = {"calls": 0, "skipped": 0, "parse_failures": 0, "proposals": 0, "new_registered": 0,
-                          "duplicate_of_rule": 0, "duplicate_of_llm": 0, "rejected": {}, "usage": [], "details": []}
+                          "duplicate_of_rule": 0, "duplicate_of_llm": 0, "rejected": {}, "usage": [], "details": [], "calls_detail": []}
 
     # ── Runnerのフック ───────────────────────────
     def step(self, outcome) -> list[PlanTask]:
@@ -168,6 +168,7 @@ class Researcher:
         msgs, dropped = research_llm.build_messages(self.case, self.model, phase)
         dec = self.ledger.reserve_llm_call(sum(len(m["content"]) for m in msgs))
         if not dec.ok:
+            st["calls_detail"].append({"phase": phase, "outcome": "budget_denied", "reason": str(dec.reason)[:60]})
             st["skipped"] += 1
             self.journal.append("llm_proposals", phase=phase, skipped=True, reason=dec.reason,
                                 prompt_version=research_llm.PROMPT_VERSION)
@@ -178,12 +179,15 @@ class Researcher:
             text = self.llm.complete(msgs, max_tokens=self.llm_max_tokens, usage_out=usage)
         except Exception as e:      # noqa: BLE001 — LLM失敗でも規則による調査は続ける（黙殺せず記録）
             self.ledger.record_llm_usage(None)
+            st["calls_detail"].append({"phase": phase, "outcome": "call_failed", "reason": type(e).__name__})
             st["parse_failures"] += 1
             self.journal.append("llm_proposals", phase=phase, error=type(e).__name__, prompt_version=research_llm.PROMPT_VERSION)
             return
         self.ledger.record_llm_usage(usage or None)
         st["usage"].append(usage or None)
         items, why = research_llm.parse_reply(text)
+        st["calls_detail"].append({"phase": phase, "outcome": "parsed" if items is not None else "unparsed", "reason": why,
+                                   "output_tokens": (usage or {}).get("output_tokens")})
         if items is None:
             st["parse_failures"] += 1
             self.journal.append("llm_proposals", phase=phase, parse_error=why, reply_sha=research_llm.reply_sha(text),

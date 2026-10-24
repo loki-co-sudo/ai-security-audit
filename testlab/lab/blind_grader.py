@@ -78,11 +78,19 @@ def grade(result: dict, truth: dict, env_requests: list, spec: dict, max_request
     }
 
 
-# 見逃しの理由の分類（報告専用。採点の指標・採用基準には使わない。2026-10-24、未使用ケースの評価の前に追加）
+# 見逃しの理由の分類（報告専用。採点の指標・採用基準には使わない。2026-10-24、未使用ケースの評価の前に追加。
+# 同日、LLM段階の却下（具体化・検証器）と呼出しの失敗も区別するよう拡張）
 SYSTEM_FAMILIES = ("object_authz", "function_authz", "unauth_access", "field_exposure", "list_scope", "mutation_authz")
 TAXONOMY_ORDER = ("found_evidence_complete", "found_evidence_incomplete", "overclaimed", "candidate_only", "control_incomplete",
                   "examined_no_deviation", "registered_not_examined", "validator_rejected", "unverifiable",
-                  "registered_no_outcome", "no_hypothesis_for_family", "no_hypothesis", "family_outside_system")
+                  "registered_no_outcome", "no_hypothesis_for_family", "no_hypothesis",
+                  "llm_not_used", "llm_budget_denied", "llm_call_failed", "llm_reply_unparsed", "llm_no_proposal_for_op",
+                  "llm_proposed_other_check_only", "rejected_at_concretization", "rejected_by_validator", "family_outside_system")
+CHECK_FAMILIES = {"list_visibility": {"list_scope"}, "fields_subset": {"field_exposure"},
+                  "deny_expected": {"object_authz", "function_authz", "unauth_access", "mutation_authz"}}
+HYPOTHESIS_EXISTS = {"found_evidence_complete", "found_evidence_incomplete", "overclaimed", "candidate_only", "control_incomplete",
+                     "examined_no_deviation", "registered_not_examined", "unverifiable", "registered_no_outcome"}
+_UNSET = object()
 
 
 def _hid_unit(hid: str) -> tuple | None:
@@ -90,50 +98,92 @@ def _hid_unit(hid: str) -> tuple | None:
     return (p[1], p[2]) if len(p) >= 3 and p[0] == "h" else None
 
 
-def diagnose(result: dict, truth: dict) -> dict:
-    """正解の欠陥ごとに、調査がどこまで進んだか（上から順に最初に当てはまるもの）を分類する。flaw_id -> {category, tier情報}。
-    found_*: 所見あり（証拠一式の有無で分ける）／overclaimed: 期待値が推定の欠陥を所見として確定／candidate_only: 逸脱を観測したが確定していない／
-    control_incomplete: 対照が完了せず判定不能／examined_no_deviation: 実験したが逸脱を観測しなかった（未発見）／
-    registered_not_examined: 仮説は登録したが実験に至らなかった／validator_rejected: 提案が検証器で却下／unverifiable: 検証不能として残した／
-    registered_no_outcome: 仮説は登録済みだが結果の状態が無い（記録の欠落）／no_hypothesis_for_family: 同じ操作に別の型の仮説はあるが、この型の仮説は無い／no_hypothesis: その操作の仮説が無い／
-    family_outside_system: 欠陥の型が調査システムの語彙に無い。"""
+def llm_calls(result: dict) -> list | None:
+    """結果のLLM欄から、呼出しごとの要約を作る（LLMを使わない実行は None）。parsed の呼出しには、その段階の提案ごとの結果を付ける。"""
+    L = result.get("llm") or {}
+    if not L.get("enabled"):
+        return None
+    out = []
+    for c in L.get("calls_detail") or []:
+        if c["outcome"] == "parsed":
+            out.append({"outcome": "parsed", "results": [d for d in (L.get("details") or []) if d.get("phase") == c.get("phase")]})
+        else:
+            out.append({"outcome": c["outcome"], "reason": c.get("reason", "")})
+    return out
+
+
+def diagnose(result: dict, truth: dict, calls=_UNSET) -> dict:
+    """正解の欠陥ごとに、調査がどこまで進んだか（上から順に最初に当てはまるもの）を分類する。flaw_id -> {category, detail, ...}。
+    仮説が存在した場合:
+      found_*: 所見あり（証拠一式の有無で分ける）／overclaimed: 期待値が推定の欠陥を所見として確定／candidate_only: 逸脱を観測したが確定していない
+      （detail=理由コード）／control_incomplete: 対照が完了せず判定不能／examined_no_deviation: 実験したが逸脱を観測しなかった（未発見）／
+      registered_not_examined: 仮説は登録したが実験に至らなかった／unverifiable: 検証不能として残した／registered_no_outcome: 結果の状態が無い（記録の欠落）
+    仮説が存在しなかった場合（LLMを使わない実行）: validator_rejected／no_hypothesis_for_family（同じ操作に別の型の仮説のみ）／no_hypothesis
+    仮説が存在しなかった場合（LLMを使った実行。LLM段階のどこで止まったかを区別する）:
+      llm_not_used／llm_budget_denied／llm_call_failed／llm_reply_unparsed（detail=理由）／llm_no_proposal_for_op（detail=解析失敗の呼出しを含むか）／
+      llm_proposed_other_check_only／rejected_at_concretization（detail=理由コード。仮説の具体化の制約）／rejected_by_validator
+    family_outside_system: 欠陥の型が調査システムの語彙に無い。
+    calls: 省略時は結果のLLM欄から導く。None=LLMを使わない。リスト=呼出しごとの要約（tools/research_llm_failures.py が事後分析で渡す）。"""
+    if calls is _UNSET:
+        calls = llm_calls(result)
     hyp_unit = {h["hypothesis_id"]: (h["family"], h["op_id"]) for h in result["hypotheses"]}
     units_any_op = {u[1] for u in hyp_unit.values()}
+    unit_of = lambda hid: hyp_unit.get(hid) or _hid_unit(hid)  # noqa: E731
     sets = {
         "finding": {(f["family"], f["op_id"]): f for f in result["findings"]},
-        "candidate": {hyp_unit.get(c["hypothesis_id"]) or _hid_unit(c["hypothesis_id"]) for c in result["candidates"]},
-        "undetermined": {hyp_unit.get(u["hypothesis_id"]) or _hid_unit(u["hypothesis_id"]) for u in result["undetermined"]},
-        "refuted": {hyp_unit.get(r["hypothesis_id"]) or _hid_unit(r["hypothesis_id"]) for r in result["refuted"]},
-        "not_examined": {hyp_unit.get(n["hypothesis_id"]) or _hid_unit(n["hypothesis_id"]) for n in result["not_examined"]},
+        "candidate": {unit_of(c["hypothesis_id"]): c for c in result["candidates"]},
+        "undetermined": {unit_of(u["hypothesis_id"]): u for u in result["undetermined"]},
+        "refuted": {unit_of(r["hypothesis_id"]) for r in result["refuted"]},
+        "not_examined": {unit_of(n["hypothesis_id"]) for n in result["not_examined"]},
         "rejected": {_hid_unit(r["hypothesis_id"]) for r in result["rejected"]},
     }
     unverifiable_ops = {u["op_id"] for u in result["unverifiable"]}
     out = {}
     for f in truth["flaws"]:
-        unit = (f["family"], f["op_id"])
+        unit, detail = (f["family"], f["op_id"]), ""
         if f["family"] not in SYSTEM_FAMILIES:
             cat = "family_outside_system"
         elif unit in sets["finding"]:
-            fd = sets["finding"][unit]
             cat = ("overclaimed" if not f["spec_grounded"] else
-                   "found_evidence_complete" if fd.get("evidence_complete") else "found_evidence_incomplete")
+                   "found_evidence_complete" if sets["finding"][unit].get("evidence_complete") else "found_evidence_incomplete")
         elif unit in sets["candidate"]:
-            cat = "candidate_only"
+            cat, detail = "candidate_only", str(sets["candidate"][unit].get("reason", ""))[:60]
         elif unit in sets["undetermined"]:
-            cat = "control_incomplete"
+            cat, detail = "control_incomplete", str(sets["undetermined"][unit].get("reason", ""))[:60]
         elif unit in sets["refuted"]:
             cat = "examined_no_deviation"
         elif unit in sets["not_examined"]:
             cat = "registered_not_examined"
-        elif unit in sets["rejected"]:
-            cat = "validator_rejected"
         elif f["op_id"] in unverifiable_ops:
             cat = "unverifiable"
         elif unit in set(hyp_unit.values()):
             cat = "registered_no_outcome"                  # 登録した仮説に結果の状態が無い（通常は起きない。起きたら調査の記録の欠落）
-        elif f["op_id"] in units_any_op:
-            cat = "no_hypothesis_for_family"
+        elif calls is None:                                 # LLMを使わない実行
+            cat = ("validator_rejected" if unit in sets["rejected"] else
+                   "no_hypothesis_for_family" if f["op_id"] in units_any_op else "no_hypothesis")
+        elif not calls:
+            cat = "llm_not_used"
+        elif all(c["outcome"] == "budget_denied" for c in calls):
+            cat = "llm_budget_denied"
         else:
-            cat = "no_hypothesis"
-        out[f["flaw_id"]] = {"category": cat, "family": f["family"], "reachable": f["reachable"], "spec_grounded": f["spec_grounded"]}
+            parsed = [c for c in calls if c["outcome"] == "parsed"]
+            if not parsed:
+                bad = [c for c in calls if c["outcome"] in ("unparsed", "call_failed")]
+                cat = "llm_call_failed" if all(c["outcome"] == "call_failed" for c in bad) else "llm_reply_unparsed"
+                detail = bad[0].get("reason", "") if bad else ""
+            else:
+                about = [r for c in parsed for r in c["results"] if r.get("op_id") == f["op_id"]]
+                fits = [r for r in about if f["family"] in CHECK_FAMILIES.get(r.get("check"), set())]
+                if not about:
+                    cat = "llm_no_proposal_for_op"
+                    detail = "with_unparsed_call" if any(c["outcome"] == "unparsed" for c in calls) else ""
+                elif not fits:
+                    cat = "llm_proposed_other_check_only"
+                else:
+                    rej = [r for r in fits if r.get("status") == "rejected"]
+                    reason = (rej[0] if rej else fits[0]).get("reason", "")
+                    cat = "rejected_by_validator" if reason.startswith("validator:") else "rejected_at_concretization"
+                    detail = reason[:60]
+        out[f["flaw_id"]] = {"category": cat, "detail": detail, "family": f["family"], "reachable": f["reachable"],
+                             "spec_grounded": f["spec_grounded"]}
     return out
