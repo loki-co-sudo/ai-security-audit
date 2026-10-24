@@ -1238,7 +1238,8 @@ class ResearchBoundaryTest(unittest.TestCase):
                 src = fh.read()
             code = "\n".join(l for l in src.split("\n") if not l.strip().startswith(("#", '"""')))
             self.assertNotRegex(code, r"^\s*(import|from)\s+requests\b", name)       # 送信はHttpTransport経由のみ
-            for banned in ("blind_grader", "testlab.lab.truth", "testlab/lab/truth", "ground_truth", "env_flaws"):
+            for banned in ("blind_grader", "testlab.lab.truth", "testlab/lab/truth", "ground_truth", "env_flaws",
+                           "unseen_author", "_author_"):                     # 作成者側のテスト・記録も調査側から隔離する
                 self.assertNotIn(banned, code, f"{name} が正解/採点器を参照している")
         with open(os.path.join(ROOT, "core", "autonomy", "research_loop.py"), encoding="utf-8") as fh:
             self.assertEqual(len(re.findall(r"transport\.request\(", fh.read())), 1)    # 送信箇所は1つ
@@ -1591,7 +1592,12 @@ class LlmFailureAnalysisTest(unittest.TestCase):
                          "rejected_by_validator:validator:check_not_falsifiable")
         # 一部の呼出しが解析失敗でも、解析できた返答に提案が無ければ『提案なし』（解析失敗に帰属させない）
         mixed = [{"type": "llm_proposals", "parse_error": "invalid_json"}, ok([{"op_id": "x", "check": "deny_expected", "status": "new"}])]
-        self.assertEqual(self._cls(mixed)["L"], "llm_no_proposal_for_op")
+        self.assertEqual(self._cls(mixed)["L"], "llm_no_proposal_for_op:with_unparsed_call")     # 解析失敗が混ざる場合は区別して残す
+
+    def test_unconfirmed_hypothesis_keeps_the_reason_code(self):
+        res = {"hypotheses": [{"hypothesis_id": "h:list_scope:lst:bob", "family": "list_scope", "op_id": "lst"}],
+               "candidates": [{"hypothesis_id": "h:list_scope:lst:bob", "reason": "probe_preexisting"}]}
+        self.assertEqual(self._cls([], **res)["L"], "candidate_only:probe_preexisting")
 
     def test_existing_hypothesis_keeps_its_own_category(self):
         res = {"hypotheses": [{"hypothesis_id": "h:list_scope:lst:bob", "family": "list_scope", "op_id": "lst"}],

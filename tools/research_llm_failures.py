@@ -61,6 +61,11 @@ def classify(result: dict, events: list, truth: dict, *, llm_enabled: bool = Tru
     for f in truth["flaws"]:
         d = base[f["flaw_id"]]
         cat, detail = d["category"], ""
+        if cat in ("candidate_only", "control_incomplete"):                  # 仮説はあるが確定しなかった理由コード（例: probe_preexisting）
+            pool = result["candidates"] if cat == "candidate_only" else result["undetermined"]
+            hid = next((h["hypothesis_id"] for h in result["hypotheses"] if (h["family"], h["op_id"]) == (f["family"], f["op_id"])
+                        and any(x["hypothesis_id"] == h["hypothesis_id"] for x in pool)), None)
+            detail = next((str(x.get("reason", ""))[:60] for x in pool if x["hypothesis_id"] == hid), "")
         if cat in HYPOTHESIS_EXISTS or cat == "family_outside_system":
             out[f["flaw_id"]] = {"category": cat, "detail": detail, "family": f["family"], "reachable": f["reachable"], "spec_grounded": f["spec_grounded"]}
             continue
@@ -79,6 +84,8 @@ def classify(result: dict, events: list, truth: dict, *, llm_enabled: bool = Tru
                 fits = [r for r in about if f["family"] in CHECK_FAMILIES.get(r.get("check"), set())]
                 if not about:
                     cat = "llm_no_proposal_for_op"
+                    # 同じ実行に解析失敗の呼出しがあれば区別する（提案しなかったのか、解析失敗で提案を失った可能性があるのか）
+                    detail = "with_unparsed_call" if any(c["outcome"] == "unparsed" for c in calls) else ""
                 elif not fits:
                     cat = "llm_proposed_other_check_only"
                 else:
