@@ -2642,6 +2642,20 @@ class PromptAbToolTest(unittest.TestCase):
             self.assertTrue(os.path.isdir(os.path.join(td, "1", "unseen-amber-23_s0", "j")))
             self.assertTrue(os.path.isdir(os.path.join(td, "2", "unseen-amber-23_s0", "j")))
 
+    def test_guard_uses_measured_spend_when_available_and_falls_back(self):
+        from tools.research_llm_failures import SpendGuard
+
+        class L:
+            input_tokens, output_tokens = 100000, 100000      # 推定 0.3
+        g = SpendGuard(L(), 0.05, 1e-6, 2e-6, 800, 2, measured=lambda: 0.001)
+        self.assertEqual(g.spent(), 0.001)                    # 実請求を優先
+        self.assertTrue(g.may_start_run(2))
+        g2 = SpendGuard(L(), 0.05, 1e-6, 2e-6, 800, 2, measured=lambda: None)
+        self.assertAlmostEqual(g2.spent(), 0.3)               # 取得できなければ推定
+        self.assertFalse(g2.may_start_run(1))
+        g3 = SpendGuard(L(), 0.05, 1e-6, 2e-6, 800, 2, measured=lambda: 0.04)
+        self.assertFalse(g3.may_start_run(1))                 # 0.04 + 0.0192 > 0.05
+
     def test_guard_refuses_a_pair_that_could_exceed_the_cap(self):
         from tools.research_llm_failures import SpendGuard
 

@@ -111,13 +111,21 @@ class SpendGuard:
     """推定費用（応答の使用トークン×単価）が上限を超えないように、次の実行を始める前に止める。
     1実行の最悪値＝呼出し上限×（入力上限8000文字を全て1トークン換算＋最大出力）で、実測の累計に足して判定する。"""
 
-    def __init__(self, llm, cap_usd: float, price_in: float, price_out: float, max_tokens: int, max_llm_calls: int, input_chars: int = 8000):
+    def __init__(self, llm, cap_usd: float, price_in: float, price_out: float, max_tokens: int, max_llm_calls: int, input_chars: int = 8000,
+                 measured=None):
+        """measured（任意）: 実際の累計費用（USD）を返す関数。取得できればそれを使い（公開単価での推定は実請求より大きく出ることがある）、
+        取得できなければ（None）使用トークン×公開単価の推定に戻す。"""
         self.llm, self.cap, self.pin, self.pout = llm, cap_usd, price_in, price_out
+        self.measured = measured
         self.worst_run = max_llm_calls * (input_chars * price_in + max_tokens * price_out)
         self.stopped = False
 
-    def spent(self) -> float:
+    def estimated(self) -> float:
         return self.llm.input_tokens * self.pin + self.llm.output_tokens * self.pout
+
+    def spent(self) -> float:
+        m = self.measured() if self.measured else None
+        return self.estimated() if m is None else m
 
     def may_start_run(self, n: int = 1) -> bool:
         """n 実行（A/B の対は2）を始めても上限を超えない（最悪値）か。"""
@@ -233,7 +241,7 @@ def main() -> int:
     doc = {"note": "事後分析（新しいサンプル。評価済みの実行の分解ではない）。採用基準・採点には使わない。", "model": a.model,
            "settings": {k: cfg[k] for k in ("max_tokens", "reasoning_effort", "max_llm_calls", "prompt_version")},
            "n_runs": len(rows), "spend_cap_usd": a.max_spend_usd, "stopped_by_cap": guard.stopped,
-           "estimated_spend_usd": round(guard.spent(), 5), "spend_usd": None if u0 is None or u1 is None else round(u1 - u0, 4),
+           "estimated_spend_usd": round(guard.estimated(), 5), "spend_usd": None if u0 is None or u1 is None else round(u1 - u0, 4),
            "aggregate": aggregate(rows)}
     with open(a.out, "w", encoding="utf-8") as f:
         json.dump(doc, f, ensure_ascii=False, indent=1)

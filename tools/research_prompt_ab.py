@@ -137,10 +137,14 @@ def main() -> int:
     u0 = openrouter_usage()
     timed = TimedLLM(a.model)
     llm = _Capped(timed, cfg["max_tokens"], {"reasoning": {"effort": cfg["reasoning_effort"]}})
-    guard = SpendGuard(timed, a.max_spend_usd, price[0], price[1], cfg["max_tokens"], cfg["max_llm_calls"])
+    def measured():                                   # 実請求（キー使用額の差分）。取得できなければ推定に戻る
+        u = openrouter_usage()
+        return None if u is None or u0 is None else u - u0
+    guard = SpendGuard(timed, a.max_spend_usd, price[0], price[1], cfg["max_tokens"], cfg["max_llm_calls"], measured=measured)
     cases = a.cases.split(",")
     regression = set(REGRESSION.split(","))
-    units = [(c, s, r) for c in cases for s in [int(x) for x in a.seeds.split(",")] for r in range(a.repeats)]
+    # 反復・シードを外側にして、上限で止まっても案件ごとの数が偏らないようにする
+    units = [(c, s, r) for r in range(a.repeats) for s in [int(x) for x in a.seeds.split(",")] for c in cases]
     pairs = []
     for i, (cid, seed, rep) in enumerate(units):
         if not guard.may_start_run(2):                   # 対は両腕とも走らせる（片方だけ走らせない）
@@ -158,7 +162,7 @@ def main() -> int:
     doc = {"note": "プロンプト版のA/B（開発・回帰ケース。事前登録: docs §19.3）。回帰ケースは分析に使った in-sample。採用しても未使用ケースでの効果確認ではない。",
            "model": a.model, "settings": {k: cfg[k] for k in ("max_tokens", "reasoning_effort", "max_llm_calls")}, "arms": list(ARMS),
            "pairs_complete": len(pairs), "pairs_planned": len(units), "stopped_by_cap": guard.stopped, "spend_cap_usd": a.max_spend_usd,
-           "estimated_spend_usd": round(guard.spent(), 5), "spend_usd": None if u0 is None or u1 is None else round(u1 - u0, 4),
+           "estimated_spend_usd": round(guard.estimated(), 5), "spend_usd": None if u0 is None or u1 is None else round(u1 - u0, 4),
            "regression": S, "dev": D, "decision": decide(S[ARMS[0]], S[ARMS[1]], D[ARMS[0]], D[ARMS[1]]),
            "pairs": [{"case_id": p["case_id"], "seed": p["seed"], "repeat": p["repeat"], "order": p["order"],
                       **{v.split("/")[-1]: {"list_scope": p["runs"][v]["list_scope"], "recall": p["runs"][v]["recall"], "supported": p["runs"][v]["supported"],
