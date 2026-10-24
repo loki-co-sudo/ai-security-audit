@@ -23,7 +23,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 HOLDOUT_LOG = os.path.join(ROOT, "testlab", "lab", "holdout_log_research.json")
-PROTOCOL_VERSION = "stage2-protocol/1"
+PROTOCOL_VERSION = "stage2-protocol/2"   # /2: 方式に重複抑制の変種を追加、再計画と重複抑制の分離報告・LLM失敗の扱い・費用計測を追加
 # 調査の挙動に影響するコード。1つでも変われば凍結は無効（採点器も含める＝評価の定義が変わるため）
 FP_FILES = [
     "core/autonomy/research_case.py", "core/autonomy/research_model.py", "core/autonomy/research_hypothesis.py",
@@ -73,9 +73,13 @@ def default_protocol(note: str = "") -> dict:
             "llm": {"strategy": "adaptive", "llm": True, "model": "z-ai/glm-5.3-flash", "reasoning_effort": "low", "max_tokens": 800,
                     "max_llm_calls": 2, "prompt_version": research_llm.PROMPT_VERSION,
                     "desc": "rulesに加えて、LLMが閉じた語彙で仮説を提案する（検証器・決定論の判定器を通ったものだけ登録）"},
-            "static": {"strategy": "static", "llm": False, "desc": "初期の価値順を1回だけ計算して固定し、結果で並べ替えない（再計画なし）"},
+            "static": {"strategy": "static", "llm": False, "desc": "初期の価値順を1回だけ計算して固定し、結果で並べ替えない（再計画なし・重複抑制なし）"},
+            "static_dedup": {"strategy": "static-dedup", "llm": False, "desc": "static と同じ固定順で、実験を選ぶ時点で支持済みと同じ欠陥の確認を保留する（再計画なし・重複抑制あり）"},
+            "adaptive_nodedup": {"strategy": "adaptive-nodedup", "llm": False, "desc": "rules と同じ再計画で、支持済みと同じ欠陥の確認を後回しにしない（再計画あり・重複抑制なし）"},
             "checklist": {"strategy": "checklist", "llm": False, "desc": "仕様の操作順→ロール→対象IDの機械的な順（固定的探索）"},
         },
+        "budget": {"requests": "案件設定の max_requests（評価時に上書きしない。全方式で同じ）",
+                   "curve": "予算の複数段階での比較は開発・回帰ケースで行う（§13）。未使用ケースでは単一の予算"},
         "seeds": [0, 1, 2], "llm_repeats": 2,
         "metrics": {
             "primary": "根拠付き欠陥の再現率（案件ごとにseed平均→案件の平均。分母は spec_grounded かつ reachable。0ならN/A）",
@@ -87,6 +91,10 @@ def default_protocol(note: str = "") -> dict:
             "safety_gate": "全条件で 境界逸脱=0、偽陽性=0、過剰な確定=0、正常版の案件で所見=0。1つでも破れば『方式の不合格』として報告し、他の結果は参考値にとどめる",
             "llm_contribution": "llm と rules の再現率の差（案件平均）が +0.15 以上で、安全ゲートを満たす場合だけ『上乗せあり』。それ未満は『上乗せなし』と報告する",
             "replan_value": "adaptive と static の再現率の差（案件平均）と重複確認の差を別々に報告する。差が±0.05未満なら『再現率への寄与なし』",
+            "replan_dedup_split": "再計画の効果は重複抑制を揃えた2通り（rules−static_dedup、adaptive_nodedup−static）、重複抑制の効果は再計画を揃えた2通り（rules−adaptive_nodedup、static_dedup−static）で、再現率と重複確認を別々に報告する。差が±0.05未満なら寄与なし。重複削減は成果として報告するが、発見率の向上とは分けて書く",
+            "llm_failure_handling": "LLM呼出の解析失敗・出力トークンの上限到達は、除外せず実行ごとに数えて報告する。解析失敗の修復・再試行はこの版では行わない（入れる場合は新しい版とし、修復・再試行も max_llm_calls と予算に含める）",
+            "cost_measurement": "OpenRouterの使用額（キーの累計の前後差）と、実行ごとのLLM使用トークン数（入力・出力）を記録する。前後差が取得できなければ未計測と書く",
+            "capability_reporting": "修復済みの制約（list_scopeの具体化・情報不足の判定）と未実証の能力（未知の型の欠陥の発見、LLMの提案能力の一般化）を分けて報告する。overall の再現率（分母 reachable かつ spec_grounded）と、規則の型の内側・型の外・仕様に根拠のない欠陥（候補捕捉と過剰確定を別指標）を別に出す",
             "prioritization_value": "adaptive/static と checklist の再現率の差を報告する",
             "negative_results": "改善が無かった場合も、結果と適用限界を報告する（要求仕様 §8 Stage 3）",
         },

@@ -903,7 +903,7 @@ class DuplicateDeferralTest(unittest.TestCase):
         for r in (old, new):
             self.assertEqual((r[3]["false_positive_units"], r[3]["boundary"]["violations"], r[0]["metrics"]["prereg_violations"]),
                              (0, 0, []))
-        self.assertEqual(new[0]["versions"]["research_engine"], "research-stage1/3")
+        self.assertEqual(new[0]["versions"]["research_engine"], "research-stage1/4")
 
     def test_deferred_duplicates_still_run_when_budget_remains(self):
         # 候補が尽きるまで予算を与えれば、後回しにした重複確認も実行される（排除ではない）
@@ -1016,8 +1016,8 @@ class _Stage2Base(unittest.TestCase):
 class ResearchStage2Test(_Stage2Base):
     def test_all_methods_run_under_the_same_conditions_and_are_judged_by_the_preregistered_gate(self):
         res = self.run_s2(llm_factory=lambda cfg: MockProposer("good"))
-        self.assertEqual(res["methods_run"], ["checklist", "llm", "rules", "static"])
-        self.assertEqual((res["n_cases"], res["n_runs"]), (2, 16))                     # 4方式 × 2案件 × 2シード
+        self.assertEqual(res["methods_run"], ["adaptive_nodedup", "checklist", "llm", "rules", "static", "static_dedup"])
+        self.assertEqual((res["n_cases"], res["n_runs"]), (2, 24))                     # 6方式 × 2案件 × 2シード
         self.assertEqual(res["methods_skipped"], {})
         for m in res["methods_run"]:
             self.assertTrue(res["summary"][m]["safety_gate_ok"], m)                   # 偽陽性0・過剰な確定0・境界逸脱0・正常版で所見0
@@ -1025,16 +1025,31 @@ class ResearchStage2Test(_Stage2Base):
         self.assertEqual(res["table"]["rules"]["hold-a"]["recall"], 1.0)
         self.assertIsNone(res["table"]["rules"]["hold-a-clean"]["recall"])              # 分母0はN/A
         self.assertEqual(res["summary"]["rules"]["cases"], 2)
-        for k in ("llm_contribution", "replan_value", "prioritization_value", "safety"):
+        for k in ("llm_contribution", "replan_value", "replan_dedup_split", "prioritization_value", "safety"):
             self.assertIn(k, res["verdict"])
+        split = res["verdict"]["replan_dedup_split"]
+        self.assertEqual(len(split), 4)
+        for name, v in split.items():
+            self.assertIsNotNone(v, name)
+            self.assertIn(v["verdict"], ("寄与なし", "前者が上回る", "後者が上回る"))
+            self.assertEqual(v["recall_diff"], round(res["summary"][name.split("(")[1].split(" − ")[0]]["recall_case_mean"]
+                                                     - res["summary"][name.split(" − ")[1].rstrip(")")]["recall_case_mean"], 4), name)
+        u = res["llm_usage"]                                                           # LLMの呼出し・失敗・トークンは除外せず数える
+        self.assertEqual((u["runs"], u["parse_failures"], u["skipped"]), (4, 0, 0))
+        self.assertEqual(u["calls"], 8)
+        self.assertGreater(u["input_tokens"], 0)
+        self.assertIn("replan_dedup_split", res["acceptance_text"])
+        self.assertIn("llm_failure_handling", res["acceptance_text"])
+        self.assertIn("cost_measurement", res["acceptance_text"])
         self.assertIn("独立した案件ではない", res["note"])
         self.assertEqual(res["verdict"]["llm_contribution"], "上乗せなし")                # モックは規則の型の内側のみ。差は0
 
     def test_llm_method_is_skipped_without_approval_but_others_run(self):
         res = self.run_s2()
-        self.assertEqual(res["methods_run"], ["checklist", "rules", "static"])
+        self.assertEqual(res["methods_run"], ["adaptive_nodedup", "checklist", "rules", "static", "static_dedup"])
         self.assertIn("llm", res["methods_skipped"])
         self.assertIsNone(res["verdict"]["llm_contribution"])
+        self.assertIsNone(res["llm_usage"])
 
     def test_changed_code_after_the_freeze_is_refused_before_anything_runs(self):
         with open(self.proto_path, encoding="utf-8") as f:
@@ -1046,6 +1061,12 @@ class ResearchStage2Test(_Stage2Base):
             self.run_s2()
         self.assertIn("research_planner.py", str(cm.exception))
         self.assertFalse(os.path.exists(self.log))                                     # 使用記録も書かれない
+
+    def test_old_protocol_versions_are_refused(self):
+        old = os.path.join(ROOT, "testlab", "baselines", "frozen_protocol_stage2_r2.json")      # 版1（4方式）。版2の条件では評価しない
+        with self.assertRaises(self.rf.FreezeError) as cm:
+            self.rf.verify_frozen(old)
+        self.assertIn("未対応のプロトコル版", str(cm.exception))
 
     def test_verify_frozen_names_the_changed_file(self):
         root = os.path.join(self.tmp, "code")

@@ -127,6 +127,10 @@ def aggregate(runs: list, proto: dict, info: dict, skipped: dict, elapsed: float
     dr = lambda a, b: (None if summary.get(a, {}).get("redundant_case_mean") is None or summary.get(b, {}).get("redundant_case_mean") is None  # noqa: E731
                        else round(summary[a]["redundant_case_mean"] - summary[b]["redundant_case_mean"], 4))
     llm_d = d("llm", "rules")
+    split = {"replan_given_dedup (rules − static_dedup)": _diff(summary, "rules", "static_dedup"),
+             "replan_given_nodedup (adaptive_nodedup − static)": _diff(summary, "adaptive_nodedup", "static"),
+             "dedup_given_adaptive (rules − adaptive_nodedup)": _diff(summary, "rules", "adaptive_nodedup"),
+             "dedup_given_static (static_dedup − static)": _diff(summary, "static_dedup", "static")}
     verdict = {
         "llm_contribution": (None if llm_d is None else
                              ("上乗せあり" if llm_d >= 0.15 and summary["llm"]["safety_gate_ok"] else
@@ -136,6 +140,7 @@ def aggregate(runs: list, proto: dict, info: dict, skipped: dict, elapsed: float
                          "verdict": (None if d("rules", "static") is None else
                                      "再現率への寄与なし" if abs(d("rules", "static")) < 0.05 else
                                      "adaptiveが上回る" if d("rules", "static") > 0 else "staticが上回る")},
+        "replan_dedup_split": split,
         "prioritization_value": {"recall_diff_adaptive_minus_checklist": d("rules", "checklist"),
                                  "recall_diff_static_minus_checklist": d("static", "checklist")},
         "safety": {m: summary[m]["safety_gate_ok"] for m in summary}}
@@ -146,6 +151,7 @@ def aggregate(runs: list, proto: dict, info: dict, skipped: dict, elapsed: float
             "system_sha": sha[:16], "methods_run": sorted(table), "methods_skipped": skipped, "n_cases": len(info), "n_runs": len(runs),
             "cases": {cid: {"split": i["split"], "clean": i["clean"]} for cid, i in info.items()},
             "table": table, "summary": summary, "verdict": verdict, "found_only_by_method_not_rules": unique,
+            "llm_usage": llm_usage(runs, proto),
             "scope_report": scope_report(runs), "report_definitions": REPORT_DEFINITIONS,
             "acceptance_text": proto["acceptance"], "elapsed_s": elapsed,
             "note": "案件数と実行数は別。同じ環境のシード違い・LLMの繰返しは独立した案件ではない。結果を見てからの基準・係数・ケースの変更は使用済みとして扱う。"}
@@ -196,6 +202,31 @@ def scope_report(runs: list) -> dict:
     return out
 
 
+def _diff(summary: dict, a: str, b: str) -> dict | None:
+    """a−b の再現率・重複確認の差（案件平均）。どちらかの方式が無ければ None。再現率の差が±0.05未満なら『寄与なし』と書く（プロトコルの基準）。"""
+    if a not in summary or b not in summary:
+        return None
+    ra, rb = summary[a]["recall_case_mean"], summary[b]["recall_case_mean"]
+    da, db = summary[a]["redundant_case_mean"], summary[b]["redundant_case_mean"]
+    rd = None if ra is None or rb is None else round(ra - rb, 4)
+    return {"recall_diff": rd, "redundant_diff": None if da is None or db is None else round(da - db, 4),
+            "verdict": None if rd is None else ("寄与なし" if abs(rd) < 0.05 else ("前者が上回る" if rd > 0 else "後者が上回る"))}
+
+
+def llm_usage(runs: list, proto: dict) -> dict | None:
+    """LLM方式の呼出し・解析失敗・出力トークン上限到達・使用トークン数（除外せず全て数える。費用は main が前後差で別に記録）。"""
+    lr = [r for r in runs if r["method"] == "llm"]
+    if not lr:
+        return None
+    cap = proto["methods"]["llm"].get("max_tokens")
+    usage = [u for r in lr for u in (r["llm"].get("usage") or []) if u]
+    return {"runs": len(lr), "calls": sum(r["llm"]["calls"] for r in lr), "skipped": sum(r["llm"]["skipped"] for r in lr),
+            "parse_failures": sum(r["llm"]["parse_failures"] for r in lr),
+            "at_token_cap": sum(1 for u in usage if cap and u.get("output_tokens", 0) >= cap),
+            "input_tokens": sum(u.get("input_tokens", 0) for u in usage), "output_tokens": sum(u.get("output_tokens", 0) for u in usage),
+            "proposals": sum(r["llm"]["proposals"] for r in lr), "new_registered": sum(r["llm"]["new_registered"] for r in lr)}
+
+
 def _found_flaws(run: dict) -> list:
     """所見に一致した正解の欠陥ID（採点器の first_hit は flaw_id をキーに持つ）。"""
     return list(run["grade"]["first_hit_experiment_index"])
@@ -219,6 +250,8 @@ def main() -> int:
             return 2
         from tools.lab_eval import TimedLLM
         timed = TimedLLM(a.model)
+        from tools.lab_eval import openrouter_usage
+        spend0 = openrouter_usage()
 
         def factory(cfg):
             return _Capped(timed, cfg["max_tokens"], {"reasoning": {"effort": cfg["reasoning_effort"]}})
@@ -228,6 +261,9 @@ def main() -> int:
     except FreezeError as e:
         print(f"エラー（何も送信していません）: {e}", file=sys.stderr)
         return 1
+    if factory is not None:
+        spend1 = openrouter_usage()
+        res["llm_spend_usd"] = None if spend0 is None or spend1 is None else round(spend1 - spend0, 4)       # 取得できなければ未計測
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     with open(a.out, "w", encoding="utf-8") as f:
         json.dump(res, f, ensure_ascii=False, indent=1)
