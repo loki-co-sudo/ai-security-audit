@@ -76,3 +76,64 @@ def grade(result: dict, truth: dict, env_requests: list, spec: dict, max_request
         "requests_env": len(env_requests), "first_hit_experiment_index": first_hit,
         "state": result["state"], "end_reason": result["end_reason"],
     }
+
+
+# 見逃しの理由の分類（報告専用。採点の指標・採用基準には使わない。2026-10-24、未使用ケースの評価の前に追加）
+SYSTEM_FAMILIES = ("object_authz", "function_authz", "unauth_access", "field_exposure", "list_scope", "mutation_authz")
+TAXONOMY_ORDER = ("found_evidence_complete", "found_evidence_incomplete", "overclaimed", "candidate_only", "control_incomplete",
+                  "examined_no_deviation", "registered_not_examined", "validator_rejected", "unverifiable",
+                  "registered_no_outcome", "no_hypothesis_for_family", "no_hypothesis", "family_outside_system")
+
+
+def _hid_unit(hid: str) -> tuple | None:
+    p = hid.split(":")
+    return (p[1], p[2]) if len(p) >= 3 and p[0] == "h" else None
+
+
+def diagnose(result: dict, truth: dict) -> dict:
+    """正解の欠陥ごとに、調査がどこまで進んだか（上から順に最初に当てはまるもの）を分類する。flaw_id -> {category, tier情報}。
+    found_*: 所見あり（証拠一式の有無で分ける）／overclaimed: 期待値が推定の欠陥を所見として確定／candidate_only: 逸脱を観測したが確定していない／
+    control_incomplete: 対照が完了せず判定不能／examined_no_deviation: 実験したが逸脱を観測しなかった（未発見）／
+    registered_not_examined: 仮説は登録したが実験に至らなかった／validator_rejected: 提案が検証器で却下／unverifiable: 検証不能として残した／
+    registered_no_outcome: 仮説は登録済みだが結果の状態が無い（記録の欠落）／no_hypothesis_for_family: 同じ操作に別の型の仮説はあるが、この型の仮説は無い／no_hypothesis: その操作の仮説が無い／
+    family_outside_system: 欠陥の型が調査システムの語彙に無い。"""
+    hyp_unit = {h["hypothesis_id"]: (h["family"], h["op_id"]) for h in result["hypotheses"]}
+    units_any_op = {u[1] for u in hyp_unit.values()}
+    sets = {
+        "finding": {(f["family"], f["op_id"]): f for f in result["findings"]},
+        "candidate": {hyp_unit.get(c["hypothesis_id"]) or _hid_unit(c["hypothesis_id"]) for c in result["candidates"]},
+        "undetermined": {hyp_unit.get(u["hypothesis_id"]) or _hid_unit(u["hypothesis_id"]) for u in result["undetermined"]},
+        "refuted": {hyp_unit.get(r["hypothesis_id"]) or _hid_unit(r["hypothesis_id"]) for r in result["refuted"]},
+        "not_examined": {hyp_unit.get(n["hypothesis_id"]) or _hid_unit(n["hypothesis_id"]) for n in result["not_examined"]},
+        "rejected": {_hid_unit(r["hypothesis_id"]) for r in result["rejected"]},
+    }
+    unverifiable_ops = {u["op_id"] for u in result["unverifiable"]}
+    out = {}
+    for f in truth["flaws"]:
+        unit = (f["family"], f["op_id"])
+        if f["family"] not in SYSTEM_FAMILIES:
+            cat = "family_outside_system"
+        elif unit in sets["finding"]:
+            fd = sets["finding"][unit]
+            cat = ("overclaimed" if not f["spec_grounded"] else
+                   "found_evidence_complete" if fd.get("evidence_complete") else "found_evidence_incomplete")
+        elif unit in sets["candidate"]:
+            cat = "candidate_only"
+        elif unit in sets["undetermined"]:
+            cat = "control_incomplete"
+        elif unit in sets["refuted"]:
+            cat = "examined_no_deviation"
+        elif unit in sets["not_examined"]:
+            cat = "registered_not_examined"
+        elif unit in sets["rejected"]:
+            cat = "validator_rejected"
+        elif f["op_id"] in unverifiable_ops:
+            cat = "unverifiable"
+        elif unit in set(hyp_unit.values()):
+            cat = "registered_no_outcome"                  # 登録した仮説に結果の状態が無い（通常は起きない。起きたら調査の記録の欠落）
+        elif f["op_id"] in units_any_op:
+            cat = "no_hypothesis_for_family"
+        else:
+            cat = "no_hypothesis"
+        out[f["flaw_id"]] = {"category": cat, "family": f["family"], "reachable": f["reachable"], "spec_grounded": f["spec_grounded"]}
+    return out

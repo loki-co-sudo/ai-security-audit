@@ -24,7 +24,7 @@ from core.autonomy.research_case import load_blind_case as _lbc  # noqa: E402,F4
 from core.autonomy.research_model import ExpResult, Experiment, TargetModel  # noqa: E402
 from testlab.lab.apps import CanaryServer  # noqa: E402
 from testlab.lab.blind_apps import ALL_FLAWS, DocsApp  # noqa: E402
-from testlab.lab.blind_grader import grade  # noqa: E402
+from testlab.lab.blind_grader import diagnose, grade  # noqa: E402
 from tools.research_eval import MockProposer  # noqa: E402
 
 CASES = os.path.join(ROOT, "testlab", "lab", "blind_cases")
@@ -1248,6 +1248,76 @@ class ResearchBoundaryTest(unittest.TestCase):
         b = run_case(seed=5)[0]
         self.assertEqual([e["exp_id"] for e in a["experiments"]], [e["exp_id"] for e in b["experiments"]])
         self.assertEqual([f["hypothesis_id"] for f in a["findings"]], [f["hypothesis_id"] for f in b["findings"]])
+
+
+class DiagnosisReportTest(unittest.TestCase):
+    """見逃しの理由の分類（報告専用）。手作りの結果で、各分類へ入ることと、手計算の集計を固定する。"""
+
+    @staticmethod
+    def _result(**kw):
+        base = {"hypotheses": [], "findings": [], "candidates": [], "undetermined": [], "refuted": [], "not_examined": [],
+                "rejected": [], "unverifiable": []}
+        base.update(kw)
+        return base
+
+    def test_every_category_is_reachable(self):
+        H = lambda fam, op: {"hypothesis_id": f"h:{fam}:{op}:bob", "family": fam, "op_id": op}  # noqa: E731
+        flaws = [{"flaw_id": f"f{i}", "family": fam, "op_id": op, "spec_grounded": g, "reachable": True}
+                 for i, (fam, op, g) in enumerate([
+                     ("object_authz", "a", True), ("object_authz", "b", True), ("object_authz", "c", False),
+                     ("function_authz", "d", True), ("function_authz", "e", True), ("field_exposure", "f", True),
+                     ("field_exposure", "g", True), ("unauth_access", "h", True), ("list_scope", "i", True),
+                     ("unauth_access", "j", True), ("function_authz", "k", True), ("other", "l", True)])]
+        res = self._result(
+            hypotheses=[H("object_authz", "a"), H("object_authz", "b"), H("object_authz", "c"), H("function_authz", "d"),
+                        H("function_authz", "e"), H("field_exposure", "f"), H("field_exposure", "g"), H("function_authz", "i"),
+                        H("unauth_access", "j")],
+            findings=[{"family": "object_authz", "op_id": "a", "evidence_complete": True},
+                      {"family": "object_authz", "op_id": "b", "evidence_complete": False},
+                      {"family": "object_authz", "op_id": "c", "evidence_complete": True}],
+            candidates=[{"hypothesis_id": "h:function_authz:d:bob"}],
+            undetermined=[{"hypothesis_id": "h:function_authz:e:bob"}],
+            refuted=[{"hypothesis_id": "h:field_exposure:f:bob"}],
+            not_examined=[{"hypothesis_id": "h:field_exposure:g:bob"}],
+            rejected=[{"hypothesis_id": "h:unauth_access:h:-"}],
+            unverifiable=[{"op_id": "k"}])
+        got = {k: v["category"] for k, v in diagnose(res, {"flaws": flaws}).items()}
+        self.assertEqual(got, {"f0": "found_evidence_complete", "f1": "found_evidence_incomplete", "f2": "overclaimed",
+                               "f3": "candidate_only", "f4": "control_incomplete", "f5": "examined_no_deviation",
+                               "f6": "registered_not_examined", "f7": "validator_rejected", "f8": "no_hypothesis_for_family",
+                               "f9": "registered_no_outcome", "f10": "unverifiable", "f11": "family_outside_system"})
+        # 同じ操作に別の型の仮説も無ければ no_hypothesis
+        flaw = [{"flaw_id": "z", "family": "object_authz", "op_id": "nowhere", "spec_grounded": True, "reachable": True}]
+        self.assertEqual(diagnose(self._result(), {"flaws": flaw})["z"]["category"], "no_hypothesis")
+
+    def test_scope_report_counts_by_hand(self):
+        from tools.research_stage2_eval import scope_report
+        D = lambda cat, fam, reach=True, g=True: {"category": cat, "family": fam, "reachable": reach, "spec_grounded": g}  # noqa: E731
+        runs = [{"method": "rules", "diagnosis": {"a": D("found_evidence_complete", "object_authz"), "b": D("no_hypothesis", "list_scope"),
+                                                   "c": D("family_outside_system", "other"), "d": D("candidate_only", "object_authz", g=False),
+                                                   "e": D("unverifiable", "object_authz", reach=False)}},
+                {"method": "rules", "diagnosis": {"a": D("examined_no_deviation", "object_authz"), "b": D("no_hypothesis", "list_scope"),
+                                                   "c": D("family_outside_system", "other"), "d": D("candidate_only", "object_authz", g=False),
+                                                   "e": D("unverifiable", "object_authz", reach=False)}}]
+        r = scope_report(runs)["rules"]
+        self.assertEqual(r["overall"]["flaw_runs"], 6)                                  # a,b,c を2回
+        self.assertEqual(r["in_rule4"]["flaw_runs"], 2)                                 # a だけ
+        self.assertEqual(r["in_rule5"]["flaw_runs"], 4)                                 # a,b
+        self.assertEqual(r["overall"]["found_rate"], round(1 / 6, 4))
+        self.assertEqual(r["in_rule4"]["found_rate"], 0.5)
+        self.assertEqual(r["in_rule5"]["found_rate"], 0.25)
+        self.assertEqual(r["family:list_scope"]["categories"], {"no_hypothesis": 2})
+        self.assertEqual(r["ungrounded"]["categories"], {"candidate_only": 2})
+        self.assertIsNone(r["ungrounded"]["found_rate"])                                # 推定の欠陥は再現率にしない
+        self.assertEqual(r["unreachable"]["flaw_runs"], 2)
+
+    def test_dev_run_emits_diagnosis_for_every_flaw(self):
+        from tools.research_eval import run_one
+        with open(os.path.join(ROOT, "testlab", "lab", "truth", "blind-docs-01.json"), encoding="utf-8") as fh:
+            ids = {f["flaw_id"] for f in json.load(fh)["flaws"]}
+        d = run_one("blind-docs-01", 0)["diagnosis"]
+        self.assertEqual(set(d), ids)
+        self.assertTrue(all(v["category"] in __import__("testlab.lab.blind_grader", fromlist=["x"]).TAXONOMY_ORDER for v in d.values()))
 
 
 if __name__ == "__main__":

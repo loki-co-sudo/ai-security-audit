@@ -146,8 +146,54 @@ def aggregate(runs: list, proto: dict, info: dict, skipped: dict, elapsed: float
             "system_sha": sha[:16], "methods_run": sorted(table), "methods_skipped": skipped, "n_cases": len(info), "n_runs": len(runs),
             "cases": {cid: {"split": i["split"], "clean": i["clean"]} for cid, i in info.items()},
             "table": table, "summary": summary, "verdict": verdict, "found_only_by_method_not_rules": unique,
+            "scope_report": scope_report(runs), "report_definitions": REPORT_DEFINITIONS,
             "acceptance_text": proto["acceptance"], "elapsed_s": elapsed,
             "note": "案件数と実行数は別。同じ環境のシード違い・LLMの繰返しは独立した案件ではない。結果を見てからの基準・係数・ケースの変更は使用済みとして扱う。"}
+
+
+# 報告専用の分類（採用基準には使わない。結果を見る前に固定した定義）
+RULE4 = ("object_authz", "function_authz", "unauth_access", "field_exposure")        # 手順書が『規則の型の内側』とした4型
+RULE5 = RULE4 + ("list_scope",)                                                      # 調査が仮説を作る規則の型（list_scopeは開発ケースで追加）
+REPORT_DEFINITIONS = {
+    "overall": "到達可能(reachable)かつ仕様に根拠がある欠陥すべて（再現率の分母。型の外の欠陥も含む）",
+    "in_rule4": "overall のうち family が object_authz/function_authz/unauth_access/field_exposure（手順書の『規則の型の内側』）",
+    "in_rule5": "overall のうち family が上記4型＋list_scope（調査システムに仮説の規則がある型）",
+    "ungrounded": "到達可能で、仕様に根拠がない欠陥。確定(所見)は過剰な確定、候補は期待どおり。再現率の分母に含めない",
+    "unreachable": "到達不能(reachable=false)の欠陥。評価の対象外として件数だけ報告する",
+    "categories": "found_evidence_complete=所見あり・証拠一式あり／found_evidence_incomplete=所見ありだが証拠不足／overclaimed=推定の欠陥を確定／"
+                  "candidate_only=逸脱を観測したが確定せず／control_incomplete=対照が完了せず判定不能／examined_no_deviation=実験したが逸脱を観測せず／"
+                  "registered_not_examined=仮説は登録したが実験に至らず／validator_rejected=検証器が却下／unverifiable=検証不能として残した／registered_no_outcome=仮説は登録済みだが結果の状態なし(記録の欠落)／"
+                  "no_hypothesis_for_family=同じ操作の別の型の仮説のみ／no_hypothesis=その操作の仮説なし／family_outside_system=欠陥の型がシステムの語彙に無い",
+    "unit": "カウントは（欠陥 × 実行）の対。案件数ではない。3案件・2ドメイン、うち2案件は同一環境の欠陥あり/なしの対で独立ではない"}
+
+
+def scope_report(runs: list) -> dict:
+    """方式 × 範囲（overall/in_rule4/in_rule5/ungrounded/unreachable/型別）で、見逃しの理由の件数を数える。"""
+    out: dict = {}
+    for r in runs:
+        m = out.setdefault(r["method"], {})
+        for fid, d in r["diagnosis"].items():
+            tiers = []
+            if not d["reachable"]:
+                tiers.append("unreachable")
+            elif not d["spec_grounded"]:
+                tiers.append("ungrounded")
+            else:
+                tiers.append("overall")
+                if d["family"] in RULE4:
+                    tiers.append("in_rule4")
+                if d["family"] in RULE5:
+                    tiers.append("in_rule5")
+                tiers.append("family:" + d["family"])
+            for t in tiers:
+                cell = m.setdefault(t, {"flaw_runs": 0, "categories": {}})
+                cell["flaw_runs"] += 1
+                cell["categories"][d["category"]] = cell["categories"].get(d["category"], 0) + 1
+    for m in out.values():
+        for t, cell in m.items():
+            ok = cell["categories"].get("found_evidence_complete", 0) + cell["categories"].get("found_evidence_incomplete", 0)
+            cell["found_rate"] = round(ok / cell["flaw_runs"], 4) if cell["flaw_runs"] and t not in ("ungrounded", "unreachable") else None
+    return out
 
 
 def _found_flaws(run: dict) -> list:

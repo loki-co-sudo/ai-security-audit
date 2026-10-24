@@ -20,7 +20,7 @@ from core.autonomy.research_case import load_blind_case  # noqa: E402
 from core.autonomy.research_loop import run_research_case  # noqa: E402
 from testlab.lab.apps import CanaryServer  # noqa: E402
 from testlab.lab.blind_apps import ALL_FLAWS, DocsApp  # noqa: E402
-from testlab.lab.blind_grader import grade  # noqa: E402
+from testlab.lab.blind_grader import diagnose, grade  # noqa: E402
 
 class MockProposer:
     """試験用の提案役（実LLMではない）。complete() は LLMClient と同じ形。mode:
@@ -97,7 +97,8 @@ def run_one(case_id: str, seed: int, *, budget_override: dict | None = None, llm
     finally:
         canary.stop()
     L = res["llm"]
-    return {"case_id": case_id, "seed": seed, "strategy": strategy, "grade": g, "metrics": res["metrics"], "run_id": res["run_id"],
+    return {"case_id": case_id, "seed": seed, "strategy": strategy, "grade": g, "diagnosis": diagnose(res, truth),
+            "metrics": res["metrics"], "run_id": res["run_id"],
             "findings": [{"family": f["family"], "op_id": f["op_id"], "control_state": f["control_state"]} for f in res["findings"]],
             "llm": {k: L[k] for k in ("enabled", "calls", "skipped", "parse_failures", "proposals", "new_registered",
                                       "duplicate_of_rule", "duplicate_of_llm", "rejected", "valid_proposal_rate",
