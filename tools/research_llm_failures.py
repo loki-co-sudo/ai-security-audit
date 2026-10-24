@@ -92,7 +92,25 @@ def aggregate(rows: list) -> dict:
     return {"by_case_family": cats, "reasons": reasons, "llm_calls": calls, "confirmation": conf}
 
 
-def run_samples(cases: list, seeds: list, repeats: int, llm, max_tokens: int, max_llm_calls: int = 2) -> list:
+class SpendGuard:
+    """推定費用（応答の使用トークン×単価）が上限を超えないように、次の実行を始める前に止める。
+    1実行の最悪値＝呼出し上限×（入力上限8000文字を全て1トークン換算＋最大出力）で、実測の累計に足して判定する。"""
+
+    def __init__(self, llm, cap_usd: float, price_in: float, price_out: float, max_tokens: int, max_llm_calls: int, input_chars: int = 8000):
+        self.llm, self.cap, self.pin, self.pout = llm, cap_usd, price_in, price_out
+        self.worst_run = max_llm_calls * (input_chars * price_in + max_tokens * price_out)
+        self.stopped = False
+
+    def spent(self) -> float:
+        return self.llm.input_tokens * self.pin + self.llm.output_tokens * self.pout
+
+    def may_start_run(self) -> bool:
+        if self.spent() + self.worst_run > self.cap:
+            self.stopped = True
+        return not self.stopped
+
+
+def run_samples(cases: list, seeds: list, repeats: int, llm, max_tokens: int, max_llm_calls: int = 2, guard: "SpendGuard | None" = None) -> list:
     from core.autonomy.journal import replay
     from core.autonomy.research_case import load_blind_case
     from core.autonomy.research_loop import run_research_case
@@ -105,6 +123,8 @@ def run_samples(cases: list, seeds: list, repeats: int, llm, max_tokens: int, ma
             truth = json.load(f)
         for seed in seeds:
             for rep in range(repeats):
+                if guard is not None and not guard.may_start_run():
+                    return rows
                 canary = CanaryServer().start()
                 try:
                     with tempfile.TemporaryDirectory() as td, make_app(truth, canary, seed) as app:
@@ -123,6 +143,20 @@ def run_samples(cases: list, seeds: list, repeats: int, llm, max_tokens: int, ma
     return rows
 
 
+def model_price(model: str):
+    """OpenRouterの公開モデル一覧から (入力, 出力) のUSD/トークンを取る。取得できなければNone。"""
+    try:
+        import requests
+        import core.config as config
+        config.load()
+        for m in requests.get(config.get("llm_base_url").rstrip("/") + "/models", timeout=20).json()["data"]:
+            if m["id"] == model:
+                return float(m["pricing"]["prompt"]), float(m["pricing"]["completion"])
+    except Exception:   # noqa: BLE001
+        return None
+    return None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--cases", required=True)
@@ -131,6 +165,7 @@ def main() -> int:
     ap.add_argument("--protocol", required=True, help="LLM設定（モデル・max_tokens・推論の強さ）を読むだけ。凍結の検証はしない")
     ap.add_argument("--model")
     ap.add_argument("--approve-real-llm", action="store_true")
+    ap.add_argument("--max-spend-usd", type=float, required=True, help="推定費用の上限。次の実行の最悪値を足して超えるなら、その実行を始めずに止める")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
     if not a.approve_real_llm:
@@ -142,13 +177,20 @@ def main() -> int:
         return 2
     from tools.lab_eval import TimedLLM, openrouter_usage
     from tools.research_eval import _Capped
+    price = model_price(a.model)
+    if price is None:
+        print("モデルの単価を取得できないため中止（費用上限を強制できない）。", file=sys.stderr)
+        return 2
     u0 = openrouter_usage()
-    llm = _Capped(TimedLLM(a.model), cfg["max_tokens"], {"reasoning": {"effort": cfg["reasoning_effort"]}})
-    rows = run_samples(a.cases.split(","), [int(x) for x in a.seeds.split(",")], a.repeats, llm, cfg["max_tokens"], cfg["max_llm_calls"])
+    timed = TimedLLM(a.model)
+    llm = _Capped(timed, cfg["max_tokens"], {"reasoning": {"effort": cfg["reasoning_effort"]}})
+    guard = SpendGuard(timed, a.max_spend_usd, price[0], price[1], cfg["max_tokens"], cfg["max_llm_calls"])
+    rows = run_samples(a.cases.split(","), [int(x) for x in a.seeds.split(",")], a.repeats, llm, cfg["max_tokens"], cfg["max_llm_calls"], guard)
     u1 = openrouter_usage()
     doc = {"note": "事後分析（新しいサンプル。評価済みの実行の分解ではない）。採用基準・採点には使わない。", "model": a.model,
            "settings": {k: cfg[k] for k in ("max_tokens", "reasoning_effort", "max_llm_calls", "prompt_version")},
-           "n_runs": len(rows), "spend_usd": None if u0 is None or u1 is None else round(u1 - u0, 4),
+           "n_runs": len(rows), "spend_cap_usd": a.max_spend_usd, "stopped_by_cap": guard.stopped,
+           "estimated_spend_usd": round(guard.spent(), 5), "spend_usd": None if u0 is None or u1 is None else round(u1 - u0, 4),
            "aggregate": aggregate(rows)}
     with open(a.out, "w", encoding="utf-8") as f:
         json.dump(doc, f, ensure_ascii=False, indent=1)

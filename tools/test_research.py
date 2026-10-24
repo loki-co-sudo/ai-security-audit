@@ -2418,5 +2418,36 @@ class LlmFailureAnalysisTest(unittest.TestCase):
         self.assertTrue(no_o and all(r["status"] == "rejected" and r["reason"] == "object_schema_lacks_owner" for r in no_o))
 
 
+class SpendGuardTest(unittest.TestCase):
+    """実LLMの事後分析の費用上限: 次の実行の最悪値を足して上限を超えるなら、その実行を始めない。"""
+
+    class _L:
+        input_tokens = 0
+        output_tokens = 0
+
+    def test_stops_before_run_that_could_exceed_cap(self):
+        from tools.research_llm_failures import SpendGuard
+        llm = self._L()
+        g = SpendGuard(llm, cap_usd=0.01, price_in=1e-6, price_out=2e-6, max_tokens=800, max_llm_calls=2)
+        self.assertAlmostEqual(g.worst_run, 2 * (8000 * 1e-6 + 800 * 2e-6))   # 0.0192 > 0.01
+        self.assertFalse(g.may_start_run())
+        self.assertTrue(g.stopped)
+
+    def test_runs_until_measured_spend_nears_cap(self):
+        from tools.research_llm_failures import SpendGuard
+        llm = self._L()
+        g = SpendGuard(llm, cap_usd=0.10, price_in=1e-6, price_out=2e-6, max_tokens=800, max_llm_calls=2)
+        self.assertTrue(g.may_start_run())
+        llm.input_tokens, llm.output_tokens = 40000, 25000   # 0.04 + 0.05 = 0.09
+        self.assertAlmostEqual(g.spent(), 0.09)
+        self.assertFalse(g.may_start_run())   # 0.09 + 0.0192 > 0.10
+
+    def test_run_samples_returns_without_running_when_guard_refuses(self):
+        from tools.research_llm_failures import SpendGuard, run_samples
+        llm = self._L()
+        g = SpendGuard(llm, 0.0, 1e-6, 2e-6, 800, 2)
+        self.assertEqual(run_samples(["blind-docs-01"], [0], 1, llm, 800, 2, g), [])
+
+
 if __name__ == "__main__":
     unittest.main()
