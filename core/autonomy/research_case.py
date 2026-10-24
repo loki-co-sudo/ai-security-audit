@@ -130,6 +130,16 @@ def parse_blind_case(doc: dict) -> BlindCase:
         rets = raw.get("returns") or {}
         if rets.get("object"):
             _need(rets["object"] in objects, f"{oid}: returns.objectがobjectsにありません")
+        if acc["kind"] == "own_list":
+            vt = acc.get("visible_to")
+            if vt is not None:                    # 一覧の閲覧条件（任意。省略は『共有先を持つ型では条件が仕様に明記されていない』を意味する）
+                _need(vt in ("owner", "owner_or_shared"), f"{oid}: access.visible_to は owner / owner_or_shared のいずれかです")
+                otype = rets.get("object")
+                _need(otype in objects and objects[otype].get("owner_field"), f"{oid}: visible_to には returns.object の型に owner_field が要ります")
+                if vt == "owner_or_shared":
+                    _need(objects[otype].get("shared_field"), f"{oid}: owner_or_shared には returns.object の型に shared_field が要ります")
+        else:
+            _need("visible_to" not in acc, f"{oid}: access.visible_to は own_list の操作だけに指定できます")
         if "fields" in rets:
             _need(all(isinstance(f, str) and _FIELD.match(f) for f in rets["fields"]), f"{oid}: returns.fieldsが不正です")
         ops[oid] = SpecOperation(oid, method, path, dict(params), dict(acc), dict(rets))

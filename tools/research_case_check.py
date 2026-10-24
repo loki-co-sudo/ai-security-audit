@@ -69,6 +69,12 @@ def check(case_path: str, truth_path: str | None) -> tuple[list[str], list[str],
             if otype != "user" and otype not in own_list_types:
                 errors.append(f"{o.op_id}: 対象の {otype} のIDを観測する手段がありません（{otype} を返す own_list の操作が要ります。"
                               "IDを観測できないと、調査はこの操作を検査できず、欠陥があっても発見できません）")
+    for o in ops.values():
+        if o.method == "GET" and o.access["kind"] == "own_list":
+            obj = case.objects.get(o.returns.get("object"), {})
+            if obj.get("shared_field") and not o.access.get("visible_to"):
+                errors.append(f"{o.op_id}: 共有先の項目(shared_field)を持つ型の一覧(own_list)には、閲覧条件 access.visible_to（owner＝所有者のみ／owner_or_shared＝所有者または共有先）を"
+                              "明記してください。明記が無いと、共有された他人の要素は正常とも逸脱とも判定できず、未確定のままになります")
     if n_get < 6:
         warns.append("GET操作が6件未満です。方式の差が出にくくなります（目安: 8件以上）")
     if len(case.accounts) < 4:
