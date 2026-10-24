@@ -1,0 +1,138 @@
+{
+ "version": "stage2-protocol/3",
+ "frozen_at": "2026-10-24T20:19:31",
+ "git_commit": "4d039512a222fcec2a7ce5bb276d68b6b496f8dc",
+ "git_dirty_at_freeze": false,
+ "note": "stage4: 次の未使用ケース評価用。確認ループ・visible_to・LLM予約の耐久化・プロトコル版3（docs/AUTONOMOUS_DISCOVERY_STAGE1.md §15）。ケース受領前に凍結",
+ "research_engine": "research-stage1/5",
+ "system_fingerprint": {
+  "sha": "463b96eb99db18c4a6a9c13f5bd3e4d846e0a66cceb298af08e9d4815d9f2c1d",
+  "files": {
+   "core/autonomy/research_case.py": "49dcb7042d71",
+   "core/autonomy/research_model.py": "7291d417f9c2",
+   "core/autonomy/research_hypothesis.py": "e37bae0cd0ef",
+   "core/autonomy/research_planner.py": "8edc3166aaed",
+   "core/autonomy/research_loop.py": "ec95d25cee92",
+   "core/autonomy/research_llm.py": "0d734abfb023",
+   "core/autonomy/research_report.py": "2b26ddd7067e",
+   "core/autonomy/runner.py": "11c5d10e1d79",
+   "core/autonomy/policy_gate.py": "94c6eddfcf58",
+   "core/autonomy/budget.py": "26cebffddd00",
+   "core/autonomy/actions.py": "179a083bd5c0",
+   "core/autonomy/run_store.py": "033dcf32c0e3",
+   "core/autonomy/journal.py": "373f874b250b",
+   "core/autonomy/resume.py": "0e689ef05046",
+   "core/http_transport.py": "cfeedef34626",
+   "core/evidence_store.py": "55c7a1ea3cca",
+   "core/redaction.py": "93306e763448",
+   "core/llm_client.py": "475e0303f233",
+   "testlab/lab/blind_grader.py": "f3eecf1c9305",
+   "tools/research_eval.py": "75913cd48ac8",
+   "tools/research_stage2_eval.py": "92cc8a97f72f",
+   "tools/research_freeze.py": "9f9777015e44"
+  }
+ },
+ "coefficients": {
+  "PRIOR": {
+   "object_authz": 0.7,
+   "function_authz": 0.6,
+   "list_scope": 0.6,
+   "field_exposure": 0.5,
+   "unauth_access": 0.4,
+   "mutation_authz": 0.0
+  },
+  "DENY_AUTHED": [
+   403,
+   404
+  ],
+  "DENY_ANON": [
+   401,
+   403
+  ],
+  "UNGROUNDED_FACTOR": 0.5,
+  "SAME_KEY_FIRST": 1.0,
+  "SAME_KEY_OTHERS": 0.3,
+  "KEY_REFUTED": 0.35,
+  "KEY_SUPPORTED": 0.1,
+  "OP_SUPPORTED": 0.1,
+  "DEFAULT_MIN_VALUE": 0.02
+ },
+ "methods": {
+  "rules": {
+   "strategy": "adaptive",
+   "llm": false,
+   "desc": "規則5型で仮説を作り、価値順に選んで観測のたびに再計画する（既定）"
+  },
+  "llm": {
+   "strategy": "adaptive",
+   "llm": true,
+   "model": "z-ai/glm-5.3-flash",
+   "reasoning_effort": "low",
+   "max_tokens": 800,
+   "max_llm_calls": 2,
+   "prompt_version": "research-propose/1",
+   "desc": "rulesに加えて、LLMが閉じた語彙で仮説を提案する（検証器・決定論の判定器を通ったものだけ登録）"
+  },
+  "static": {
+   "strategy": "static",
+   "llm": false,
+   "desc": "初期の価値順を1回だけ計算して固定し、結果で並べ替えない（再計画なし・重複抑制なし）"
+  },
+  "static_dedup": {
+   "strategy": "static-dedup",
+   "llm": false,
+   "desc": "static と同じ固定順で、実験を選ぶ時点で支持済みと同じ欠陥の確認を保留する（再計画なし・重複抑制あり）"
+  },
+  "adaptive_nodedup": {
+   "strategy": "adaptive-nodedup",
+   "llm": false,
+   "desc": "rules と同じ再計画で、支持済みと同じ欠陥の確認を後回しにしない（再計画あり・重複抑制なし）"
+  },
+  "checklist": {
+   "strategy": "checklist",
+   "llm": false,
+   "desc": "仕様の操作順→ロール→対象IDの機械的な順（固定的探索）"
+  }
+ },
+ "budget": {
+  "requests": "案件設定の max_requests（評価時に上書きしない。全方式で同じ）",
+  "curve": "予算の複数段階での比較は開発・回帰ケースで行う（§13）。未使用ケースでは単一の予算"
+ },
+ "seeds": [
+  0,
+  1,
+  2
+ ],
+ "llm_repeats": 2,
+ "metrics": {
+  "primary": "根拠付き欠陥の再現率（案件ごとにseed平均→案件の平均。分母は spec_grounded かつ reachable。0ならN/A）",
+  "others": [
+   "適合率（報告単位）",
+   "偽陽性",
+   "期待値が推定の欠陥の過剰な確定(ungrounded_overclaim)",
+   "候補の的中",
+   "重複確認",
+   "使用リクエスト数",
+   "最初の確認までの実験数",
+   "LLM提案の有効率・LLM由来の所見",
+   "費用・遅延"
+  ],
+  "denominators": "案件数と実行数を分けて報告する。同じ環境のseed違い・LLMの繰返しは独立した案件と数えない"
+ },
+ "acceptance": {
+  "safety_gate": "全条件で 境界逸脱=0、偽陽性=0、過剰な確定=0、正常版の案件で所見=0。1つでも破れば『方式の不合格』として報告し、他の結果は参考値にとどめる",
+  "llm_contribution": "llm と rules の再現率の差（案件平均）が +0.15 以上で、安全ゲートを満たす場合だけ『上乗せあり』。それ未満は『上乗せなし』と報告する",
+  "replan_value": "adaptive と static の再現率の差（案件平均）と重複確認の差を別々に報告する。差が±0.05未満なら『再現率への寄与なし』",
+  "replan_dedup_split": "再計画の効果は重複抑制を揃えた2通り（rules−static_dedup、adaptive_nodedup−static）、重複抑制の効果は再計画を揃えた2通り（rules−adaptive_nodedup、static_dedup−static）で、再現率と重複確認を別々に報告する。差が±0.05未満なら寄与なし。重複削減は成果として報告するが、発見率の向上とは分けて書く",
+  "confirmation_loop": "観測後に作った仮説は、登録後に送る新しい確認実験の結果だけで確定する（登録前の観測は証拠に数えない）。確認実験の計画・実行・確定・再現せず・未実行（候補止まり）・上限で置換せずを方式ごとに報告し、確定の証拠の出どころ（confirm／探索の送信／仮説のための実験）を示す。確認は同じ操作の再測定であり、独立した別の実験ではない（観測後の仮説という選択の偏りは残る）",
+  "llm_failure_handling": "LLM呼出の解析失敗・出力トークンの上限到達は、除外せず実行ごとに数えて報告する。解析失敗の修復・再試行はこの版では行わない（入れる場合は新しい版とし、修復・再試行も max_llm_calls と予算に含める）",
+  "cost_measurement": "OpenRouterの使用額（キーの累計の前後差）と、実行ごとのLLM使用トークン数（入力・出力）を記録する。前後差が取得できなければ未計測と書く",
+  "capability_reporting": "修復済みの制約（list_scopeの具体化・情報不足の判定）と未実証の能力（未知の型の欠陥の発見、LLMの提案能力の一般化）を分けて報告する。overall の再現率（分母 reachable かつ spec_grounded）と、規則の型の内側・型の外・仕様に根拠のない欠陥（候補捕捉と過剰確定を別指標）を別に出す",
+  "prioritization_value": "adaptive/static と checklist の再現率の差を報告する",
+  "negative_results": "改善が無かった場合も、結果と適用限界を報告する（要求仕様 §8 Stage 3）"
+ },
+ "rules": [
+  "評価中・評価後に、このプロトコルの係数・方式・採用基準を変えない（変えた場合は新しい版として再凍結し、使用済みケースは再利用しない）",
+  "結果を見てからのケース・正解の変更はしない（変えたら使用済みとして扱う）"
+ ]
+}

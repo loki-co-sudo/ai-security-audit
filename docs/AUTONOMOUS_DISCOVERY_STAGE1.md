@@ -565,7 +565,7 @@ U4（重複確認の抑制）は§9で完了。凍結条件・評価ランナー
 **報告の枠組み**: 作成者が別でも開発報告を知っている場合は『別作成者による未使用ケース評価』と書き、『独立した第三者評価』とは書かない。ケース数・ドメイン数を明記し、対（欠陥あり/なし）の関係にあるケースは独立として数えない。少数ケースの結果は探索的として扱う。受け入れ条件の達成・未達で完成度を示し、進捗率では示さない。評価後にコード・係数・方式を調整したら、そのケースは回帰確認用になり、次の検証には新しいケースを使う。
 **ケース依頼の条件**: 新しい作成者に、`docs/UNSEEN_CASE_AUTHORING.md` に従って3件以上（欠陥あり2＋正常版1。別ドメイン・規則の型の外・仕様に根拠のない欠陥・POST・unspecified を含む）を依頼する。**作成者のテスト・検証記録は `testlab/lab/unseen_author/<ケース名>/` に置き、れいは正解・被験環境のコード・作成者側ファイルを読まない**（調査側のコードも読まない・importしない。固定試験で検査）。れいに伝えるのはケースIDだけ。
 
-**凍結（実施済み・§14.1で再凍結）**: `testlab/baselines/frozen_protocol_stage3.json`（最初の凍結。§14.1の理由で、ケースを受け取る前に `frozen_protocol_stage3_r2.json` へ置き換えた。評価には r2 を使う）（プロトコル版 `stage2-protocol/2`・調査システムの版 `research-stage1/4`・凍結時のgit `7d79121fec`・コードのハッシュ `22e3b1e0c4397716`）。評価コマンド: `tools/research_stage2_eval.py --cases <ID一覧> --protocol testlab/baselines/frozen_protocol_stage3.json --include-holdout --approve-real-llm --model z-ai/glm-5.3-flash --out <結果ファイル>`。以後、凍結対象のコード・係数・方式・採用基準を変えると評価は通信の前に拒否される。変える場合は再凍結し、その版で未使用のケースだけを評価する。
+**凍結（実施済み・§14.1で再凍結）**: `testlab/baselines/frozen_protocol_stage3.json`（最初の凍結。§14.1の理由で、ケースを受け取る前に `frozen_protocol_stage3_r2.json` へ置き換えた。評価に使う凍結は、§15.8 のとおり最終的に `frozen_protocol_stage4.json` に置き換わった。以下は当時の記録）（プロトコル版 `stage2-protocol/2`・調査システムの版 `research-stage1/4`・凍結時のgit `7d79121fec`・コードのハッシュ `22e3b1e0c4397716`）。当時の評価コマンド（現在は stage4 を使う）: `tools/research_stage2_eval.py --cases <ID一覧> --protocol testlab/baselines/frozen_protocol_stage3.json --include-holdout --approve-real-llm --model z-ai/glm-5.3-flash --out <結果ファイル>`。以後、凍結対象のコード・係数・方式・採用基準を変えると評価は通信の前に拒否される。変える場合は再凍結し、その版で未使用のケースだけを評価する。
 
 ### 14.1 ケース依頼の前の再凍結（`frozen_protocol_stage3_r2.json`）と、残る制約
 最初の凍結（`frozen_protocol_stage3.json`）の後に、次の2点に気づいた（事後分析 §12.1・§12.2 と同じ盲点が、凍結した報告にも残っていた）。ケースを受け取る前なので、報告専用の変更として入れて再凍結した。
@@ -575,7 +575,7 @@ U4（重複確認の抑制）は§9で完了。凍結条件・評価ランナー
 
 **残る制約（未対応・ひろに相談）**: list_scope の probe は `Experiment(role, op_id)` で、探索の段階2（own_list の観測）が各アカウントに対して実行する実験と**同じ実験ID**になる（コードで確認）。そのため、LLMが**観測後の段階で**提案した list_scope の仮説は、その一覧操作の probe が既に実行済みで、必ず `probe_preexisting`（予測の事前登録にならない）→『候補止まり』になり、所見に確定できない。確定できるのは、LLMが**仕様段階（探索実験の前）**に提案した場合だけ。LLM列の上乗せは、この構造的な上限を受ける。対策案（登録後に新しい実験として再度 probe する）は、探索予算の消費と事前登録の順序の設計を変えるため、この単位では入れていない。入れるなら再凍結が必要で、ケース依頼の前に決める必要がある。
 
-**再凍結（実施済み）**: `testlab/baselines/frozen_protocol_stage3_r2.json`（プロトコル版 `stage2-protocol/2`・調査システムの版 `research-stage1/4`・凍結時のgit `8e2d67cffb`・コードのハッシュ `9e68a6d287e13750`）。最初の凍結との差は、`research_planner.py`／`research_loop.py`（LLM呼出しごとの記録の追加のみ）・`blind_grader.py`・`research_eval.py`・`research_stage2_eval.py`（分類と出力）の5ファイルだけで、係数・方式・LLM設定・シード・予算・採用基準は同一（比較で確認）。評価コマンドは `--protocol testlab/baselines/frozen_protocol_stage3_r2.json`。**ケースの依頼は、ひろの判断（残る制約への対応の要否）の後。** 対応する場合は再凍結が必要。
+**再凍結（実施済み）**: `testlab/baselines/frozen_protocol_stage3_r2.json`（プロトコル版 `stage2-protocol/2`・調査システムの版 `research-stage1/4`・凍結時のgit `8e2d67cffb`・コードのハッシュ `9e68a6d287e13750`）。最初の凍結との差は、`research_planner.py`／`research_loop.py`（LLM呼出しごとの記録の追加のみ）・`blind_grader.py`・`research_eval.py`・`research_stage2_eval.py`（分類と出力）の5ファイルだけで、係数・方式・LLM設定・シード・予算・採用基準は同一（比較で確認）。評価コマンドは当時 `--protocol testlab/baselines/frozen_protocol_stage3_r2.json` だったが、現在は stage4（§15.8）。**この制約への対応の要否は、ひろの判断で『対応する』となり、§15 で実装して stage4 で再凍結した。**
 
 ## 15. 観測後の仮説を、登録後の新しい実験で検証するループ（2026-10-24・実装済み・固定試験済み・`research-stage1/5`）
 目的: LLMが観測の後に提案した仮説（例: 一覧の list_scope）を、**予測の登録の後に送る新しい実験**で検証する。登録前の観測は、確認の証拠として扱わない。
@@ -644,3 +644,7 @@ U4（重複確認の抑制）は§9で完了。凍結条件・評価ランナー
 | `frozen_protocol_stage3.json` | 次の評価用の最初の凍結（プロトコル版2・`/4`） | 旧（§14.1で置き換え） |
 | `frozen_protocol_stage3_r2.json` | 同・報告専用の出力を追加（プロトコル版2・`/4`） | 旧（§15で調査動作が変わったため置き換え） |
 | `frozen_protocol_stage4.json` | 次の未使用ケース評価用（プロトコル版3・`research-stage1/5`・確認ループ・`visible_to`） | **有効**（下に凍結の記録） |
+
+**凍結（実施済み）**: `testlab/baselines/frozen_protocol_stage4.json`（プロトコル版 `stage2-protocol/3`・調査システムの版 `research-stage1/5`・凍結時のgit `4d039512a2`・コードのハッシュ `463b96eb99db18c4`・ケース受領前）。方式は §14 の6つ（`rules`／`llm`／`adaptive_nodedup`／`static`／`static_dedup`／`checklist`）、予算は案件設定の単一段階、シード 0,1,2、LLMは各2回、採用基準は §11.2＋§14。評価コマンド:
+`tools/research_stage2_eval.py --cases <ID一覧> --protocol testlab/baselines/frozen_protocol_stage4.json --include-holdout --approve-real-llm --model z-ai/glm-5.3-flash --out <結果ファイル>`
+（開発ケースの正常版での動作確認は済み。未使用ケースはまだ受領していない・評価していない）。以後、凍結対象のコード・係数・方式・採用基準を変えると評価は通信の前に拒否される。**§14 の『評価コマンド』『凍結』の記述で `frozen_protocol_stage3*.json` を指している箇所は、この stage4 に置き換わった**（旧いファイルは記録として残す）。
