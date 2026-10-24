@@ -1320,5 +1320,72 @@ class DiagnosisReportTest(unittest.TestCase):
         self.assertTrue(all(v["category"] in __import__("testlab.lab.blind_grader", fromlist=["x"]).TAXONOMY_ORDER for v in d.values()))
 
 
+class LlmFailureAnalysisTest(unittest.TestCase):
+    """LLM方式の失敗箇所の事後分析（報告専用）。手作りのジャーナルイベントで、各分類へ入ることを固定する。"""
+
+    FLAWS = [{"flaw_id": "L", "family": "list_scope", "op_id": "lst", "spec_grounded": True, "reachable": True},
+             {"flaw_id": "F", "family": "field_exposure", "op_id": "prof", "spec_grounded": True, "reachable": True}]
+    EMPTY = {"hypotheses": [], "findings": [], "candidates": [], "undetermined": [], "refuted": [], "not_examined": [],
+             "rejected": [], "unverifiable": []}
+
+    def _cls(self, events, **kw):
+        from tools.research_llm_failures import classify
+        return {k: v["category"] + (":" + v["detail"] if v["detail"] else "")
+                for k, v in classify({**self.EMPTY, **kw}, events, {"flaws": self.FLAWS}).items()}
+
+    def test_no_hypothesis_is_attributed_to_the_stage_that_stopped_it(self):
+        ok = lambda results: {"type": "llm_proposals", "results": results}  # noqa: E731
+        rej = {"op_id": "lst", "check": "list_visibility", "status": "rejected", "reason": "object_schema_lacks_owner_or_shared"}
+        self.assertEqual(self._cls([])["L"], "llm_not_used")
+        self.assertEqual(self._cls([{"type": "llm_proposals", "skipped": True, "reason": "x"}])["L"], "llm_budget_denied")
+        self.assertEqual(self._cls([{"type": "llm_proposals", "error": "Timeout"}])["L"], "llm_call_failed:Timeout")
+        self.assertEqual(self._cls([{"type": "llm_proposals", "parse_error": "invalid_json"}])["L"], "llm_reply_unparsed:invalid_json")
+        self.assertEqual(self._cls([ok([{"op_id": "other", "check": "deny_expected", "status": "new"}])])["L"], "llm_no_proposal_for_op")
+        self.assertEqual(self._cls([ok([{"op_id": "lst", "check": "fields_subset", "status": "rejected", "reason": "x"}])])["L"],
+                         "llm_proposed_other_check_only")
+        self.assertEqual(self._cls([ok([rej])])["L"], "rejected_at_concretization:object_schema_lacks_owner_or_shared")
+        self.assertEqual(self._cls([ok([{**rej, "reason": "validator:check_not_falsifiable"}])])["L"],
+                         "rejected_by_validator:validator:check_not_falsifiable")
+        # 一部の呼出しが解析失敗でも、解析できた返答に提案が無ければ『提案なし』（解析失敗に帰属させない）
+        mixed = [{"type": "llm_proposals", "parse_error": "invalid_json"}, ok([{"op_id": "x", "check": "deny_expected", "status": "new"}])]
+        self.assertEqual(self._cls(mixed)["L"], "llm_no_proposal_for_op")
+
+    def test_existing_hypothesis_keeps_its_own_category(self):
+        res = {"hypotheses": [{"hypothesis_id": "h:list_scope:lst:bob", "family": "list_scope", "op_id": "lst"}],
+               "findings": [{"family": "list_scope", "op_id": "lst", "evidence_complete": True}]}
+        self.assertEqual(self._cls([{"type": "llm_proposals", "parse_error": "no_json"}], **res)["L"], "found_evidence_complete")
+
+    def test_aggregate_counts_by_hand_and_omits_ids(self):
+        from tools.research_llm_failures import aggregate
+        c = lambda cat, detail="", fam="list_scope", g=True, reach=True: {"category": cat, "detail": detail, "family": fam,  # noqa: E731
+                                                                          "reachable": reach, "spec_grounded": g}
+        L = {"calls": [{"outcome": "parsed"}, {"outcome": "unparsed", "reason": "invalid_json"}], "at_token_cap": 1, "proposals": 5,
+             "new_registered": 2, "rejected": {"a": 2}}
+        rows = [{"case_id": "k", "classes": {"secret_flaw_id": c("rejected_at_concretization", "r1"), "u": c("family_outside_system", fam="other", g=False),
+                                             "n": c("llm_no_proposal_for_op", reach=False)}, "llm": L},
+                {"case_id": "k", "classes": {"secret_flaw_id": c("rejected_at_concretization", "r1")}, "llm": L}]
+        a = aggregate(rows)
+        self.assertEqual(a["by_case_family"]["k"]["list_scope"], {"rejected_at_concretization": 2})
+        self.assertEqual(a["by_case_family"]["k"]["ungrounded:other"], {"family_outside_system": 1})
+        self.assertEqual(a["reasons"], {"rejected_at_concretization:r1": 2})
+        self.assertEqual((a["llm_calls"]["calls"], a["llm_calls"]["unparsed"], a["llm_calls"]["at_token_cap"], a["llm_calls"]["proposals"]), (4, 2, 2, 10))
+        self.assertEqual(a["llm_calls"]["rejected_reasons"], {"a": 4})
+        self.assertNotIn("secret_flaw_id", json.dumps(a))
+
+    def test_proposal_oracle_separates_pipeline_capability_from_llm_ability(self):
+        from tools import research_proposal_oracle as po
+        with tempfile.TemporaryDirectory() as td:
+            raw = json.load(open(os.path.join(ROOT, "testlab", "lab", "blind_cases", "blind-docs-01.json"), encoding="utf-8"))
+            json.dump(raw, open(os.path.join(td, "with_shared.json"), "w", encoding="utf-8"))
+            for o in raw["spec"]["objects"].values():
+                o.pop("shared_field", None)
+            raw["case_id"] = "no_shared"
+            json.dump(raw, open(os.path.join(td, "no_shared.json"), "w", encoding="utf-8"))
+            with_s = po.check_case("with_shared", td)
+            no_s = po.check_case("no_shared", td)
+        self.assertTrue(with_s and all(r["status"] == "new" for r in with_s))
+        self.assertTrue(no_s and all(r["status"] == "rejected" and r["reason"] == "object_schema_lacks_owner_or_shared" for r in no_s))
+
+
 if __name__ == "__main__":
     unittest.main()

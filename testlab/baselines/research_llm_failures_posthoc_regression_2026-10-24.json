@@ -1,0 +1,68 @@
+{
+ "note": "事後分析（新しいサンプル。評価済みの実行の分解ではない）。採用基準・採点には使わない。",
+ "model": "z-ai/glm-5.3-flash",
+ "settings": {
+  "max_tokens": 800,
+  "reasoning_effort": "low",
+  "max_llm_calls": 2,
+  "prompt_version": "research-propose/1"
+ },
+ "n_runs": 18,
+ "spend_usd": 0.0034,
+ "aggregate": {
+  "by_case_family": {
+   "unseen-cobalt-17": {
+    "object_authz": {
+     "found_evidence_complete": 6
+    },
+    "function_authz": {
+     "found_evidence_complete": 6
+    },
+    "list_scope": {
+     "found_evidence_complete": 5,
+     "candidate_only": 1
+    },
+    "ungrounded:other": {
+     "family_outside_system": 6
+    }
+   },
+   "unseen-cobalt-42": {
+    "object_authz": {
+     "found_evidence_complete": 6
+    },
+    "function_authz": {
+     "found_evidence_complete": 6
+    },
+    "list_scope": {
+     "rejected_at_concretization": 6
+    },
+    "ungrounded:other": {
+     "family_outside_system": 6
+    }
+   }
+  },
+  "reasons": {
+   "rejected_at_concretization:object_schema_lacks_owner_or_shared": 6
+  },
+  "llm_calls": {
+   "runs": 18,
+   "calls": 36,
+   "budget_denied": 0,
+   "call_failed": 0,
+   "unparsed": 2,
+   "unparsed_reasons": {
+    "invalid_json": 2
+   },
+   "at_token_cap": 23,
+   "proposals": 272,
+   "new_registered": 23,
+   "rejected_reasons": {
+    "params_mismatch": 10,
+    "expectation_not_supported_by_spec_or_observation": 64,
+    "op_unknown": 9,
+    "op_method_not_approved": 3,
+    "object_schema_lacks_owner_or_shared": 20
+   }
+  }
+ }
+}

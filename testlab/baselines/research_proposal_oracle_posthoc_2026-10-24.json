@@ -1,0 +1,355 @@
+{
+ "note": "事後分析。公開仕様だけを使い、正解・被験環境は読まない。LLM呼出0。",
+ "rows": [
+  {
+   "case_id": "blind-docs-01",
+   "op_id": "docs_list",
+   "role": "admin",
+   "object": "doc",
+   "has_owner_field": true,
+   "has_shared_field": true,
+   "status": "new",
+   "reason": ""
+  },
+  {
+   "case_id": "blind-docs-01",
+   "op_id": "docs_list",
+   "role": "alice",
+   "object": "doc",
+   "has_owner_field": true,
+   "has_shared_field": true,
+   "status": "new",
+   "reason": ""
+  },
+  {
+   "case_id": "blind-docs-01",
+   "op_id": "docs_list",
+   "role": "bob",
+   "object": "doc",
+   "has_owner_field": true,
+   "has_shared_field": true,
+   "status": "new",
+   "reason": ""
+  },
+  {
+   "case_id": "blind-docs-01",
+   "op_id": "docs_list",
+   "role": "carol",
+   "object": "doc",
+   "has_owner_field": true,
+   "has_shared_field": true,
+   "status": "new",
+   "reason": ""
+  },
+  {
+   "case_id": "blind-docs-01",
+   "op_id": "docs_list",
+   "role": "user_expired",
+   "object": "doc",
+   "has_owner_field": true,
+   "has_shared_field": true,
+   "status": "new",
+   "reason": ""
+  },
+  {
+   "case_id": "blind-docs-02",
+   "op_id": "docs_list",
+   "role": "admin",
+   "object": "doc",
+   "has_owner_field": true,
+   "has_shared_field": true,
+   "status": "new",
+   "reason": ""
+  },
+  {
+   "case_id": "blind-docs-02",
+   "op_id": "docs_list",
+   "role": "alice",
+   "object": "doc",
+   "has_owner_field": true,
+   "has_shared_field": true,
+   "status": "new",
+   "reason": ""
+  },
+  {
+   "case_id": "blind-docs-02",
+   "op_id": "docs_list",
+   "role": "bob",
+   "object": "doc",
+   "has_owner_field": true,
+   "has_shared_field": true,
+   "status": "new",
+   "reason": ""
+  },
+  {
+   "case_id": "blind-docs-02",
+   "op_id": "docs_list",
+   "role": "carol",
+   "object": "doc",
+   "has_owner_field": true,
+   "has_shared_field": true,
+   "status": "new",
+   "reason": ""
+  },
+  {
+   "case_id": "blind-docs-02",
+   "op_id": "docs_list",
+   "role": "user_expired",
+   "object": "doc",
+   "has_owner_field": true,
+   "has_shared_field": true,
+   "status": "new",
+   "reason": ""
+  },
+  {
+   "case_id": "blind-docs-03",
+   "op_id": "docs_list",
+   "role": "admin",
+   "object": "doc",
+   "has_owner_field": true,
+   "has_shared_field": true,
+   "status": "new",
+   "reason": ""
+  },
+  {
+   "case_id": "blind-docs-03",
+   "op_id": "docs_list",
+   "role": "alice",
+   "object": "doc",
+   "has_owner_field": true,
+   "has_shared_field": true,
+   "status": "new",
+   "reason": ""
+  },
+  {
+   "case_id": "blind-docs-03",
+   "op_id": "docs_list",
+   "role": "bob",
+   "object": "doc",
+   "has_owner_field": true,
+   "has_shared_field": true,
+   "status": "new",
+   "reason": ""
+  },
+  {
+   "case_id": "blind-docs-03",
+   "op_id": "docs_list",
+   "role": "carol",
+   "object": "doc",
+   "has_owner_field": true,
+   "has_shared_field": true,
+   "status": "new",
+   "reason": ""
+  },
+  {
+   "case_id": "blind-docs-03",
+   "op_id": "docs_list",
+   "role": "user_expired",
+   "object": "doc",
+   "has_owner_field": true,
+   "has_shared_field": true,
+   "status": "new",
+   "reason": ""
+  },
+  {
+   "case_id": "unseen-cobalt-17",
+   "op_id": "owned_records",
+   "role": "coordinator",
+   "object": "reservation",
+   "has_owner_field": true,
+   "has_shared_field": true,
+   "status": "new",
+   "reason": ""
+  },
+  {
+   "case_id": "unseen-cobalt-17",
+   "op_id": "owned_records",
+   "role": "maker_a",
+   "object": "reservation",
+   "has_owner_field": true,
+   "has_shared_field": true,
+   "status": "new",
+   "reason": ""
+  },
+  {
+   "case_id": "unseen-cobalt-17",
+   "op_id": "owned_records",
+   "role": "maker_b",
+   "object": "reservation",
+   "has_owner_field": true,
+   "has_shared_field": true,
+   "status": "new",
+   "reason": ""
+  },
+  {
+   "case_id": "unseen-cobalt-17",
+   "op_id": "owned_records",
+   "role": "maker_c",
+   "object": "reservation",
+   "has_owner_field": true,
+   "has_shared_field": true,
+   "status": "new",
+   "reason": ""
+  },
+  {
+   "case_id": "unseen-cobalt-17",
+   "op_id": "owned_records",
+   "role": "user_expired",
+   "object": "reservation",
+   "has_owner_field": true,
+   "has_shared_field": true,
+   "status": "new",
+   "reason": ""
+  },
+  {
+   "case_id": "unseen-cobalt-42",
+   "op_id": "owned_records",
+   "role": "dispatcher",
+   "object": "shipment",
+   "has_owner_field": true,
+   "has_shared_field": false,
+   "status": "rejected",
+   "reason": "object_schema_lacks_owner_or_shared"
+  },
+  {
+   "case_id": "unseen-cobalt-42",
+   "op_id": "owned_records",
+   "role": "sender_a",
+   "object": "shipment",
+   "has_owner_field": true,
+   "has_shared_field": false,
+   "status": "rejected",
+   "reason": "object_schema_lacks_owner_or_shared"
+  },
+  {
+   "case_id": "unseen-cobalt-42",
+   "op_id": "owned_records",
+   "role": "sender_b",
+   "object": "shipment",
+   "has_owner_field": true,
+   "has_shared_field": false,
+   "status": "rejected",
+   "reason": "object_schema_lacks_owner_or_shared"
+  },
+  {
+   "case_id": "unseen-cobalt-42",
+   "op_id": "owned_records",
+   "role": "sender_c",
+   "object": "shipment",
+   "has_owner_field": true,
+   "has_shared_field": false,
+   "status": "rejected",
+   "reason": "object_schema_lacks_owner_or_shared"
+  },
+  {
+   "case_id": "unseen-cobalt-42",
+   "op_id": "owned_records",
+   "role": "user_expired",
+   "object": "shipment",
+   "has_owner_field": true,
+   "has_shared_field": false,
+   "status": "rejected",
+   "reason": "object_schema_lacks_owner_or_shared"
+  },
+  {
+   "case_id": "unseen-cobalt-42",
+   "op_id": "billing_invoices",
+   "role": "dispatcher",
+   "object": "invoice",
+   "has_owner_field": true,
+   "has_shared_field": false,
+   "status": "rejected",
+   "reason": "object_schema_lacks_owner_or_shared"
+  },
+  {
+   "case_id": "unseen-cobalt-42",
+   "op_id": "billing_invoices",
+   "role": "sender_a",
+   "object": "invoice",
+   "has_owner_field": true,
+   "has_shared_field": false,
+   "status": "rejected",
+   "reason": "object_schema_lacks_owner_or_shared"
+  },
+  {
+   "case_id": "unseen-cobalt-42",
+   "op_id": "billing_invoices",
+   "role": "sender_b",
+   "object": "invoice",
+   "has_owner_field": true,
+   "has_shared_field": false,
+   "status": "rejected",
+   "reason": "object_schema_lacks_owner_or_shared"
+  },
+  {
+   "case_id": "unseen-cobalt-42",
+   "op_id": "billing_invoices",
+   "role": "sender_c",
+   "object": "invoice",
+   "has_owner_field": true,
+   "has_shared_field": false,
+   "status": "rejected",
+   "reason": "object_schema_lacks_owner_or_shared"
+  },
+  {
+   "case_id": "unseen-cobalt-42",
+   "op_id": "billing_invoices",
+   "role": "user_expired",
+   "object": "invoice",
+   "has_owner_field": true,
+   "has_shared_field": false,
+   "status": "rejected",
+   "reason": "object_schema_lacks_owner_or_shared"
+  },
+  {
+   "case_id": "unseen-cobalt-68",
+   "op_id": "owned_records",
+   "role": "coordinator",
+   "object": "reservation",
+   "has_owner_field": true,
+   "has_shared_field": true,
+   "status": "new",
+   "reason": ""
+  },
+  {
+   "case_id": "unseen-cobalt-68",
+   "op_id": "owned_records",
+   "role": "maker_a",
+   "object": "reservation",
+   "has_owner_field": true,
+   "has_shared_field": true,
+   "status": "new",
+   "reason": ""
+  },
+  {
+   "case_id": "unseen-cobalt-68",
+   "op_id": "owned_records",
+   "role": "maker_b",
+   "object": "reservation",
+   "has_owner_field": true,
+   "has_shared_field": true,
+   "status": "new",
+   "reason": ""
+  },
+  {
+   "case_id": "unseen-cobalt-68",
+   "op_id": "owned_records",
+   "role": "maker_c",
+   "object": "reservation",
+   "has_owner_field": true,
+   "has_shared_field": true,
+   "status": "new",
+   "reason": ""
+  },
+  {
+   "case_id": "unseen-cobalt-68",
+   "op_id": "owned_records",
+   "role": "user_expired",
+   "object": "reservation",
+   "has_owner_field": true,
+   "has_shared_field": true,
+   "status": "new",
+   "reason": ""
+  }
+ ]
+}
