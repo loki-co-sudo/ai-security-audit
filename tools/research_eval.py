@@ -92,7 +92,7 @@ STRATEGY_VARIANTS = {"adaptive": ("adaptive", None), "adaptive-dedup": ("adaptiv
 
 def run_one(case_id: str, seed: int, *, budget_override: dict | None = None, llm=None, strategy: str = "adaptive",
             cases_dir: str | None = None, truth_dir: str | None = None, records_dir: str | None = None,
-            prompt_version: str = "research-propose/1") -> dict:
+            prompt_version: str = "research-propose/1", rules_list_scope: bool = False) -> dict:
     """records_dir を渡すと、この実行のジャーナルと証拠を <records_dir>/ に残す（後から所見の出どころ・検証が未実行になった理由を追跡できる）。
     渡さなければ従来どおり一時ディレクトリ（実行後に消える）。"""
     case = load_blind_case(os.path.join(cases_dir or CASES_DIR, f"{case_id}.json"))
@@ -111,7 +111,7 @@ def run_one(case_id: str, seed: int, *, budget_override: dict | None = None, llm
                                     evidence_root=td + "/e", budget_override=bo or None, llm=llm,
                                     strategy=STRATEGY_VARIANTS.get(strategy, (strategy, None))[0],
                                     dedup=STRATEGY_VARIANTS.get(strategy, (strategy, None))[1],
-                                    prompt_version=prompt_version).to_dict()
+                                    prompt_version=prompt_version, rules_list_scope=rules_list_scope).to_dict()
             g = grade(res, truth, list(app.requests), case.public_dict()["spec"],
                       bo.get("max_requests", case.budget["max_requests"]), canary.hits)
     finally:

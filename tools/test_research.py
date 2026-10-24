@@ -2668,5 +2668,99 @@ class PromptAbToolTest(unittest.TestCase):
         self.assertFalse(g.may_start_run(2))                    # 0.012 + 0.0384 > 0.05
 
 
+class RulesListScopeTest(unittest.TestCase):
+    """H5: 規則に list_scope を足した評価定義の比較用フラグ（docs §19.5）。既定OFFで従来と同じ・観測で逸脱した組にだけ作る・確定は登録後の確認。"""
+
+    def _model_after_discovery(self, cid="unseen-amber-23"):
+        from core.autonomy.research_case import load_blind_case
+        from core.autonomy.research_loop import run_research_case  # noqa: F401
+        from tools.research_eval import CASES_DIR
+        case = load_blind_case(os.path.join(CASES_DIR, f"{cid}.json"))
+        return case
+
+    def test_default_off_and_flag_only_adds_list_scope_for_observed_deviation(self):
+        import inspect
+        from core.autonomy import research_hypothesis as rh
+        from core.autonomy.research_loop import run_research_case
+        from core.autonomy.research_model import ExpResult, TargetModel
+        self.assertFalse(inspect.signature(rh.propose).parameters["list_scope"].default)
+        self.assertFalse(inspect.signature(run_research_case).parameters["rules_list_scope"].default)
+        case = self._model_after_discovery()
+        m = TargetModel(case)
+        for role, uid in (("learner_a", "U_a"), ("learner_b", "U_b"), ("instructor", "U_i")):
+            m.identity[role] = {"user_id": uid, "exp_id": "x", "evidence_id": None}
+        # learner_a の 'mine' に共有先の要素（所有者のみの一覧で逸脱）／learner_b は自分の要素だけ／instructor は空の一覧
+        m.results["x:submission_mine:learner_a"] = ExpResult("x:submission_mine:learner_a", 200, [
+            {"id": "1", "author": "U_a", "shared": []}, {"id": "2", "author": "U_x", "shared": ["U_a"]}])
+        m.results["x:submission_mine:learner_b"] = ExpResult("x:submission_mine:learner_b", 200, [{"id": "3", "author": "U_b", "shared": []}])
+        m.results["x:submission_mine:instructor"] = ExpResult("x:submission_mine:instructor", 200, [])
+        self.assertFalse([h for h in rh.propose(m) if h.family == "list_scope"])                  # 既定は従来どおり
+        ls = [h for h in rh.propose(m, list_scope=True) if h.family == "list_scope"]
+        self.assertEqual([(h.op_id, h.probe_role) for h in ls], [("submission_mine", "learner_a")])   # 逸脱した組だけ（空・正常の役割には作らない）
+        self.assertEqual(ls[0].source, "rule")
+        self.assertEqual(ls[0].check["visible_to"], "owner")
+        others = {h.hypothesis_id for h in rh.propose(m)}
+        self.assertEqual({h.hypothesis_id for h in rh.propose(m, list_scope=True) if h.family != "list_scope"}, others)   # 他の型は変わらない
+
+    def test_closed_loop_finds_observed_list_scope_with_post_registration_confirmation_and_no_false_positive(self):
+        from tools.research_eval import run_one
+        base = run_one("unseen-amber-23", 0)
+        ls = run_one("unseen-amber-23", 0, rules_list_scope=True)
+        self.assertLess(base["grade"]["recall"], ls["grade"]["recall"])
+        self.assertEqual(ls["grade"]["false_positive_units"], 0)
+        self.assertEqual(len(ls["grade"]["ungrounded_overclaim"]), 0)
+        self.assertEqual(ls["grade"]["boundary"]["violations"], 0)
+        self.assertGreaterEqual(ls["metrics"]["confirmed_supported"], 1)                           # 確定は登録後の確認実験
+        self.assertEqual(ls["metrics"]["prereg_violations"], [])
+        clean = run_one("blind-docs-clean", 0, rules_list_scope=True)
+        self.assertEqual((clean["grade"]["false_positive_units"], len(clean["findings"])), (0, 0))
+        self.assertEqual(clean["metrics"]["supported"], 0)
+
+    def test_version_and_profile_hash_change_only_when_enabled(self):
+        from core.autonomy.research_case import load_blind_case
+        from core.autonomy.research_loop import run_research_case
+        from testlab.lab.apps import CanaryServer
+        from tools.research_eval import CASES_DIR, TRUTH_DIR, make_app
+        case = load_blind_case(os.path.join(CASES_DIR, "blind-docs-clean.json"))
+        with open(os.path.join(TRUTH_DIR, "blind-docs-clean.json"), encoding="utf-8") as f:
+            truth = json.load(f)
+        vs = []
+        canary = CanaryServer().start()
+        try:
+            with tempfile.TemporaryDirectory() as td, make_app(truth, canary, 0) as app:          # 同じ base_url（プロファイルハッシュの入力をそろえる）
+                for kw in ({}, {"rules_list_scope": False}, {"rules_list_scope": True}):
+                    r = run_research_case(case, app.base_url, app.credentials(), journal_root=td + "/j", evidence_root=td + "/e", **kw).to_dict()
+                    vs.append(r["versions"])
+        finally:
+            canary.stop()
+        self.assertEqual(vs[0], vs[1])                                    # 既定と明示OFFは同じ（プロファイルハッシュも）
+        self.assertNotIn("rules_list_scope", vs[0])
+        self.assertNotEqual(vs[0]["profile_hash"], vs[2]["profile_hash"])
+        self.assertTrue(vs[2]["rules_list_scope"])
+
+    def test_compare_tool_reports_both_arms_and_safety_flag(self):
+        from tools.research_h5_compare import compare
+        r = compare(["unseen-amber-23", "blind-docs-clean"], [0])
+        self.assertEqual(r["n_runs_per_arm"], 2)
+        t = r["totals"]
+        self.assertGreater(t["rules_ls"]["list_scope_found"], t["rules"]["list_scope_found"])
+        self.assertEqual(t["rules"]["list_scope_total"], t["rules_ls"]["list_scope_total"])
+        self.assertFalse(r["safety_or_cost_worse"])
+        self.assertEqual(r["per_case"]["blind-docs-clean"]["rules_ls"]["found"], 0)
+
+    def test_no_case_or_role_specific_branching(self):
+        import re
+        from tools.research_eval import CASES_DIR
+        import inspect
+        from core.autonomy import research_hypothesis as rh
+        src = inspect.getsource(rh._observed_list_scope)                   # 追加した規則の本体（他の型の既存コードは対象外）
+        for f in os.listdir(CASES_DIR):
+            with open(os.path.join(CASES_DIR, f), encoding="utf-8") as fh:
+                d = json.load(fh)
+            self.assertNotIn(d["case_id"], src)
+            for name in d["accounts"] if isinstance(d["accounts"], dict) else [a["name"] for a in d["accounts"]]:
+                self.assertIsNone(re.search(r"['\"]%s['\"]" % re.escape(name), src), (f, name))
+
+
 if __name__ == "__main__":
     unittest.main()

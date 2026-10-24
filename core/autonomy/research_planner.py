@@ -52,10 +52,12 @@ def default_dedup(strategy: str) -> bool:
 class Researcher:
     def __init__(self, case: BlindCase, base_url: str, journal: RunJournal, ledger: BudgetLedger,
                  is_stopped: Callable[[], bool], llm=None, llm_max_tokens: int = 800, strategy: str = "adaptive",
-                 dedup: bool | None = None, prompt_version: str = research_llm.PROMPT_VERSION):
+                 dedup: bool | None = None, prompt_version: str = research_llm.PROMPT_VERSION,
+                 rules_list_scope: bool = False):
         if prompt_version not in research_llm.PROMPT_VERSIONS:
             raise ValueError(f"未知のプロンプト版: {prompt_version}")
         self.prompt_version = prompt_version
+        self.rules_list_scope = bool(rules_list_scope)    # 評価定義の比較用（docs §19.5）。既定は従来どおり規則に list_scope を含めない
         self.case, self.base_url, self.journal, self.ledger, self.is_stopped = case, base_url, journal, ledger, is_stopped
         self.model = TargetModel(case)
         self.hyps: dict[str, Hypothesis] = {}
@@ -154,7 +156,7 @@ class Researcher:
 
     # ── 仮説の登録（実験より前にジャーナルへ） ──────────────
     def _register_new(self) -> None:
-        for h in propose(self.model):
+        for h in (propose(self.model, list_scope=True) if self.rules_list_scope else propose(self.model)):
             self._register(h)
 
     def _register(self, h: Hypothesis) -> bool:

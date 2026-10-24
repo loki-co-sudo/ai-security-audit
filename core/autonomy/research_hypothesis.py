@@ -365,8 +365,10 @@ def _actor(model: TargetModel, privilege: str | None = None) -> str | None:
     return None
 
 
-def propose(model: TargetModel) -> list[Hypothesis]:
-    """現在のTarget Modelから、まだ作れる全ての仮説を決定論的に具体化する(IDで冪等)。"""
+def propose(model: TargetModel, *, list_scope: bool = False) -> list[Hypothesis]:
+    """現在のTarget Modelから、まだ作れる全ての仮説を決定論的に具体化する(IDで冪等)。
+    list_scope=True（評価定義の比較用 `rules_ls`。既定は従来どおりFalse。docs §19.5）: 探索時の観測が閲覧条件の下で『逸脱』と判定される
+    （own_list × 利用者IDを取得できたアカウント）の組にだけ list_scope の仮説を作る。観測で逸脱が無い・空・判定不能の組には作らない。"""
     out: list[Hypothesis] = []
     for op in sorted(model.case.operations.values(), key=lambda o: o.op_id):
         kind = op.access["kind"]
@@ -383,8 +385,30 @@ def propose(model: TargetModel) -> list[Hypothesis]:
         out += _unauth(model, op)
         if op.returns.get("fields"):
             out += _field_exposure(model, op)
+    if list_scope:
+        out += _observed_list_scope(model)
     for h in out:
         h.key = (h.family, h.op_id, h.probe_role)
+    return out
+
+
+def _observed_list_scope(model: TargetModel) -> list[Hypothesis]:
+    out: list[Hypothesis] = []
+    for op in sorted(model.case.operations.values(), key=lambda o: o.op_id):
+        if op.method != "GET" or op.params or op.access["kind"] != "own_list" or not op.returns.get("object"):
+            continue
+        otype = op.returns["object"]
+        vt = list_visible_to(op.access, model.case.objects.get(otype, {}))
+        for role in sorted(model.identity):
+            res = model.results.get(Experiment(role, op.op_id).exp_id)
+            if res is None:
+                continue
+            state, _, _ = _eval_list_visibility({"role": role, "object": otype, "visible_to": vt}, res, model)
+            if state != DEVIATES:
+                continue
+            h, _ = build_list_scope(model, op, role)
+            if h is not None:
+                out.append(h)
     return out
 
 
