@@ -569,3 +569,5 @@ U4（重複確認の抑制）は§9で完了。凍結条件・評価ランナー
 今回の変更は報告専用で、調査の判断（`research_planner` の選択・仮説・判定・係数・方式・LLM設定・採用基準）は変えていない。変えたのは、LLM呼出しごとの記録（`llm.calls_detail`）の追加、採点器の分類、評価ランナーの出力。
 
 **残る制約（未対応・ひろに相談）**: list_scope の probe は `Experiment(role, op_id)` で、探索の段階2（own_list の観測）が各アカウントに対して実行する実験と**同じ実験ID**になる（コードで確認）。そのため、LLMが**観測後の段階で**提案した list_scope の仮説は、その一覧操作の probe が既に実行済みで、必ず `probe_preexisting`（予測の事前登録にならない）→『候補止まり』になり、所見に確定できない。確定できるのは、LLMが**仕様段階（探索実験の前）**に提案した場合だけ。LLM列の上乗せは、この構造的な上限を受ける。対策案（登録後に新しい実験として再度 probe する）は、探索予算の消費と事前登録の順序の設計を変えるため、この単位では入れていない。入れるなら再凍結が必要で、ケース依頼の前に決める必要がある。
+
+**再凍結（実施済み）**: `testlab/baselines/frozen_protocol_stage3_r2.json`（プロトコル版 `stage2-protocol/2`・調査システムの版 `research-stage1/4`・凍結時のgit `8e2d67cffb`・コードのハッシュ `9e68a6d287e13750`）。最初の凍結との差は、`research_planner.py`／`research_loop.py`（LLM呼出しごとの記録の追加のみ）・`blind_grader.py`・`research_eval.py`・`research_stage2_eval.py`（分類と出力）の5ファイルだけで、係数・方式・LLM設定・シード・予算・採用基準は同一（比較で確認）。評価コマンドは `--protocol testlab/baselines/frozen_protocol_stage3_r2.json`。**ケースの依頼は、ひろの判断（残る制約への対応の要否）の後。** 対応する場合は再凍結が必要。
