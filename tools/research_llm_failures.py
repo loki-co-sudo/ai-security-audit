@@ -89,7 +89,22 @@ def aggregate(rows: list) -> dict:
                     conf["probe_origins"][o] = conf["probe_origins"].get(o, 0) + n
             else:
                 conf[k] = conf.get(k, 0) + v
-    return {"by_case_family": cats, "reasons": reasons, "llm_calls": calls, "confirmation": conf}
+    extra: dict = {"salvaged_replies": sum(r.get("salvaged_replies", 0) for r in rows), "undetermined_reasons": {}, "list_scope_miss_classes": {},
+                   "list_scope_flaw_runs": 0, "list_scope_registered_for_needed_role": 0, "input_tokens": sum(r.get("input_tokens", 0) for r in rows),
+                   "outcome": {"supported": 0, "candidates": 0, "refuted": 0, "requests_used": 0, "end_reasons": {}}}
+    for r in rows:
+        for k, v in (r.get("undetermined_reasons") or {}).items():
+            extra["undetermined_reasons"][k] = extra["undetermined_reasons"].get(k, 0) + v
+        for m in r.get("list_scope_misses") or []:
+            extra["list_scope_flaw_runs"] += 1
+            extra["list_scope_registered_for_needed_role"] += 1 if m["registered_for_needed_role"] else 0
+            extra["list_scope_miss_classes"][m["category"]] = extra["list_scope_miss_classes"].get(m["category"], 0) + 1
+        o = r.get("outcome") or {}
+        for k in ("supported", "candidates", "refuted", "requests_used"):
+            extra["outcome"][k] += o.get(k, 0)
+        er = extra["outcome"]["end_reasons"]
+        er[o.get("end_reason", "")] = er.get(o.get("end_reason", ""), 0) + 1
+    return {"by_case_family": cats, "reasons": reasons, "llm_calls": calls, "confirmation": conf, "extra": extra}
 
 
 class SpendGuard:
@@ -110,12 +125,22 @@ class SpendGuard:
         return not self.stopped
 
 
-def run_samples(cases: list, seeds: list, repeats: int, llm, max_tokens: int, max_llm_calls: int = 2, guard: "SpendGuard | None" = None) -> list:
+def _count(it) -> dict:
+    d: dict = {}
+    for x in it:
+        d[x] = d.get(x, 0) + 1
+    return d
+
+
+def run_samples(cases: list, seeds: list, repeats: int, llm, max_tokens: int, max_llm_calls: int = 2, guard: "SpendGuard | None" = None,
+                records_dir: str | None = None, run_kwargs: dict | None = None) -> list:
     from core.autonomy.journal import replay
     from core.autonomy.research_case import load_blind_case
     from core.autonomy.research_loop import run_research_case
     from testlab.lab.apps import CanaryServer
     from tools.research_eval import CASES_DIR, TRUTH_DIR, make_app
+    from tools.research_miss_analysis import classify_run, effective_roles
+    import shutil
     rows = []
     for cid in cases:
         case = load_blind_case(os.path.join(CASES_DIR, f"{cid}.json"))
@@ -129,12 +154,28 @@ def run_samples(cases: list, seeds: list, repeats: int, llm, max_tokens: int, ma
                 try:
                     with tempfile.TemporaryDirectory() as td, make_app(truth, canary, seed) as app:
                         res = run_research_case(case, app.base_url, app.credentials(), journal_root=td + "/j", evidence_root=td + "/e",
-                                                budget_override={"max_llm_calls": max_llm_calls}, llm=llm).to_dict()
+                                                budget_override={"max_llm_calls": max_llm_calls}, llm=llm, **(run_kwargs or {})).to_dict()
                         events = replay(res["run_id"], td + "/j").events
+                        classes = classify(res, events, truth)
+                        misses = []
+                        for flaw in truth["flaws"]:
+                            if flaw["family"] != "list_scope" or not flaw["reachable"] or not flaw["spec_grounded"]:
+                                continue
+                            eff = effective_roles(case, truth, flaw, seed)
+                            m = classify_run(flaw, eff, events, classes[flaw["flaw_id"]]["category"].startswith("found_"), res.get("end_reason", ""))
+                            misses.append({"category": m["category"].split(":")[0], "needed": len(m["needed_roles"]),
+                                           "registered_for_needed_role": bool([r for r in m["tested_roles"] if r in m["needed_roles"]])})
+                        if records_dir:
+                            dest = os.path.join(records_dir, f"{cid}_s{seed}_r{rep}")
+                            shutil.copytree(td, dest)
                 finally:
                     canary.stop()
                 usage = [u for u in (res["llm"].get("usage") or []) if u]
-                rows.append({"case_id": cid, "seed": seed, "repeat": rep, "classes": classify(res, events, truth),
+                rows.append({"case_id": cid, "seed": seed, "repeat": rep, "classes": classes, "list_scope_misses": misses,
+                             "undetermined_reasons": _count(x["reason"] for x in res["undetermined"]),
+                             "outcome": {"supported": len(res["findings"]), "candidates": len(res["candidates"]), "refuted": len(res["refuted"]),
+                                         "requests_used": res["metrics"]["requests_used"], "end_reason": res.get("end_reason", "")},
+                             "salvaged_replies": res["llm"]["salvaged_replies"], "input_tokens": sum(u.get("input_tokens", 0) for u in usage),
                              "confirmation": {k: v for k, v in res["metrics"].items() if k.startswith("confirm")} | {"probe_origins": res["metrics"].get("probe_origins", {})},
                              "llm": {"calls": llm_summary(events)["calls"],
                                      "at_token_cap": sum(1 for u in usage if u.get("output_tokens", 0) >= max_tokens),
@@ -166,6 +207,7 @@ def main() -> int:
     ap.add_argument("--model")
     ap.add_argument("--approve-real-llm", action="store_true")
     ap.add_argument("--max-spend-usd", type=float, required=True, help="推定費用の上限。次の実行の最悪値を足して超えるなら、その実行を始めずに止める")
+    ap.add_argument("--records-dir", help="実行ごとのジャーナル・証拠の保存先（git管理外に置く。結果ファイルとは別）")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
     if not a.approve_real_llm:
@@ -185,7 +227,7 @@ def main() -> int:
     timed = TimedLLM(a.model)
     llm = _Capped(timed, cfg["max_tokens"], {"reasoning": {"effort": cfg["reasoning_effort"]}})
     guard = SpendGuard(timed, a.max_spend_usd, price[0], price[1], cfg["max_tokens"], cfg["max_llm_calls"])
-    rows = run_samples(a.cases.split(","), [int(x) for x in a.seeds.split(",")], a.repeats, llm, cfg["max_tokens"], cfg["max_llm_calls"], guard)
+    rows = run_samples(a.cases.split(","), [int(x) for x in a.seeds.split(",")], a.repeats, llm, cfg["max_tokens"], cfg["max_llm_calls"], guard, a.records_dir)
     u1 = openrouter_usage()
     doc = {"note": "事後分析（新しいサンプル。評価済みの実行の分解ではない）。採用基準・採点には使わない。", "model": a.model,
            "settings": {k: cfg[k] for k in ("max_tokens", "reasoning_effort", "max_llm_calls", "prompt_version")},
