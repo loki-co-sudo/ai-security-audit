@@ -844,3 +844,10 @@ ATTACKのLLM解釈部分の評価(ローカルlabの観測に対する仮説の�
 - 凍結（`tools/research_freeze.py`）・保留ケースの使用記録・評価ランナー（`tools/research_stage2_eval.py`）・案件検査（`tools/research_case_check.py`）・手順書（`docs/UNSEEN_CASE_AUTHORING.md`）・テンプレート（`testlab/lab/unseen/`）。
   採用基準は事前登録（§11.2）。`tools/research_eval.py` の被験環境を正解ファイルの `app` で差し替え可能にした。
 - 検証: `ResearchStage2Test`・`ResearchCaseCheckTest`（selftest 16ah）。未実施: 実際の未使用ケースでの評価（ひろの作業待ち）。
+
+## 2026-10-24 自律調査: 観測後の仮説の確認ループ・一覧の閲覧条件・LLM呼出し予約の耐久化（`research-stage1/5`）
+- 観測後に作った仮説は、登録後に送る新しい確認実験（実験IDに tag）の結果だけで確定する。登録前の観測は証拠に数えず、確認が送れなければ候補（`confirmation_not_run`）、再現しなければ判定不能（`not_reproduced`）。Run全体の上限6件。
+- 一覧(`own_list`)の閲覧条件を操作単位(`access.visible_to`)で定義。省略時は共有先を持つ型は unspecified（共有先の要素は判定しない）。
+- LLM呼出しの予約をジャーナルに残し、再開で予算を巻き戻さない。結果不明の呼出しは自動で再実行しない。
+- 詳細・測定・証拠・残る制約・凍結ファイル一覧は `docs/AUTONOMOUS_DISCOVERY_STAGE1.md` §15。固定試験は `tools/test_research.py`（`ConfirmationLoopTest`／`ConfirmationResumeTest`／`ListScopeSemanticsTest`）。
+

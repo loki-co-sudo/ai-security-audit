@@ -10,7 +10,7 @@
 案件数と実行数は分けて報告する（同じ環境のシード違い・繰返しは独立した案件ではない）。
 
 使い方:
-  .venv/bin/python3 tools/research_stage2_eval.py --cases <id1>,<id2>,... --protocol testlab/baselines/frozen_protocol_stage4.json \\
+  .venv/bin/python3 tools/research_stage2_eval.py --cases <id1>,<id2>,... --protocol testlab/baselines/<有効な凍結ファイル（docs/AUTONOMOUS_DISCOVERY_STAGE1.md §15.8）> \\
       --include-holdout --out reports/stage2_result.json [--approve-real-llm --model z-ai/glm-5.3-flash]
 """
 from __future__ import annotations

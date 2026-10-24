@@ -1119,6 +1119,18 @@ class ResearchStage2Test(_Stage2Base):
         self.assertIn("research_planner.py", str(cm.exception))
         self.assertFalse(os.path.exists(self.log))                                     # 使用記録も書かれない
 
+    def test_freeze_never_overwrites_an_existing_frozen_file(self):
+        import subprocess
+        out = os.path.join(self.tmp, "kept.json")
+        with open(out, "w", encoding="utf-8") as f:
+            f.write("{\"keep\": true}\n")
+        p = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "research_freeze.py"), "freeze", "--out", out],
+                           capture_output=True, text=True, timeout=60)
+        self.assertEqual(p.returncode, 1)
+        self.assertIn("上書きしません", p.stderr)
+        with open(out, encoding="utf-8") as f:
+            self.assertEqual(f.read(), "{\"keep\": true}\n")                              # 中身は変わらない
+
     def test_old_protocol_versions_are_refused(self):
         old = os.path.join(ROOT, "testlab", "baselines", "frozen_protocol_stage2_r2.json")      # 版1（4方式）。版2の条件では評価しない
         with self.assertRaises(self.rf.FreezeError) as cm:

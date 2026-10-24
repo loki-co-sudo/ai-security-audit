@@ -7,7 +7,7 @@
   2. 使用記録: 保留ケースを評価に使うと、案件・正解・被験環境のハッシュと、そのときのシステムのハッシュを記録する。
      既に使用したケースの再評価は拒否し（明示フラグで例外にできるが『再利用』と記録）、使用後に案件・正解・環境が変わっていれば検出する。
 使い方:
-  .venv/bin/python3 tools/research_freeze.py freeze --out testlab/baselines/frozen_protocol_stage4.json [--note "..."]
+  .venv/bin/python3 tools/research_freeze.py freeze --out testlab/baselines/frozen_protocol_<新しい名前>.json [--note "..."]
   .venv/bin/python3 tools/research_freeze.py verify --protocol testlab/baselines/frozen_protocol_stage4.json
 """
 from __future__ import annotations
@@ -178,6 +178,9 @@ def main() -> int:
     v.add_argument("--protocol", required=True)
     a = ap.parse_args()
     if a.cmd == "freeze":
+        if os.path.exists(a.out):
+            print(f"エラー: {a.out} は既にあります。凍結ファイルは上書きしません（有効な凍結を壊さないため）。新しい名前で作ってください", file=sys.stderr)
+            return 1
         proto = default_protocol(a.note)
         write_frozen(a.out, proto)
         print(f"凍結しました: {a.out}（コードのハッシュ {proto['system_fingerprint']['sha'][:16]}・git {proto['git_commit'][:10]}"

@@ -582,6 +582,6 @@ POSIX以外は権限の同等性を検証できないため、認証ファイル
 ```
 
 - 認証ファイル(0600)は案件の全アカウントの `cred:<名前>` を含める必要があります。`--max-requests` は案件の予算を**下げる**ことだけができます。
-- JSON出力の `research` に、仮説ごとの状態（`supported`/`refuted`/`unverified_deviation`/`undetermined`/`unverifiable`/`not_examined`）、`candidates`（逸脱は観測したが確定していないもの。**所見・台帳には入りません**）、`unverifiable`（必要な能力つき）、`not_examined`、`unknowns`、指標、判断の記録（`decision_log`）が入ります。
+- JSON出力の `research` に、仮説ごとの状態（`supported`/`refuted`/`unverified_deviation`/`undetermined`/`unverifiable`/`not_examined`）、`candidates`（逸脱は観測したが確定していないもの。**所見・台帳には入りません**）、`unverifiable`（必要な能力つき）、`not_examined`、`unknowns`、指標、判断の記録（`decision_log`）が入ります。仮説と所見には `probe_origin` と `confirmation`（確定の証拠の出どころ。登録より後に計画された実験の結果だけが証拠で、観測後に作った仮説は登録後の新しい『確認実験』で検証します。登録前の観測は証拠に数えません）が付き、指標に確認実験の計画・実行・確定・未実行の件数が入ります（CLIはLLMを使わないので通常は0）。Markdownレポートの予算欄の『LLM呼出』は、実際の呼出し回数です（以前は常に0と表示していました）。
 - `--engagement-id` を付けると所見を台帳へ記録します。モードは `LAB` 扱いで、後の実行で見つからなかった所見は `NOT_OBSERVED` ではなく `UNVERIFIED` になります。
 - 終了コードは `scan` と同じ規則です（検証不能・未検査・候補が残る `partial` は 2）。`--report-dir` には、根拠・事前登録した予測・対照・証拠の整合性/完全性・未確認・レビュー状態を載せた編集可能なMarkdownを0600で書きます（外部へは送信しません）。
