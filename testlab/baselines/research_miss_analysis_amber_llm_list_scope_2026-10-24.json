@@ -1,0 +1,735 @@
+{
+ "results": "research_stage2_unseen-amber_2026-10-24.json",
+ "family": "list_scope",
+ "method": "llm",
+ "n": 12,
+ "summary": {
+  "unseen-amber-23|only_other_roles": 5,
+  "unseen-amber-23|found": 1,
+  "unseen-amber-86|found": 4,
+  "unseen-amber-86|only_other_roles": 1,
+  "unseen-amber-86|parse_failure": 1
+ },
+ "rows": [
+  {
+   "case_id": "unseen-amber-23",
+   "flaw_id": "shared_in_mine",
+   "seed": 0,
+   "repeat": 0,
+   "run_id": "run_8f2e888f038e",
+   "records_dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-23__s0__r0",
+   "discovery_observation": {
+    "learner_a": {
+     "evidence_id": "evidence_9df7b3405f52",
+     "contains_deviation": true
+    },
+    "learner_b": {
+     "evidence_id": "evidence_3bc72a50a296",
+     "contains_deviation": true
+    },
+    "learner_c": {
+     "evidence_id": "evidence_406ac0e527a7",
+     "contains_deviation": true
+    }
+   },
+   "category": "only_other_roles",
+   "factors": [],
+   "hypotheses": {
+    "instructor": {
+     "hypothesis_id": "h:list_scope:submission_mine:instructor",
+     "registered_seq": 16,
+     "source": "llm",
+     "probe": "x:submission_mine:instructor",
+     "state": "refuted",
+     "reason": "prediction_falsified_with_control",
+     "state_seq": 190,
+     "prior_probe": null,
+     "confirm_blocked": null
+    }
+   },
+   "proposals_for_op": [
+    {
+     "phase": "spec",
+     "seq": 19,
+     "role": "instructor",
+     "status": "new",
+     "reason": ""
+    },
+    {
+     "phase": "observed",
+     "seq": 186,
+     "role": "instructor",
+     "status": "duplicate_of_llm",
+     "reason": ""
+    }
+   ],
+   "failed_llm_phases": [],
+   "needed_roles": [
+    "learner_a",
+    "learner_b",
+    "learner_c"
+   ],
+   "tested_roles": [
+    "instructor"
+   ],
+   "run_end_reason": ""
+  },
+  {
+   "case_id": "unseen-amber-23",
+   "flaw_id": "shared_in_mine",
+   "seed": 0,
+   "repeat": 1,
+   "run_id": "run_584d58f3faf2",
+   "records_dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-23__s0__r1",
+   "discovery_observation": {
+    "learner_a": {
+     "evidence_id": "evidence_7ecf10f91d7c",
+     "contains_deviation": true
+    },
+    "learner_b": {
+     "evidence_id": "evidence_bb7257e3385f",
+     "contains_deviation": true
+    },
+    "learner_c": {
+     "evidence_id": "evidence_53e1b9675e9b",
+     "contains_deviation": true
+    }
+   },
+   "category": "only_other_roles",
+   "factors": [],
+   "hypotheses": {
+    "instructor": {
+     "hypothesis_id": "h:list_scope:submission_mine:instructor",
+     "registered_seq": 16,
+     "source": "llm",
+     "probe": "x:submission_mine:instructor",
+     "state": "refuted",
+     "reason": "prediction_falsified_with_control",
+     "state_seq": 191,
+     "prior_probe": null,
+     "confirm_blocked": null
+    }
+   },
+   "proposals_for_op": [
+    {
+     "phase": "spec",
+     "seq": 19,
+     "role": "instructor",
+     "status": "new",
+     "reason": ""
+    },
+    {
+     "phase": "observed",
+     "seq": 187,
+     "role": "instructor",
+     "status": "duplicate_of_llm",
+     "reason": ""
+    }
+   ],
+   "failed_llm_phases": [],
+   "needed_roles": [
+    "learner_a",
+    "learner_b",
+    "learner_c"
+   ],
+   "tested_roles": [
+    "instructor"
+   ],
+   "run_end_reason": ""
+  },
+  {
+   "case_id": "unseen-amber-23",
+   "flaw_id": "shared_in_mine",
+   "seed": 1,
+   "repeat": 0,
+   "run_id": "run_a2992e3ac7eb",
+   "records_dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-23__s1__r0",
+   "discovery_observation": {
+    "learner_a": {
+     "evidence_id": "evidence_9a104f7b28de",
+     "contains_deviation": true
+    },
+    "learner_b": {
+     "evidence_id": "evidence_2d66ddee7734",
+     "contains_deviation": true
+    },
+    "learner_c": {
+     "evidence_id": "evidence_ec627223e7a3",
+     "contains_deviation": true
+    }
+   },
+   "category": "only_other_roles",
+   "factors": [],
+   "hypotheses": {
+    "instructor": {
+     "hypothesis_id": "h:list_scope:submission_mine:instructor",
+     "registered_seq": 17,
+     "source": "llm",
+     "probe": "x:submission_mine:instructor",
+     "state": "refuted",
+     "reason": "prediction_falsified_with_control",
+     "state_seq": 191,
+     "prior_probe": null,
+     "confirm_blocked": null
+    }
+   },
+   "proposals_for_op": [
+    {
+     "phase": "spec",
+     "seq": 19,
+     "role": "instructor",
+     "status": "new",
+     "reason": ""
+    },
+    {
+     "phase": "observed",
+     "seq": 186,
+     "role": "instructor",
+     "status": "duplicate_of_llm",
+     "reason": ""
+    }
+   ],
+   "failed_llm_phases": [],
+   "needed_roles": [
+    "learner_a",
+    "learner_b",
+    "learner_c"
+   ],
+   "tested_roles": [
+    "instructor"
+   ],
+   "run_end_reason": ""
+  },
+  {
+   "case_id": "unseen-amber-23",
+   "flaw_id": "shared_in_mine",
+   "seed": 1,
+   "repeat": 1,
+   "run_id": "run_006bf3bff43e",
+   "records_dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-23__s1__r1",
+   "discovery_observation": {
+    "learner_a": {
+     "evidence_id": "evidence_d72e1238ef51",
+     "contains_deviation": true
+    },
+    "learner_b": {
+     "evidence_id": "evidence_f584c50d59b4",
+     "contains_deviation": true
+    },
+    "learner_c": {
+     "evidence_id": "evidence_cd10515f03ff",
+     "contains_deviation": true
+    }
+   },
+   "category": "only_other_roles",
+   "factors": [],
+   "hypotheses": {
+    "instructor": {
+     "hypothesis_id": "h:list_scope:submission_mine:instructor",
+     "registered_seq": 16,
+     "source": "llm",
+     "probe": "x:submission_mine:instructor",
+     "state": "refuted",
+     "reason": "prediction_falsified_with_control",
+     "state_seq": 190,
+     "prior_probe": null,
+     "confirm_blocked": null
+    }
+   },
+   "proposals_for_op": [
+    {
+     "phase": "spec",
+     "seq": 19,
+     "role": "instructor",
+     "status": "new",
+     "reason": ""
+    }
+   ],
+   "failed_llm_phases": [],
+   "needed_roles": [
+    "learner_a",
+    "learner_b",
+    "learner_c"
+   ],
+   "tested_roles": [
+    "instructor"
+   ],
+   "run_end_reason": ""
+  },
+  {
+   "case_id": "unseen-amber-23",
+   "flaw_id": "shared_in_mine",
+   "seed": 2,
+   "repeat": 0,
+   "run_id": "run_508ed8d0b2b2",
+   "records_dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-23__s2__r0",
+   "discovery_observation": {
+    "learner_a": {
+     "evidence_id": "evidence_7f4c48087d92",
+     "contains_deviation": true
+    },
+    "learner_b": {
+     "evidence_id": "evidence_603f3febc9ea",
+     "contains_deviation": true
+    },
+    "learner_c": {
+     "evidence_id": "evidence_cc0085db6c50",
+     "contains_deviation": true
+    }
+   },
+   "category": "only_other_roles",
+   "factors": [],
+   "hypotheses": {
+    "instructor": {
+     "hypothesis_id": "h:list_scope:submission_mine:instructor",
+     "registered_seq": 16,
+     "source": "llm",
+     "probe": "x:submission_mine:instructor",
+     "state": "refuted",
+     "reason": "prediction_falsified_with_control",
+     "state_seq": 190,
+     "prior_probe": null,
+     "confirm_blocked": null
+    }
+   },
+   "proposals_for_op": [
+    {
+     "phase": "spec",
+     "seq": 19,
+     "role": "instructor",
+     "status": "new",
+     "reason": ""
+    },
+    {
+     "phase": "observed",
+     "seq": 186,
+     "role": "instructor",
+     "status": "duplicate_of_llm",
+     "reason": ""
+    }
+   ],
+   "failed_llm_phases": [],
+   "needed_roles": [
+    "learner_a",
+    "learner_b",
+    "learner_c"
+   ],
+   "tested_roles": [
+    "instructor"
+   ],
+   "run_end_reason": ""
+  },
+  {
+   "case_id": "unseen-amber-23",
+   "flaw_id": "shared_in_mine",
+   "seed": 2,
+   "repeat": 1,
+   "run_id": "run_694cc1b44de3",
+   "records_dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-23__s2__r1",
+   "discovery_observation": {
+    "learner_a": {
+     "evidence_id": "evidence_5fcd8637175d",
+     "contains_deviation": true
+    },
+    "learner_b": {
+     "evidence_id": "evidence_3de20a963270",
+     "contains_deviation": true
+    },
+    "learner_c": {
+     "evidence_id": "evidence_85557c9fb364",
+     "contains_deviation": true
+    }
+   },
+   "category": "found",
+   "factors": [],
+   "hypotheses": {
+    "instructor": {
+     "hypothesis_id": "h:list_scope:submission_mine:instructor",
+     "registered_seq": 16,
+     "source": "llm",
+     "probe": "x:submission_mine:instructor",
+     "state": "refuted",
+     "reason": "prediction_falsified_with_control",
+     "state_seq": 191,
+     "prior_probe": null,
+     "confirm_blocked": null
+    },
+    "learner_b": {
+     "hypothesis_id": "h:list_scope:submission_mine:learner_b",
+     "registered_seq": 18,
+     "source": "llm",
+     "probe": "x:submission_mine:learner_b",
+     "state": "supported",
+     "reason": "grounded_deviation_control_not_required",
+     "state_seq": 193,
+     "prior_probe": null,
+     "confirm_blocked": null
+    }
+   },
+   "proposals_for_op": [
+    {
+     "phase": "spec",
+     "seq": 19,
+     "role": "instructor",
+     "status": "new",
+     "reason": ""
+    },
+    {
+     "phase": "spec",
+     "seq": 19,
+     "role": "learner_b",
+     "status": "new",
+     "reason": ""
+    },
+    {
+     "phase": "observed",
+     "seq": 187,
+     "role": "instructor",
+     "status": "duplicate_of_llm",
+     "reason": ""
+    }
+   ],
+   "failed_llm_phases": [],
+   "needed_roles": [
+    "learner_a",
+    "learner_b",
+    "learner_c"
+   ],
+   "tested_roles": [
+    "instructor",
+    "learner_b"
+   ],
+   "run_end_reason": ""
+  },
+  {
+   "case_id": "unseen-amber-86",
+   "flaw_id": "coordinator_list",
+   "seed": 0,
+   "repeat": 0,
+   "run_id": "run_e10bf3524e77",
+   "records_dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-86__s0__r0",
+   "discovery_observation": {
+    "coordinator": {
+     "evidence_id": "evidence_636837bcdc5b",
+     "contains_deviation": true
+    }
+   },
+   "category": "found",
+   "factors": [],
+   "hypotheses": {
+    "coordinator": {
+     "hypothesis_id": "h:list_scope:application_list:coordinator",
+     "registered_seq": 143,
+     "source": "llm",
+     "probe": "x:application_list:coordinator~c4aa456e9",
+     "state": "supported",
+     "reason": "grounded_deviation_control_not_required",
+     "state_seq": 157,
+     "prior_probe": "x:application_list:coordinator",
+     "confirm_blocked": null
+    }
+   },
+   "proposals_for_op": [
+    {
+     "phase": "observed",
+     "seq": 145,
+     "role": "coordinator",
+     "status": "new",
+     "reason": ""
+    }
+   ],
+   "failed_llm_phases": [],
+   "needed_roles": [
+    "coordinator"
+   ],
+   "tested_roles": [
+    "coordinator"
+   ],
+   "run_end_reason": ""
+  },
+  {
+   "case_id": "unseen-amber-86",
+   "flaw_id": "coordinator_list",
+   "seed": 0,
+   "repeat": 1,
+   "run_id": "run_47597724aea5",
+   "records_dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-86__s0__r1",
+   "discovery_observation": {
+    "coordinator": {
+     "evidence_id": "evidence_d01c51e16107",
+     "contains_deviation": true
+    }
+   },
+   "category": "only_other_roles",
+   "factors": [],
+   "hypotheses": {
+    "member_a": {
+     "hypothesis_id": "h:list_scope:application_list:member_a",
+     "registered_seq": 16,
+     "source": "llm",
+     "probe": "x:application_list:member_a",
+     "state": "refuted",
+     "reason": "prediction_falsified_with_control",
+     "state_seq": 148,
+     "prior_probe": null,
+     "confirm_blocked": null
+    }
+   },
+   "proposals_for_op": [
+    {
+     "phase": "spec",
+     "seq": 18,
+     "role": "member_a",
+     "status": "new",
+     "reason": ""
+    }
+   ],
+   "failed_llm_phases": [],
+   "needed_roles": [
+    "coordinator"
+   ],
+   "tested_roles": [
+    "member_a"
+   ],
+   "run_end_reason": ""
+  },
+  {
+   "case_id": "unseen-amber-86",
+   "flaw_id": "coordinator_list",
+   "seed": 1,
+   "repeat": 0,
+   "run_id": "run_6b47bf3ea1cb",
+   "records_dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-86__s1__r0",
+   "discovery_observation": {
+    "coordinator": {
+     "evidence_id": "evidence_a072c224e3cc",
+     "contains_deviation": true
+    }
+   },
+   "category": "found",
+   "factors": [],
+   "hypotheses": {
+    "coordinator": {
+     "hypothesis_id": "h:list_scope:application_list:coordinator",
+     "registered_seq": 145,
+     "source": "llm",
+     "probe": "x:application_list:coordinator~c4aa456e9",
+     "state": "supported",
+     "reason": "grounded_deviation_control_not_required",
+     "state_seq": 160,
+     "prior_probe": "x:application_list:coordinator",
+     "confirm_blocked": null
+    },
+    "member_a": {
+     "hypothesis_id": "h:list_scope:application_list:member_a",
+     "registered_seq": 16,
+     "source": "llm",
+     "probe": "x:application_list:member_a",
+     "state": "refuted",
+     "reason": "prediction_falsified_with_control",
+     "state_seq": 149,
+     "prior_probe": null,
+     "confirm_blocked": null
+    }
+   },
+   "proposals_for_op": [
+    {
+     "phase": "spec",
+     "seq": 18,
+     "role": "member_a",
+     "status": "new",
+     "reason": ""
+    },
+    {
+     "phase": "observed",
+     "seq": 146,
+     "role": "coordinator",
+     "status": "new",
+     "reason": ""
+    }
+   ],
+   "failed_llm_phases": [],
+   "needed_roles": [
+    "coordinator"
+   ],
+   "tested_roles": [
+    "coordinator",
+    "member_a"
+   ],
+   "run_end_reason": ""
+  },
+  {
+   "case_id": "unseen-amber-86",
+   "flaw_id": "coordinator_list",
+   "seed": 1,
+   "repeat": 1,
+   "run_id": "run_24e877fe3ab3",
+   "records_dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-86__s1__r1",
+   "discovery_observation": {
+    "coordinator": {
+     "evidence_id": "evidence_905417b076a3",
+     "contains_deviation": true
+    }
+   },
+   "category": "found",
+   "factors": [],
+   "hypotheses": {
+    "coordinator": {
+     "hypothesis_id": "h:list_scope:application_list:coordinator",
+     "registered_seq": 16,
+     "source": "llm",
+     "probe": "x:application_list:coordinator",
+     "state": "supported",
+     "reason": "grounded_deviation_control_not_required",
+     "state_seq": 148,
+     "prior_probe": null,
+     "confirm_blocked": null
+    }
+   },
+   "proposals_for_op": [
+    {
+     "phase": "spec",
+     "seq": 18,
+     "role": "coordinator",
+     "status": "new",
+     "reason": ""
+    },
+    {
+     "phase": "observed",
+     "seq": 145,
+     "role": "coordinator",
+     "status": "duplicate_of_llm",
+     "reason": ""
+    }
+   ],
+   "failed_llm_phases": [],
+   "needed_roles": [
+    "coordinator"
+   ],
+   "tested_roles": [
+    "coordinator"
+   ],
+   "run_end_reason": ""
+  },
+  {
+   "case_id": "unseen-amber-86",
+   "flaw_id": "coordinator_list",
+   "seed": 2,
+   "repeat": 0,
+   "run_id": "run_df6c47ba12da",
+   "records_dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-86__s2__r0",
+   "discovery_observation": {
+    "coordinator": {
+     "evidence_id": "evidence_3f6dcdbc68dd",
+     "contains_deviation": true
+    }
+   },
+   "category": "found",
+   "factors": [],
+   "hypotheses": {
+    "coordinator": {
+     "hypothesis_id": "h:list_scope:application_list:coordinator",
+     "registered_seq": 16,
+     "source": "llm",
+     "probe": "x:application_list:coordinator",
+     "state": "supported",
+     "reason": "grounded_deviation_control_not_required",
+     "state_seq": 149,
+     "prior_probe": null,
+     "confirm_blocked": null
+    },
+    "member_a": {
+     "hypothesis_id": "h:list_scope:application_list:member_a",
+     "registered_seq": 17,
+     "source": "llm",
+     "probe": "x:application_list:member_a",
+     "state": "refuted",
+     "reason": "prediction_falsified_with_control",
+     "state_seq": 150,
+     "prior_probe": null,
+     "confirm_blocked": null
+    }
+   },
+   "proposals_for_op": [
+    {
+     "phase": "spec",
+     "seq": 19,
+     "role": "coordinator",
+     "status": "new",
+     "reason": ""
+    },
+    {
+     "phase": "spec",
+     "seq": 19,
+     "role": "member_a",
+     "status": "new",
+     "reason": ""
+    }
+   ],
+   "failed_llm_phases": [],
+   "needed_roles": [
+    "coordinator"
+   ],
+   "tested_roles": [
+    "coordinator",
+    "member_a"
+   ],
+   "run_end_reason": ""
+  },
+  {
+   "case_id": "unseen-amber-86",
+   "flaw_id": "coordinator_list",
+   "seed": 2,
+   "repeat": 1,
+   "run_id": "run_497b0652cb92",
+   "records_dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-86__s2__r1",
+   "discovery_observation": {
+    "coordinator": {
+     "evidence_id": "evidence_e14d0fe91955",
+     "contains_deviation": true
+    }
+   },
+   "category": "parse_failure",
+   "factors": [
+    "parse_failure_in_observed",
+    "other_roles_only"
+   ],
+   "hypotheses": {
+    "member_a": {
+     "hypothesis_id": "h:list_scope:application_list:member_a",
+     "registered_seq": 16,
+     "source": "llm",
+     "probe": "x:application_list:member_a",
+     "state": "refuted",
+     "reason": "prediction_falsified_with_control",
+     "state_seq": 148,
+     "prior_probe": null,
+     "confirm_blocked": null
+    }
+   },
+   "proposals_for_op": [
+    {
+     "phase": "spec",
+     "seq": 18,
+     "role": "member_a",
+     "status": "new",
+     "reason": ""
+    }
+   ],
+   "failed_llm_phases": [
+    {
+     "phase": "observed",
+     "seq": 145,
+     "why": "invalid_json"
+    }
+   ],
+   "needed_roles": [
+    "coordinator"
+   ],
+   "tested_roles": [
+    "member_a"
+   ],
+   "run_end_reason": ""
+  }
+ ]
+}

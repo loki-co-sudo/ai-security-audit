@@ -728,3 +728,59 @@ U4（重複確認の抑制）は§9で完了。凍結条件・評価ランナー
 - 未知の型（語彙外）の欠陥の発見は、引き続き未実証。登録後の検証は同じ操作の再測定で、独立した再現確認ではない。
 - この3件は評価に使用済み。結果を見て調整した場合、この3件は回帰確認用になり、次の検証には新しいケースが要る。
 **完成の指標（受け入れ条件）**: 安全ゲート＝今回の評価条件内で達成（探索的）／LLM提案の寄与＝採用基準未達（2回の未使用評価で +0.139）／再計画の寄与＝再現率への寄与なし（重複削減は成果）／型の外の欠陥の発見＝rules では未達（LLM提案経由で一部）／登録後の検証ループ＝実LLMで動作を記録から確認／未知の型の発見＝未実証。
+
+## 17. 自律発見能力の現状整理・見逃しの原因分析・改善（2026-10-24〜・ひろ不在中の作業パッケージ）
+作業ブランチで区切りごとに検証・コミット。**新たな有料LLM呼出しは行わない**（保存済み出力・モック・決定論的な試験・ローカル環境のみ）。評価済みの `unseen-cobalt-*`・`unseen-amber-*` は回帰・事後分析用（公開仕様・正解・被験環境・作成者側ファイルを開発者が事後分析のために読むことを、ひろと作成者が許可。調査システムの入力・プロンプト・実行環境には渡していない）。未使用の別ケースにはアクセスしていない。
+
+### 17.1 amber 評価記録の保全（実施済み）
+- 保管先（git管理外・リポジトリ外）: `/home/loki/archives/ai-security-audit/amber_eval_2026-10-24/`（`amber_eval_2026-10-24.tar.gz`・`MANIFEST.sha256`・`RESTORE.md`・`archive_info.json`）。内容: 実行ごとのジャーナル・RunStore・証拠（63実行）、結果ファイル、凍結条件（stage4_r3）、使用記録、案件・正解・被験環境・作成者側ファイルのコピー（計2,722ファイル）。
+- アーカイブの SHA-256: `c551305b20574b5a78eb8eb0aa528efea5d982e0482ae3a06b8bfb595648b6e5`／`MANIFEST.sha256` の SHA-256: `a9d1290374fb4c509c9ebc1849b261e4b4b7da24cff904ef6ea9c57faab243c7`。
+- **原本は変更していない**: 作成の前後で原本ディレクトリ全体のハッシュが一致（`c0684757…f575b`）。作成中の変化は、ツールが検出する設計。
+- **検証**: 別の一時ディレクトリへ展開し、2,722ファイルのハッシュが全て一致、欠落0。結果ファイルが参照する 63 本のジャーナルがすべて解決し、証拠参照 194 件がすべて解決、`trace` の登録seq・計画seq 109 件がジャーナルと一致。**記録不足は無かった**（`runs_without_records`=0）。
+- 再現手順: `tools/research_records_archive.py create|verify`（`RESTORE.md` にも記載）。固定試験 `RecordsArchiveTest`（原本不変・改ざん／欠落の検出・リポジトリ内への保存の拒否）。
+- **同じディスク上の複製は、別媒体へのバックアップではない**（ディスク故障・誤削除で原本と一緒に失われうる）。外部サービスへはアップロードしていない。証拠本文・認証情報・個人情報はgitに入れていない（`reports/stage2_records/` は `.gitignore`）。リポジトリに残したのは、このツール・試験・本節の保全結果だけ。
+- 過去の実行（`unseen-cobalt-*` の評価、事後サンプル）は、ジャーナルが残っておらず、再現できたことにはしていない（§12.2・§15.9）。
+
+### 17.3 list_scope の見逃し 7 件の原因分析（保存記録＋正解・環境の差分。LLM呼出し0）
+手順: ①`tools/research_miss_analysis.py` で、欠陥が成立する役割（flaw-effective roles）を、**同じ seed で欠陥を有効／無効にした環境に同じ GET を送って応答が変わる役割**として機械的に特定した。②LLM方式の 12 実行（list_scope の欠陥×実行）を、保存したジャーナルで分類した（`testlab/baselines/research_miss_analysis_amber_llm_list_scope_2026-10-24.json`）。「同じ操作の別ロールを試した」は『欠陥が成立する条件で検証した』に数えない。
+
+**欠陥が成立する役割（差分で確認した事実）**: amber-23 `submission_mine`（閲覧条件 `owner`）＝`learner_a`／`learner_b`／`learner_c`（各自に他人から共有された提出物がある）。`instructor` は共有された提出物が無く、成立しない。amber-86 `application_list`（`owner`）＝`coordinator` だけ。
+
+| 案件 | 実行 | 記録 | 分類 | 登録した仮説（出どころ・登録seq→状態） | LLMの提案（段階:役割:結果・seq） | LLM失敗 |
+|---|---|---|---|---|---|---|
+| 23 | s0r0 | `llm__unseen-amber-23__s0__r0` | only_other_roles | instructor(llm,登録seq 16→refuted) | spec:instructor:new(seq 19), observed:instructor:duplicate_of_llm(seq 186) | なし |
+| 23 | s0r1 | `llm__unseen-amber-23__s0__r1` | only_other_roles | instructor(llm,登録seq 16→refuted) | spec:instructor:new(seq 19), observed:instructor:duplicate_of_llm(seq 187) | なし |
+| 23 | s1r0 | `llm__unseen-amber-23__s1__r0` | only_other_roles | instructor(llm,登録seq 17→refuted) | spec:instructor:new(seq 19), observed:instructor:duplicate_of_llm(seq 186) | なし |
+| 23 | s1r1 | `llm__unseen-amber-23__s1__r1` | only_other_roles | instructor(llm,登録seq 16→refuted) | spec:instructor:new(seq 19) | なし |
+| 23 | s2r0 | `llm__unseen-amber-23__s2__r0` | only_other_roles | instructor(llm,登録seq 16→refuted) | spec:instructor:new(seq 19), observed:instructor:duplicate_of_llm(seq 186) | なし |
+| 23 | s2r1 | `llm__unseen-amber-23__s2__r1` | found | instructor(llm,登録seq 16→refuted), learner_b(llm,登録seq 18→supported) | spec:instructor:new(seq 19), spec:learner_b:new(seq 19), observed:instructor:duplicate_of_llm(seq 187) | なし |
+| 86 | s0r0 | `llm__unseen-amber-86__s0__r0` | found | coordinator(llm,登録seq 143→supported) | observed:coordinator:new(seq 145) | なし |
+| 86 | s0r1 | `llm__unseen-amber-86__s0__r1` | only_other_roles | member_a(llm,登録seq 16→refuted) | spec:member_a:new(seq 18) | なし |
+| 86 | s1r0 | `llm__unseen-amber-86__s1__r0` | found | coordinator(llm,登録seq 145→supported), member_a(llm,登録seq 16→refuted) | spec:member_a:new(seq 18), observed:coordinator:new(seq 146) | なし |
+| 86 | s1r1 | `llm__unseen-amber-86__s1__r1` | found | coordinator(llm,登録seq 16→supported) | spec:coordinator:new(seq 18), observed:coordinator:duplicate_of_llm(seq 145) | なし |
+| 86 | s2r0 | `llm__unseen-amber-86__s2__r0` | found | coordinator(llm,登録seq 16→supported), member_a(llm,登録seq 17→refuted) | spec:coordinator:new(seq 19), spec:member_a:new(seq 19) | なし |
+| 86 | s2r1 | `llm__unseen-amber-86__s2__r1` | parse_failure | member_a(llm,登録seq 16→refuted) | spec:member_a:new(seq 18) | observed:invalid_json(seq 145) |
+
+**集計（12実行）**: 見つけた 5（amber-23: 1、amber-86: 4）／別ロールだけを試した 6（amber-23: 5、amber-86: 1）／解析失敗で取り込めない 1（amber-86）。成立する役割の仮説を登録して確定しなかった実行、提案が具体化・検証器で却下された実行は **0 件**。予算不足・確認枠不足（枠の消費は18実行で9、どのRunも上限6に達していない）・対照／確認の未完了・証拠不足・判定不能も 0 件。
+
+**実際の記録で確認した事実**
+1. **12実行すべてで、探索（discovery）の観測に、成立する役割の逸脱がすでに含まれていた**。探索の `GET` の証拠（例: amber-23 s0r0 の `learner_a` の `submission_mine` は 3 件で、うち 2 件が別の著者の提出物）が、欠陥を有効にした環境の応答と一致した。つまり**観測は足りていた**。見逃しは、観測の不足ではなく、『どの役割を仮説にするか』の選択に起因する。
+2. amber-23 の見逃し 5 件は、LLM が提案した `list_visibility` が `instructor`（管理者権限）だけだった（仕様段階で `instructor`、観測後の段階でも同じ `instructor` を重複提案＝4 件で `duplicate_of_llm`）。
+3. その `instructor` の仮説は『棄却（prediction_falsified_with_control）』になったが、**`instructor` の一覧は空（0件、証拠 `evidence_31639ef11bef`）**だった。空の一覧は誤りようが無いので、この棄却は**何も検証していない**（vacuous）。
+4. amber-86 の見逃しのうち s0r1 は、仕様段階で `member_a` だけを提案、観測後の段階では `list_visibility` を提案しなかった（`fields_subset` が却下された）。s2r1 は、仕様段階で `member_a` だけを提案し、観測後の段階の返答が **`invalid_json`（出力トークンが上限800に達した）**で取り込めなかった。
+5. LLM 呼出し 36 回のうち、解析失敗は 2 回（amber-86 s2r1 と、正常版の amber-51）。**2 回とも出力トークンが上限（800）に達していた**。上限に達しても有効なJSONだった呼出しは 9 回。
+
+**コード解析で分かること**
+- C1: 観測後の段階のプロンプト（`research_llm.build_messages`）は、観測した各オブジェクトの『所有者・共有先』を並べるだけで、**どの役割の一覧にどのオブジェクトが含まれたか**（`TargetModel` が `seen_via` として保持している）も、**既に検証した仮説の状態**も渡さない（再構成したプロンプトで確認）。システムが持つ観測が、LLM に届いていない。
+- C2: `parse_reply` は、返答が途中で切れていると（出力上限での打ち切り）、**完全に書かれていた提案を含めて全体を捨てる**。
+- C3: 一覧の評価（`_eval_list_visibility`）は、空の一覧を『正常（逸脱なし）』→ 仮説は『棄却』と扱う。他の検査（`deny_expected` の空の本文は `200_without_marker` で判定不能）とは扱いが違う。
+- C4: 規則（`propose()`）には list_scope が無い。これは設計上の能力範囲の制限で、不具合ではない（能力が十分であることを意味しない）。
+
+**推測（確認していない）**
+- I1: LLM は『管理者権限のロールを疑う』傾向がある可能性（amber-23 は外れ、amber-86 は当たり）。2案件のサンプルでは断定できない。
+- I2: 観測後の段階で、一覧ごとの『他人の要素の件数』を見せれば、LLM が成立する役割を選ぶ可能性がある。**LLMの挙動は、実LLMでの検証が無いため未実証**。
+- I3: 解析失敗の救済が見逃しを減らすかは不明（保存した記録に返答本文が無く、失われた提案の内容は分からない。amber-86 s2r1 は、仕様段階でも成立する役割の提案が無かった）。
+
+**正解側の誤り・曖昧さ**: 見つからなかった（`flaw-effective roles` は正解の記述と一致）。訂正候補なし。
+
+**cobalt と amber の比較について**: `unseen-cobalt-*` の初回評価（修正前のコード）、その後の事後サンプル（確認ループ導入前後の別条件）、`unseen-amber-*` の評価（`research-stage1/5`・凍結 stage4_r3）は、**版・条件が異なる**。LLM の list_scope の発見率（cobalt 事後サンプル 10/12・amber 5/12）を、案件の差だけの証拠にしない。

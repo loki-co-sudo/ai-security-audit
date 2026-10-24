@@ -2142,6 +2142,54 @@ class RecordsArchiveTest(unittest.TestCase):
             self.assertFalse(os.path.exists(os.path.join(ROOT, "reports", "archive_should_not_exist")))
 
 
+class MissAnalysisTest(unittest.TestCase):
+    """見逃しの事後分析ツール（評価済みケースだけに使う開発者向けの道具）。成立する役割の特定と、実行ごとの分類を固定する。"""
+
+    FLAW = {"flaw_id": "f", "family": "list_scope", "op_id": "docs_list", "spec_grounded": True, "reachable": True}
+
+    def _ev(self, regs=(), updates=(), llm=()):
+        ev, seq = [], 0
+        for role, source in regs:
+            seq += 1
+            ev.append({"type": "hypothesis_registered", "seq": seq, "family": "list_scope", "op_id": "docs_list", "probe_role": role,
+                       "hypothesis_id": f"h:list_scope:docs_list:{role}", "source": source, "probe": {"exp_id": f"x:docs_list:{role}"}})
+        for role, st, why in updates:
+            seq += 1
+            ev.append({"type": "hypothesis_updated", "seq": seq, "hypothesis_id": f"h:list_scope:docs_list:{role}", "to_state": st, "reason": why})
+        for e in llm:
+            seq += 1
+            ev.append({"type": "llm_proposals", "seq": seq, **e})
+        return ev
+
+    def test_effective_roles_are_measured_not_guessed(self):
+        from tools.research_miss_analysis import effective_roles
+        case = load_blind_case(os.path.join(CASES, "blind-docs-02.json"))
+        truth = truth_of("blind-docs-02")
+        flaw = next(f for f in truth["flaws"] if f["family"] == "list_scope")
+        eff = effective_roles(case, truth, flaw, 3)
+        self.assertEqual(sorted(eff), ["admin"])                                              # 欠陥を有効／無効にして応答が変わる役割だけ
+        self.assertNotEqual(eff["admin"]["flawed"], eff["admin"]["clean"])
+
+    def test_classification_never_counts_other_roles_as_the_needed_condition(self):
+        from tools.research_miss_analysis import classify_run
+        eff = {"admin": {"flawed": "x", "clean": "y"}}
+        mk = lambda **kw: classify_run(self.FLAW, eff, self._ev(**kw), False, "budget_exhausted")["category"]  # noqa: E731
+        self.assertEqual(classify_run(self.FLAW, eff, self._ev(regs=[("admin", "llm")], updates=[("admin", "supported", "x")]), True, "")["category"], "found")
+        self.assertEqual(mk(regs=[("bob", "llm")], updates=[("bob", "refuted", "prediction_falsified_with_control")]), "only_other_roles")
+        self.assertEqual(mk(), "no_proposal")
+        self.assertEqual(mk(llm=[{"phase": "observed", "parse_error": "invalid_json"}]), "parse_failure")
+        self.assertEqual(mk(regs=[("bob", "llm")], llm=[{"phase": "observed", "parse_error": "invalid_json"}]), "parse_failure")
+        c = classify_run(self.FLAW, eff, self._ev(regs=[("bob", "llm")], llm=[{"phase": "observed", "parse_error": "invalid_json"}]), False, "")
+        self.assertIn("other_roles_only", c["factors"])                                       # 解析失敗でも、別ロールだけだった事実を残す
+        self.assertEqual(mk(llm=[{"phase": "spec", "results": [{"op_id": "docs_list", "check": "list_visibility", "probe_role": "admin",
+                                                               "status": "rejected", "reason": "role_session_invalid"}]}]), "rejected_at_concretization")
+        self.assertEqual(mk(llm=[{"phase": "spec", "results": [{"op_id": "docs_list", "check": "list_visibility", "probe_role": "admin",
+                                                               "status": "rejected", "reason": "validator:x"}]}]), "rejected_by_validator")
+        self.assertEqual(mk(regs=[("admin", "llm")]), "hypothesis_state:registered:")          # 必要な役割の仮説を登録したが確定しない
+        self.assertEqual(mk(regs=[("admin", "llm")], updates=[("admin", "refuted", "prediction_falsified_with_control")]),
+                         "hypothesis_state:refuted:prediction_falsified_with_control")
+
+
 class LlmFailureAnalysisTest(unittest.TestCase):
     """LLM方式の失敗箇所の事後分析（報告専用）。手作りのジャーナルイベントで、各分類へ入ることを固定する。"""
 
