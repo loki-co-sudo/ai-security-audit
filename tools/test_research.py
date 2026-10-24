@@ -1320,6 +1320,161 @@ class DiagnosisReportTest(unittest.TestCase):
         self.assertTrue(all(v["category"] in __import__("testlab.lab.blind_grader", fromlist=["x"]).TAXONOMY_ORDER for v in d.values()))
 
 
+class ListScopeSemanticsTest(unittest.TestCase):
+    """list_scope（一覧に見えるはずのない要素）の整理: 見えてよい条件を型から1つ決め、claim・予測・反証条件・判定を揃える。
+    所有者のみの一覧と、共有先を持つ型の一覧を混同しない。情報不足（共有先/所有者の項目が無い・null・本文不完全・利用者ID不明）を
+    正常にも確定にもしない。ケースID・ドメイン名による分岐は無い。"""
+    LIB = os.path.join(ROOT, "testlab", "lab", "unseen", "TEMPLATE_case.json")       # 所有者のみの一覧（loan に shared_field なし）
+
+    def _own(self, drop_owner=False):
+        with open(self.LIB, encoding="utf-8") as f:
+            doc = json.load(f)
+        if drop_owner:
+            doc["spec"]["objects"]["loan"].pop("owner_field")
+        m = TargetModel(parse_blind_case(doc))
+        for r, u in (("reader1", "m1"), ("reader2", "m2"), ("librarian", "m3")):
+            m.identity[r] = {"user_id": u, "exp_id": "x", "evidence_id": None}
+        return m
+
+    def _shared(self):
+        return synthetic_model()                                                      # docs に owner_field と shared_field
+
+    @staticmethod
+    def _res(js, complete=True, code=200):
+        return ExpResult("x", code, json=js, body_complete=complete)
+
+    def _ev(self, m, role, js, **kw):
+        op = next(o for o in m.case.operations.values() if o.access["kind"] == "own_list")
+        h, why = rh.build_list_scope(m, op, role)
+        self.assertEqual(why, "")
+        return rh.evaluate_check(h.check, self._res(js, **kw), m)
+
+    def test_owner_only_type_is_hypothesizable_and_texts_agree_with_the_check(self):
+        m = self._own()
+        op = m.case.operations["loans_list"]
+        h, why = rh.build_list_scope(m, op, "librarian")
+        self.assertEqual((why, rh.validate_hypothesis(h, m)), ("", []))
+        self.assertEqual(h.check["visible_via"], ["owner"])
+        for text in (h.claim, h.prediction_if_true, h.falsification):
+            self.assertNotIn("共有", text)
+        ms = self._shared()
+        hs, _ = rh.build_list_scope(ms, ms.case.operations["docs_list"], "admin")
+        self.assertEqual(hs.check["visible_via"], ["owner", "shared"])
+        for text in (hs.claim, hs.prediction_if_true, hs.falsification):
+            self.assertIn("共有", text)
+
+    def test_owner_field_is_required_not_shared_field(self):
+        m = self._own(drop_owner=True)
+        self.assertEqual(rh.build_list_scope(m, m.case.operations["loans_list"], "librarian"), (None, "object_schema_lacks_owner"))
+
+    def test_owner_only_matrix(self):
+        m = self._own()
+        mine, other = {"id": "l1", "member": "m3"}, {"id": "l2", "member": "m1"}
+        self.assertEqual(self._ev(m, "librarian", [mine])[:2], (rh.CONFORMS, "only_visible_items"))
+        self.assertEqual(self._ev(m, "librarian", [mine, other])[:3], (rh.DEVIATES, "foreign_items_listed", ["foreign_items=1"]))
+        # 共有先を持たない型では、他人の要素に共有先らしい項目があっても『見えてよい』にならない
+        self.assertEqual(self._ev(m, "librarian", [{**other, "shared_with": ["m3"]}])[0], rh.DEVIATES)
+        self.assertEqual(self._ev(m, "librarian", [])[:2], (rh.CONFORMS, "empty_list_visible_only"))       # 正常な空一覧
+        self.assertEqual(self._ev(m, "librarian", [], complete=False)[0], rh.INCONCLUSIVE)               # 不完全な空は正常にしない
+        self.assertEqual(self._ev(m, "librarian", [mine], complete=False)[0], rh.INCONCLUSIVE)           # 不完全な本文
+        self.assertEqual(self._ev(m, "librarian", [other], complete=False)[0], rh.DEVIATES)              # 読めた範囲の逸脱は成立
+        self.assertEqual(self._ev(m, "librarian", [{"id": "l1", "member": None}])[:2], (rh.INCONCLUSIVE, "visibility_undeterminable"))
+        self.assertEqual(self._ev(m, "librarian", [{"id": "l1"}])[:2], (rh.INCONCLUSIVE, "owner_field_missing"))
+        r = self._ev(m, "librarian", [other, {"id": "l3", "member": None}])
+        self.assertEqual((r[0], r[2]), (rh.DEVIATES, ["foreign_items=1", "undetermined_items=1"]))        # 判断不能は逸脱の件数に混ぜない
+        m.identity.pop("librarian")
+        op = m.case.operations["loans_list"]
+        h, _ = rh.build_list_scope(m, op, "librarian")
+        self.assertEqual(rh.evaluate_check(h.check, self._res([mine]), m)[:2], (rh.INCONCLUSIVE, "identity_unknown"))
+
+    def test_shared_type_matrix_does_not_turn_missing_information_into_a_deviation(self):
+        m = self._shared()                                                             # carol=u3
+        mine = {"id": "d9", "owner": "u3", "shared_with": []}
+        shared_to_me = {"id": "d8", "owner": "u1", "shared_with": ["u3"]}
+        not_mine = {"id": "d1", "owner": "u1", "shared_with": ["u2"]}
+        self.assertEqual(self._ev(m, "carol", [mine, shared_to_me])[:2], (rh.CONFORMS, "only_visible_items"))      # 共有された他人の要素
+        self.assertEqual(self._ev(m, "carol", [mine, not_mine])[0], rh.DEVIATES)
+        no_field = {"id": "d1", "owner": "u1"}                                          # 共有先の項目が応答に無い
+        self.assertEqual(self._ev(m, "carol", [no_field])[:2], (rh.INCONCLUSIVE, "visibility_undeterminable"))
+        self.assertEqual(self._ev(m, "carol", [{**no_field, "shared_with": None}])[0], rh.INCONCLUSIVE)           # null（ダイジェストで落ちた）
+        self.assertEqual(self._ev(m, "carol", [mine, no_field], complete=False)[0], rh.INCONCLUSIVE)
+        self.assertEqual(self._ev(m, "carol", [not_mine, no_field])[0], rh.DEVIATES)                              # 確かな逸脱は成立
+        self.assertEqual(self._ev(m, "carol", [{"id": "d9", "owner": None, "shared_with": []}])[0], rh.INCONCLUSIVE)
+
+    def test_state_never_becomes_supported_or_refuted_from_missing_information(self):
+        m = self._shared()
+        h, _ = rh.build_list_scope(m, m.case.operations["docs_list"], "carol")
+        no_field = [{"id": "d1", "owner": "u1"}]
+        st = rh.hyp_state(h, {h.probe.exp_id: self._res(no_field)}, m)
+        self.assertEqual(st[0], rh.S_UNDETERMINED)
+        st = rh.hyp_state(h, {h.probe.exp_id: self._res([{"id": "d1", "owner": "u1", "shared_with": ["u2"]}])}, m)
+        self.assertEqual(st[0], rh.S_SUPPORTED)
+        st = rh.hyp_state(h, {h.probe.exp_id: self._res([], complete=False)}, m)
+        self.assertEqual(st[0], rh.S_UNDETERMINED)
+
+    def test_validator_rejects_a_condition_that_disagrees_with_the_spec_type(self):
+        m = self._own()
+        h, _ = rh.build_list_scope(m, m.case.operations["loans_list"], "librarian")
+        h.check = dict(h.check, visible_via=["owner", "shared"])
+        self.assertIn("list_visibility_condition_mismatch", rh.validate_hypothesis(h, m))
+        h.check = {k: v for k, v in h.check.items() if k != "visible_via"}                 # 古いジャーナル（条件の記録なし）は型から導く
+        self.assertEqual(rh.validate_hypothesis(h, m), [])
+
+    def test_llm_proposal_for_owner_only_list_is_accepted(self):
+        from core.autonomy.research_llm import process_proposal
+        m = self._own()
+        p = {"check": "list_visibility", "op_id": "loans_list", "probe_role": "librarian", "basis_clause": "S-3", "rationale": "x"}
+        status, reason, h = process_proposal(m.case, m, p)
+        self.assertEqual((status, reason, h.source), ("new", "", "llm"))
+
+    def _run_library(self, flaws):
+        import importlib
+        mod = importlib.import_module("testlab.lab.unseen.TEMPLATE_app")
+
+        class Leaky(mod.App):
+            def route(self, path, q, role, n_prev):
+                if path.rstrip("/") == "/api/loans" and role == "librarian" and "librarian_sees_all" in self.flaws:
+                    return 200, {}, json.dumps(list(self.loans.values()))
+                return super().route(path, q, role, n_prev)
+
+        case = load_blind_case(self.LIB)
+        roles = sorted(case.accounts)
+
+        class Proposer:
+            calls = 0
+
+            def complete(self, messages, max_tokens=None, usage_out=None):
+                Proposer.calls += 1
+                if usage_out is not None:
+                    usage_out.update({"input_tokens": 10, "output_tokens": 10})
+                return json.dumps({"proposals": [{"check": "list_visibility", "op_id": "loans_list", "probe_role": r,
+                                                  "basis_clause": "S-3", "rationale": "x"} for r in roles]})
+        canary = CanaryServer().start()
+        try:
+            with tempfile.TemporaryDirectory() as td, Leaky(canary=canary, flaws=frozenset(flaws), seed=1) as app:
+                res = run_research_case(case, app.base_url, app.credentials(), journal_root=td + "/j", evidence_root=td + "/e",
+                                        budget_override={"max_llm_calls": 2}, llm=Proposer()).to_dict()
+                ev = replay(res["run_id"], td + "/j").events
+        finally:
+            canary.stop()
+        return res, ev
+
+    def test_end_to_end_owner_only_list_with_llm_proposal(self):
+        res, ev = self._run_library({"librarian_sees_all"})
+        found = {(f["family"], f["op_id"], f["location"].split("role=")[-1]) for f in res["findings"]}
+        self.assertIn(("list_scope", "loans_list", "librarian"), found)
+        self.assertFalse([f for f in found if f[0] == "list_scope" and f[2] != "librarian"])         # 他のアカウントでは確定しない
+        h = next(h for h in res["hypotheses"] if h["hypothesis_id"] == "h:list_scope:loans_list:librarian")
+        self.assertEqual(h["source"], "llm")
+        reg = _ev(ev, "hypothesis_registered", hypothesis_id=h["hypothesis_id"])[0]
+        self.assertEqual(reg["check"]["visible_via"], ["owner"])
+        planned = _ev(ev, "experiment_planned", exp_id=reg["probe"]["exp_id"])
+        self.assertTrue(planned and reg["seq"] < planned[0]["seq"])                                  # 予測の登録が実験より前
+        res2, _ = self._run_library(set())
+        self.assertFalse([f for f in res2["findings"] if f["family"] == "list_scope"])                # 正常な環境では確定しない
+        self.assertIn("h:list_scope:loans_list:librarian", {r["hypothesis_id"] for r in res2["refuted"]})
+
+
 class LlmFailureAnalysisTest(unittest.TestCase):
     """LLM方式の失敗箇所の事後分析（報告専用）。手作りのジャーナルイベントで、各分類へ入ることを固定する。"""
 
@@ -1374,17 +1529,29 @@ class LlmFailureAnalysisTest(unittest.TestCase):
 
     def test_proposal_oracle_separates_pipeline_capability_from_llm_ability(self):
         from tools import research_proposal_oracle as po
+
+        def put(td, name, doc):
+            with open(os.path.join(td, name + ".json"), "w", encoding="utf-8") as fh:
+                json.dump(doc, fh)
+
         with tempfile.TemporaryDirectory() as td:
-            raw = json.load(open(os.path.join(ROOT, "testlab", "lab", "blind_cases", "blind-docs-01.json"), encoding="utf-8"))
-            json.dump(raw, open(os.path.join(td, "with_shared.json"), "w", encoding="utf-8"))
-            for o in raw["spec"]["objects"].values():
+            doc = raw("blind-docs-01")
+            put(td, "with_shared", doc)
+            no_shared = copy.deepcopy(doc)
+            for o in no_shared["spec"]["objects"].values():
                 o.pop("shared_field", None)
-            raw["case_id"] = "no_shared"
-            json.dump(raw, open(os.path.join(td, "no_shared.json"), "w", encoding="utf-8"))
-            with_s = po.check_case("with_shared", td)
-            no_s = po.check_case("no_shared", td)
+            no_shared["case_id"] = "no_shared"
+            put(td, "no_shared", no_shared)
+            no_owner = copy.deepcopy(no_shared)
+            for o in no_owner["spec"]["objects"].values():
+                o.pop("owner_field", None)
+            no_owner["case_id"] = "no_owner"
+            put(td, "no_owner", no_owner)
+            with_s, no_s, no_o = (po.check_case(c, td) for c in ("with_shared", "no_shared", "no_owner"))
         self.assertTrue(with_s and all(r["status"] == "new" for r in with_s))
-        self.assertTrue(no_s and all(r["status"] == "rejected" and r["reason"] == "object_schema_lacks_owner_or_shared" for r in no_s))
+        # 共有先の項目が無い型でも、所有者のみの一覧として具体化できる（2026-10-24に契約変更。旧: 却下 object_schema_lacks_owner_or_shared）
+        self.assertTrue(no_s and all(r["status"] == "new" for r in no_s))
+        self.assertTrue(no_o and all(r["status"] == "rejected" and r["reason"] == "object_schema_lacks_owner" for r in no_o))
 
 
 if __name__ == "__main__":

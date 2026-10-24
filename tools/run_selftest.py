@@ -3247,7 +3247,7 @@ def test_research_stage1():
     result = unittest.TestResult()
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c) for c in (
         t.CaseContractTest, t.HypothesisLogicTest, t.RunnerExtensionTest, t.ResearchE2ETest, t.ResearchBoundaryTest,
-        t.ResearchReportTest, t.ListVisibilityCheckTest, t.ResearchLlmTest, t.ResearchResumeTest, t.ResearchCliTest, t.DuplicateDeferralTest, t.StrategyTest, t.ResearchStage2Test, t.ResearchCaseCheckTest, t.DiagnosisReportTest, t.LlmFailureAnalysisTest))
+        t.ResearchReportTest, t.ListVisibilityCheckTest, t.ResearchLlmTest, t.ResearchResumeTest, t.ResearchCliTest, t.DuplicateDeferralTest, t.StrategyTest, t.ResearchStage2Test, t.ResearchCaseCheckTest, t.DiagnosisReportTest, t.LlmFailureAnalysisTest, t.ListScopeSemanticsTest))
     suite.run(result)
     if result.wasSuccessful():
         _ok("Research", f"{result.testsRun} tests: 案件契約(仮説/期待値を置けない)/有効な仮説の定義/判定行列(対照・根拠の有無)/"

@@ -134,9 +134,16 @@ def evaluate_check(check: dict, res: ExpResult | None, model: TargetModel | None
     raise ValueError(f"未知のcheck type: {t}")
 
 
+def list_visible_via(obj: dict) -> tuple:
+    """一覧(own_list)で呼出し者に見えてよい要素の条件。所有者本人、および共有先を持つ型(shared_field)なら共有先。
+    claim・予測・反証条件・判定は、仮説の check に入れたこの値を唯一の根拠にする（own_list と owner_or_shared を混同しない）。"""
+    return ("owner", "shared") if obj.get("shared_field") else ("owner",)
+
+
 def _eval_list_visibility(check: dict, res: ExpResult, model: TargetModel | None) -> tuple[str, str, list]:
-    """一覧の各要素が、呼出し者に見えるはずのもの（所有者本人か共有先）だけかを、応答自身の所有者/共有先の項目で判定する。
-    detailは件数だけ（IDや本文を含めない）。呼出し者の利用者IDは観測（me）から得るので、観測が無ければ判断しない。"""
+    """一覧の各要素が、呼出し者に見えるはずのもの（check.visible_via: 所有者本人、型が共有先を持つなら共有先も）だけかを、
+    応答自身の所有者/共有先の項目で判定する。detailは件数だけ（IDや本文を含めない）。
+    判断に必要な項目が無い・読めない要素は『判断不能』であり、見えないもの(逸脱)にも見えるもの(正常)にもしない。"""
     if res.status_code != 200 or not isinstance(res.json, list):
         return INCONCLUSIVE, "no_list" if res.status_code == 200 else f"status_{res.status_code}", []
     if model is None or check["role"] not in model.identity:
@@ -144,14 +151,33 @@ def _eval_list_visibility(check: dict, res: ExpResult, model: TargetModel | None
     uid = model.identity[check["role"]]["user_id"]
     o = model.case.objects[check["object"]]
     ownf, shf = o.get("owner_field"), o.get("shared_field")
+    via = tuple(check.get("visible_via") or list_visible_via(o))           # 古いジャーナル（visible_viaなし）は型から導く
+    if not ownf or ("shared" in via and not shf):
+        return INCONCLUSIVE, "schema_incomplete", []
     items = [x for x in res.json if isinstance(x, dict)]
     if not items:
         return (INCONCLUSIVE, "body_incomplete", []) if not res.body_complete else (CONFORMS, "empty_list_visible_only", [])
     if any(ownf not in x for x in items):
         return INCONCLUSIVE, "owner_field_missing", []
-    foreign = [x for x in items if x.get(ownf) != uid and uid not in (x.get(shf) or [])]
+    foreign = unknown = 0
+    for x in items:
+        owner = x.get(ownf)
+        if not isinstance(owner, str) or not owner:
+            unknown += 1                                  # 所有者が欠落/null（読めない）: 見えてよいかを判断できない
+        elif owner == uid:
+            continue
+        elif "shared" in via:
+            shared = x.get(shf)
+            if not isinstance(shared, list):
+                unknown += 1                              # 共有先の項目が無い/読めない: 共有先かどうかを判断できない
+            elif uid not in shared:
+                foreign += 1
+        else:
+            foreign += 1
     if foreign:
-        return DEVIATES, "foreign_items_listed", [f"foreign_items={len(foreign)}"]
+        return DEVIATES, "foreign_items_listed", [f"foreign_items={foreign}"] + ([f"undetermined_items={unknown}"] if unknown else [])
+    if unknown:
+        return INCONCLUSIVE, "visibility_undeterminable", [f"undetermined_items={unknown}"]
     return (INCONCLUSIVE, "body_incomplete", []) if not res.body_complete else (CONFORMS, "only_visible_items", [])
 
 
@@ -234,8 +260,13 @@ def validate_hypothesis(h: Hypothesis, model: TargetModel) -> list[str]:
         p.append("check_not_falsifiable")                 # 棄却できる観測が定義されていない
     elif chk["type"] == "fields_subset" and not chk.get("allowed"):
         p.append("check_not_falsifiable")
-    elif chk["type"] == "list_visibility" and not (chk.get("role") in case.accounts and chk.get("object") in case.objects):
-        p.append("check_not_falsifiable")
+    elif chk["type"] == "list_visibility":
+        obj = case.objects.get(chk.get("object"))
+        via = tuple(chk.get("visible_via") or (list_visible_via(obj) if obj else ()))
+        if not (chk.get("role") in case.accounts and obj is not None and obj.get("owner_field")):
+            p.append("check_not_falsifiable")
+        elif via != list_visible_via(obj):
+            p.append("list_visibility_condition_mismatch")      # 見えてよい条件が、仕様の型（所有者のみ/共有先を持つ）と一致しない
     if h.control_required and h.control is None and not h.control_reason:
         p.append("control_unavailable_without_reason")
     if not h.control_required and not h.control_reason:
@@ -499,8 +530,9 @@ def _field_exposure(model: TargetModel, op: SpecOperation) -> list[Hypothesis]:
 
 
 def build_list_scope(model: TargetModel, op: SpecOperation, role: str) -> tuple[Hypothesis | None, str]:
-    """一覧操作が、呼出し者に見えるはずのない要素を含むか（list_visibility）。規則5型は提案しない型で、LLM提案からだけ作られる。
-    戻り値: (仮説, 却下理由)。期待値は仕様の own_list 条項に結び付く（LLMが『根拠あり』と言っても使わない）。"""
+    """一覧操作が、呼出し者に見えるはずのない要素を含むか（list_visibility）。規則（propose）は作らず、LLM提案からだけ作られる型。
+    戻り値: (仮説, 却下理由)。期待値は仕様の own_list 条項に結び付く（LLMが『根拠あり』と言っても使わない）。
+    見えてよい条件は型から決める（所有者のみ。共有先の項目を持つ型は所有者または共有先）。共有先を持たない型も扱う。"""
     if op.method != "GET" or op.params or op.access["kind"] != "own_list" or not op.returns.get("object"):
         return None, "op_not_list_scope"
     if role not in model.case.accounts:
@@ -509,17 +541,20 @@ def build_list_scope(model: TargetModel, op: SpecOperation, role: str) -> tuple[
         return None, "role_session_invalid"
     otype = op.returns["object"]
     o = model.case.objects.get(otype, {})
-    if not (o.get("owner_field") and o.get("shared_field")):
-        return None, "object_schema_lacks_owner_or_shared"
+    if not o.get("owner_field"):
+        return None, "object_schema_lacks_owner"              # 所有者の項目が無いと、見えてよいかを応答から判断できない
+    via = list_visible_via(o)
+    who = f"{role}が所有者でも共有先でもない" if "shared" in via else f"{role}が所有者でない"
+    keep = f"{role}の所有または{role}への共有" if "shared" in via else f"{role}の所有"
     return Hypothesis(
         hypothesis_id=f"h:list_scope:{op.op_id}:{role}", family="list_scope", op_id=op.op_id, probe_role=role, object_id="",
-        claim=f"{op.op_id}が、{role}に見えるはずのない{otype}（所有者でも共有先でもないもの）を一覧に含める(仕様{op.access['clause']}: {op.access['text']})",
+        claim=f"{op.op_id}が、{role}に見えるはずのない{otype}（{who}もの）を一覧に含める(仕様{op.access['clause']}: {op.access['text']})",
         basis=[_spec_basis(op)],
         preconditions=[{"id": "p1", "text": f"{role}の利用者IDを観測している(identity)", "status": "unverified"},
                        {"id": "p2", "text": f"{role}のセッションは有効", "status": "unverified"}],
-        check={"type": "list_visibility", "role": role, "object": otype},
-        prediction_if_true=f"{role}の{op.op_id}の応答に、{role}が所有者でも共有先でもない{otype}が含まれる",
-        falsification=f"{role}の{op.op_id}の応答の全要素が、{role}の所有または{role}への共有",
+        check={"type": "list_visibility", "role": role, "object": otype, "visible_via": list(via)},
+        prediction_if_true=f"{role}の{op.op_id}の応答に、{who}{otype}が含まれる",
+        falsification=f"{role}の{op.op_id}の応答の全要素が、{keep}",
         probe=Experiment(role, op.op_id), control=None, control_required=False,
         control_reason="応答自身の所有者/共有先の項目との照合で自己完結（別の対照は不要）。HTTP成功と利用者IDの観測が前提",
         control_check=None, grounded=True, needed_observations=[],
