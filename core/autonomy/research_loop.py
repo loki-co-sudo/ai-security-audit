@@ -30,7 +30,7 @@ from core.autonomy.research_hypothesis import (
     S_UNVERIFIABLE, S_UNVERIFIED, control_state, evaluate_check,
 )
 from core.autonomy.research_model import ExpResult, digest_json, retained_keys, safe_json
-from core.autonomy.research_planner import CAP_ANON, CAP_AUTHED, Researcher, default_dedup
+from core.autonomy.research_planner import CAP_ANON, CAP_AUTHED, CONFIRM_MAX_PER_RUN, Researcher, default_dedup
 from core.autonomy.journal import replay
 from core.autonomy.resume import ResumeError, profile_hash, reconcile
 from core.autonomy.run_store import RunStore, RunStoreError
@@ -307,7 +307,9 @@ def _confirmation(researcher, h, results) -> dict:
     purpose = researcher.planned_purpose.get(pid, "") if pid else ""
     mode = "confirm" if h.prior_probe else ("discovery_send_after_registration" if purpose == "discovery" else "probe")
     prior = results.get(h.prior_probe) if h.prior_probe else None
-    return {"mode": mode, "probe_planned_purpose": purpose, "registered_seq": h.registered_seq,
+    # confirm は『登録後に新しく送って検証した』の意味で、独立した再現確認ではない（同じ操作の再測定）。別の送信での再現は corroborating_sends に分けて出す
+    return {"mode": mode, "meaning": "post_registration_verification" if mode == "confirm" else "post_registration_send",
+            "independent_reproduction": False, "probe_planned_purpose": purpose, "registered_seq": h.registered_seq,
             "probe_planned_seq": researcher.planned_seq.get(pid) if pid else None,
             "registered_before_send": (researcher.planned_seq.get(pid) or 0) > h.registered_seq if pid in researcher.planned_seq else None,
             "prior_exp_id": h.prior_probe or None, "prior_control_exp_id": h.prior_control or None,
@@ -396,6 +398,9 @@ def _assemble(case, researcher, outcome, runner, sr, run_id, counters, ledger, e
                                  "needed_capability": h.gap["needed_capability"], "detail": h.gap["detail"]})
         else:
             not_examined.append({"hypothesis_id": hid, "reason": reason})
+    for f in findings:                                  # 別の送信での再現: 同じ(型,操作)を別のロールの実験でも確定した所見（同じ実験の再測定ではない）
+        f["corroborating_sends"] = sorted(g["probe_exp"] for g in findings
+                                          if g is not f and (g["family"], g["op_id"]) == (f["family"], f["op_id"]))
     exps_out = []
     for exp_id, exp in researcher.experiments.items():
         rec_t = outcome.tasks.get(exp_id)
@@ -434,6 +439,7 @@ def _assemble(case, researcher, outcome, runner, sr, run_id, counters, ledger, e
         "confirmation_not_reproduced": sum(1 for x in undetermined if x["reason"] == "not_reproduced"),
         "confirmation_not_run": sum(1 for x in candidates if x["reason"] == "confirmation_not_run"),
         "confirmation_cap_blocked": sum(1 for h in researcher.hyps.values() if h.confirm_blocked),
+        "confirmation_slots_used": researcher.confirm_count, "confirmation_slots_max": CONFIRM_MAX_PER_RUN,
         "probe_origins": _count_by([x["probe_origin"] for x in hyps_out if x["probe"] in results]),
         "experiments": len(exps_out), "discovery_experiments": sum(1 for e in exps_out if e["purpose"].startswith("discovery"))}
     # ── 状態・coverage ──

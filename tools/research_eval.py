@@ -20,7 +20,7 @@ from core.autonomy.research_case import load_blind_case  # noqa: E402
 from core.autonomy.research_loop import run_research_case  # noqa: E402
 from testlab.lab.apps import CanaryServer  # noqa: E402
 from testlab.lab.blind_apps import ALL_FLAWS, DocsApp  # noqa: E402
-from testlab.lab.blind_grader import diagnose, grade  # noqa: E402
+from testlab.lab.blind_grader import diagnose, grade, provenance_trace  # noqa: E402
 
 class MockProposer:
     """試験用の提案役（実LLMではない）。complete() は LLMClient と同じ形。mode:
@@ -86,7 +86,9 @@ STRATEGY_VARIANTS = {"adaptive": ("adaptive", None), "adaptive-dedup": ("adaptiv
 
 
 def run_one(case_id: str, seed: int, *, budget_override: dict | None = None, llm=None, strategy: str = "adaptive",
-            cases_dir: str | None = None, truth_dir: str | None = None) -> dict:
+            cases_dir: str | None = None, truth_dir: str | None = None, records_dir: str | None = None) -> dict:
+    """records_dir を渡すと、この実行のジャーナルと証拠を <records_dir>/ に残す（後から所見の出どころ・検証が未実行になった理由を追跡できる）。
+    渡さなければ従来どおり一時ディレクトリ（実行後に消える）。"""
     case = load_blind_case(os.path.join(cases_dir or CASES_DIR, f"{case_id}.json"))
     with open(os.path.join(truth_dir or TRUTH_DIR, f"{case_id}.json"), encoding="utf-8") as f:
         truth = json.load(f)
@@ -95,7 +97,10 @@ def run_one(case_id: str, seed: int, *, budget_override: dict | None = None, llm
         bo.setdefault("max_llm_calls", 2)
     canary = CanaryServer().start()
     try:
-        with tempfile.TemporaryDirectory() as td, make_app(truth, canary, seed) as app:
+        with tempfile.TemporaryDirectory() as tmp, make_app(truth, canary, seed) as app:
+            td = records_dir or tmp
+            if records_dir:
+                os.makedirs(records_dir, exist_ok=True)
             res = run_research_case(case, app.base_url, app.credentials(), journal_root=td + "/j",
                                     evidence_root=td + "/e", budget_override=bo or None, llm=llm,
                                     strategy=STRATEGY_VARIANTS.get(strategy, (strategy, None))[0],
@@ -106,7 +111,8 @@ def run_one(case_id: str, seed: int, *, budget_override: dict | None = None, llm
         canary.stop()
     L = res["llm"]
     return {"case_id": case_id, "seed": seed, "strategy": strategy, "grade": g, "diagnosis": diagnose(res, truth),
-            "metrics": res["metrics"], "run_id": res["run_id"],
+            "metrics": res["metrics"], "run_id": res["run_id"], "trace": provenance_trace(res),
+            "records": {"dir": records_dir, "journal": f"{records_dir}/j/{res['run_id']}/journal.jsonl", "scan_id": res["scan_id"]} if records_dir else None,
             "findings": [{"family": f["family"], "op_id": f["op_id"], "control_state": f["control_state"]} for f in res["findings"]],
             "llm": {k: L[k] for k in ("enabled", "calls", "skipped", "parse_failures", "proposals", "new_registered",
                                       "duplicate_of_rule", "duplicate_of_llm", "rejected", "valid_proposal_rate",

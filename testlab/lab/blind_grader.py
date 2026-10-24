@@ -187,3 +187,39 @@ def diagnose(result: dict, truth: dict, calls=_UNSET) -> dict:
         out[f["flaw_id"]] = {"category": cat, "detail": detail, "family": f["family"], "reachable": f["reachable"],
                              "spec_grounded": f["spec_grounded"]}
     return out
+
+
+def provenance_trace(result: dict) -> dict:
+    """所見ごとの証拠の出どころと、登録後の検証が未実行になった理由を、保存できる小さな記録にする（報告専用）。
+    findings: 確定の証拠の出どころ（mode: confirm＝観測後の仮説を登録後に新しく送って検証／discovery_send_after_registration＝登録後に計画された探索の送信／
+    probe＝仮説のために計画した実験）と、登録・計画のseq、証拠ID、別の送信での再現（corroborating_sends）。
+    unsent_verifications: 登録前の観測を持つ仮説のうち、登録後の検証が送られていないもの（状態・理由・Runの終了理由・その実験のタスクの状態と理由）。
+    candidates / undetermined: 候補止まり・判定不能の理由。『独立した再現確認』ではない（meaning を参照）。"""
+    hyps = {h["hypothesis_id"]: h for h in result["hypotheses"]}
+    exps = {e["exp_id"]: e for e in result["experiments"]}
+    out = {"findings": [], "unsent_verifications": [], "candidates": [], "undetermined": []}
+    for f in result["findings"]:
+        c = f.get("confirmation") or {}
+        out["findings"].append({
+            "hypothesis_id": f["hypothesis_id"], "family": f["family"], "op_id": f["op_id"], "role": hyps[f["hypothesis_id"]]["probe_role"],
+            "mode": c.get("mode"), "meaning": c.get("meaning"), "independent_reproduction": c.get("independent_reproduction"),
+            "probe_planned_purpose": c.get("probe_planned_purpose"), "registered_seq": c.get("registered_seq"),
+            "probe_planned_seq": c.get("probe_planned_seq"), "registered_before_send": c.get("registered_before_send"),
+            "probe_exp": f["probe_exp"], "prior_exp_id": c.get("prior_exp_id"), "evidence_ids": f["evidence_ids"],
+            "prior_evidence_id": c.get("prior_evidence_id"), "control_state": f["control_state"], "evidence_complete": f["evidence_complete"],
+            "corroborating_sends": f.get("corroborating_sends", [])})
+    for hid, h in hyps.items():
+        c = h.get("confirmation") or {}
+        if (c.get("prior_exp_id") or c.get("confirm_blocked")) and h["probe_status_code"] is None:
+            e = exps.get(h["probe"], {})
+            out["unsent_verifications"].append({
+                "hypothesis_id": hid, "family": h["family"], "op_id": h["op_id"], "state": h["state"], "reason": h["reason"],
+                "run_end_reason": result["end_reason"], "run_finish_reason": result["finish_reason"],
+                "confirm_blocked": c.get("confirm_blocked"), "planned": bool(e), "task_state": e.get("task_state"),
+                "task_reason": e.get("task_reason"), "prior_exp_id": c.get("prior_exp_id")})
+    for c in result["candidates"]:
+        out["candidates"].append({k: c.get(k) for k in ("hypothesis_id", "reason", "evidence_basis", "unconfirmed_because", "grounded")})
+    for u in result["undetermined"]:
+        if (hyps.get(u["hypothesis_id"], {}).get("confirmation") or {}).get("prior_exp_id"):
+            out["undetermined"].append({"hypothesis_id": u["hypothesis_id"], "reason": u["reason"]})
+    return out

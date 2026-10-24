@@ -92,6 +92,7 @@ def default_protocol(note: str = "") -> dict:
             "llm_contribution": "llm と rules の再現率の差（案件平均）が +0.15 以上で、安全ゲートを満たす場合だけ『上乗せあり』。それ未満は『上乗せなし』と報告する",
             "replan_value": "adaptive と static の再現率の差（案件平均）と重複確認の差を別々に報告する。差が±0.05未満なら『再現率への寄与なし』",
             "replan_dedup_split": "再計画の効果は重複抑制を揃えた2通り（rules−static_dedup、adaptive_nodedup−static）、重複抑制の効果は再計画を揃えた2通り（rules−adaptive_nodedup、static_dedup−static）で、再現率と重複確認を別々に報告する。差が±0.05未満なら寄与なし。重複削減は成果として報告するが、発見率の向上とは分けて書く",
+            "traceability": "所見ごとの証拠の出どころ（confirm／discovery_send_after_registration／probe）と、登録後の検証が未実行になった理由は、評価の結果ファイル（runs_compact の trace・evidence_origins）と、実行ごとに保存したジャーナル・証拠（records_dir）から追跡できる形で報告する。用語: 『登録後の検証で支持された所見』（mode=confirm。同じ操作の再測定で、独立した再現確認ではない）と『別の送信でも再現した所見』（corroborating_sends。同じ型・操作を別ロールの送信でも確定した所見）を区別して書く",
             "confirmation_loop": "観測後に作った仮説は、登録後に送る新しい確認実験の結果だけで確定する（登録前の観測は証拠に数えない）。確認実験の計画・実行・確定・再現せず・未実行（候補止まり）・上限で置換せずを方式ごとに報告し、確定の証拠の出どころ（confirm／探索の送信／仮説のための実験）を示す。確認は同じ操作の再測定であり、独立した別の実験ではない（観測後の仮説という選択の偏りは残る）",
             "llm_failure_handling": "LLM呼出の解析失敗・出力トークンの上限到達は、除外せず実行ごとに数えて報告する。解析失敗の修復・再試行はこの版では行わない（入れる場合は新しい版とし、修復・再試行も max_llm_calls と予算に含める）",
             "cost_measurement": "OpenRouterの使用額（キーの累計の前後差）と、実行ごとのLLM使用トークン数（入力・出力）を記録する。前後差が取得できなければ未計測と書く",

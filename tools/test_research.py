@@ -1101,6 +1101,24 @@ class ResearchStage2Test(_Stage2Base):
         self.assertTrue(all(r["llm"]["rejected"].get("role_unknown", 0) >= 1 and r["llm"]["calls_detail"] for r in rec))
         self.assertIsNone([r for r in res["runs_compact"] if r["method"] == "rules"][0]["llm"])
 
+    def test_stage2_persists_records_and_summarizes_evidence_origins(self):
+        rec = os.path.join(self.tmp, "records")
+        res = self.run_s2(ids=("hold-a",), records_dir=rec)
+        self.assertEqual(res["records_dir"], rec)
+        runs = res["runs_compact"]
+        self.assertEqual(len(runs), 10)                                                       # 5方式 × 2シード（LLM未承認）
+        for r in runs:
+            self.assertTrue(os.path.exists(r["records"]["journal"]), r["records"])           # 実行ごとのジャーナルが保存される
+            self.assertTrue(r["run_id"] in r["records"]["journal"])
+        eo = res["evidence_origins"]
+        self.assertEqual(sorted(eo), sorted(res["methods_run"]))
+        self.assertTrue(set(eo["rules"]["findings_by_mode"]) <= {"probe", "discovery_send_after_registration", "confirm"})
+        self.assertEqual(eo["rules"]["unsent"], {})
+        r0 = next(r for r in runs if r["method"] == "rules")
+        f = r0["trace"]["findings"][0]
+        self.assertIsNotNone(f["registered_seq"])                                              # 所見ごとの登録・計画のseqを保存している
+        self.assertTrue(f["registered_before_send"])
+
     def test_llm_method_is_skipped_without_approval_but_others_run(self):
         res = self.run_s2()
         self.assertEqual(res["methods_run"], ["adaptive_nodedup", "checklist", "rules", "static", "static_dedup"])
@@ -1811,12 +1829,49 @@ class ConfirmationLoopTest(unittest.TestCase):
         md = render_markdown(self.res)
         self.assertIn("証拠の出どころ: 観測後に作った仮説", md)
         self.assertIn("登録前の観測 `x:docs_list:admin` は証拠に数えない", md)
-        self.assertIn("確認実験（観測後に作った仮説を、登録後の新しい送信で検証）: 計画 1件・実行 1件・確定 1件", md)
+        self.assertIn("登録後の検証送信（観測後に作った仮説を、登録後の新しい送信で検証。独立した再現確認ではない）: 計画 1件・実行 1件・支持 1件", md)
         self.assertIn("LLM呼出 2", md)                                                          # 実際のLLM呼出し数（以前は常に0と書いていた）
         res_b, _, _ = late_run(budget_override={"max_requests": 9})
         md_b = render_markdown(res_b)
         self.assertIn("登録前の観測だけ", md_b)                                                  # 候補は『登録前の観測だけ』と明示する
         self.assertIn("budget_requests_exhausted", md_b)
+
+    def test_verification_is_not_an_independent_reproduction_and_other_sends_are_listed_apart(self):
+        f = next(f for f in self.res["findings"] if f["hypothesis_id"] == HID_ADMIN_LIST)
+        c = f["confirmation"]
+        self.assertEqual((c["mode"], c["meaning"], c["independent_reproduction"]), ("confirm", "post_registration_verification", False))
+        for g in self.res["findings"]:                                                         # 別の送信での再現は、同じ(型,操作)を別ロールの実験で確定した所見
+            same = sorted(x["probe_exp"] for x in self.res["findings"] if x is not g and (x["family"], x["op_id"]) == (g["family"], g["op_id"]))
+            self.assertEqual(g["corroborating_sends"], same)
+            self.assertNotIn(g["probe_exp"], g["corroborating_sends"])
+            if g["confirmation"]["mode"] != "confirm":
+                self.assertEqual(g["confirmation"]["meaning"], "post_registration_send")
+        self.assertNotIn(c["prior_exp_id"], f["corroborating_sends"])                          # 登録前の観測は『再現』にも数えない
+
+    def test_saved_records_trace_each_findings_origin_and_why_a_verification_did_not_run(self):
+        """評価の記録（ジャーナル・証拠・小さな追跡記録）だけで、所見の出どころと、検証が未実行になった理由を辿れる。"""
+        from tools.research_eval import run_one
+        with tempfile.TemporaryDirectory() as td:
+            r = run_one("blind-docs-02", 3, llm=MockProposer("late"), records_dir=td + "/ok")
+            tr = next(f for f in r["trace"]["findings"] if f["hypothesis_id"] == HID_ADMIN_LIST)
+            self.assertEqual((tr["mode"], tr["registered_before_send"], tr["independent_reproduction"]), ("confirm", True, False))
+            ev = replay(r["run_id"], td + "/ok/j").events                                      # 保存されたジャーナルを読み直して照合する
+            self.assertEqual(_ev(ev, "hypothesis_registered", hypothesis_id=HID_ADMIN_LIST)[0]["seq"], tr["registered_seq"])
+            self.assertEqual(_ev(ev, "experiment_planned", exp_id=tr["probe_exp"])[0]["seq"], tr["probe_planned_seq"])
+            self.assertLess(tr["registered_seq"], tr["probe_planned_seq"])
+            files = glob.glob(td + "/ok/e/**/*.json", recursive=True)
+            for eid in tr["evidence_ids"] + [tr["prior_evidence_id"]]:
+                self.assertTrue([f for f in files if eid in f], eid)                          # 参照している証拠が保存されている
+            self.assertEqual(r["trace"]["unsent_verifications"], [])
+            r2 = run_one("blind-docs-02", 3, llm=MockProposer("late"), budget_override={"max_requests": 9}, records_dir=td + "/short")
+            u = r2["trace"]["unsent_verifications"]
+            self.assertEqual([x["hypothesis_id"] for x in u], [HID_ADMIN_LIST])
+            self.assertEqual((u[0]["state"], u[0]["reason"], u[0]["run_end_reason"]), ("unverified_deviation", "confirmation_not_run", "budget_exhausted"))
+            self.assertFalse(u[0]["planned"])
+            self.assertEqual(r2["trace"]["candidates"][0]["unconfirmed_because"], "budget_requests_exhausted")
+            self.assertTrue(os.path.exists(r2["records"]["journal"]))
+            r3 = run_one("blind-docs-02", 3, llm=MockProposer("late"))                           # 記録先を指定しなければ従来どおり（保存しない）
+            self.assertIsNone(r3["records"])
 
     def test_rule_hypotheses_and_untagged_experiments_are_unchanged(self):
         regs = _ev(self.ev, "hypothesis_registered")
@@ -1943,6 +1998,33 @@ class ConfirmationLoopTest(unittest.TestCase):
         r.experiments[h2.control.exp_id] = h2.control
         r._to_confirmation(h2)
         self.assertEqual((h2.control.tag, h2.confirm_blocked), ("", "confirmation_cap"))
+
+    def test_the_cap_counts_replacements_not_sends_probe_and_control_use_separate_slots(self):
+        """上限 CONFIRM_MAX_PER_RUN(6) の単位は『置換の回数』。probeの置換1回＝1枠、対照の置換1回＝1枠で、登録時に消費する。
+        送信されなくても（予算切れ・STOP・未選択）枠は戻らない。枠が足りなければ置換せず confirmation_cap を残す。"""
+        from core.autonomy.research_planner import Researcher, CONFIRM_MAX_PER_RUN
+        self.assertEqual(CONFIRM_MAX_PER_RUN, 6)
+        res, ev, reqs = late_run(budget_override={"max_requests": 9})                         # 確認を送れなかったRun
+        m = res["metrics"]
+        self.assertEqual((m["confirmations_planned"], m["confirmations_run"], m["confirmation_slots_used"], m["confirmation_slots_max"]),
+                         (1, 0, 1, 6))                                                          # 未送信でも枠を1つ使っている
+        mm = self.res["metrics"]
+        self.assertEqual((mm["confirmations_planned"], mm["confirmation_slots_used"]), (1, 1))     # 送った場合も1枠（probeの置換のみ）
+        m0 = synthetic_model()
+        h = next(x for x in rh.propose(m0) if x.control is not None and x.gap is None)
+        r = Researcher(m0.case, "http://127.0.0.1:1", None, None, lambda: False)
+        r.model = m0
+        r.experiments[h.probe.exp_id], r.experiments[h.control.exp_id] = h.probe, h.control
+        r._to_confirmation(h)                                                                  # 同じ仮説でも probe と対照で2枠
+        self.assertEqual((r.confirm_count, bool(h.prior_probe), bool(h.prior_control)), (2, True, True))
+        h2 = next(x for x in rh.propose(m0) if x.control is not None and x.gap is None and x.hypothesis_id != h.hypothesis_id)
+        r.confirm_count = CONFIRM_MAX_PER_RUN - 1                                              # 残り1枠で、probeと対照の両方が必要
+        r.experiments[h2.probe.exp_id], r.experiments[h2.control.exp_id] = h2.probe, h2.control
+        r._to_confirmation(h2)
+        self.assertEqual((bool(h2.prior_probe), h2.control.tag, h2.confirm_blocked, r.confirm_count), (True, "", "confirmation_cap", CONFIRM_MAX_PER_RUN))
+        # 現在の仕様（制約）: probeだけ置換して枠を使い、対照が枠不足なら confirmation_cap。登録時は probe_preexisting 扱いになり、置換した probe は送られない
+        h2.probe_preexisting = bool(h2.confirm_blocked)
+        self.assertEqual(r._next_experiment(h2), (None, ""))
 
     def test_confirm_has_its_own_dedupe_key_and_the_same_confirm_cannot_be_resent(self):
         from core.autonomy.actions import make_action

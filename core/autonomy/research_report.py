@@ -27,8 +27,8 @@ def _provenance(c: dict | None) -> str:
     if not c:
         return "不明"
     if c["mode"] == "confirm":
-        return (f"観測後に作った仮説。登録（seq {c['registered_seq']}）の後に新しく送った確認実験（計画seq {c['probe_planned_seq']}）の結果だけを証拠にしている。"
-                f"登録前の観測 `{c['prior_exp_id']}` は証拠に数えない（別の証拠として保存）")
+        return (f"観測後に作った仮説。登録（seq {c['registered_seq']}）の後に新しく送った検証の送信（計画seq {c['probe_planned_seq']}）の結果だけを証拠にしている"
+                f"（登録後に支持された所見。同じ操作の再測定であり、独立した再現確認ではない）。登録前の観測 `{c['prior_exp_id']}` は証拠に数えない（別の証拠として保存）")
     if c["mode"] == "discovery_send_after_registration":
         return f"登録（seq {c['registered_seq']}）の後に計画された探索の送信（計画seq {c['probe_planned_seq']}）が probe の結果になった"
     return f"仮説のために登録（seq {c['registered_seq']}）の後に計画した実験（計画seq {c['probe_planned_seq']}）"
@@ -72,7 +72,7 @@ def render_markdown(result: dict, *, evidence_root: str | None = None) -> str:
         out += ["- 証拠の出どころ: " + _provenance(f.get("confirmation"))]
         out += ["- 証拠:"] + [f"  - {_ev_line(scan_id, e, root)}" for e in f["evidence_ids"]]
         if len(members) > 1:
-            out += [f"- 同じ操作を別ロールでも確認（重複確認。新しい情報ではなく、同じ欠陥の再現）: "
+            out += [f"- 別の送信での再現（同じ操作を別ロールでも確定。重複確認であり、登録後の検証とは別）: "
                     + ", ".join(f"`{x['probe_exp']}`" for x in members[1:])]
         missing = f["evidence_missing"]
         out += ["- 証拠充足: " + ("一式あり" if f["evidence_complete"] else "不足あり（不足 %d件）" % missing), ""]
@@ -96,8 +96,8 @@ def render_markdown(result: dict, *, evidence_root: str | None = None) -> str:
     out += [f"- 未判定 {len(result['undetermined'])}件: " + ", ".join(f"`{u['hypothesis_id']}`({u['reason']})" for u in result["undetermined"][:8])
             if result["undetermined"] else "- 未判定: なし"]
     if m.get("confirmations_planned"):
-        out += [f"- 確認実験（観測後に作った仮説を、登録後の新しい送信で検証）: 計画 {m['confirmations_planned']}件・実行 {m['confirmations_run']}件・"
-                f"確定 {m['confirmed_supported']}件・再現せず {m['confirmation_not_reproduced']}件・未実行（候補止まり）{m['confirmation_not_run']}件・"
+        out += [f"- 登録後の検証送信（観測後に作った仮説を、登録後の新しい送信で検証。独立した再現確認ではない）: 計画 {m['confirmations_planned']}件・実行 {m['confirmations_run']}件・"
+                f"支持 {m['confirmed_supported']}件・再現せず {m['confirmation_not_reproduced']}件・未実行（候補止まり）{m['confirmation_not_run']}件・"
                 f"上限で置換せず {m['confirmation_cap_blocked']}件"]
     out += [f"- 未検査 {len(result['not_examined'])}件（理由 `{result['finish_reason']}`）。予算や優先度の都合で調べていない仮説で、問題が無いという意味ではない"]
     out += [f"- 観測できなかった項目: `{_md(u['what'])}`（{_md(u['why'])}）" for u in result["unknowns"]]

@@ -45,7 +45,8 @@ def _app_path(truth: dict, root: str) -> str | None:
 
 def run_stage2(case_ids: list[str], *, protocol_path: str, include_holdout: bool = False, allow_reuse: bool = False,
                holdout_log: str = HOLDOUT_LOG, cases_dir: str | None = None, truth_dir: str | None = None,
-               llm_factory=None, fp_files: list | None = None, fp_root: str = ROOT, code_root: str = ROOT) -> dict:
+               llm_factory=None, fp_files: list | None = None, fp_root: str = ROOT, code_root: str = ROOT,
+               records_dir: str | None = None) -> dict:
     """llm_factory(method_cfg) -> complete()を持つ提案役 / None（Noneなら llm 方式は未実施として記録）。"""
     proto = verify_frozen(protocol_path, files=fp_files, root=fp_root)               # 1. 凍結の検証（通信の前）
     cases_dir, truth_dir = cases_dir or CASES_DIR, truth_dir or TRUTH_DIR
@@ -80,12 +81,13 @@ def run_stage2(case_ids: list[str], *, protocol_path: str, include_holdout: bool
                 for rep in range(proto["llm_repeats"] if cfg.get("llm") else 1):
                     r = run_one(cid, seed, strategy=cfg["strategy"], llm=llm_obj,
                                 budget_override={"max_llm_calls": cfg["max_llm_calls"]} if cfg.get("llm") else None,
-                                cases_dir=cases_dir, truth_dir=truth_dir)
+                                cases_dir=cases_dir, truth_dir=truth_dir,
+                                records_dir=os.path.join(records_dir, f"{name}__{cid}__s{seed}__r{rep}") if records_dir else None)
                     runs.append({**r, "method": name, "repeat": rep, "clean_case": info[cid]["clean"]})
-    return aggregate(runs, proto, info, skipped, round(time.time() - t0, 1), sha)
+    return aggregate(runs, proto, info, skipped, round(time.time() - t0, 1), sha, records_dir)
 
 
-def aggregate(runs: list, proto: dict, info: dict, skipped: dict, elapsed: float, sha: str) -> dict:
+def aggregate(runs: list, proto: dict, info: dict, skipped: dict, elapsed: float, sha: str, records_dir: str | None = None) -> dict:
     """4. 事前登録した指標・採用基準で判定する。案件ごとにシード/繰返しを平均してから案件の平均を取る。"""
     per: dict = {}
     for r in runs:
@@ -151,7 +153,8 @@ def aggregate(runs: list, proto: dict, info: dict, skipped: dict, elapsed: float
             "system_sha": sha[:16], "methods_run": sorted(table), "methods_skipped": skipped, "n_cases": len(info), "n_runs": len(runs),
             "cases": {cid: {"split": i["split"], "clean": i["clean"]} for cid, i in info.items()},
             "table": table, "summary": summary, "verdict": verdict, "found_only_by_method_not_rules": unique,
-            "llm_usage": llm_usage(runs, proto), "confirmation_usage": confirmation_usage(runs), "runs_compact": runs_compact(runs),
+            "llm_usage": llm_usage(runs, proto), "confirmation_usage": confirmation_usage(runs),
+            "evidence_origins": evidence_origins(runs), "records_dir": records_dir, "runs_compact": runs_compact(runs),
             "scope_report": scope_report(runs), "report_definitions": REPORT_DEFINITIONS,
             "acceptance_text": proto["acceptance"], "elapsed_s": elapsed,
             "note": "案件数と実行数は別。同じ環境のシード違い・LLMの繰返しは独立した案件ではない。結果を見てからの基準・係数・ケースの変更は使用済みとして扱う。"}
@@ -219,7 +222,7 @@ def confirmation_usage(runs: list) -> dict:
     と、確定の証拠の出どころ（confirm／探索の送信／仮説のための実験）。"""
     out: dict = {}
     keys = ("confirmations_planned", "confirmations_run", "confirmed_supported", "confirmation_not_reproduced", "confirmation_not_run",
-            "confirmation_cap_blocked")
+            "confirmation_cap_blocked", "confirmation_slots_used")
     for r in runs:
         m = out.setdefault(r["method"], {**{k: 0 for k in keys}, "probe_origins": {}, "runs": 0})
         m["runs"] += 1
@@ -230,11 +233,27 @@ def confirmation_usage(runs: list) -> dict:
     return out
 
 
+def evidence_origins(runs: list) -> dict:
+    """方式ごとに、確定した所見の証拠の出どころ（mode）と、登録後の検証が未実行になった理由を数える。
+    mode: confirm＝観測後の仮説を登録後に新しく送って検証（独立した再現確認ではない）／discovery_send_after_registration／probe。
+    unsent: 検証を送れなかった仮説の（状態、理由、Runの終了理由）。実行ごとの詳細は runs_compact の trace と、records_dir のジャーナル・証拠を参照。"""
+    out: dict = {}
+    for r in runs:
+        m = out.setdefault(r["method"], {"findings_by_mode": {}, "findings_corroborated_in_other_sends": 0, "unsent": {}})
+        for f in r["trace"]["findings"]:
+            m["findings_by_mode"][f["mode"]] = m["findings_by_mode"].get(f["mode"], 0) + 1
+            m["findings_corroborated_in_other_sends"] += 1 if f["corroborating_sends"] else 0
+        for u in r["trace"]["unsent_verifications"]:
+            key = f"{u['state']}:{u['reason']}|{u['run_end_reason']}" + (f"|{u['task_reason']}" if u.get("task_reason") else "")
+            m["unsent"][key] = m["unsent"].get(key, 0) + 1
+    return out
+
+
 def runs_compact(runs: list) -> list:
     """実行ごとの記録（欠陥ごとの分類と理由・LLM呼出しごとの結果・具体化で却下された理由）。結果の事後分析を、この記録だけでできるようにする。
     欠陥ID・操作名を含むので、結果を開く前に件数だけを集計して報告する（AGENTS.md）。"""
     return [{"method": r["method"], "case_id": r["case_id"], "seed": r["seed"], "repeat": r["repeat"],
-             "diagnosis": r["diagnosis"],
+             "diagnosis": r["diagnosis"], "trace": r["trace"], "records": r["records"], "run_id": r["run_id"],
              "llm": {"calls_detail": r["llm"].get("calls_detail"), "rejected": r["llm"].get("rejected"),
                      "proposals": r["llm"].get("proposals"), "new_registered": r["llm"].get("new_registered")} if r["llm"]["enabled"] else None}
             for r in runs]
@@ -279,6 +298,7 @@ def main() -> int:
     ap.add_argument("--approve-real-llm", action="store_true")
     ap.add_argument("--model")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--records-dir", help="実行ごとのジャーナルと証拠を残す場所（既定: reports/stage2_records/<出力ファイル名>）。所見の出どころ・検証が未実行になった理由を後から追跡するため")
     a = ap.parse_args()
     factory = None
     if a.approve_real_llm:
@@ -295,7 +315,8 @@ def main() -> int:
             return _Capped(timed, cfg["max_tokens"], {"reasoning": {"effort": cfg["reasoning_effort"]}})
     try:
         res = run_stage2(a.cases.split(","), protocol_path=a.protocol, include_holdout=a.include_holdout,
-                         allow_reuse=a.allow_reuse, llm_factory=factory)
+                         allow_reuse=a.allow_reuse, llm_factory=factory,
+                         records_dir=a.records_dir or os.path.join(ROOT, "reports", "stage2_records", os.path.splitext(os.path.basename(a.out))[0]))
     except FreezeError as e:
         print(f"エラー（何も送信していません）: {e}", file=sys.stderr)
         return 1
