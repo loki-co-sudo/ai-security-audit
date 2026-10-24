@@ -851,3 +851,9 @@ ATTACKのLLM解釈部分の評価(ローカルlabの観測に対する仮説の�
 - LLM呼出しの予約をジャーナルに残し、再開で予算を巻き戻さない。結果不明の呼出しは自動で再実行しない。
 - 詳細・測定・証拠・残る制約・凍結ファイル一覧は `docs/AUTONOMOUS_DISCOVERY_STAGE1.md` §15。固定試験は `tools/test_research.py`（`ConfirmationLoopTest`／`ConfirmationResumeTest`／`ListScopeSemanticsTest`）。
 
+
+## 2026-10-25 自律調査 Stage 1: 実LLMの開発確認・プロンプト/2のA/B・H5（規則にlist_scopeを足した比較）
+- `tools/research_llm_failures.py`: 費用上限の強制（`SpendGuard`・`--max-spend-usd`）、実行記録の保存、list_scope 見逃しの分類・救済/判定不能/結果の集計。開発確認 (a)（回帰6件×3シード×2反復＝72呼出し、推定$0.038／実請求$0.015）は救済7・解析失敗0・判定不能（空の一覧）21・確認ループ計画24/送信18/支持6。
+- `core/autonomy/research_llm.py`: 観測後プロンプト `research-propose/2`（`build_messages(version=…)`。既定 /1 はバイト単位で不変）。`tools/research_prompt_ab.py` で /1 対 /2 の A/B（52対・実請求$0.099）: 主指標 +0.091（基準 +0.20 未達）→ **不採用**。コードは残し既定は /1。
+- `core/autonomy/research_hypothesis.py`: `propose(list_scope=True)`／`run_research_case(rules_list_scope=True)`（既定OFF）。`tools/research_h5_compare.py`: list_scope 18/18・再現率 0.691→1.000・安全指標0・リクエスト数不変（候補 11→35）。評価定義の比較として併記し、凍結プロトコルには未接続。
+- 固定試験: Research 141→162（`SpendGuardTest` 3・`PromptV2Test` 9・`PromptAbToolTest` 4・`RulesListScopeTest` 5）。変異試験（プロンプト8・H5 6）全て検出。詳細・解釈・判断待ちは docs/AUTONOMOUS_DISCOVERY_STAGE1.md §19。
