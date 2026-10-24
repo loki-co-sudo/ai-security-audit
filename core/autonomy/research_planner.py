@@ -83,7 +83,8 @@ class Researcher:
         self._order: list | None = None               # 比較用の方式（static/checklist）が最初の選択時に固定する仮説の順序
         self._llm_done: set[str] = set()
         self.llm_stats = {"calls": 0, "skipped": 0, "parse_failures": 0, "proposals": 0, "new_registered": 0,
-                          "duplicate_of_rule": 0, "duplicate_of_llm": 0, "rejected": {}, "usage": [], "details": [], "calls_detail": []}
+                          "duplicate_of_rule": 0, "duplicate_of_llm": 0, "rejected": {}, "usage": [], "details": [], "calls_detail": [],
+                          "salvaged_replies": 0, "salvaged_proposals": 0}
 
     # ── Runnerのフック ───────────────────────────
     def step(self, outcome) -> list[PlanTask]:
@@ -226,8 +227,12 @@ class Researcher:
         self.ledger.record_llm_usage(usage or None)
         st["usage"].append(usage or None)
         items, why = research_llm.parse_reply(text)
+        salvaged = items is not None and why.startswith("salvaged")
         st["calls_detail"].append({"phase": phase, "outcome": "parsed" if items is not None else "unparsed", "reason": why,
                                    "output_tokens": (usage or {}).get("output_tokens")})
+        if salvaged:                      # 出力上限で切れた返答から、完全な提案だけを救済した（件数を残す。解析失敗には数えない）
+            st["salvaged_replies"] += 1
+            st["salvaged_proposals"] += len(items)
         if items is None:
             st["parse_failures"] += 1
             self.journal.append("llm_proposals", phase=phase, parse_error=why, reply_sha=research_llm.reply_sha(text),
@@ -261,7 +266,8 @@ class Researcher:
             results.append(d)
             st["details"].append(d)
         self.journal.append("llm_proposals", phase=phase, prompt_version=research_llm.PROMPT_VERSION,
-                            reply_sha=research_llm.reply_sha(text), dropped=dropped, usage=usage or None, results=results)
+                            reply_sha=research_llm.reply_sha(text), dropped=dropped, usage=usage or None, results=results,
+                            **({"salvaged": True} if salvaged else {}))
 
     def _refresh_states(self) -> None:
         for hid, h in self.hyps.items():
@@ -521,6 +527,9 @@ class Researcher:
                 st_["parse_failures"] += 1
                 continue
             st_["usage"].append(e.get("usage"))
+            if e.get("salvaged"):
+                st_["salvaged_replies"] += 1
+                st_["salvaged_proposals"] += len(e.get("results", []))
             for r in e.get("results", []):
                 st_["proposals"] += 1
                 st_["details"].append(r)

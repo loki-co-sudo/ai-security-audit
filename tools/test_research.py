@@ -469,7 +469,8 @@ class ListVisibilityCheckTest(unittest.TestCase):
         self.assertEqual(self.ev(js=[mine, shared])[:2], (rh.INCONCLUSIVE, "visibility_condition_unspecified"))     # 条件の記録なし＝仕様に明記なし
         self.assertEqual(self.ev(js=[mine, shared], chk=dict(self.chk, visible_to="owner"))[0], rh.DEVIATES)
         self.assertEqual(self.ev(js=[mine, foreign])[:3], (rh.DEVIATES, "foreign_items_listed", ["foreign_items=1"]))
-        self.assertEqual(self.ev(js=[])[:2], (rh.CONFORMS, "empty_list_visible_only"))
+        # 契約変更（2026-10-24）: 旧契約は空の一覧＝正常(empty_list_visible_only)→棄却。空の一覧では逸脱が観測できる条件を満たさないので、判定不能（情報なし）
+        self.assertEqual(self.ev(js=[])[:2], (rh.INCONCLUSIVE, "empty_list_uninformative"))
         self.assertEqual(self.ev(js=[mine], complete=False)[0], rh.INCONCLUSIVE)           # 不完全な本文で『問題なし』にしない
         self.assertEqual(self.ev(js=[foreign], complete=False)[0], rh.DEVIATES)           # 逸脱は読めた範囲で成立
         self.assertEqual(self.ev(js={"id": "d9"})[:2], (rh.INCONCLUSIVE, "no_list"))
@@ -639,7 +640,10 @@ class ResearchLlmTest(unittest.TestCase):
         self.assertEqual(res["candidates"], [])
         self.assertEqual(res["llm"]["new_registered"], 1)
         refuted = {r["hypothesis_id"] for r in res["refuted"]}
-        self.assertIn("h:list_scope:docs_list:admin", refuted)                          # 提案は実験され、反証された
+        # 契約変更（2026-10-24）: この環境の管理者の一覧は空。旧契約は『反証』、今は『判定不能（空の一覧は逸脱が観測できる条件を満たさない）』。捏造はしない
+        self.assertNotIn("h:list_scope:docs_list:admin", refuted)
+        und = {u["hypothesis_id"]: u["reason"] for u in res["undetermined"]}
+        self.assertEqual(und["h:list_scope:docs_list:admin"], "probe_empty_list_uninformative")                # 提案は実験され、情報なしと記録された
         self.assertEqual(g["false_positive_units"], 0)
 
 
@@ -929,7 +933,7 @@ class DuplicateDeferralTest(unittest.TestCase):
         for r in (old, new):
             self.assertEqual((r[3]["false_positive_units"], r[3]["boundary"]["violations"], r[0]["metrics"]["prereg_violations"]),
                              (0, 0, []))
-        self.assertEqual(new[0]["versions"]["research_engine"], "research-stage1/5")
+        self.assertEqual(new[0]["versions"]["research_engine"], "research-stage1/6")
 
     def test_deferred_duplicates_still_run_when_budget_remains(self):
         # 候補が尽きるまで予算を与えれば、後回しにした重複確認も実行される（排除ではない）
@@ -1527,8 +1531,8 @@ class ListScopeSemanticsTest(unittest.TestCase):
         self.assertEqual(self._ev(m, "librarian", [mine])[:2], (rh.CONFORMS, "only_visible_items"))
         self.assertEqual(self._ev(m, "librarian", [mine, other])[:3], (rh.DEVIATES, "foreign_items_listed", ["foreign_items=1"]))
         self.assertEqual(self._ev(m, "librarian", [{**other, "shared_with": ["m3"]}])[0], rh.DEVIATES)   # 共有先の概念が無い型
-        self.assertEqual(self._ev(m, "librarian", [])[:2], (rh.CONFORMS, "empty_list_visible_only"))       # 正常な空一覧
-        self.assertEqual(self._ev(m, "librarian", [], complete=False)[0], rh.INCONCLUSIVE)               # 不完全な空は正常にしない
+        self.assertEqual(self._ev(m, "librarian", [])[:2], (rh.INCONCLUSIVE, "empty_list_uninformative"))    # 空の一覧は正常とも棄却ともしない（契約変更 2026-10-24）
+        self.assertEqual(self._ev(m, "librarian", [], complete=False)[:2], (rh.INCONCLUSIVE, "body_incomplete"))   # 不完全な空は『本文不完全』（空の一覧と区別する）
         self.assertEqual(self._ev(m, "librarian", [mine], complete=False)[0], rh.INCONCLUSIVE)           # 不完全な本文
         self.assertEqual(self._ev(m, "librarian", [other], complete=False)[0], rh.DEVIATES)              # 読めた範囲の逸脱は成立
         self.assertEqual(self._ev(m, "librarian", [{"id": "l1", "member": None}])[:2], (rh.INCONCLUSIVE, "visibility_undeterminable"))
@@ -1648,7 +1652,11 @@ class ListScopeSemanticsTest(unittest.TestCase):
         self.assertTrue(planned and reg["seq"] < planned[0]["seq"])                                  # 予測の登録が実験より前
         res2, _ = self._run_library(set())
         self.assertFalse([f for f in res2["findings"] if f["family"] == "list_scope"])                # 正常な環境では確定しない
-        self.assertIn("h:list_scope:loans_list:librarian", {r["hypothesis_id"] for r in res2["refuted"]})
+        # 非空の一覧の役割（reader1）は棄却。一覧が空の librarian は、棄却ではなく判定不能（情報なし。契約変更 2026-10-24）
+        self.assertIn("h:list_scope:loans_list:reader1", {r["hypothesis_id"] for r in res2["refuted"]})
+        self.assertNotIn("h:list_scope:loans_list:librarian", {r["hypothesis_id"] for r in res2["refuted"]})
+        self.assertEqual({u["hypothesis_id"]: u["reason"] for u in res2["undetermined"]}["h:list_scope:loans_list:librarian"],
+                         "probe_empty_list_uninformative")
 
 
 class ReplanDedupFactorialTest(unittest.TestCase):
@@ -1951,7 +1959,8 @@ class ConfirmationLoopTest(unittest.TestCase):
     def test_normal_environment_is_refuted_by_the_confirm_and_nothing_is_found(self):
         res, ev, reqs = late_run(flaws=())
         h = hyp_of(res)
-        self.assertEqual((h["state"], h["probe_origin"]), ("refuted", "confirm"))
+        # 契約変更（2026-10-24）: この環境の管理者の一覧は空なので、確認実験を送っても『棄却』ではなく『判定不能（情報なし）』。確定はしない
+        self.assertEqual((h["state"], h["reason"], h["probe_origin"]), ("undetermined", "probe_empty_list_uninformative", "confirm"))
         self.assertFalse([f for f in res["findings"] if f["family"] == "list_scope"])
         self.assertEqual(res["metrics"]["confirmations_run"], res["metrics"]["confirmations_planned"])
 
@@ -2188,6 +2197,141 @@ class MissAnalysisTest(unittest.TestCase):
         self.assertEqual(mk(regs=[("admin", "llm")]), "hypothesis_state:registered:")          # 必要な役割の仮説を登録したが確定しない
         self.assertEqual(mk(regs=[("admin", "llm")], updates=[("admin", "refuted", "prediction_falsified_with_control")]),
                          "hypothesis_state:refuted:prediction_falsified_with_control")
+
+
+class LlmSalvageAndEmptyListTest(unittest.TestCase):
+    """改善1: 出力上限で切れたLLM返答から、完全な提案だけを救済する。改善2: 空の一覧を棄却にしない。
+    閉ループ試験は『変更前の実装と同じ入力・同じ案件・同じ予算』で比較する。LLMの実際の挙動は実証しない。"""
+
+    FULL = ('{"proposals": [{"check": "list_visibility", "op_id": "docs_list", "probe_role": "admin", "basis_clause": "S-3", "rationale": "a [b {c"}, '
+            '{"check": "fields_subset", "op_id": "docs_list", "probe_role": "alice", "basis_clause": "S-3"}, '
+            '{"check": "deny_expected", "op_id": "admin_audit", "probe_role": "alice", "basis_clause": "S-10"}]}')
+
+    @staticmethod
+    def legacy_parse(text):
+        """変更前の parse_reply（救済なし）。比較用に保持する。"""
+        import re as _re
+        from core.autonomy import research_llm as rl
+        t = (text or "").strip()
+        if not t:
+            return None, "empty_reply"
+        m = rl._FENCE.search(t)
+        if m:
+            t = m.group(1).strip()
+        i, j = t.find("{"), t.rfind("}")
+        if i < 0 or j < i:
+            k, l_ = t.find("["), t.rfind("]")
+            if k < 0 or l_ < k:
+                return None, "no_json"
+            i, j = k, l_
+        try:
+            doc = json.loads(t[i:j + 1])
+        except ValueError:
+            return None, "invalid_json"
+        items = doc.get("proposals") if isinstance(doc, dict) else doc
+        return (items[:rl.MAX_PROPOSALS], "") if isinstance(items, list) else (None, "proposals_not_a_list")
+
+    def test_complete_replies_are_parsed_exactly_as_before(self):
+        from core.autonomy.research_llm import parse_reply
+        for text in (self.FULL, "```json\n" + self.FULL + "\n```", "前置き " + self.FULL + " 後書き", json.dumps(json.loads(self.FULL)["proposals"]),
+                     '{"proposals": []}', '{"proposals": "x"}', "", "no json here", '{"proposals": [{"a": 1},,]}'):
+            self.assertEqual(parse_reply(text), self.legacy_parse(text), text[:30])
+
+    def test_truncated_replies_keep_only_the_complete_proposals(self):
+        from core.autonomy.research_llm import parse_reply
+        full = json.loads(self.FULL)["proposals"]
+        for cut in range(len(self.FULL)):
+            text = self.FULL[:cut]
+            items, why = parse_reply(text)
+            legacy_items, _ = self.legacy_parse(text)
+            if legacy_items is not None:
+                self.assertEqual(items, legacy_items, cut)                                    # 従来に解析できたものは同じ
+                continue
+            if items is None:
+                continue
+            self.assertTrue(why.startswith("salvaged_truncated:"), (cut, why))
+            self.assertEqual(items, full[:len(items)], cut)                                  # 完全に書かれた先頭の提案だけ（改変・補完・並べ替えなし）
+            self.assertEqual(why, f"salvaged_truncated:{len(items)}")
+        self.assertEqual(parse_reply(self.FULL[:self.FULL.index("admin_audit") + 5])[0], full[:2])    # 3件目の途中で切れる→先頭2件
+        self.assertEqual(parse_reply("```json\n" + self.FULL[:200])[0], full[:1])                     # 閉じていないコードフェンス
+        bare = "[" + json.dumps(full[0]) + ", {\"che"
+        self.assertEqual(parse_reply(bare), self.legacy_parse(bare))                          # 裸の配列は従来も解析していない（先頭の { を見る）。変えない
+
+    def test_nothing_is_invented_or_taken_from_unrelated_structures(self):
+        from core.autonomy.research_llm import parse_reply, MAX_PROPOSALS
+        self.assertEqual(parse_reply(self.FULL[:60]), (None, "no_json"))                      # 完全な提案が無ければ従来どおり失敗
+        self.assertEqual(parse_reply('{"foo": [{"a": 1}, {"b":')[1], "invalid_json")          # proposals 以外の配列から取り出さない
+        self.assertEqual(parse_reply('{"proposals": [1, {"a": 1}, {"b":')[1], "invalid_json")  # 先頭が提案でなければ救済しない
+        self.assertEqual(parse_reply('{"proposals": [{"a": 1},, {"b": 2}]}')[1], "invalid_json")   # 切れていない不正な返答は救済しない
+        many = '{"proposals": [' + ",".join(json.dumps({"i": i}) for i in range(20)) + ', {"i": '
+        items, why = parse_reply(many)
+        self.assertEqual((len(items), why), (MAX_PROPOSALS, f"salvaged_truncated:{MAX_PROPOSALS}"))   # 提案数の上限は同じ
+
+    def test_salvaged_proposals_go_through_the_same_validators_and_are_counted(self):
+        res, ev, _, g, _ = run_case("blind-docs-02", seed=3, budget_override={"max_llm_calls": 2}, llm=MockProposer("truncated"))
+        L = res["llm"]
+        self.assertEqual((L["parse_failures"], L["salvaged_replies"], L["salvaged_proposals"]), (0, 2, 2))
+        self.assertTrue(all(e.get("salvaged") for e in _ev(ev, "llm_proposals")))               # 救済した事実をジャーナルに残す
+        self.assertEqual([c["outcome"] for c in L["calls_detail"]], ["parsed", "parsed"])
+        self.assertTrue(all(c["reason"].startswith("salvaged_truncated") for c in L["calls_detail"]))
+        h = hyp_of(res)
+        self.assertEqual((h["source"], h["state"]), ("llm", "supported"))                       # 通常の提案と同じく事前登録・実験・確定条件を通る
+        self.assertEqual((g["false_positive_units"], g["ungrounded_overclaim"], g["boundary"]["violations"]), (0, [], 0))
+        self.assertEqual(res["metrics"]["prereg_violations"], [])
+
+    def test_closed_loop_before_and_after_with_the_same_input_and_budget(self):
+        """同じ入力（切れた返答）・同じ案件・同じ予算で、変更前の解析と比べる。追加のLLM呼出し・リクエストは無い。"""
+        from core.autonomy import research_llm as rl
+        new, _, _, g_new, _ = run_case("blind-docs-02", seed=3, budget_override={"max_llm_calls": 2}, llm=MockProposer("truncated"))
+        old_fn = rl.parse_reply
+        rl.parse_reply = self.legacy_parse
+        try:
+            old, _, _, g_old, _ = run_case("blind-docs-02", seed=3, budget_override={"max_llm_calls": 2}, llm=MockProposer("truncated"))
+        finally:
+            rl.parse_reply = old_fn
+        self.assertEqual((old["llm"]["parse_failures"], old["llm"]["new_registered"], hyp_of(old)), (2, 0, None))     # 変更前: 全体を捨てる
+        self.assertEqual((new["llm"]["parse_failures"], new["llm"]["new_registered"]), (0, 1))                      # 変更後: 完全な1件を救済
+        self.assertTrue(hyp_of(new) and hyp_of(new)["state"] == "supported")
+        self.assertEqual(new["llm"]["calls"], old["llm"]["calls"])                              # LLM呼出し数は同じ
+        self.assertLessEqual(new["metrics"]["requests_used"], new["budget"]["requests_max"])
+        self.assertEqual(g_old["false_positive_units"] + g_new["false_positive_units"], 0)
+        self.assertGreaterEqual(g_new["true_positive_units"], g_old["true_positive_units"])
+
+    def test_resume_keeps_the_salvage_counts_and_does_not_call_the_llm_again(self):
+        res, ev, before, after, g = ConfirmationResumeTest.crash_and_resume(
+            ConfirmationResumeTest(), f"before_send:{self._confirm_id()}", child_llm="late_truncated", resume_llm=MockProposer("late_truncated"),
+            budget={"max_llm_calls": 3})
+        self.assertEqual((res["llm"]["salvaged_replies"], res["llm"]["parse_failures"]), (1, 0))
+        self.assertEqual(res["budget"]["llm_calls_used"], 2)
+
+    def _confirm_id(self):
+        res, _, _ = late_run()
+        return hyp_of(res)["probe"]
+
+    def test_empty_list_is_not_a_refutation_but_non_empty_clean_lists_still_are(self):
+        """改善2の閉ループ比較: 変更前（空の一覧＝正常→棄却）と比べて、棄却に数えるのは『空の一覧』の仮説1件だけが減り、他は同じ。"""
+        new, _, _, g_new, _ = run_case("blind-docs-clean", seed=3, budget_override={"max_llm_calls": 2}, llm=MockProposer("good"))
+        old_eval = rh._eval_list_visibility
+
+        def legacy(check, res, model):
+            if res.status_code == 200 and isinstance(res.json, list) and not [x for x in res.json if isinstance(x, dict)] and res.body_complete \
+                    and model is not None and check["role"] in model.identity:
+                return rh.CONFORMS, "empty_list_visible_only", []
+            return old_eval(check, res, model)
+        rh._eval_list_visibility = legacy
+        try:
+            old, _, _, g_old, _ = run_case("blind-docs-clean", seed=3, budget_override={"max_llm_calls": 2}, llm=MockProposer("good"))
+        finally:
+            rh._eval_list_visibility = old_eval
+        refuted = lambda r: {x["hypothesis_id"] for x in r["refuted"]}  # noqa: E731
+        self.assertEqual(refuted(old) - refuted(new), {"h:list_scope:docs_list:admin"})          # 減ったのは空の一覧の仮説だけ
+        self.assertEqual(refuted(new) - refuted(old), set())
+        self.assertEqual(len(new["undetermined"]) - len(old["undetermined"]), 1)                # その1件は判定不能（情報なし）に
+        for k in ("requests_used", "supported", "unverified_deviation", "confirmations_planned", "confirmation_slots_used"):
+            self.assertEqual(new["metrics"][k], old["metrics"][k], k)                            # リクエスト数・確定・候補・確認枠は同じ
+        self.assertEqual(new["end_reason"], old["end_reason"])                                  # 停止理由も同じ
+        self.assertEqual((g_new["false_positive_units"], g_new["ungrounded_overclaim"]), (0, []))
+        self.assertEqual(new["findings"], old["findings"])
 
 
 class LlmFailureAnalysisTest(unittest.TestCase):

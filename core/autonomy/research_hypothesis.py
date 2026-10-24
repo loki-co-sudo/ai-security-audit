@@ -174,7 +174,9 @@ def _eval_list_visibility(check: dict, res: ExpResult, model: TargetModel | None
         return INCONCLUSIVE, "schema_incomplete", []
     items = [x for x in res.json if isinstance(x, dict)]
     if not items:
-        return (INCONCLUSIVE, "body_incomplete", []) if not res.body_complete else (CONFORMS, "empty_list_visible_only", [])
+        # 空の一覧には他人の要素が混ざりようが無く、この役割では逸脱が観測できる条件を満たしていない。『正常』でも『棄却』でもなく、判定不能（情報なし）。
+        # （契約変更 2026-10-24: 旧契約は empty_list_visible_only＝正常。docs/AUTONOMOUS_DISCOVERY_STAGE1.md §17.4）
+        return INCONCLUSIVE, "body_incomplete" if not res.body_complete else "empty_list_uninformative", []
     if any(ownf not in x for x in items):
         return INCONCLUSIVE, "owner_field_missing", []
     foreign = unknown = shared_with_caller = 0
@@ -233,6 +235,8 @@ def hyp_state(h: Hypothesis, results: dict, model: TargetModel | None = None) ->
         return S_REGISTERED, "probe_not_run"
     out, why, _ = evaluate_check(h.check, res, model)
     if out == INCONCLUSIVE:
+        if h.prior_probe and why == "empty_list_uninformative" and prior_deviated():
+            return S_UNDETERMINED, "not_reproduced"              # 登録前の観測では逸脱があったが、確認では一覧が空で再現しない
         return S_UNDETERMINED, f"probe_{why}"
     ctl, cwhy = control_state(h, results)
     if h.probe_preexisting:      # 登録前に得ていた結果は、事前登録した予測の検証にならない

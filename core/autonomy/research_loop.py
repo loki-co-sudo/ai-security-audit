@@ -42,7 +42,7 @@ from core.findings import (
 )
 from core.http_transport import HttpTransport, RequestPolicy, new_session
 
-RESEARCH_ENGINE_VERSION = "research-stage1/5"   # /2: 再開に必要な記録を追加（/1のRunは再開不可）。/3: 重複確認の後回し（OP_SUPPORTED 0.1）で実験の選択順が変わった（/2のRunは再開不可）。/4: list_scopeの具体化（共有先の項目を必須にしない）と判定（情報不足を逸脱にしない）、重複抑制(dedup)の指定。/3のRunは再開不可。/5: 観測後の仮説は登録後の新しい確認実験（実験IDにtag）で検証する・一覧の閲覧条件を操作単位(visible_to)で定義・LLM呼出しの予約をジャーナルに残し再開で巻き戻さない（/4のRunは再開不可。tagの無い実験の実験ID・予測ハッシュは/4と同じ）
+RESEARCH_ENGINE_VERSION = "research-stage1/6"   # /2: 再開に必要な記録を追加（/1のRunは再開不可）。/3: 重複確認の後回し（OP_SUPPORTED 0.1）で実験の選択順が変わった（/2のRunは再開不可）。/4: list_scopeの具体化（共有先の項目を必須にしない）と判定（情報不足を逸脱にしない）、重複抑制(dedup)の指定。/3のRunは再開不可。/5: 観測後の仮説は登録後の新しい確認実験（実験IDにtag）で検証する・一覧の閲覧条件を操作単位(visible_to)で定義・LLM呼出しの予約をジャーナルに残し再開で巻き戻さない（/4のRunは再開不可。tagの無い実験の実験ID・予測ハッシュは/4と同じ）。/6: 出力上限で切れたLLM返答から完全な提案を救済・空の一覧は棄却でなく判定不能（/5のRunは再開不可）
 _ARGS = {"url": {"type": "str", "required": True}, "exp_id": {"type": "str", "required": True},
          "op_id": {"type": "str", "required": True}, "role": {"type": "str", "required": True},
          "path_params": {"type": "dict"}}
@@ -327,6 +327,7 @@ def _llm_summary(researcher, ledger, findings, candidates) -> dict:
                                                                            / st["proposals"], 4) if st["proposals"] else None),
             "llm_hypotheses": sorted(llm_hyps), "llm_findings": sorted(f["hypothesis_id"] for f in findings if f["hypothesis_id"] in llm_hyps),
             "llm_candidates": sorted(c["hypothesis_id"] for c in candidates if c["hypothesis_id"] in llm_hyps),
+            "salvaged_replies": st["salvaged_replies"], "salvaged_proposals": st["salvaged_proposals"],
             "unknown_outcome_phases": list(researcher.llm_unknown), "details": st["details"], "calls_detail": st["calls_detail"], "usage": st["usage"],
             "ledger": ledger.llm_usage_summary()}
 

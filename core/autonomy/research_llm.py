@@ -82,8 +82,53 @@ def build_messages(case: BlindCase, model: TargetModel, phase: str) -> tuple[lis
     return [{"role": "system", "content": system}, {"role": "user", "content": user}], dropped
 
 
+def _is_truncated(t: str) -> bool:
+    """JSONらしい文字列が、途中で切れている（文字列・括弧が閉じないまま終わる）か。文字列内の括弧は数えない。"""
+    depth, in_str, esc = 0, False, False
+    for ch in t:
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+        elif ch == '"':
+            in_str = True
+        elif ch in "{[":
+            depth += 1
+        elif ch in "}]":
+            depth -= 1
+    return in_str or depth > 0
+
+
+def _salvage_truncated(t: str) -> list:
+    """出力上限で途中まで切れた返答から、完全に解析できる提案オブジェクトだけを順に取り出す（最後の不完全な提案は捨てる）。
+    切れていない不正な返答には使わない（呼出し側が _is_truncated で確認する）。取り出したオブジェクトも、通常の提案と同じ検証を通る。"""
+    m = re.search(r'"proposals"\s*:\s*\[', t)
+    if not m and t.lstrip().startswith("{"):
+        return []                                    # proposals 以外の配列から取り出さない
+    start = m.end() if m else (t.find("[") + 1 if "[" in t else 0)
+    if start <= 0:
+        return []
+    dec, pos, items = json.JSONDecoder(), start, []
+    while pos < len(t):
+        while pos < len(t) and t[pos] in " \t\r\n,":
+            pos += 1
+        if pos >= len(t) or t[pos] != "{":
+            break
+        try:
+            obj, pos = dec.raw_decode(t, pos)
+        except ValueError:
+            break                                    # ここから先は不完全（切れた提案）。捨てる
+        if isinstance(obj, dict):
+            items.append(obj)
+    return items
+
+
 def parse_reply(text: str) -> tuple[list | None, str]:
-    """返答からproposals配列を取り出す。戻り値: (配列, 理由)。形式が違えば(None, 理由)。"""
+    """返答からproposals配列を取り出す。戻り値: (配列, 理由)。形式が違えば(None, 理由)。
+    出力上限で途中まで切れた返答は、完全に書かれていた提案だけを救済し、理由を `salvaged_truncated:<件数>` にする（0件なら従来どおり失敗）。"""
     t = (text or "").strip()
     if not t:
         return None, "empty_reply"
@@ -99,6 +144,10 @@ def parse_reply(text: str) -> tuple[list | None, str]:
     try:
         doc = json.loads(t[i:j + 1])
     except ValueError:
+        if _is_truncated(t[i:]):
+            items = _salvage_truncated(t[i:])[:MAX_PROPOSALS]
+            if items:
+                return items, f"salvaged_truncated:{len(items)}"
         return None, "invalid_json"
     items = doc.get("proposals") if isinstance(doc, dict) else doc
     if not isinstance(items, list):

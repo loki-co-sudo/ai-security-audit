@@ -170,7 +170,7 @@ REPORT_DEFINITIONS = {
     "ungrounded": "到達可能で、仕様に根拠がない欠陥。確定(所見)は過剰な確定、候補は期待どおり。再現率の分母に含めない",
     "unreachable": "到達不能(reachable=false)の欠陥。評価の対象外として件数だけ報告する",
     "categories": "found_evidence_complete=所見あり・証拠一式あり／found_evidence_incomplete=所見ありだが証拠不足／overclaimed=推定の欠陥を確定／"
-                  "candidate_only=逸脱を観測したが確定せず／control_incomplete=対照が完了せず判定不能／examined_no_deviation=実験したが逸脱を観測せず／"
+                  "candidate_only=逸脱を観測したが確定せず／control_incomplete=対照が完了せず判定不能／examined_uninformative=検証したが逸脱が観測できる条件を満たさなかった（例: 空の一覧）／examined_no_deviation=実験したが逸脱を観測せず／"
                   "registered_not_examined=仮説は登録したが実験に至らず／validator_rejected=検証器が却下／unverifiable=検証不能として残した／registered_no_outcome=仮説は登録済みだが結果の状態なし(記録の欠落)／"
                   "no_hypothesis_for_family=同じ操作の別の型の仮説のみ(LLMを使わない実行)／no_hypothesis=その操作の仮説なし(LLMを使わない実行)／"
                   "llm_not_used／llm_budget_denied／llm_call_failed／llm_reply_unparsed(解析失敗)／llm_no_proposal_for_op(解析できた返答に提案なし)／"
@@ -279,6 +279,7 @@ def llm_usage(runs: list, proto: dict) -> dict | None:
     usage = [u for r in lr for u in (r["llm"].get("usage") or []) if u]
     return {"runs": len(lr), "calls": sum(r["llm"]["calls"] for r in lr), "skipped": sum(r["llm"]["skipped"] for r in lr),
             "parse_failures": sum(r["llm"]["parse_failures"] for r in lr),
+            "salvaged_replies": sum(r["llm"].get("salvaged_replies", 0) for r in lr), "salvaged_proposals": sum(r["llm"].get("salvaged_proposals", 0) for r in lr),
             "at_token_cap": sum(1 for u in usage if cap and u.get("output_tokens", 0) >= cap),
             "input_tokens": sum(u.get("input_tokens", 0) for u in usage), "output_tokens": sum(u.get("output_tokens", 0) for u in usage),
             "proposals": sum(r["llm"]["proposals"] for r in lr), "new_registered": sum(r["llm"]["new_registered"] for r in lr)}

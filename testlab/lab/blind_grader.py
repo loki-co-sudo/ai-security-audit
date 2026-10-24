@@ -81,14 +81,14 @@ def grade(result: dict, truth: dict, env_requests: list, spec: dict, max_request
 # 見逃しの理由の分類（報告専用。採点の指標・採用基準には使わない。2026-10-24、未使用ケースの評価の前に追加。
 # 同日、LLM段階の却下（具体化・検証器）と呼出しの失敗も区別するよう拡張）
 SYSTEM_FAMILIES = ("object_authz", "function_authz", "unauth_access", "field_exposure", "list_scope", "mutation_authz")
-TAXONOMY_ORDER = ("found_evidence_complete", "found_evidence_incomplete", "overclaimed", "candidate_only", "control_incomplete",
+TAXONOMY_ORDER = ("found_evidence_complete", "found_evidence_incomplete", "overclaimed", "candidate_only", "control_incomplete", "examined_uninformative",
                   "examined_no_deviation", "registered_not_examined", "validator_rejected", "unverifiable",
                   "registered_no_outcome", "no_hypothesis_for_family", "no_hypothesis",
                   "llm_not_used", "llm_budget_denied", "llm_call_failed", "llm_reply_unparsed", "llm_no_proposal_for_op",
                   "llm_proposed_other_check_only", "rejected_at_concretization", "rejected_by_validator", "family_outside_system")
 CHECK_FAMILIES = {"list_visibility": {"list_scope"}, "fields_subset": {"field_exposure"},
                   "deny_expected": {"object_authz", "function_authz", "unauth_access", "mutation_authz"}}
-HYPOTHESIS_EXISTS = {"found_evidence_complete", "found_evidence_incomplete", "overclaimed", "candidate_only", "control_incomplete",
+HYPOTHESIS_EXISTS = {"found_evidence_complete", "found_evidence_incomplete", "overclaimed", "candidate_only", "control_incomplete", "examined_uninformative",
                      "examined_no_deviation", "registered_not_examined", "unverifiable", "registered_no_outcome"}
 _UNSET = object()
 
@@ -149,7 +149,9 @@ def diagnose(result: dict, truth: dict, calls=_UNSET) -> dict:
         elif unit in sets["candidate"]:
             cat, detail = "candidate_only", str(sets["candidate"][unit].get("reason", ""))[:60]
         elif unit in sets["undetermined"]:
-            cat, detail = "control_incomplete", str(sets["undetermined"][unit].get("reason", ""))[:60]
+            detail = str(sets["undetermined"][unit].get("reason", ""))[:60]
+            # 検証したが、逸脱が観測できる条件を満たさなかった（例: 空の一覧）。『実験したが逸脱を観測せず（未発見）』とは区別する
+            cat = "examined_uninformative" if "uninformative" in detail else "control_incomplete"
         elif unit in sets["refuted"]:
             cat = "examined_no_deviation"
         elif unit in sets["not_examined"]:
