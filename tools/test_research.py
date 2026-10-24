@@ -2086,6 +2086,62 @@ class ConfirmationResumeTest(unittest.TestCase):
             self.assertEqual(len(_ev(ev, "llm_call_reserved")), 2, point)
 
 
+class RecordsArchiveTest(unittest.TestCase):
+    """評価記録の保全: 原本を変えず、別の場所へ展開してハッシュと参照証拠の解決を確認できる。改ざん・欠落・リポジトリ内への保存は検出／拒否する。"""
+
+    def _make(self, td):
+        from tools.research_eval import run_one
+        r = run_one("blind-docs-02", 3, llm=MockProposer("late"), records_dir=os.path.join(td, "records", "a"))     # 実際の評価と同じ配置（記録先/実行ごとのディレクトリ）
+        res = os.path.join(td, "result.json")
+        with open(res, "w", encoding="utf-8") as f:
+            json.dump({"runs_compact": [{"method": "llm", "run_id": r["run_id"], "records": r["records"], "trace": r["trace"]}]}, f)
+        return os.path.join(td, "records"), res
+
+    def test_create_verify_and_detect_damage(self):
+        import hashlib
+        from tools import research_records_archive as ra
+        with tempfile.TemporaryDirectory() as td, tempfile.TemporaryDirectory() as out:
+            records, res = self._make(td)
+            h0 = {p: ra.sha256_file(p) for p in glob.glob(records + "/**/*", recursive=True) if os.path.isfile(p)}
+            info = ra.create("t", out, records, res, [])
+            self.assertEqual({p: ra.sha256_file(p) for p in h0}, h0)                         # 原本は変わらない
+            self.assertEqual(info["archive_sha256"], hashlib.sha256(open(os.path.join(out, "t.tar.gz"), "rb").read()).hexdigest())
+            v = ra.verify(out)
+            self.assertTrue(v["ok"], v["problems"])
+            self.assertEqual((v["stats"]["hash_mismatch"], v["stats"]["missing"], v["stats"]["journals_resolved"]), (0, 0, 1))
+            self.assertGreaterEqual(v["stats"]["evidence_resolved"], 2)
+            self.assertEqual(v["stats"]["evidence_resolved"], v["stats"]["evidence_refs"])
+            self.assertEqual((v["stats"]["trace_seq_checked"] >= 1, v["stats"]["trace_seq_mismatch"]), (True, 0))
+            self.assertIn("別媒体へのバックアップではない", open(os.path.join(out, "RESTORE.md"), encoding="utf-8").read())
+            with self.assertRaises(SystemExit):                                              # 既存のアーカイブを上書きしない
+                ra.create("t", out, records, res, [])
+            with open(os.path.join(out, "t.tar.gz"), "ab") as f:                             # 改ざん（末尾に追記）
+                f.write(b"x")
+            self.assertFalse(ra.verify(out)["ok"])
+
+    def test_missing_evidence_is_reported_not_papered_over(self):
+        from tools import research_records_archive as ra
+        with tempfile.TemporaryDirectory() as td, tempfile.TemporaryDirectory() as out:
+            records, res = self._make(td)
+            eid = json.load(open(res, encoding="utf-8"))["runs_compact"][0]["trace"]["findings"][0]["evidence_ids"][0]
+            gone = [p for p in glob.glob(records + "/**/e/**/*.json", recursive=True) if eid in p]       # 所見が参照する証拠を1件消してから保全する
+            self.assertEqual(len(gone), 1)
+            os.remove(gone[0])
+            ra.create("t", out, records, res, [])
+            v = ra.verify(out)
+            self.assertFalse(v["ok"])
+            self.assertTrue([p for p in v["problems"] if "証拠が解決しない" in p])
+            self.assertLess(v["stats"]["evidence_resolved"], v["stats"]["evidence_refs"])
+
+    def test_refuses_to_write_inside_the_repository(self):
+        from tools import research_records_archive as ra
+        with tempfile.TemporaryDirectory() as td:
+            records, res = self._make(td)
+            with self.assertRaises(SystemExit):
+                ra.create("t", os.path.join(ROOT, "reports", "archive_should_not_exist"), records, res, [])
+            self.assertFalse(os.path.exists(os.path.join(ROOT, "reports", "archive_should_not_exist")))
+
+
 class LlmFailureAnalysisTest(unittest.TestCase):
     """LLM方式の失敗箇所の事後分析（報告専用）。手作りのジャーナルイベントで、各分類へ入ることを固定する。"""
 
