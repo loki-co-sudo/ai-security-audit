@@ -79,6 +79,12 @@ def make_app(truth: dict, canary, seed: int):
     return cls(canary=canary, flaws=flaws, seed=seed)
 
 
+# 実験の選び方の変種（再計画あり/なし × 重複抑制あり/なし。docs/AUTONOMOUS_DISCOVERY_STAGE1.md §13）。名前 -> (strategy, dedup)。dedup=None は方式の既定
+STRATEGY_VARIANTS = {"adaptive": ("adaptive", None), "adaptive-dedup": ("adaptive", True), "adaptive-nodedup": ("adaptive", False),
+                     "static": ("static", None), "static-nodedup": ("static", False), "static-dedup": ("static", True),
+                     "checklist": ("checklist", None)}
+
+
 def run_one(case_id: str, seed: int, *, budget_override: dict | None = None, llm=None, strategy: str = "adaptive",
             cases_dir: str | None = None, truth_dir: str | None = None) -> dict:
     case = load_blind_case(os.path.join(cases_dir or CASES_DIR, f"{case_id}.json"))
@@ -91,7 +97,9 @@ def run_one(case_id: str, seed: int, *, budget_override: dict | None = None, llm
     try:
         with tempfile.TemporaryDirectory() as td, make_app(truth, canary, seed) as app:
             res = run_research_case(case, app.base_url, app.credentials(), journal_root=td + "/j",
-                                    evidence_root=td + "/e", budget_override=bo or None, llm=llm, strategy=strategy).to_dict()
+                                    evidence_root=td + "/e", budget_override=bo or None, llm=llm,
+                                    strategy=STRATEGY_VARIANTS.get(strategy, (strategy, None))[0],
+                                    dedup=STRATEGY_VARIANTS.get(strategy, (strategy, None))[1]).to_dict()
             g = grade(res, truth, list(app.requests), case.public_dict()["spec"],
                       bo.get("max_requests", case.budget["max_requests"]), canary.hits)
     finally:

@@ -30,7 +30,7 @@ from core.autonomy.research_hypothesis import (
     S_UNVERIFIABLE, S_UNVERIFIED, control_state, evaluate_check,
 )
 from core.autonomy.research_model import ExpResult, digest_json, retained_keys, safe_json
-from core.autonomy.research_planner import CAP_ANON, CAP_AUTHED, Researcher
+from core.autonomy.research_planner import CAP_ANON, CAP_AUTHED, Researcher, default_dedup
 from core.autonomy.journal import replay
 from core.autonomy.resume import ResumeError, profile_hash, reconcile
 from core.autonomy.run_store import RunStore, RunStoreError
@@ -110,10 +110,12 @@ def run_research_case(case: BlindCase, base_url: str, creds: dict[str, str], *, 
                       evidence_root: str | None = None, is_stopped: Callable[[], bool] | None = None,
                       budget_override: dict | None = None, clock=time.monotonic,
                       fault_hook: Callable[[str, str], None] | None = None, llm=None,
-                      llm_max_tokens: int = 800, resume_run_id: str | None = None, strategy: str = "adaptive") -> ResearchRunResult:
+                      llm_max_tokens: int = 800, resume_run_id: str | None = None, strategy: str = "adaptive",
+                      dedup: bool | None = None) -> ResearchRunResult:
     """1案件を1回、自律調査する。creds は `cred:<名前>` -> token（実行時にヘッダーへ入れるだけで記録しない）。
     llm（任意）: complete(messages, max_tokens, usage_out) を持つ提案役。使うには予算 max_llm_calls>0 が必要（0なら呼ばない）。
     strategy（任意）: 実験の選び方。adaptive(既定)／static(再計画しない)／checklist(仕様順の固定探索)。後の2つは比較実験用で、再開に対応しない。
+    dedup（任意）: 重複抑制（支持済みと同じ欠陥の確認を後回しにする）。None=方式の既定（adaptiveはON、staticはOFF）。再計画との切り分け実験用。
     resume_run_id（任意）: 中断したRunを再開する。完了済みの実験は再送せず、結果不明の実験は自動で再実行しない
     （関連する仮説は判定不能）。予算は巻き戻さない。案件・対象・予算・版が開始時と違えば拒否する。時間予算は再開時に数え直す。"""
     t_start = time.time()
@@ -123,7 +125,8 @@ def run_research_case(case: BlindCase, base_url: str, creds: dict[str, str], *, 
     registry = build_registry()
     effects = {SideEffect.T0_LOCAL} | {SideEffect(s) for s in case.side_effects}
     phash = profile_hash({"mode": "RESEARCH", "case": case.public_dict(), "base_url": base_url, "budget": budget,
-                          "engine": ENGINE_VERSION, "research_engine": RESEARCH_ENGINE_VERSION, "strategy": strategy})
+                          "engine": ENGINE_VERSION, "research_engine": RESEARCH_ENGINE_VERSION, "strategy": strategy,
+                          **({"dedup": bool(dedup)} if dedup is not None and bool(dedup) != default_dedup(strategy) else {})})
     sr = new_scan_result("LAB", case.case_id, engagement_id=case.case_id)
     counters = {"gate_denied": 0, "budget_denied": 0, "experiments_failed": 0, "resumed": bool(resume_run_id), "prior_requests": 0}
     resuming = resume_run_id is not None
@@ -166,7 +169,7 @@ def run_research_case(case: BlindCase, base_url: str, creds: dict[str, str], *, 
     evidence = EvidenceStore(sr.scan_id, **({"root": evidence_root} if evidence_root else {}))
     researcher = Researcher(case, base_url, journal, ledger, stopped,
                             llm=llm if int(budget.get("max_llm_calls", 0)) > 0 else None, llm_max_tokens=llm_max_tokens,
-                            strategy=strategy)
+                            strategy=strategy, dedup=dedup)
     mask = lambda s: redaction.mask_log_line(str(s), known_secrets)  # noqa: E731
     keep = retained_keys(case)
     plan: list = []
@@ -422,5 +425,5 @@ def _assemble(case, researcher, outcome, runner, sr, run_id, counters, ledger, e
         llm=_llm_summary(researcher, ledger, findings, candidates),
         budget={**ledger.snapshot(), "configured": budget},
         versions={"engine": ENGINE_VERSION, "research_engine": RESEARCH_ENGINE_VERSION, "profile_hash": phash[:16],
-                  "strategy": researcher.strategy},
+                  "strategy": researcher.strategy, "dedup": researcher.dedup},
         scan_result=sr.to_dict())

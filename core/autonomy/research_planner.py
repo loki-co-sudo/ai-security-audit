@@ -35,11 +35,18 @@ DEFAULT_MIN_VALUE = 0.02
 #   static    探索の後に価値順を1回だけ計算して固定し、結果で並べ替えない（再計画しない）
 #   checklist 仕様の操作順→ロール→対象IDの機械的な順（価値を見ない。固定的な網羅探索）
 STRATEGIES = ("adaptive", "static", "checklist")
+# 重複抑制(dedup): 既に支持された欠陥と同じものの確認を後回しにする。再計画(観測で順位を更新する)とは別の要素として切り分けて比較できる（§13）。
+#   adaptive: 支持済みの組に当たる仮説の価値に KEY_SUPPORTED/OP_SUPPORTED を掛ける（既定ON）。OFFなら掛けない
+#   static:   固定した順序を保ったまま、実験を選ぶ時点で支持済みの組に当たる仮説を保留し、保留でない先頭を選ぶ（既定OFF）。保留しかなければその先頭（排除はしない）
+#   checklist: 重複抑制なし（指定できない）
+def default_dedup(strategy: str) -> bool:
+    return strategy == "adaptive"
 
 
 class Researcher:
     def __init__(self, case: BlindCase, base_url: str, journal: RunJournal, ledger: BudgetLedger,
-                 is_stopped: Callable[[], bool], llm=None, llm_max_tokens: int = 800, strategy: str = "adaptive"):
+                 is_stopped: Callable[[], bool], llm=None, llm_max_tokens: int = 800, strategy: str = "adaptive",
+                 dedup: bool | None = None):
         self.case, self.base_url, self.journal, self.ledger, self.is_stopped = case, base_url, journal, ledger, is_stopped
         self.model = TargetModel(case)
         self.hyps: dict[str, Hypothesis] = {}
@@ -59,6 +66,9 @@ class Researcher:
         if strategy not in STRATEGIES:
             raise ValueError(f"未知のstrategy: {strategy}")
         self.strategy = strategy
+        self.dedup = default_dedup(strategy) if dedup is None else bool(dedup)
+        if self.dedup and strategy == "checklist":
+            raise ValueError("checklist は重複抑制を指定できません")
         self._order: list | None = None               # 比較用の方式（static/checklist）が最初の選択時に固定する仮説の順序
         self._llm_done: set[str] = set()
         self.llm_stats = {"calls": 0, "skipped": 0, "parse_failures": 0, "proposals": 0, "new_registered": 0,
@@ -299,7 +309,7 @@ class Researcher:
     def _gen_factor(self, h: Hypothesis) -> float:
         sibs = [x for x in self.hyps.values() if x.key == h.key and x.hypothesis_id != h.hypothesis_id]
         st = [self.states[x.hypothesis_id][0] for x in sibs]
-        if any(s in (S_SUPPORTED, S_UNVERIFIED) for s in st):
+        if self.dedup and any(s in (S_SUPPORTED, S_UNVERIFIED) for s in st):
             f = KEY_SUPPORTED
         elif any(s == S_REFUTED for s in st):
             f = KEY_REFUTED
@@ -308,7 +318,17 @@ class Researcher:
             f = SAME_KEY_FIRST if untested and untested[0] == h.hypothesis_id else SAME_KEY_OTHERS
         op_level = [x for x in self.hyps.values() if x.family == h.family and x.op_id == h.op_id
                     and x.probe_role != h.probe_role and self.states[x.hypothesis_id][0] == S_SUPPORTED]
-        return f * (OP_SUPPORTED if op_level else 1.0)
+        return f * (OP_SUPPORTED if (op_level and self.dedup) else 1.0)
+
+    def _duplicate_of_supported(self, h: Hypothesis) -> bool:
+        """static+dedup 用: 同じ(型,操作,ロール)の別対象が支持/逸脱確認済み、または同じ(型,操作)の別ロールが支持済み（adaptive の係数と同じ条件）。"""
+        for x in self.hyps.values():
+            if x.hypothesis_id == h.hypothesis_id or x.family != h.family or x.op_id != h.op_id:
+                continue
+            st = self.states[x.hypothesis_id][0]
+            if (x.key == h.key and st in (S_SUPPORTED, S_UNVERIFIED)) or (x.probe_role != h.probe_role and st == S_SUPPORTED):
+                return True
+        return False
 
     def _rank(self) -> list[tuple]:
         out = []
@@ -348,11 +368,19 @@ class Researcher:
         self._order += [h.hypothesis_id for h in self.hyps.values() if h.probe is not None and h.gap is None
                         and h.hypothesis_id not in known]                  # 固定後に登録された仮説は末尾（登録順）
         out = []
+        deferred = None
         for hid in self._order:
             exp, purpose = self._next_experiment(self.hyps[hid])
-            if exp is not None:
-                out.append((1.0 - len(out) * 1e-6, self.hyps[hid], exp, purpose))     # 値は順序を保つためだけ
-                break
+            if exp is None:
+                continue
+            if self.dedup and self.strategy == "static" and out == [] and self._duplicate_of_supported(self.hyps[hid]):
+                deferred = deferred or (hid, exp, purpose)      # 保留。保留でない仮説が無ければ先頭の保留を使う
+                continue
+            out.append((1.0 - len(out) * 1e-6, self.hyps[hid], exp, purpose))     # 値は順序を保つためだけ
+            break
+        if not out and deferred:
+            hid, exp, purpose = deferred
+            out.append((1.0, self.hyps[hid], exp, purpose))
         return out
 
     # ── 終了時 ──────────────────────────────────

@@ -1475,6 +1475,94 @@ class ListScopeSemanticsTest(unittest.TestCase):
         self.assertIn("h:list_scope:loans_list:librarian", {r["hypothesis_id"] for r in res2["refuted"]})
 
 
+class ReplanDedupFactorialTest(unittest.TestCase):
+    """再計画 × 重複抑制の切り分け用の変種。既定の方式は従来と同じ実験順（旧い凍結比較を再現できる）で、変種は仕様どおりに働く。"""
+    # 変更前のコードで取った実験順の指紋（sha256先頭12/実験数）。(案件, 方式, リクエスト予算, seed=3)
+    GOLDEN = {
+        "blind-docs-01|adaptive|14": "0ed2b7267062/14", "blind-docs-01|adaptive|27": "7e7c4c55d0ca/27", "blind-docs-01|adaptive|40": "31a77834fc99/40",
+        "blind-docs-01|static|14": "783a6fa12dab/14", "blind-docs-01|static|27": "7bf0baa419fd/27", "blind-docs-01|static|40": "daf6fa109081/40",
+        "blind-docs-01|checklist|14": "db10891a330a/14", "blind-docs-01|checklist|27": "5f58db97ed90/27", "blind-docs-01|checklist|40": "fbe5a37824f6/40",
+        "blind-docs-03|adaptive|14": "ac92ec9c3d83/14", "blind-docs-03|adaptive|27": "56bbef01b8af/27", "blind-docs-03|adaptive|40": "d62a9dd659c3/40",
+        "blind-docs-03|static|14": "783a6fa12dab/14", "blind-docs-03|static|27": "7bf0baa419fd/27", "blind-docs-03|static|40": "daf6fa109081/40",
+        "blind-docs-03|checklist|14": "db10891a330a/14", "blind-docs-03|checklist|27": "5f58db97ed90/27", "blind-docs-03|checklist|40": "fbe5a37824f6/40"}
+
+    def test_default_strategies_reproduce_the_frozen_experiment_sequences(self):
+        import hashlib
+        for key, want in self.GOLDEN.items():
+            cid, strat, budget = key.split("|")
+            case = load_blind_case(os.path.join(CASES, cid + ".json"))
+            truth = truth_of(cid)
+            canary = CanaryServer().start()
+            try:
+                with tempfile.TemporaryDirectory() as td, DocsApp(canary=canary, seed=3, flaws=frozenset(truth["env_flaws"])) as app:
+                    res = run_research_case(case, app.base_url, app.credentials(), journal_root=td + "/j", evidence_root=td + "/e",
+                                            budget_override={"max_requests": int(budget)}, strategy=strat).to_dict()
+            finally:
+                canary.stop()
+            seq = [(e["role"], e["op_id"], json.dumps(e.get("path_params"), sort_keys=True)) for e in res["experiments"]]
+            self.assertEqual(hashlib.sha256(json.dumps(seq).encode()).hexdigest()[:12] + f"/{len(seq)}", want, key)
+            self.assertEqual(res["versions"]["dedup"], strat == "adaptive")                 # 既定: adaptiveはON、他はOFF
+
+    def _researcher(self, strategy, dedup):
+        from core.autonomy.research_planner import Researcher
+        m = synthetic_model()
+        r = Researcher(m.case, "http://127.0.0.1:1", None, None, lambda: False, strategy=strategy, dedup=dedup)
+        r.model = m
+        r.hyps = {h.hypothesis_id: h for h in rh.propose(m) if h.probe is not None and h.gap is None}
+        r.states = {hid: (rh.S_REGISTERED, "probe_not_run") for hid in r.hyps}
+        return r
+
+    def test_dedup_only_changes_how_supported_findings_are_treated(self):
+        for strat in ("adaptive", "static"):
+            on, off = self._researcher(strat, True), self._researcher(strat, False)
+            hs = [h for h in on.hyps.values() if h.family == "function_authz"]
+            self.assertGreaterEqual(len(hs), 2)
+            a, b = hs[0], next(h for h in hs[1:] if h.op_id == hs[0].op_id and h.probe_role != hs[0].probe_role)
+            for r in (on, off):
+                self.assertFalse(r._duplicate_of_supported(b))                      # 何も支持されていなければ重複ではない
+                r.states[a.hypothesis_id] = (rh.S_SUPPORTED, "x")
+            self.assertTrue(on._duplicate_of_supported(b))                          # 同じ(型,操作)の別ロールが支持済み
+            self.assertFalse(on._duplicate_of_supported(a))
+            other_op = next(h for h in on.hyps.values() if h.op_id != a.op_id and h.family == a.family)
+            self.assertFalse(on._duplicate_of_supported(other_op))
+            if strat == "adaptive":
+                self.assertLess(on._gen_factor(b), off._gen_factor(b))               # ONだけが価値を下げる
+                self.assertAlmostEqual(on._gen_factor(b), off._gen_factor(b) * 0.1)
+                self.assertEqual(off._gen_factor(other_op), on._gen_factor(other_op))
+
+    def test_static_dedup_defers_but_never_excludes(self):
+        r = self._researcher("static", True)
+        hs = [h for h in r.hyps.values() if h.family == "function_authz"]
+        a, b = hs[0], next(h for h in hs[1:] if h.op_id == hs[0].op_id and h.probe_role != hs[0].probe_role)
+        other = next(h for h in r.hyps.values() if h.op_id != a.op_id and h.family == a.family)
+        r.states[a.hypothesis_id] = (rh.S_SUPPORTED, "x")
+        r.model.results[a.probe.exp_id] = ExpResult(a.probe.exp_id, 200, json={})        # aは実験済み
+        r._order = [b.hypothesis_id, other.hypothesis_id]
+        self.assertEqual(r._ranked_for_strategy()[0][1].hypothesis_id, other.hypothesis_id)        # 重複は後回し
+        r2 = self._researcher("static", False)
+        r2.states[a.hypothesis_id] = (rh.S_SUPPORTED, "x")
+        r2.model.results[a.probe.exp_id] = ExpResult(a.probe.exp_id, 200, json={})
+        r2._order = [b.hypothesis_id, other.hypothesis_id]
+        self.assertEqual(r2._ranked_for_strategy()[0][1].hypothesis_id, b.hypothesis_id)           # OFFなら固定順のまま
+        r.hyps = {a.hypothesis_id: a, b.hypothesis_id: b}
+        r.states = {a.hypothesis_id: (rh.S_SUPPORTED, "x"), b.hypothesis_id: (rh.S_REGISTERED, "probe_not_run")}
+        r._order = [b.hypothesis_id]                                                              # 保留しか残っていなければ、それを選ぶ（排除しない）
+        self.assertEqual(r._ranked_for_strategy()[0][1].hypothesis_id, b.hypothesis_id)
+
+    def test_checklist_cannot_dedup_and_variants_are_wired(self):
+        from core.autonomy.research_planner import Researcher
+        m = synthetic_model()
+        with self.assertRaises(ValueError):
+            Researcher(m.case, "http://127.0.0.1:1", None, None, lambda: False, strategy="checklist", dedup=True)
+        from tools.research_eval import STRATEGY_VARIANTS, run_one
+        self.assertEqual(set(STRATEGY_VARIANTS), {"adaptive", "adaptive-dedup", "adaptive-nodedup", "static", "static-nodedup",
+                                                 "static-dedup", "checklist"})
+        self.assertEqual(STRATEGY_VARIANTS["static-dedup"], ("static", True))
+        r = run_one("blind-docs-01", 0, strategy="static-dedup", budget_override={"max_requests": 20})
+        self.assertEqual(r["strategy"], "static-dedup")
+        self.assertEqual(r["grade"]["boundary"]["violations"], 0)
+
+
 class LlmFailureAnalysisTest(unittest.TestCase):
     """LLM方式の失敗箇所の事後分析（報告専用）。手作りのジャーナルイベントで、各分類へ入ることを固定する。"""
 
