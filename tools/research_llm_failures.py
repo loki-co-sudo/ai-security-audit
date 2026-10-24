@@ -119,8 +119,9 @@ class SpendGuard:
     def spent(self) -> float:
         return self.llm.input_tokens * self.pin + self.llm.output_tokens * self.pout
 
-    def may_start_run(self) -> bool:
-        if self.spent() + self.worst_run > self.cap:
+    def may_start_run(self, n: int = 1) -> bool:
+        """n 実行（A/B の対は2）を始めても上限を超えない（最悪値）か。"""
+        if self.spent() + n * self.worst_run > self.cap:
             self.stopped = True
         return not self.stopped
 

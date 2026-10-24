@@ -2449,5 +2449,210 @@ class SpendGuardTest(unittest.TestCase):
         self.assertEqual(run_samples(["blind-docs-01"], [0], 1, llm, 800, 2, g), [])
 
 
+class PromptV2Test(unittest.TestCase):
+    """research-propose/2（観測後の入力に一覧ごとの観測の要約を加える）。既定 /1 の入力は不変・入力上限に収まる・事実だけ・分岐なし（docs §19）。"""
+
+    # /1 の入力（仕様段階・観測後）のハッシュ。実装前の HEAD(research-stage1/6) で採ったもの。変わったら /1 が変わっている。
+    V1_HASHES = {"blind-docs-01": ["72a08cd3ab7847ff", "9a0ec91bc69596ac"], "unseen-amber-23": ["a848fece1f249a3c", "088d8be09b8ab37e"]}
+
+    class _Cap:
+        def __init__(self):
+            self.msgs = []
+
+        def complete(self, messages, max_tokens=None, usage_out=None):
+            self.msgs.append(messages)
+            return "{\"proposals\": []}"
+
+    def _run(self, cid, version="research-propose/1"):
+        from tools.research_eval import run_one
+        cap = self._Cap()
+        r = run_one(cid, 0, llm=cap, prompt_version=version) if version != "research-propose/1" else run_one(cid, 0, llm=cap)
+        return cap.msgs, r
+
+    @staticmethod
+    def _h(m):
+        import hashlib
+        return hashlib.sha256(json.dumps(m, ensure_ascii=False, sort_keys=True).encode()).hexdigest()[:16]
+
+    def test_default_v1_input_is_byte_identical(self):
+        for cid, hashes in self.V1_HASHES.items():
+            msgs, r = self._run(cid)
+            self.assertEqual([self._h(m) for m in msgs], hashes, cid)
+            self.assertEqual(r["llm"]["calls_detail"][0]["phase"], "spec")
+
+    def test_v2_changes_only_the_observed_phase_by_inserting_a_section(self):
+        for cid in self.V1_HASHES:
+            m1, _ = self._run(cid)
+            m2, r2 = self._run(cid, "research-propose/2")
+            self.assertEqual(m1[0], m2[0])                                   # 仕様段階は同一
+            u1, u2 = m1[1][1]["content"], m2[1][1]["content"]
+            self.assertEqual(m1[1][0], m2[1][0])                             # system 同一
+            self.assertNotEqual(u1, u2)
+            a, b = u2.split("## 観測の要約（役割ごとの一覧の中身と仮説の状態。事実だけ）\n")
+            summary, rest = b.split("\n\n## 提案に使えるcheck", 1)
+            self.assertEqual(a + "## 提案に使えるcheck" + rest, u1)         # 要約を除くと /1 と一致
+            self.assertTrue(r2["llm"]["calls_detail"])
+
+    def test_summary_is_facts_for_every_account_in_name_order(self):
+        msgs, _ = self._run("unseen-amber-23", "research-propose/2")
+        u = msgs[1][1]["content"]
+        blocks = u.split("## 観測の要約")[1].split("## 提案に使えるcheck")[0]
+        self.assertIn("- submission_mine（閲覧条件=所有者のみ）", blocks)
+        from core.autonomy.research_case import load_blind_case
+        from tools.research_eval import CASES_DIR
+        case = load_blind_case(os.path.join(CASES_DIR, "unseen-amber-23.json"))
+        roles = sorted(case.accounts)
+        for op in ("submission_mine", "submission_accessible", "reviews_assigned"):
+            seg = blocks.split(f"- {op}（")[1].split("\n- ")[0]
+            order = [ln.split(":")[0].strip("- ").strip() for ln in seg.splitlines()[1:] if ln.startswith("  - ")]
+            self.assertEqual(order, roles)                                   # 全アカウントを名前順に中立に並べる
+        for bad in ("逸脱", "疑", "優先", "怪しい", "脆弱"):
+            self.assertNotIn(bad, blocks)                                    # 判断・ヒントを書かない
+        self.assertIn("所有者でも共有先でもない=", blocks)
+        seg = blocks.split("- submission_mine（")[1].split("\n- ")[0]
+        self.assertIn("  - instructor: 0件", seg)
+        self.assertIn("  - learner_a: 3件（所有者=2・共有先=1・所有者でも共有先でもない=0・判断材料なし=0）", seg)
+        self.assertIn("  - user_expired: 未取得", seg)
+
+    def test_relation_counts_from_the_response_own_fields_only(self):
+        from core.autonomy.research_case import load_blind_case
+        from core.autonomy.research_llm import list_observation_blocks
+        from core.autonomy.research_model import ExpResult, TargetModel
+        from tools.research_eval import CASES_DIR
+        case = load_blind_case(os.path.join(CASES_DIR, "unseen-amber-23.json"))
+        m = TargetModel(case)
+        m.identity["learner_a"] = {"user_id": "U", "exp_id": "x", "evidence_id": None}
+        items = [{"id": "1", "author": "U", "shared": []}, {"id": "2", "author": "V", "shared": ["U"]},
+                 {"id": "3", "author": "V", "shared": ["W"]}, {"id": "4", "author": None, "shared": []},
+                 {"id": "5", "author": "V", "shared": "x"}]
+        m.results["x:submission_mine:learner_a"] = ExpResult("x:submission_mine:learner_a", 200, items)
+        m.results["x:submission_mine:learner_b"] = ExpResult("x:submission_mine:learner_b", 403, None)
+        m.results["x:submission_mine:learner_c"] = ExpResult("x:submission_mine:learner_c", 200, [{"id": "1"}], body_complete=False)
+        lines = next(b for b in list_observation_blocks(case, m) if b[0].startswith("- submission_mine"))
+        self.assertIn("  - learner_a: 5件（所有者=1・共有先=1・所有者でも共有先でもない=1・判断材料なし=2）", lines)
+        self.assertIn("  - learner_b: 取得できず（status=403）", lines)
+        self.assertIn("  - learner_c: 1件（利用者ID・所有者の項目が不明のため内訳なし）（本文が途中で切れている）", lines)
+
+    def test_no_case_or_role_specific_branching_in_prompt_code(self):
+        import re
+        from tools.research_eval import CASES_DIR
+        with open(os.path.join(ROOT, "core/autonomy/research_llm.py"), encoding="utf-8") as fh:
+            src = fh.read()
+        for f in os.listdir(CASES_DIR):
+            with open(os.path.join(CASES_DIR, f), encoding="utf-8") as fh:
+                d = json.load(fh)
+            self.assertNotIn(d["case_id"], src)
+            for name in d["accounts"] if isinstance(d["accounts"], dict) else [a["name"] for a in d["accounts"]]:
+                self.assertIsNone(re.search(r"['\"]%s['\"]" % re.escape(name), src), (f, name))
+
+    def test_summary_fits_the_input_limit_or_is_omitted_with_a_note(self):
+        from core.autonomy.research_case import load_blind_case
+        from core.autonomy.research_llm import build_messages
+        from core.autonomy.research_model import ExpResult, TargetModel
+        from tools.research_eval import CASES_DIR
+        case = load_blind_case(os.path.join(CASES_DIR, "unseen-amber-23.json"))
+        m = TargetModel(case)
+        for role in case.accounts:                                           # 全役割の一覧が大きい最悪ケースを作る
+            m.identity[role] = {"user_id": "u_" + role, "exp_id": "x", "evidence_id": None}
+            for op in ("submission_mine", "submission_accessible", "reviews_assigned"):
+                body = [{"id": f"s{i}", "author": "someone_else", "shared": [], "reviewer": "r"} for i in range(30)]
+                m.results[f"x:{op}:{role}"] = ExpResult(f"x:{op}:{role}", 200, body)
+        base_len = sum(len(x["content"]) for x in build_messages(case, m, "observed")[0])
+
+        hyps = {f"h{i}": type("H", (), {"family": "object_authz", "op_id": f"op{i}", "probe_role": f"r{i}"}) for i in range(400)}
+        states = {k: ("registered", "") for k in hyps}
+        for limit in (base_len + 60, base_len + 400, base_len + 900, base_len + 1500, 8000, 20000):
+            msgs, dropped = build_messages(case, m, "observed", version="research-propose/2", hyps=hyps, states=states, input_limit=limit)
+            total = sum(len(x["content"]) for x in msgs)
+            if limit >= base_len:
+                self.assertLessEqual(total, limit, limit)                    # 上限を超えて予算拒否にならない
+            if dropped.get("omitted_list_ops") or dropped.get("omitted_hypotheses") or dropped.get("summary_dropped"):
+                if not dropped.get("summary_dropped"):
+                    self.assertIn("入力上限のため要約を一部省略", msgs[1]["content"])   # 省略は入力にも書く
+        part, dp = build_messages(case, m, "observed", version="research-propose/2", hyps=hyps, states=states, input_limit=base_len + 900)
+        pu = part[1]["content"]
+        self.assertIn("- reviews_assigned（", pu)                            # 入る分（操作単位）は入れ、入らない分は省略して旨を書く
+        self.assertNotIn("- submission_mine（", pu)
+        self.assertGreater(dp.get("omitted_list_ops", 0), 0)
+        tiny, d = build_messages(case, m, "observed", version="research-propose/2", hyps=hyps, states=states, input_limit=base_len + 60)
+        self.assertEqual(tiny, build_messages(case, m, "observed")[0])       # 入らなければ /1 と同じ入力（要約なし）
+        self.assertTrue(d.get("summary_dropped"))
+
+    def test_defaults_are_v1_everywhere(self):
+        import inspect
+        from core.autonomy import research_llm
+        from core.autonomy.research_loop import run_research_case
+        from core.autonomy.research_planner import Researcher
+        self.assertEqual(research_llm.PROMPT_VERSION, "research-propose/1")
+        self.assertEqual(inspect.signature(run_research_case).parameters["prompt_version"].default, "research-propose/1")
+        self.assertEqual(inspect.signature(Researcher.__init__).parameters["prompt_version"].default, "research-propose/1")
+        self.assertEqual(inspect.signature(research_llm.build_messages).parameters["version"].default, "research-propose/1")
+
+    def test_unknown_version_rejected_and_version_recorded(self):
+        from core.autonomy.research_case import load_blind_case
+        from core.autonomy.research_llm import build_messages
+        from core.autonomy.research_model import TargetModel
+        from tools.research_eval import CASES_DIR
+        case = load_blind_case(os.path.join(CASES_DIR, "blind-docs-01.json"))
+        with self.assertRaises(ValueError):
+            build_messages(case, TargetModel(case), "spec", version="research-propose/9")
+        _, r1 = self._run("blind-docs-01")
+        _, r2 = self._run("blind-docs-01", "research-propose/2")
+        self.assertEqual((r1["llm"]["prompt_version"], r2["llm"]["prompt_version"]), ("research-propose/1", "research-propose/2"))
+
+    def test_v2_summary_has_no_truth_and_closed_loop_registers_through_normal_validation(self):
+        """モック提案役が、要約に出た事実をそのまま使って提案しても、通常の検証器・決定論の判定器を通って登録される（効果ではなく経路の確認）。"""
+        from tools.research_eval import run_one, MockProposer
+        r = run_one("unseen-amber-23", 0, llm=MockProposer("good"), prompt_version="research-propose/2")
+        self.assertEqual(r["grade"]["boundary"]["violations"], 0)
+        self.assertEqual(r["grade"]["false_positive_units"], 0)
+
+
+class PromptAbToolTest(unittest.TestCase):
+    """プロンプトA/Bの集計と、事前登録した採用基準の機械的な判定（結果を見てからの調整をしない）。"""
+
+    @staticmethod
+    def _sum(reg_share=(10, 20), fp=0, over=0, bv=0, calls=40, unparsed=0, tokens=1000, too_large=0, recall=0.8):
+        return {"list_scope_flaw_runs": reg_share[1], "registered_for_needed_role": reg_share[0], "recall_mean": recall,
+                "false_positive_units": fp, "ungrounded_overclaim": over, "boundary_violations": bv,
+                "llm": {"llm_calls": calls, "parse_failures": unparsed, "input_tokens": tokens, "input_too_large": too_large}}
+
+    def test_decision_boundaries(self):
+        from tools.research_prompt_ab import decide
+        a, dev = self._sum(), self._sum(reg_share=(0, 0))
+        ok = decide(a, self._sum(reg_share=(14, 20)), dev, dev)                       # +0.20 ちょうど
+        self.assertTrue(ok["checks"]["primary_gain"]["met"] and ok["adopt"])
+        self.assertFalse(decide(a, self._sum(reg_share=(13, 20)), dev, dev)["adopt"])   # +0.15
+        b = self._sum(reg_share=(20, 20))
+        self.assertTrue(decide(a, b, dev, dev)["adopt"])
+        for kw in ({"fp": 1}, {"over": 1}, {"bv": 1}, {"too_large": 1}, {"tokens": 1601}, {"unparsed": 5}):
+            self.assertFalse(decide(a, self._sum(reg_share=(20, 20), **kw), dev, dev)["adopt"], kw)
+        self.assertTrue(decide(a, self._sum(reg_share=(20, 20), tokens=1600), dev, dev)["adopt"])
+        self.assertFalse(decide(a, b, self._sum(recall=0.9), self._sum(recall=0.8))["adopt"])   # 開発ケースの再現率が下がる
+        self.assertFalse(decide(self._sum(reg_share=(0, 0)), b, dev, dev)["adopt"])            # 分母0は採用しない
+
+    def test_arm_run_with_mock_records_list_scope_classification(self):
+        from tools.research_eval import MockProposer
+        from tools.research_prompt_ab import run_arm, summarize
+        with tempfile.TemporaryDirectory() as td:
+            rs = [run_arm("unseen-amber-23", 0, v, MockProposer("good"), 800, td, 2) for v in ("research-propose/1", "research-propose/2")]
+            self.assertTrue(all(r["list_scope"] for r in rs))
+            self.assertEqual(rs[0]["version"], "research-propose/1")
+            self.assertEqual(summarize(rs)["runs"], 2)
+            self.assertTrue(os.path.isdir(os.path.join(td, "1", "unseen-amber-23_s0", "j")))
+            self.assertTrue(os.path.isdir(os.path.join(td, "2", "unseen-amber-23_s0", "j")))
+
+    def test_guard_refuses_a_pair_that_could_exceed_the_cap(self):
+        from tools.research_llm_failures import SpendGuard
+
+        class L:
+            input_tokens = output_tokens = 0
+        g = SpendGuard(L(), 0.05, 1e-6, 2e-6, 800, 2)          # 1実行の最悪値 0.0192
+        self.assertTrue(g.may_start_run(2))                     # 0.0384 <= 0.05
+        L.input_tokens = 12000
+        self.assertTrue(g.may_start_run(1))                     # 0.012 + 0.0192
+        self.assertFalse(g.may_start_run(2))                    # 0.012 + 0.0384 > 0.05
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -16,10 +16,11 @@ import json
 import re
 
 from core.autonomy.research_case import BlindCase
-from core.autonomy.research_hypothesis import Hypothesis, build_list_scope, propose
+from core.autonomy.research_hypothesis import Hypothesis, build_list_scope, list_visible_to, propose
 from core.autonomy.research_model import TargetModel
 
 PROMPT_VERSION = "research-propose/1"
+PROMPT_VERSIONS = ("research-propose/1", "research-propose/2")     # /2: 観測後の入力に、一覧ごとの観測の要約と登録済みの仮説の状態を加える（docs §19）
 MAX_PROPOSALS = 8
 CHECKS = ("deny_expected", "list_visibility", "fields_subset")
 _ID_OK = re.compile(r"^[A-Za-z0-9_\-]{1,40}$")
@@ -35,8 +36,115 @@ def _safe_id(v) -> str | None:
     return v if isinstance(v, str) and _ID_OK.match(v) else None
 
 
-def build_messages(case: BlindCase, model: TargetModel, phase: str) -> tuple[list[dict], dict]:
-    """戻り値: (messages, 無害化の記録)。phase='spec'は仕様だけ、'observed'は観測した所有/共有関係つき。"""
+_VISIBLE_JA = {"owner": "所有者のみ", "owner_or_shared": "所有者または共有先", "unspecified": "仕様に明記なし"}
+_SUMMARY_MARGIN = 120
+
+
+def list_observation_blocks(case: BlindCase, model: TargetModel) -> list[list[str]]:
+    """own_list操作ごとの、役割別の応答の中身の事実（件数と、呼出し者との関係別の内訳）。操作ごとに1ブロック（操作の見出し行＋役割ごとの行）。
+    判断（逸脱か）・優先順位・ヒントは書かない。全アカウントを名前順に中立に並べる（空の一覧・取得できなかったものも同じ形式で出す）。
+    関係の分類は応答自身の所有者/共有先の項目と利用者IDだけで決める（`_eval_list_visibility` と同じ材料）。"""
+    blocks = []
+    for op in sorted(case.operations.values(), key=lambda o: o.op_id):
+        if op.method != "GET" or op.params or op.access["kind"] != "own_list" or not op.returns.get("object"):
+            continue
+        otype = op.returns["object"]
+        spec_o = case.objects[otype]
+        ownf, shf = spec_o.get("owner_field"), spec_o.get("shared_field")
+        vt = _VISIBLE_JA[list_visible_to(op.access, spec_o)]
+        lines = [f"- {op.op_id}（閲覧条件={vt}）"]
+        for role in sorted(case.accounts):
+            res = model.results.get(f"x:{op.op_id}:{role}")
+            if res is None:
+                lines.append(f"  - {role}: 未取得")
+            elif res.status_code != 200 or not isinstance(res.json, list):
+                lines.append(f"  - {role}: 取得できず（status={res.status_code}）")
+            else:
+                items = [x for x in res.json if isinstance(x, dict)]
+                uid = (model.identity.get(role) or {}).get("user_id")
+                tail = "" if res.body_complete else "（本文が途中で切れている）"
+                if not items:
+                    lines.append(f"  - {role}: 0件{tail}")
+                    continue
+                if not uid or not ownf:
+                    lines.append(f"  - {role}: {len(items)}件（利用者ID・所有者の項目が不明のため内訳なし）{tail}")
+                    continue
+                own = shared = other = unknown = 0
+                for x in items:
+                    owner = x.get(ownf)
+                    if not isinstance(owner, str) or not owner:
+                        unknown += 1
+                    elif owner == uid:
+                        own += 1
+                    elif shf:
+                        sh = x.get(shf)
+                        if not isinstance(sh, list):
+                            unknown += 1
+                        elif uid in sh:
+                            shared += 1
+                        else:
+                            other += 1
+                    else:
+                        other += 1
+                lines.append(f"  - {role}: {len(items)}件（所有者={own}・共有先={shared}・所有者でも共有先でもない={other}・判断材料なし={unknown}）{tail}")
+        blocks.append(lines)
+    return blocks
+
+
+def _fit_observation_summary(blocks: list[list[str]], hyp_lines: list[str], room: int) -> tuple[list[str], dict]:
+    """要約を、残り文字数 room に収める。一覧の観測を先に操作単位で入れ、残りで仮説の状態を入れる。入らなかった分は省略した旨を入力に書く
+    （上限を超えて呼出しが予算で拒否されるのを、提案の喪失にしないため）。戻り値: (行, 省略の記録)。"""
+    note = "（入力上限のため要約を一部省略: {}）"
+    out: list[str] = []
+    used = 0
+    omit = {"omitted_list_ops": 0, "omitted_hypotheses": 0}
+    reserve = len(note.format("一覧の操作-99件・仮説-99件")) + 4
+    for b in blocks:
+        n = sum(len(x) + 1 for x in b)
+        if used + n + reserve > room:
+            omit["omitted_list_ops"] += 1
+            continue
+        out += b
+        used += n
+    if hyp_lines:
+        head = "登録済みの仮説の状態（check 操作 役割: 状態）:"
+        n0 = len(head) + 1
+        if used + n0 + reserve <= room:
+            kept = []
+            for h in hyp_lines:
+                if used + n0 + sum(len(x) + 1 for x in kept) + len(h) + 1 + reserve > room:
+                    break
+                kept.append(h)
+            omit["omitted_hypotheses"] = len(hyp_lines) - len(kept)
+            if kept:
+                out += [head, *kept]
+        else:
+            omit["omitted_hypotheses"] = len(hyp_lines)
+    if omit["omitted_list_ops"] or omit["omitted_hypotheses"]:
+        out.append(note.format(f"一覧の操作{omit['omitted_list_ops']}件・仮説{omit['omitted_hypotheses']}件"))
+    if sum(len(x) + 1 for x in out) > room:
+        return [], {"omitted_list_ops": len(blocks), "omitted_hypotheses": len(hyp_lines), "summary_dropped": True}
+    return out, omit
+
+
+def hypothesis_state_lines(hyps: dict, states: dict) -> list[str]:
+    """登録済みの仮説の（check型・操作・役割・状態）を、同じ組の重複をまとめて（×件数）名前順に並べる。全役割を中立に扱い、優先順位は付けない。"""
+    check_of = {"list_scope": "list_visibility", "field_exposure": "fields_subset"}
+    count: dict = {}
+    for hid, h in hyps.items():
+        st = states.get(hid) or ("registered", "")
+        key = (check_of.get(h.family, "deny_expected"), h.op_id, h.probe_role, st[0], st[1])
+        count[key] = count.get(key, 0) + 1
+    return [f"- {c} {op} {role}: {st}" + (f"（{why}）" if why else "") + (f" ×{n}" if n > 1 else "")
+            for (c, op, role, st, why), n in sorted(count.items())]
+
+
+def build_messages(case: BlindCase, model: TargetModel, phase: str, *, version: str = PROMPT_VERSION,
+                   hyps: dict | None = None, states: dict | None = None, input_limit: int = 8000) -> tuple[list[dict], dict]:
+    """戻り値: (messages, 無害化の記録)。phase='spec'は仕様だけ、'observed'は観測した所有/共有関係つき。
+    version='research-propose/2' は観測後の段階にだけ、一覧ごとの観測の要約と登録済みの仮説の状態を加える（既定の /1 は入力がバイト単位で不変）。"""
+    if version not in PROMPT_VERSIONS:
+        raise ValueError(f"未知のプロンプト版: {version}")
     dropped = {"unsafe_ids": 0}
     ops = []
     for o in case.operations.values():
@@ -79,6 +187,14 @@ def build_messages(case: BlindCase, model: TargetModel, phase: str) -> tuple[lis
         "## 出力形式（JSONだけ）",
         '{"proposals":[{"check":"deny_expected|list_visibility|fields_subset","op_id":"...","probe_role":"アカウント名またはanonymous",'
         '"path_params":{"名前":"観測済みID"},"basis_clause":"S-n","rationale":"短い理由"}]}'])
+    if version == "research-propose/2" and phase == "observed":
+        base = len(system) + len(user)
+        lines, omit = _fit_observation_summary(list_observation_blocks(case, model), hypothesis_state_lines(hyps or {}, states or {}),
+                                               input_limit - base - _SUMMARY_MARGIN)
+        dropped.update({k: v for k, v in omit.items() if v})
+        if lines:
+            marker = "## 提案に使えるcheck（この3つだけ）"
+            user = user.replace(marker, "## 観測の要約（役割ごとの一覧の中身と仮説の状態。事実だけ）\n" + "\n".join(lines) + "\n\n" + marker, 1)
     return [{"role": "system", "content": system}, {"role": "user", "content": user}], dropped
 
 

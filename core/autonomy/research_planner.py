@@ -52,7 +52,10 @@ def default_dedup(strategy: str) -> bool:
 class Researcher:
     def __init__(self, case: BlindCase, base_url: str, journal: RunJournal, ledger: BudgetLedger,
                  is_stopped: Callable[[], bool], llm=None, llm_max_tokens: int = 800, strategy: str = "adaptive",
-                 dedup: bool | None = None):
+                 dedup: bool | None = None, prompt_version: str = research_llm.PROMPT_VERSION):
+        if prompt_version not in research_llm.PROMPT_VERSIONS:
+            raise ValueError(f"未知のプロンプト版: {prompt_version}")
+        self.prompt_version = prompt_version
         self.case, self.base_url, self.journal, self.ledger, self.is_stopped = case, base_url, journal, ledger, is_stopped
         self.model = TargetModel(case)
         self.hyps: dict[str, Hypothesis] = {}
@@ -201,13 +204,14 @@ class Researcher:
             return
         self._llm_done.add(phase)
         st = self.llm_stats
-        msgs, dropped = research_llm.build_messages(self.case, self.model, phase)
+        msgs, dropped = research_llm.build_messages(self.case, self.model, phase, version=self.prompt_version, hyps=self.hyps, states=self.states,
+                                                    input_limit=self.ledger.max_llm_input_chars or 8000)
         dec = self.ledger.reserve_llm_call(sum(len(m["content"]) for m in msgs))
         if not dec.ok:
             st["calls_detail"].append({"phase": phase, "outcome": "budget_denied", "reason": str(dec.reason)[:60]})
             st["skipped"] += 1
             self.journal.append("llm_proposals", phase=phase, skipped=True, reason=dec.reason,
-                                prompt_version=research_llm.PROMPT_VERSION)
+                                prompt_version=self.prompt_version)
             return
         self.journal.append("llm_call_reserved", phase=phase, input_chars=sum(len(m["content"]) for m in msgs))   # 呼出し前に残す（再開時に数える）
         if self.fault_hook:
@@ -222,7 +226,7 @@ class Researcher:
             self.ledger.record_llm_usage(None)
             st["calls_detail"].append({"phase": phase, "outcome": "call_failed", "reason": type(e).__name__})
             st["parse_failures"] += 1
-            self.journal.append("llm_proposals", phase=phase, error=type(e).__name__, prompt_version=research_llm.PROMPT_VERSION)
+            self.journal.append("llm_proposals", phase=phase, error=type(e).__name__, prompt_version=self.prompt_version)
             return
         self.ledger.record_llm_usage(usage or None)
         st["usage"].append(usage or None)
@@ -236,7 +240,7 @@ class Researcher:
         if items is None:
             st["parse_failures"] += 1
             self.journal.append("llm_proposals", phase=phase, parse_error=why, reply_sha=research_llm.reply_sha(text),
-                                prompt_version=research_llm.PROMPT_VERSION, dropped=dropped)
+                                prompt_version=self.prompt_version, dropped=dropped)
             return
         results = []
         for p in items:
@@ -265,7 +269,7 @@ class Researcher:
                  "status": status, "reason": reason, "hypothesis_id": h.hypothesis_id if h is not None else ""}
             results.append(d)
             st["details"].append(d)
-        self.journal.append("llm_proposals", phase=phase, prompt_version=research_llm.PROMPT_VERSION,
+        self.journal.append("llm_proposals", phase=phase, prompt_version=self.prompt_version,
                             reply_sha=research_llm.reply_sha(text), dropped=dropped, usage=usage or None, results=results,
                             **({"salvaged": True} if salvaged else {}))
 

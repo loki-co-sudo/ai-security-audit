@@ -111,7 +111,7 @@ def run_research_case(case: BlindCase, base_url: str, creds: dict[str, str], *, 
                       budget_override: dict | None = None, clock=time.monotonic,
                       fault_hook: Callable[[str, str], None] | None = None, llm=None,
                       llm_max_tokens: int = 800, resume_run_id: str | None = None, strategy: str = "adaptive",
-                      dedup: bool | None = None) -> ResearchRunResult:
+                      dedup: bool | None = None, prompt_version: str = "research-propose/1") -> ResearchRunResult:
     """1案件を1回、自律調査する。creds は `cred:<名前>` -> token（実行時にヘッダーへ入れるだけで記録しない）。
     llm（任意）: complete(messages, max_tokens, usage_out) を持つ提案役。使うには予算 max_llm_calls>0 が必要（0なら呼ばない）。
     strategy（任意）: 実験の選び方。adaptive(既定)／static(再計画しない)／checklist(仕様順の固定探索)。後の2つは比較実験用で、再開に対応しない。
@@ -126,7 +126,8 @@ def run_research_case(case: BlindCase, base_url: str, creds: dict[str, str], *, 
     effects = {SideEffect.T0_LOCAL} | {SideEffect(s) for s in case.side_effects}
     phash = profile_hash({"mode": "RESEARCH", "case": case.public_dict(), "base_url": base_url, "budget": budget,
                           "engine": ENGINE_VERSION, "research_engine": RESEARCH_ENGINE_VERSION, "strategy": strategy,
-                          **({"dedup": bool(dedup)} if dedup is not None and bool(dedup) != default_dedup(strategy) else {})})
+                          **({"dedup": bool(dedup)} if dedup is not None and bool(dedup) != default_dedup(strategy) else {}),
+                          **({"prompt_version": prompt_version} if prompt_version != "research-propose/1" else {})})
     sr = new_scan_result("LAB", case.case_id, engagement_id=case.case_id)
     counters = {"gate_denied": 0, "budget_denied": 0, "experiments_failed": 0, "resumed": bool(resume_run_id), "prior_requests": 0}
     resuming = resume_run_id is not None
@@ -169,7 +170,7 @@ def run_research_case(case: BlindCase, base_url: str, creds: dict[str, str], *, 
     evidence = EvidenceStore(sr.scan_id, **({"root": evidence_root} if evidence_root else {}))
     researcher = Researcher(case, base_url, journal, ledger, stopped,
                             llm=llm if int(budget.get("max_llm_calls", 0)) > 0 else None, llm_max_tokens=llm_max_tokens,
-                            strategy=strategy, dedup=dedup)
+                            strategy=strategy, dedup=dedup, prompt_version=prompt_version)
     researcher.fault_hook = fault_hook
     mask = lambda s: redaction.mask_log_line(str(s), known_secrets)  # noqa: E731
     keep = retained_keys(case)
@@ -320,7 +321,7 @@ def _llm_summary(researcher, ledger, findings, candidates) -> dict:
     st = researcher.llm_stats
     new_ids = {d["hypothesis_id"] for d in st["details"] if d["status"] == "new" or d["status"] == "duplicate_of_llm"}
     llm_hyps = {h.hypothesis_id for h in researcher.hyps.values() if h.source == "llm"}
-    return {"enabled": researcher.llm is not None, "prompt_version": "research-propose/1", "calls": st["calls"], "skipped": st["skipped"],
+    return {"enabled": researcher.llm is not None, "prompt_version": researcher.prompt_version, "calls": st["calls"], "skipped": st["skipped"],
             "parse_failures": st["parse_failures"], "proposals": st["proposals"], "new_registered": st["new_registered"],
             "duplicate_of_rule": st["duplicate_of_rule"], "duplicate_of_llm": st["duplicate_of_llm"],
             "rejected": dict(st["rejected"]), "valid_proposal_rate": (round((st["new_registered"] + st["duplicate_of_rule"] + st["duplicate_of_llm"])
