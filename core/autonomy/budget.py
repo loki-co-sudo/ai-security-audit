@@ -59,6 +59,11 @@ class BudgetLedger:
         return self._clock() - self._t0 >= self.deadline_seconds
 
     # ── LLM(呼出前に予約) ──
+    def restore_llm_calls(self, n: int) -> None:
+        """再開時に、前回のRunで予約済みのLLM呼出し数を引き継ぐ（予算を巻き戻さない）。"""
+        with self._lock:
+            self._llm_calls = max(self._llm_calls, int(n))
+
     @property
     def llm_calls_used(self) -> int:
         return self._llm_calls

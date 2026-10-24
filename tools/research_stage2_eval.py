@@ -10,7 +10,7 @@
 案件数と実行数は分けて報告する（同じ環境のシード違い・繰返しは独立した案件ではない）。
 
 使い方:
-  .venv/bin/python3 tools/research_stage2_eval.py --cases <id1>,<id2>,... --protocol testlab/baselines/frozen_protocol_stage2.json \\
+  .venv/bin/python3 tools/research_stage2_eval.py --cases <id1>,<id2>,... --protocol testlab/baselines/frozen_protocol_stage4.json \\
       --include-holdout --out reports/stage2_result.json [--approve-real-llm --model z-ai/glm-5.3-flash]
 """
 from __future__ import annotations
@@ -151,7 +151,7 @@ def aggregate(runs: list, proto: dict, info: dict, skipped: dict, elapsed: float
             "system_sha": sha[:16], "methods_run": sorted(table), "methods_skipped": skipped, "n_cases": len(info), "n_runs": len(runs),
             "cases": {cid: {"split": i["split"], "clean": i["clean"]} for cid, i in info.items()},
             "table": table, "summary": summary, "verdict": verdict, "found_only_by_method_not_rules": unique,
-            "llm_usage": llm_usage(runs, proto), "runs_compact": runs_compact(runs),
+            "llm_usage": llm_usage(runs, proto), "confirmation_usage": confirmation_usage(runs), "runs_compact": runs_compact(runs),
             "scope_report": scope_report(runs), "report_definitions": REPORT_DEFINITIONS,
             "acceptance_text": proto["acceptance"], "elapsed_s": elapsed,
             "note": "案件数と実行数は別。同じ環境のシード違い・LLMの繰返しは独立した案件ではない。結果を見てからの基準・係数・ケースの変更は使用済みとして扱う。"}
@@ -211,6 +211,22 @@ def scope_report(runs: list) -> dict:
                 continue
             ok = cell["categories"].get("found_evidence_complete", 0) + cell["categories"].get("found_evidence_incomplete", 0)
             cell["found_rate"] = round(ok / cell["flaw_runs"], 4) if cell["flaw_runs"] and t not in ("ungrounded", "unreachable") else None
+    return out
+
+
+def confirmation_usage(runs: list) -> dict:
+    """観測後の仮説を登録後の新しい送信で検証する『確認実験』の集計（方式ごと）。計画・実行・確定・再現せず・未実行（候補止まり）・上限で置換せず、
+    と、確定の証拠の出どころ（confirm／探索の送信／仮説のための実験）。"""
+    out: dict = {}
+    keys = ("confirmations_planned", "confirmations_run", "confirmed_supported", "confirmation_not_reproduced", "confirmation_not_run",
+            "confirmation_cap_blocked")
+    for r in runs:
+        m = out.setdefault(r["method"], {**{k: 0 for k in keys}, "probe_origins": {}, "runs": 0})
+        m["runs"] += 1
+        for k in keys:
+            m[k] += r["metrics"].get(k, 0)
+        for o, n in (r["metrics"].get("probe_origins") or {}).items():
+            m["probe_origins"][o] = m["probe_origins"].get(o, 0) + n
     return out
 
 

@@ -22,6 +22,18 @@ def _ev_line(scan_id: str, eid: str, root: str | None) -> str:
     return f"`{eid}`（整合性: {r['integrity']} / 完全性: {r['completeness']}）"
 
 
+def _provenance(c: dict | None) -> str:
+    """確定の証拠の出どころ（登録後に送った実験か、観測後の仮説の確認実験か）。登録前の観測は証拠に数えない。"""
+    if not c:
+        return "不明"
+    if c["mode"] == "confirm":
+        return (f"観測後に作った仮説。登録（seq {c['registered_seq']}）の後に新しく送った確認実験（計画seq {c['probe_planned_seq']}）の結果だけを証拠にしている。"
+                f"登録前の観測 `{c['prior_exp_id']}` は証拠に数えない（別の証拠として保存）")
+    if c["mode"] == "discovery_send_after_registration":
+        return f"登録（seq {c['registered_seq']}）の後に計画された探索の送信（計画seq {c['probe_planned_seq']}）が probe の結果になった"
+    return f"仮説のために登録（seq {c['registered_seq']}）の後に計画した実験（計画seq {c['probe_planned_seq']}）"
+
+
 def render_markdown(result: dict, *, evidence_root: str | None = None) -> str:
     root = evidence_root or EVIDENCE_ROOT
     scan_id, m, b = result["scan_id"], result["metrics"], result["budget"]
@@ -29,7 +41,7 @@ def render_markdown(result: dict, *, evidence_root: str | None = None) -> str:
     out = [f"# 自律調査レポート（ドラフト）: {result['case_id']}", "",
            f"- 実行: run_id=`{result['run_id']}` / 実行状態: **{_STATE_JA.get(result['state'], result['state'])}**",
            f"- 終了理由: `{result['end_reason']}`（`{result['finish_reason']}`）",
-           f"- 予算: リクエスト {b.get('requests_used', m['requests_used'])}/{b['configured']['max_requests']}、LLM呼出 0。"
+           f"- 予算: リクエスト {b.get('requests_used', m['requests_used'])}/{b['configured']['max_requests']}、LLM呼出 {(result.get('llm') or {}).get('calls', 0)}。"
            f"人間の調査介入: {m['human_interventions']}件（実行範囲の承認は別記録）",
            "- 成果の段階: **意図的に埋め込まれた欠陥（模擬環境）に対する、初見ケースでの調査**。新規脆弱性・ゼロデイの発見を主張しない。",
            "- 人間のレビュー状態: **未レビュー**（本書は機械が生成したドラフトで、確定判断ではない）",
@@ -57,6 +69,7 @@ def render_markdown(result: dict, *, evidence_root: str | None = None) -> str:
                 + (f"。仕様外の項目: {f['unexpected_fields']}" if f["unexpected_fields"] else ""),
                 f"- 対照: `{f['control_exp']}` → {f['control_state']}" if f["control_exp"] else "- 対照: 不要（同じ応答の項目比較で自己完結）",
                 "- 再現手順（許可された操作のみ）:"] + [f"  - {_md(x)}" for x in f["repro"]]
+        out += ["- 証拠の出どころ: " + _provenance(f.get("confirmation"))]
         out += ["- 証拠:"] + [f"  - {_ev_line(scan_id, e, root)}" for e in f["evidence_ids"]]
         if len(members) > 1:
             out += [f"- 同じ操作を別ロールでも確認（重複確認。新しい情報ではなく、同じ欠陥の再現）: "
@@ -70,7 +83,10 @@ def render_markdown(result: dict, *, evidence_root: str | None = None) -> str:
         h = by[c["hypothesis_id"]]
         out += [f"- `{c['hypothesis_id']}`: 理由 `{c['reason']}`（対照 {c['control_state']}）。"
                 + (f" 期待値が推定: {_md(c['ungrounded_reason'])}。" if not c["grounded"] else "")
-                + " 証拠: " + (", ".join(_ev_line(scan_id, e, root) for e in c["evidence_ids"]) or "なし")]
+                + " 証拠: " + (", ".join(_ev_line(scan_id, e, root) for e in c["evidence_ids"]) or "なし")
+                + (f"。**登録前の観測だけ**（登録後の確認実験は未実行・理由 `{_md(c.get('unconfirmed_because'))}`）。登録前の証拠: "
+                   + (", ".join(_ev_line(scan_id, e, root) for e in c.get("prior_evidence_ids") or []) or "なし")
+                   if c.get("evidence_basis") == "pre_registration_observation" else "")]
     out += ["", "## 棄却した仮説（予測が反証され、対照が通ったもの）", ""]
     out += [f"- 件数 {len(result['refuted'])}。例: " + ", ".join(f"`{r['hypothesis_id']}`" for r in result["refuted"][:5])
             if result["refuted"] else "該当なし。", ""]
@@ -79,6 +95,10 @@ def render_markdown(result: dict, *, evidence_root: str | None = None) -> str:
     out += ["", "## 未判定・未検査・未解決の観測", ""]
     out += [f"- 未判定 {len(result['undetermined'])}件: " + ", ".join(f"`{u['hypothesis_id']}`({u['reason']})" for u in result["undetermined"][:8])
             if result["undetermined"] else "- 未判定: なし"]
+    if m.get("confirmations_planned"):
+        out += [f"- 確認実験（観測後に作った仮説を、登録後の新しい送信で検証）: 計画 {m['confirmations_planned']}件・実行 {m['confirmations_run']}件・"
+                f"確定 {m['confirmed_supported']}件・再現せず {m['confirmation_not_reproduced']}件・未実行（候補止まり）{m['confirmation_not_run']}件・"
+                f"上限で置換せず {m['confirmation_cap_blocked']}件"]
     out += [f"- 未検査 {len(result['not_examined'])}件（理由 `{result['finish_reason']}`）。予算や優先度の都合で調べていない仮説で、問題が無いという意味ではない"]
     out += [f"- 観測できなかった項目: `{_md(u['what'])}`（{_md(u['why'])}）" for u in result["unknowns"]]
     out += ["", "## 研究判断の記録（要約）", "",

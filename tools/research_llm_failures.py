@@ -81,7 +81,15 @@ def aggregate(rows: list) -> dict:
         calls["new_registered"] += L["new_registered"]
         for k, v in L["rejected"].items():
             calls["rejected_reasons"][k] = calls["rejected_reasons"].get(k, 0) + v
-    return {"by_case_family": cats, "reasons": reasons, "llm_calls": calls}
+    conf: dict = {"probe_origins": {}}
+    for r in rows:
+        for k, v in (r.get("confirmation") or {}).items():
+            if k == "probe_origins":
+                for o, n in v.items():
+                    conf["probe_origins"][o] = conf["probe_origins"].get(o, 0) + n
+            else:
+                conf[k] = conf.get(k, 0) + v
+    return {"by_case_family": cats, "reasons": reasons, "llm_calls": calls, "confirmation": conf}
 
 
 def run_samples(cases: list, seeds: list, repeats: int, llm, max_tokens: int, max_llm_calls: int = 2) -> list:
@@ -107,6 +115,7 @@ def run_samples(cases: list, seeds: list, repeats: int, llm, max_tokens: int, ma
                     canary.stop()
                 usage = [u for u in (res["llm"].get("usage") or []) if u]
                 rows.append({"case_id": cid, "seed": seed, "repeat": rep, "classes": classify(res, events, truth),
+                             "confirmation": {k: v for k, v in res["metrics"].items() if k.startswith("confirm")} | {"probe_origins": res["metrics"].get("probe_origins", {})},
                              "llm": {"calls": llm_summary(events)["calls"],
                                      "at_token_cap": sum(1 for u in usage if u.get("output_tokens", 0) >= max_tokens),
                                      "proposals": res["llm"]["proposals"], "new_registered": res["llm"]["new_registered"],

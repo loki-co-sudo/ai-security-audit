@@ -11,6 +11,8 @@ action_finished → observation_ingested → hypothesis_updated（予測と反�
   同じ(型,操作)で別ロールが既に支持済み=×0.1（同じ欠陥の重複確認は情報価値が低いので後回しにする。排除はしない。U4で0.4→0.1）。
 """
 from __future__ import annotations
+import hashlib
+from dataclasses import replace
 from typing import Callable
 
 from core.autonomy.actions import SideEffect  # noqa: F401  (型の明示)
@@ -30,6 +32,10 @@ CAP_ANON, CAP_AUTHED = "research.get_anon", "research.get_authed"
 UNGROUNDED_FACTOR = 0.5
 SAME_KEY_FIRST, SAME_KEY_OTHERS, KEY_REFUTED, KEY_SUPPORTED, OP_SUPPORTED = 1.0, 0.3, 0.35, 0.1, 0.1   # OP_SUPPORTED: 0.4→0.1 (U4・docs/AUTONOMOUS_DISCOVERY_STAGE1.md §9)
 DEFAULT_MIN_VALUE = 0.02
+# 確認実験: 仮説の probe/対照が登録より前に計画・送信済みなら、登録後の新しい実験（tag付き）に置き換える。
+# 仮説1件につき probe と対照それぞれ1回（実験IDが仮説ごとに一意で、Gateの重複キーが再送を防ぐ）。Run全体の上限を超えた仮説は
+# 置き換えず、probe_preexisting（理由 confirmation_cap）の候補にとどめる（消さない）。
+CONFIRM_MAX_PER_RUN = 6
 # 実験の選び方だけが違う方式（仮説の具体化・操作部品・予算・探索・対照の設計は共通）。比較実験用（要求仕様 §7.2）。
 #   adaptive  価値順に選び、観測のたびに再計画する（既定）
 #   static    探索の後に価値順を1回だけ計算して固定し、結果で並べ替えない（再計画しない）
@@ -62,6 +68,11 @@ class Researcher:
         self.min_value = float(case.stop_conditions.get("min_value", DEFAULT_MIN_VALUE)) if strategy == "adaptive" else 0.0
         self.exp_purpose: dict[str, str] = {}
         self.planned_seq: dict[str, int] = {}             # exp_id -> experiment_planned のseq
+        self.planned_purpose: dict[str, str] = {}         # exp_id -> 計画時の目的（discovery / probe / control / confirm）。証拠の出どころの記録用
+        self.confirm_count = 0                            # 確認実験に置き換えた数（Run全体の上限 CONFIRM_MAX_PER_RUN）
+        self.fault_hook: Callable[[str, str], None] | None = None     # 試験用: 強制終了の再現（before_llm / after_llm）
+        self.llm_reserved_total = 0                       # 再開前のRunで予約済みのLLM呼出し数（予算を巻き戻さない）
+        self.llm_unknown: list[str] = []                  # 予約したが結果をジャーナルに残せなかった段階（自動では再実行しない）
         self.llm, self.llm_max_tokens = llm, llm_max_tokens
         if strategy not in STRATEGIES:
             raise ValueError(f"未知のstrategy: {strategy}")
@@ -152,12 +163,36 @@ class Researcher:
             self.rejected.append({"hypothesis_id": h.hypothesis_id, "problems": problems})
             self.journal.append("hypothesis_rejected", hypothesis_id=h.hypothesis_id, problems=problems)
             return False
-        h.probe_preexisting = h.probe is not None and h.probe.exp_id in self.model.results
+        self._to_confirmation(h)
+        h.probe_preexisting = (h.probe is not None and h.probe.exp_id in self.model.results) or bool(h.confirm_blocked)
         ev = self.journal.append("hypothesis_registered", prediction_sha=h.prediction_sha(),
                                  probe_preexisting=h.probe_preexisting, **h.registration_dict())
         h.registered_seq = ev["seq"]
         self.hyps[h.hypothesis_id] = h
         return True
+
+    def _to_confirmation(self, h: Hypothesis) -> None:
+        """観測後に作られた仮説の検証を、登録後の新しい送信にする。probe（と対照）が既に計画・送信済み（登録より前の観測）なら、
+        同じHTTP操作でも別の実験ID（tag）に置き換える。登録前の結果や古い結果は確認の証拠にしない（置き換えた実験は新しく送る）。
+        登録（予測・反証条件を含む）はこの置換の後にジャーナルへ書かれ、その後に計画・送信される。"""
+        if h.gap is not None:
+            return
+
+        def done(e: Experiment | None) -> bool:
+            return e is not None and (e.exp_id in self.model.results or e.exp_id in self.experiments)
+        tag = lambda kind: kind + hashlib.sha256(h.hypothesis_id.encode()).hexdigest()[:8]  # noqa: E731
+        if done(h.probe):
+            if self.confirm_count < CONFIRM_MAX_PER_RUN:
+                h.prior_probe, h.probe = h.probe.exp_id, replace(h.probe, tag=tag("c"))
+                self.confirm_count += 1
+            else:
+                h.confirm_blocked = "confirmation_cap"
+        if h.control is not None and done(h.control):
+            if self.confirm_count < CONFIRM_MAX_PER_RUN:
+                h.prior_control, h.control = h.control.exp_id, replace(h.control, tag=tag("k"))
+                self.confirm_count += 1
+            else:
+                h.confirm_blocked = h.confirm_blocked or "confirmation_cap"
 
     # ── LLM提案（U2）: 提案は検証器を通ったものだけが登録される ─────────
     def _llm_phase(self, phase: str) -> None:
@@ -173,10 +208,15 @@ class Researcher:
             self.journal.append("llm_proposals", phase=phase, skipped=True, reason=dec.reason,
                                 prompt_version=research_llm.PROMPT_VERSION)
             return
+        self.journal.append("llm_call_reserved", phase=phase, input_chars=sum(len(m["content"]) for m in msgs))   # 呼出し前に残す（再開時に数える）
+        if self.fault_hook:
+            self.fault_hook("before_llm", phase)
         usage: dict = {}
         st["calls"] += 1
         try:
             text = self.llm.complete(msgs, max_tokens=self.llm_max_tokens, usage_out=usage)
+            if self.fault_hook:
+                self.fault_hook("after_llm", phase)               # 返答を得た後、結果をジャーナルへ残す前
         except Exception as e:      # noqa: BLE001 — LLM失敗でも規則による調査は続ける（黙殺せず記録）
             self.ledger.record_llm_usage(None)
             st["calls_detail"].append({"phase": phase, "outcome": "call_failed", "reason": type(e).__name__})
@@ -271,10 +311,12 @@ class Researcher:
 
     def _journal_planned(self, exp: Experiment, purpose: str, serves: list, value: float, why: str,
                          stage: int = 0, hypothesis_id: str = "") -> None:
+        extra = {"tag": exp.tag} if exp.tag else {}                    # 確認実験だけ記録（従来の実験のイベントは変わらない）
         ev = self.journal.append("experiment_planned", exp_id=exp.exp_id, role=exp.role, op_id=exp.op_id,
                                  path_params=exp.params(), purpose=purpose, serves=serves, value=round(value, 4),
-                                 why=why[:300], stage=stage, hypothesis_id=hypothesis_id)
+                                 why=why[:300], stage=stage, hypothesis_id=hypothesis_id, **extra)
         self.planned_seq[exp.exp_id] = ev["seq"]
+        self.planned_purpose[exp.exp_id] = purpose
 
     def _record_decision(self, d: dict) -> None:
         """判断の記録。結果に載せるだけでなく、再開時に復元できるようジャーナルにも残す。"""
@@ -288,7 +330,8 @@ class Researcher:
                + (" (対照)" if purpose == "control" else ""))
         task = self._to_task(exp)
         self.exp_purpose[exp.exp_id] = why
-        self._journal_planned(exp, purpose, serves, value, why, hypothesis_id=h.hypothesis_id)
+        label = "confirm" if (exp.tag and purpose == "probe") else purpose          # 確認実験は目的を区別して記録する
+        self._journal_planned(exp, label, serves, value, why, hypothesis_id=h.hypothesis_id)
         self._record_decision({"step": len(self.decisions), "exp_id": exp.exp_id, "purpose": purpose,
                                "hypothesis_id": h.hypothesis_id, "serves": serves, "value": round(value, 4),
                                "alternatives": [[x[1].hypothesis_id, round(x[0], 4)] for x in ranked[1:4]]})
@@ -405,12 +448,13 @@ class Researcher:
         結果が不明（開始したが完了が確認できない）の実験は、自動で再実行せず、判定不能（probe/control_unknown_outcome）として扱う。"""
         from core.autonomy.resume import ResumeError
         from core.autonomy.research_hypothesis import hypothesis_from_registration
-        exp_of = lambda e: Experiment(e["role"], e["op_id"], tuple(sorted((e.get("path_params") or {}).items())))  # noqa: E731
+        exp_of = lambda e: Experiment(e["role"], e["op_id"], tuple(sorted((e.get("path_params") or {}).items())), e.get("tag", ""))  # noqa: E731
         for e in events:
             t = e["type"]
             if t == "experiment_planned":
                 x = exp_of(e)
                 self.experiments[x.exp_id], self.planned_seq[x.exp_id], self.exp_purpose[x.exp_id] = x, e["seq"], e.get("why", "")
+                self.planned_purpose[x.exp_id] = e.get("purpose", "")
                 if e.get("purpose") == "discovery":
                     self.stage = max(self.stage, int(e.get("stage") or 0))
             elif t == "experiment_rejected":
@@ -460,6 +504,11 @@ class Researcher:
         for hid in self.hyps:
             self.states[hid] = last.get(hid, (S_REGISTERED, "probe_not_run"))
         st_ = self.llm_stats
+        reserved = [e["phase"] for e in events if e["type"] == "llm_call_reserved"]
+        answered = {e["phase"] for e in events if e["type"] == "llm_proposals"}
+        self._llm_done.update(reserved)
+        self.llm_reserved_total = len(reserved)
+        self.llm_unknown = sorted(set(reserved) - answered)         # 呼出しは予約したが結果が残っていない: 自動では再呼出ししない
         for e in events:
             if e["type"] != "llm_proposals":
                 continue
@@ -482,8 +531,10 @@ class Researcher:
                     st_[s_] += 1
                 else:
                     st_["rejected"][r["reason"]] = st_["rejected"].get(r["reason"], 0) + 1
-        planned = [e for e in events if e["type"] == "experiment_planned" and e.get("purpose") in ("probe", "control")]
-        self.commit_hid = planned[-1]["hypothesis_id"] if planned and planned[-1]["purpose"] == "probe" else None
+        planned = [e for e in events if e["type"] == "experiment_planned" and e.get("purpose") in ("probe", "control", "confirm")]
+        self.commit_hid = planned[-1]["hypothesis_id"] if planned and planned[-1]["purpose"] in ("probe", "confirm") else None
+        self.confirm_count = sum(1 for h in self.hyps.values() for k in (h.prior_probe, h.prior_control) if k)
         self.model.sessions_checked = self.stage >= 1
         return {"experiments": len(self.experiments), "ingested": ingested, "buffered": len(self.buffer),
-                "hypotheses": len(self.hyps), "unknown_outcome": unknown, "stage": self.stage}
+                "hypotheses": len(self.hyps), "unknown_outcome": unknown, "stage": self.stage,
+                "llm_calls_reserved": self.llm_reserved_total, "llm_unknown_outcome": list(self.llm_unknown)}

@@ -107,9 +107,9 @@ class CaseContractTest(unittest.TestCase):
         bad(no_identity, "identity操作が必要")
 
 
-def synthetic_model(case_id="blind-docs-01"):
+def synthetic_model(case_id="blind-docs-01", case=None):
     """観測済みの状態を手で作る（alice=u1, bob=u2, carol=u3, admin=u4。文書: d1(alice, bobと共有), d2(alice), d3(bob)）。"""
-    case = load_blind_case(os.path.join(CASES, case_id + ".json"))
+    case = case or load_blind_case(os.path.join(CASES, case_id + ".json"))
     m = TargetModel(case)
     for i, r in enumerate(("alice", "bob", "carol", "admin"), 1):
         m.ingest(Experiment(r, "me"), ExpResult(f"x:me:{r}", 200, json={"id": f"u{i}", "name": r, "email": "e"}))
@@ -464,7 +464,10 @@ class ListVisibilityCheckTest(unittest.TestCase):
         mine = {"id": "d9", "owner": "u3", "shared_with": []}
         shared = {"id": "d8", "owner": "u1", "shared_with": ["u3"]}
         foreign = {"id": "d1", "owner": "u1", "shared_with": ["u2"]}
-        self.assertEqual(self.ev(js=[mine, shared])[:2], (rh.CONFORMS, "only_visible_items"))
+        # 契約変更（2026-10-24）: 旧契約は shared_field があれば共有先の要素を正常としていた。今は閲覧条件を操作単位で決める。
+        self.assertEqual(self.ev(js=[mine, shared], chk=dict(self.chk, visible_to="owner_or_shared"))[:2], (rh.CONFORMS, "only_visible_items"))
+        self.assertEqual(self.ev(js=[mine, shared])[:2], (rh.INCONCLUSIVE, "visibility_condition_unspecified"))     # 条件の記録なし＝仕様に明記なし
+        self.assertEqual(self.ev(js=[mine, shared], chk=dict(self.chk, visible_to="owner"))[0], rh.DEVIATES)
         self.assertEqual(self.ev(js=[mine, foreign])[:3], (rh.DEVIATES, "foreign_items_listed", ["foreign_items=1"]))
         self.assertEqual(self.ev(js=[])[:2], (rh.CONFORMS, "empty_list_visible_only"))
         self.assertEqual(self.ev(js=[mine], complete=False)[0], rh.INCONCLUSIVE)           # 不完全な本文で『問題なし』にしない
@@ -533,11 +536,28 @@ class ResearchLlmTest(unittest.TestCase):
         self.assertLess(prop["seq"], plan["seq"])                      # 提案の記録も実験より前
         self.assertEqual(res["metrics"]["prereg_violations"], [])
 
-    def test_late_proposal_cannot_confirm_because_the_probe_already_ran(self):
+    def test_late_proposal_is_confirmed_only_by_a_new_send_after_registration(self):
+        """契約変更（2026-10-24、research-stage1/5）: 旧契約は『観測後の提案は probe が実行済みなので確定できない（候補止まり）』だった。
+        今は、登録後の新しい確認実験（別の実験ID）の結果だけで確定する。登録前の観測は証拠に数えず、事前登録の違反にもならない。"""
         res, ev, _, g, _ = run_case("blind-docs-02", seed=3, budget_override=self.llm, llm=MockProposer("late"))
         h = next(x for x in res["hypotheses"] if x["source"] == "llm")
+        self.assertFalse(h["probe_preexisting"])
+        self.assertEqual((h["state"], h["probe_origin"], h["confirmation"]["mode"]), ("supported", "confirm", "confirm"))
+        self.assertTrue([f for f in res["findings"] if f["family"] == "list_scope"])
+        self.assertEqual(g["false_negative_flaws"], [])
+        self.assertEqual(res["metrics"]["prereg_violations"], [])
+
+    def test_late_proposal_over_the_confirmation_cap_stays_a_candidate(self):
+        """旧契約の挙動は、確認実験の上限を超えた場合に残る（置換できない仮説は所見にせず、事前登録の違反として数える）。"""
+        from core.autonomy import research_planner as rp
+        old, rp.CONFIRM_MAX_PER_RUN = rp.CONFIRM_MAX_PER_RUN, 0
+        try:
+            res, ev, _, g, _ = run_case("blind-docs-02", seed=3, budget_override=self.llm, llm=MockProposer("late"))
+        finally:
+            rp.CONFIRM_MAX_PER_RUN = old
+        h = next(x for x in res["hypotheses"] if x["source"] == "llm")
         self.assertTrue(h["probe_preexisting"])
-        self.assertEqual((h["state"], h["reason"]), ("unverified_deviation", "probe_preexisting"))
+        self.assertEqual((h["state"], h["reason"]), ("unverified_deviation", "confirmation_cap"))
         self.assertFalse([f for f in res["findings"] if f["family"] == "list_scope"])   # 結果を見た後の仮説は所見にしない
         self.assertEqual(g["false_negative_flaws"], ["list_leak"])
         self.assertEqual(res["metrics"]["prereg_violations"], [h["hypothesis_id"]])      # 違反として数える
@@ -804,6 +824,12 @@ class ResearchCliTest(unittest.TestCase):
             R = doc["research"]
             self.assertEqual({f["rule_id"] for f in doc["findings"]}, {"ACCESS_CONTROL", "EXCESSIVE_DATA_EXPOSURE", "IDOR"})
             self.assertEqual({d["op_id"] for d in R["finding_details"]}, {"admin_audit", "user_get", "doc_comments"})   # 根拠付きだけ。候補は含めない
+            for d in R["finding_details"]:                             # 確定の証拠の出どころ（登録の後に計画された送信か）がJSONに出る
+                self.assertIn(d["confirmation"]["mode"], ("probe", "discovery_send_after_registration"))
+                self.assertTrue(d["confirmation"]["registered_before_send"])
+                self.assertIsNone(d["confirmation"]["prior_exp_id"])
+            self.assertTrue(all("probe_origin" in h and "confirmation" in h for h in R["hypotheses"]))
+            self.assertEqual(R["metrics"]["confirmations_planned"], 0)           # LLMを使わないCLIでは、確認実験への置換は起きない
             self.assertEqual({c["op_id"] for c in R["candidates"]}, {"doc_export"})
             self.assertEqual([u["op_id"] for u in R["unverifiable"]], ["doc_update"])
             self.assertIn("T3", R["unverifiable"][0]["needed_capability"])
@@ -903,7 +929,7 @@ class DuplicateDeferralTest(unittest.TestCase):
         for r in (old, new):
             self.assertEqual((r[3]["false_positive_units"], r[3]["boundary"]["violations"], r[0]["metrics"]["prereg_violations"]),
                              (0, 0, []))
-        self.assertEqual(new[0]["versions"]["research_engine"], "research-stage1/4")
+        self.assertEqual(new[0]["versions"]["research_engine"], "research-stage1/5")
 
     def test_deferred_duplicates_still_run_when_budget_remains(self):
         # 候補が尽きるまで予算を与えれば、後回しにした重複確認も実行される（排除ではない）
@@ -1034,6 +1060,10 @@ class ResearchStage2Test(_Stage2Base):
             self.assertIn(v["verdict"], ("寄与なし", "前者が上回る", "後者が上回る"))
             self.assertEqual(v["recall_diff"], round(res["summary"][name.split("(")[1].split(" − ")[0]]["recall_case_mean"]
                                                      - res["summary"][name.split(" − ")[1].rstrip(")")]["recall_case_mean"], 4), name)
+        cu = res["confirmation_usage"]                                                 # 確認実験の計画・実行・確定・未実行・上限を方式ごとに数える
+        self.assertEqual(sorted(cu), sorted(res["methods_run"]))
+        self.assertEqual(cu["rules"]["confirmations_planned"], 0)                      # 規則の仮説は登録より前に探索済みの実験を使わない（測定済み）
+        self.assertTrue(all(k in cu["llm"] for k in ("confirmations_run", "confirmed_supported", "confirmation_not_run", "probe_origins")))
         u = res["llm_usage"]                                                           # LLMの呼出し・失敗・トークンは除外せず数える
         self.assertEqual((u["runs"], u["parse_failures"], u["skipped"]), (4, 0, 0))
         self.assertEqual(u["calls"], 8)
@@ -1183,6 +1213,17 @@ class ResearchCaseCheckTest(_Stage2Base):
         dup = {"flaw_id": "loan_idor", "family": "object_authz", "op_id": "loan_get", "spec_grounded": True, "reachable": True}
         errors, *_ = self.check(mut_truth=lambda t: t["flaws"].extend([dup, dict(dup)]), cid="hold-a-clean")
         self.assertTrue([e for e in errors if "重複" in e], errors)
+
+    def test_own_list_on_a_sharable_type_must_state_its_visibility(self):
+        def add_shared(d):
+            d["spec"]["objects"]["loan"]["shared_field"] = "shared_with"
+            d["spec"]["objects"]["loan"]["fields"].append("shared_with")
+        errors, _, _ = self.check(mut_case=add_shared)
+        self.assertTrue([e for e in errors if "visible_to" in e])
+        def state_it(d):
+            next(o for o in d["spec"]["operations"] if o["op_id"] == "loans_list")["access"]["visible_to"] = "owner"
+        errors, _, _ = self.check(mut_case=state_it)
+        self.assertFalse([e for e in errors if "visible_to" in e])
 
     def test_objects_whose_ids_cannot_be_observed_are_errors(self):
         def drop_list(d):
@@ -1370,9 +1411,9 @@ class DiagnosisReportTest(unittest.TestCase):
 
 
 class ListScopeSemanticsTest(unittest.TestCase):
-    """list_scope（一覧に見えるはずのない要素）の整理: 見えてよい条件を型から1つ決め、claim・予測・反証条件・判定を揃える。
-    所有者のみの一覧と、共有先を持つ型の一覧を混同しない。情報不足（共有先/所有者の項目が無い・null・本文不完全・利用者ID不明）を
-    正常にも確定にもしない。ケースID・ドメイン名による分岐は無い。"""
+    """list_scope（一覧に見えるはずのない要素）: 閲覧条件を『操作単位』(access.visible_to／型)で決め、claim・予測・反証条件・判定を揃える。
+    shared_field の存在だけで共有先の閲覧を許可しない。仕様に明記が無い（unspecified）場合、どの解釈でも許されない要素だけを逸脱にし、
+    呼出し者への共有の要素は正常にも逸脱にもしない。情報不足（項目が無い・null・本文不完全・識別情報不足）も同じ。ケースID・ドメイン名による分岐は無い。"""
     LIB = os.path.join(ROOT, "testlab", "lab", "unseen", "TEMPLATE_case.json")       # 所有者のみの一覧（loan に shared_field なし）
 
     def _own(self, drop_owner=False):
@@ -1385,8 +1426,14 @@ class ListScopeSemanticsTest(unittest.TestCase):
             m.identity[r] = {"user_id": u, "exp_id": "x", "evidence_id": None}
         return m
 
-    def _shared(self):
-        return synthetic_model()                                                      # docs に owner_field と shared_field
+    def _shared(self, visible_to=None):
+        """共有先の項目を持つ型（docs）。docs_list の閲覧条件だけを変える。None=仕様に明記なし（旧い案件と同じ）。"""
+        doc = raw("blind-docs-01")
+        acc = next(o["access"] for o in doc["spec"]["operations"] if o["op_id"] == "docs_list")
+        acc.pop("visible_to", None)
+        if visible_to:
+            acc["visible_to"] = visible_to
+        return synthetic_model(case=parse_blind_case(doc))
 
     @staticmethod
     def _res(js, complete=True, code=200):
@@ -1398,31 +1445,58 @@ class ListScopeSemanticsTest(unittest.TestCase):
         self.assertEqual(why, "")
         return rh.evaluate_check(h.check, self._res(js, **kw), m)
 
-    def test_owner_only_type_is_hypothesizable_and_texts_agree_with_the_check(self):
-        m = self._own()
-        op = m.case.operations["loans_list"]
-        h, why = rh.build_list_scope(m, op, "librarian")
-        self.assertEqual((why, rh.validate_hypothesis(h, m)), ("", []))
-        self.assertEqual(h.check["visible_via"], ["owner"])
-        for text in (h.claim, h.prediction_if_true, h.falsification):
-            self.assertNotIn("共有", text)
-        ms = self._shared()
-        hs, _ = rh.build_list_scope(ms, ms.case.operations["docs_list"], "admin")
-        self.assertEqual(hs.check["visible_via"], ["owner", "shared"])
-        for text in (hs.claim, hs.prediction_if_true, hs.falsification):
-            self.assertIn("共有", text)
+    def test_loader_validates_visible_to(self):
+        doc = raw("blind-docs-01")
+        lst = next(o for o in doc["spec"]["operations"] if o["op_id"] == "docs_list")
+        for bad, msg in (("everyone", "visible_to"),):
+            lst["access"]["visible_to"] = bad
+            with self.assertRaises(LabCaseError) as cm:
+                parse_blind_case(doc)
+            self.assertIn(msg, str(cm.exception))
+        lst["access"]["visible_to"] = "owner"
+        self.assertEqual(parse_blind_case(doc).operations["docs_list"].access["visible_to"], "owner")
+        other = next(o for o in doc["spec"]["operations"] if o["access"]["kind"] != "own_list")
+        other["access"]["visible_to"] = "owner"                                          # own_list 以外には指定できない
+        with self.assertRaises(LabCaseError):
+            parse_blind_case(doc)
+        other["access"].pop("visible_to")
+        doc["spec"]["objects"]["doc"].pop("shared_field")                                # 共有先の項目が無い型に owner_or_shared は指定できない
+        lst["access"]["visible_to"] = "owner_or_shared"
+        with self.assertRaises(LabCaseError):
+            parse_blind_case(doc)
 
-    def test_owner_field_is_required_not_shared_field(self):
-        m = self._own(drop_owner=True)
-        self.assertEqual(rh.build_list_scope(m, m.case.operations["loans_list"], "librarian"), (None, "object_schema_lacks_owner"))
+    def test_visible_to_is_defined_per_operation_not_by_the_presence_of_shared_field(self):
+        o_own = self._own()
+        self.assertEqual(rh.list_visible_to(o_own.case.operations["loans_list"].access, o_own.case.objects["loan"]), "owner")    # 共有の概念が無い型
+        for v, want in ((None, "unspecified"), ("owner", "owner"), ("owner_or_shared", "owner_or_shared")):
+            m = self._shared(v)
+            op = m.case.operations["docs_list"]
+            self.assertEqual(rh.list_visible_to(op.access, m.case.objects["doc"]), want)         # 共有先の項目があっても、明記が無ければ unspecified
+            h, _ = rh.build_list_scope(m, op, "carol")
+            self.assertEqual((h.check["visible_to"], rh.validate_hypothesis(h, m)), (want, []))
+
+    def test_texts_agree_with_the_check_for_each_condition(self):
+        for v, has_shared, has_unspec in (("owner", False, False), ("owner_or_shared", True, False), (None, True, True)):
+            m = self._shared(v)
+            h, _ = rh.build_list_scope(m, m.case.operations["docs_list"], "carol")
+            for text in (h.claim.split("(仕様")[0], h.prediction_if_true, h.falsification):        # claim は仕様の文言を引用する前までを見る
+                self.assertEqual("共有" in text, has_shared, (v, text))
+            self.assertEqual("明記" in h.claim, has_unspec)
+            self.assertEqual(any(p["id"] == "p3" for p in h.preconditions), has_unspec)          # 仕様不足を前提として明示する
+
+    def test_owner_only_type_without_sharing_is_hypothesizable(self):
+        m = self._own()
+        h, why = rh.build_list_scope(m, m.case.operations["loans_list"], "librarian")
+        self.assertEqual((why, rh.validate_hypothesis(h, m), h.check["visible_to"]), ("", [], "owner"))
+        self.assertEqual(rh.build_list_scope(self._own(drop_owner=True), m.case.operations["loans_list"], "librarian"),
+                         (None, "object_schema_lacks_owner"))
 
     def test_owner_only_matrix(self):
         m = self._own()
         mine, other = {"id": "l1", "member": "m3"}, {"id": "l2", "member": "m1"}
         self.assertEqual(self._ev(m, "librarian", [mine])[:2], (rh.CONFORMS, "only_visible_items"))
         self.assertEqual(self._ev(m, "librarian", [mine, other])[:3], (rh.DEVIATES, "foreign_items_listed", ["foreign_items=1"]))
-        # 共有先を持たない型では、他人の要素に共有先らしい項目があっても『見えてよい』にならない
-        self.assertEqual(self._ev(m, "librarian", [{**other, "shared_with": ["m3"]}])[0], rh.DEVIATES)
+        self.assertEqual(self._ev(m, "librarian", [{**other, "shared_with": ["m3"]}])[0], rh.DEVIATES)   # 共有先の概念が無い型
         self.assertEqual(self._ev(m, "librarian", [])[:2], (rh.CONFORMS, "empty_list_visible_only"))       # 正常な空一覧
         self.assertEqual(self._ev(m, "librarian", [], complete=False)[0], rh.INCONCLUSIVE)               # 不完全な空は正常にしない
         self.assertEqual(self._ev(m, "librarian", [mine], complete=False)[0], rh.INCONCLUSIVE)           # 不完全な本文
@@ -1431,17 +1505,25 @@ class ListScopeSemanticsTest(unittest.TestCase):
         self.assertEqual(self._ev(m, "librarian", [{"id": "l1"}])[:2], (rh.INCONCLUSIVE, "owner_field_missing"))
         r = self._ev(m, "librarian", [other, {"id": "l3", "member": None}])
         self.assertEqual((r[0], r[2]), (rh.DEVIATES, ["foreign_items=1", "undetermined_items=1"]))        # 判断不能は逸脱の件数に混ぜない
-        m.identity.pop("librarian")
         op = m.case.operations["loans_list"]
         h, _ = rh.build_list_scope(m, op, "librarian")
+        m.identity.pop("librarian")
         self.assertEqual(rh.evaluate_check(h.check, self._res([mine]), m)[:2], (rh.INCONCLUSIVE, "identity_unknown"))
 
-    def test_shared_type_matrix_does_not_turn_missing_information_into_a_deviation(self):
-        m = self._shared()                                                             # carol=u3
+    def test_shared_type_owner_only_list_treats_shared_items_as_deviation(self):
+        """共有先を持つ型でも、操作が owner と明記していれば、共有された他人の要素は逸脱（shared_field の存在で許可しない）。"""
+        m = self._shared("owner")
+        mine, shared_to_me = {"id": "d9", "owner": "u3", "shared_with": []}, {"id": "d8", "owner": "u1", "shared_with": ["u3"]}
+        self.assertEqual(self._ev(m, "carol", [mine])[0], rh.CONFORMS)
+        self.assertEqual(self._ev(m, "carol", [mine, shared_to_me])[:2], (rh.DEVIATES, "foreign_items_listed"))
+        self.assertEqual(self._ev(m, "carol", [{"id": "d1", "owner": "u1"}])[0], rh.DEVIATES)         # 共有先の項目が無くても所有者でなければ逸脱
+
+    def test_owner_or_shared_list_accepts_shared_items_and_never_guesses_missing_fields(self):
+        m = self._shared("owner_or_shared")                                              # carol=u3
         mine = {"id": "d9", "owner": "u3", "shared_with": []}
         shared_to_me = {"id": "d8", "owner": "u1", "shared_with": ["u3"]}
         not_mine = {"id": "d1", "owner": "u1", "shared_with": ["u2"]}
-        self.assertEqual(self._ev(m, "carol", [mine, shared_to_me])[:2], (rh.CONFORMS, "only_visible_items"))      # 共有された他人の要素
+        self.assertEqual(self._ev(m, "carol", [mine, shared_to_me])[:2], (rh.CONFORMS, "only_visible_items"))
         self.assertEqual(self._ev(m, "carol", [mine, not_mine])[0], rh.DEVIATES)
         no_field = {"id": "d1", "owner": "u1"}                                          # 共有先の項目が応答に無い
         self.assertEqual(self._ev(m, "carol", [no_field])[:2], (rh.INCONCLUSIVE, "visibility_undeterminable"))
@@ -1450,33 +1532,48 @@ class ListScopeSemanticsTest(unittest.TestCase):
         self.assertEqual(self._ev(m, "carol", [not_mine, no_field])[0], rh.DEVIATES)                              # 確かな逸脱は成立
         self.assertEqual(self._ev(m, "carol", [{"id": "d9", "owner": None, "shared_with": []}])[0], rh.INCONCLUSIVE)
 
-    def test_state_never_becomes_supported_or_refuted_from_missing_information(self):
-        m = self._shared()
+    def test_unspecified_condition_is_never_confirmed_by_guessing(self):
+        """閲覧条件が仕様に無い一覧: どの解釈でも許されない要素だけが逸脱。共有先の要素は正常にも逸脱にもしない（棄却にも確定にも使わない）。"""
+        m = self._shared(None)
+        mine = {"id": "d9", "owner": "u3", "shared_with": []}
+        shared_to_me = {"id": "d8", "owner": "u1", "shared_with": ["u3"]}
+        not_mine = {"id": "d1", "owner": "u1", "shared_with": ["u2"]}
+        self.assertEqual(self._ev(m, "carol", [mine])[:2], (rh.CONFORMS, "only_visible_items"))                  # 自分の要素だけ: どの解釈でも正常
+        r = self._ev(m, "carol", [mine, shared_to_me])
+        self.assertEqual(r[:2], (rh.INCONCLUSIVE, "visibility_condition_unspecified"))                          # 正常にしない
+        self.assertEqual(self._ev(m, "carol", [mine, shared_to_me, not_mine])[0], rh.DEVIATES)                  # 確かな逸脱は成立
         h, _ = rh.build_list_scope(m, m.case.operations["docs_list"], "carol")
-        no_field = [{"id": "d1", "owner": "u1"}]
-        st = rh.hyp_state(h, {h.probe.exp_id: self._res(no_field)}, m)
-        self.assertEqual(st[0], rh.S_UNDETERMINED)
-        st = rh.hyp_state(h, {h.probe.exp_id: self._res([{"id": "d1", "owner": "u1", "shared_with": ["u2"]}])}, m)
-        self.assertEqual(st[0], rh.S_SUPPORTED)
-        st = rh.hyp_state(h, {h.probe.exp_id: self._res([], complete=False)}, m)
-        self.assertEqual(st[0], rh.S_UNDETERMINED)
+        self.assertEqual(rh.hyp_state(h, {h.probe.exp_id: self._res([mine, shared_to_me])}, m)[0], rh.S_UNDETERMINED)   # 棄却にならない
+        self.assertEqual(rh.hyp_state(h, {h.probe.exp_id: self._res([mine, not_mine])}, m)[0], rh.S_SUPPORTED)
 
-    def test_validator_rejects_a_condition_that_disagrees_with_the_spec_type(self):
+    def test_state_never_becomes_supported_or_refuted_from_missing_information(self):
+        m = self._shared("owner_or_shared")
+        h, _ = rh.build_list_scope(m, m.case.operations["docs_list"], "carol")
+        self.assertEqual(rh.hyp_state(h, {h.probe.exp_id: self._res([{"id": "d1", "owner": "u1"}])}, m)[0], rh.S_UNDETERMINED)
+        self.assertEqual(rh.hyp_state(h, {h.probe.exp_id: self._res([{"id": "d1", "owner": "u1", "shared_with": ["u2"]}])}, m)[0], rh.S_SUPPORTED)
+        self.assertEqual(rh.hyp_state(h, {h.probe.exp_id: self._res([], complete=False)}, m)[0], rh.S_UNDETERMINED)
+
+    def test_validator_rejects_a_condition_that_disagrees_with_the_operation(self):
         m = self._own()
         h, _ = rh.build_list_scope(m, m.case.operations["loans_list"], "librarian")
-        h.check = dict(h.check, visible_via=["owner", "shared"])
+        h.check = dict(h.check, visible_to="owner_or_shared")
         self.assertIn("list_visibility_condition_mismatch", rh.validate_hypothesis(h, m))
-        h.check = {k: v for k, v in h.check.items() if k != "visible_via"}                 # 古いジャーナル（条件の記録なし）は型から導く
+        h.check = {k: v for k, v in h.check.items() if k != "visible_to"}                 # 古いジャーナル（条件の記録なし）は操作・型から導く
         self.assertEqual(rh.validate_hypothesis(h, m), [])
 
-    def test_llm_proposal_for_owner_only_list_is_accepted(self):
+    def test_llm_proposal_for_owner_only_list_is_accepted_and_unspecified_is_not_filled_by_the_llm(self):
         from core.autonomy.research_llm import process_proposal
         m = self._own()
         p = {"check": "list_visibility", "op_id": "loans_list", "probe_role": "librarian", "basis_clause": "S-3", "rationale": "x"}
         status, reason, h = process_proposal(m.case, m, p)
-        self.assertEqual((status, reason, h.source), ("new", "", "llm"))
+        self.assertEqual((status, reason, h.source, h.check["visible_to"]), ("new", "", "llm", "owner"))
+        ms = self._shared(None)
+        p2 = dict(p, op_id="docs_list", basis_clause=ms.case.operations["docs_list"].access["clause"], probe_role="carol",
+                  visible_to="owner_or_shared", rationale="共有も見えてよいはず")           # LLMが条件を指定しても使わない
+        status, reason, h2 = process_proposal(ms.case, ms, p2)
+        self.assertEqual((status, h2.check["visible_to"]), ("new", "unspecified"))
 
-    def _run_library(self, flaws):
+    def _run_library(self, flaws, proposer_phase="spec"):
         import importlib
         mod = importlib.import_module("testlab.lab.unseen.TEMPLATE_app")
 
@@ -1490,12 +1587,12 @@ class ListScopeSemanticsTest(unittest.TestCase):
         roles = sorted(case.accounts)
 
         class Proposer:
-            calls = 0
-
             def complete(self, messages, max_tokens=None, usage_out=None):
-                Proposer.calls += 1
                 if usage_out is not None:
                     usage_out.update({"input_tokens": 10, "output_tokens": 10})
+                observed = "まだ無い" not in messages[-1]["content"]
+                if (proposer_phase == "late") != observed:
+                    return json.dumps({"proposals": []})
                 return json.dumps({"proposals": [{"check": "list_visibility", "op_id": "loans_list", "probe_role": r,
                                                   "basis_clause": "S-3", "rationale": "x"} for r in roles]})
         canary = CanaryServer().start()
@@ -1516,7 +1613,7 @@ class ListScopeSemanticsTest(unittest.TestCase):
         h = next(h for h in res["hypotheses"] if h["hypothesis_id"] == "h:list_scope:loans_list:librarian")
         self.assertEqual(h["source"], "llm")
         reg = _ev(ev, "hypothesis_registered", hypothesis_id=h["hypothesis_id"])[0]
-        self.assertEqual(reg["check"]["visible_via"], ["owner"])
+        self.assertEqual(reg["check"]["visible_to"], "owner")
         planned = _ev(ev, "experiment_planned", exp_id=reg["probe"]["exp_id"])
         self.assertTrue(planned and reg["seq"] < planned[0]["seq"])                                  # 予測の登録が実験より前
         res2, _ = self._run_library(set())
@@ -1610,6 +1707,289 @@ class ReplanDedupFactorialTest(unittest.TestCase):
         r = run_one("blind-docs-01", 0, strategy="static-dedup", budget_override={"max_requests": 20})
         self.assertEqual(r["strategy"], "static-dedup")
         self.assertEqual(r["grade"]["boundary"]["violations"], 0)
+
+
+HID_ADMIN_LIST = "h:list_scope:docs_list:admin"            # MockProposer('late') が観測後の段階で提案する仮説
+
+
+class _StopAfterObserved(MockProposer):
+    """観測後の提案を返した直後に STOP を立てる（仮説の登録と確認実験の送信の間で止める）。"""
+    stop = False
+
+    def complete(self, messages, max_tokens=None, usage_out=None):
+        out = super().complete(messages, max_tokens=max_tokens, usage_out=usage_out)
+        if "まだ無い" not in messages[-1]["content"]:
+            self.stop = True
+        return out
+
+
+def late_run(app_cls=DocsApp, flaws=("list_leak", "comments_bola"), strategy="adaptive", budget_override=None, stop_after=None,
+             cid="blind-docs-02", stop_after_observed=False):
+    """観測後の段階で list_visibility を提案する提案役（MockProposer('late')）で調査する。戻り値: (結果, ジャーナル, 環境が受けた全リクエスト)。"""
+    case = load_blind_case(os.path.join(CASES, cid + ".json"))
+    canary = CanaryServer().start()
+    try:
+        with tempfile.TemporaryDirectory() as td, app_cls(canary=canary, seed=3, flaws=frozenset(flaws)) as app:
+            stop = (lambda: len(app.requests) >= stop_after) if stop_after is not None else None
+            proposer = _StopAfterObserved("late") if stop_after_observed else MockProposer("late")
+            if stop_after_observed:
+                stop = lambda: proposer.stop  # noqa: E731
+            res = run_research_case(case, app.base_url, app.credentials(), journal_root=td + "/j", evidence_root=td + "/e",
+                                    budget_override={"max_llm_calls": 2, **(budget_override or {})}, llm=proposer,
+                                    strategy=strategy, is_stopped=stop).to_dict()
+            ev = replay(res["run_id"], td + "/j").events
+            reqs = list(app.requests)
+    finally:
+        canary.stop()
+    return res, ev, reqs
+
+
+def admin_lists(reqs):
+    return [r for r in reqs if r["role"] == "admin" and r["path"].rstrip("/") == "/api/docs"]
+
+
+def hyp_of(res, hid=HID_ADMIN_LIST):
+    return next((h for h in res["hypotheses"] if h["hypothesis_id"] == hid), None)
+
+
+class ConfirmationLoopTest(unittest.TestCase):
+    """観測後に作った仮説は、登録後の新しい確認実験（同じHTTP操作でも別の実験）で検証する。探索時の観測は確定の証拠にしない。"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.res, cls.ev, cls.reqs = late_run()
+
+    def test_the_loop_holds_register_then_new_send_then_evaluate(self):
+        res, ev = self.res, self.ev
+        h = hyp_of(res)
+        self.assertEqual((h["state"], h["probe_origin"], h["probe_preexisting"]), ("supported", "confirm", False))
+        c = h["confirmation"]
+        self.assertEqual((c["mode"], c["registered_before_send"], c["prior_exp_id"]), ("confirm", True, "x:docs_list:admin"))
+        self.assertNotEqual(h["probe"], c["prior_exp_id"])                                     # 探索の実験と別の実験ID
+        reg = _ev(ev, "hypothesis_registered", hypothesis_id=HID_ADMIN_LIST)[0]
+        self.assertEqual(reg["prior_probe"], "x:docs_list:admin")
+        self.assertEqual(reg["probe"]["exp_id"], h["probe"])
+        seqs = {t: next(e["seq"] for e in ev if e["type"] == t and (e.get("task_id") == h["probe"] or e.get("exp_id") == h["probe"]))
+                for t in ("experiment_planned", "task_added", "gate_decision", "action_started", "action_finished", "observation_ingested")}
+        upd = max(e["seq"] for e in _ev(ev, "hypothesis_updated", hypothesis_id=HID_ADMIN_LIST, to_state="supported"))
+        order = [reg["seq"], seqs["experiment_planned"], seqs["task_added"], seqs["gate_decision"], seqs["action_started"],
+                 seqs["action_finished"], seqs["observation_ingested"], upd]
+        self.assertEqual(order, sorted(order))                                                 # 登録 → 計画 → Gate → 送信 → 結果 → 判定
+        self.assertEqual(len(set(order)), len(order))
+        self.assertEqual(_ev(ev, "experiment_planned", exp_id=h["probe"])[0]["purpose"], "confirm")
+        self.assertEqual(_ev(ev, "experiment_planned", exp_id=h["probe"])[0]["tag"], h["probe"].split("~")[1])
+        self.assertEqual(len(admin_lists(self.reqs)), 2)                                       # 環境側の記録: 探索の1回＋確認の1回（新しく送った）
+        self.assertEqual(self.res["metrics"]["prereg_violations"], [])
+
+    def test_evidence_comes_only_from_the_confirm_send(self):
+        f = next(f for f in self.res["findings"] if f["hypothesis_id"] == HID_ADMIN_LIST)
+        c = f["confirmation"]
+        self.assertTrue(f["evidence_complete"] and c["prior_evidence_id"])
+        self.assertNotIn(c["prior_evidence_id"], f["evidence_ids"])                            # 登録前の観測は証拠に数えない
+        exps = {e["exp_id"]: e for e in self.res["experiments"]}
+        self.assertEqual(f["evidence_ids"], [exps[f["probe_exp"]]["evidence_id"]])
+        self.assertNotEqual(exps[f["probe_exp"]]["evidence_id"], exps["x:docs_list:admin"]["evidence_id"])   # 別の証拠ファイル
+        m = self.res["metrics"]
+        self.assertEqual((m["confirmations_planned"], m["confirmations_run"], m["confirmed_supported"]), (1, 1, 1))
+        self.assertEqual((m["confirmation_not_reproduced"], m["confirmation_not_run"], m["confirmation_cap_blocked"]), (0, 0, 0))
+        self.assertIn("confirm", m["probe_origins"])
+
+    def test_report_and_cli_outputs_carry_the_provenance(self):
+        from core.autonomy.research_report import render_markdown
+        md = render_markdown(self.res)
+        self.assertIn("証拠の出どころ: 観測後に作った仮説", md)
+        self.assertIn("登録前の観測 `x:docs_list:admin` は証拠に数えない", md)
+        self.assertIn("確認実験（観測後に作った仮説を、登録後の新しい送信で検証）: 計画 1件・実行 1件・確定 1件", md)
+        self.assertIn("LLM呼出 2", md)                                                          # 実際のLLM呼出し数（以前は常に0と書いていた）
+        res_b, _, _ = late_run(budget_override={"max_requests": 9})
+        md_b = render_markdown(res_b)
+        self.assertIn("登録前の観測だけ", md_b)                                                  # 候補は『登録前の観測だけ』と明示する
+        self.assertIn("budget_requests_exhausted", md_b)
+
+    def test_rule_hypotheses_and_untagged_experiments_are_unchanged(self):
+        regs = _ev(self.ev, "hypothesis_registered")
+        for r in regs:
+            if r["source"] == "rule":
+                self.assertNotIn("prior_probe", r)                                             # 従来の登録内容（予測ハッシュ）は変わらない
+        self.assertFalse([e for e in _ev(self.ev, "experiment_planned") if e.get("tag") and e["purpose"] != "confirm"])
+        self.assertTrue(all("~" not in e["exp_id"] for e in _ev(self.ev, "experiment_planned") if not e.get("tag")))
+
+    def test_exploration_alone_never_confirms_when_the_budget_runs_out(self):
+        """登録前の観測では逸脱しているが、確認実験を送れなかった場合は『候補』にとどめる（理由と登録前の観測であることを残す）。
+        探索の観測は9回。確認実験は10回目の送信なので、予算が9以下なら送れず、10以上なら送って確定する。"""
+        for budget in (8, 9, 10, 11):
+            res, ev, reqs = late_run(budget_override={"max_requests": budget})
+            h = hyp_of(res)
+            self.assertLessEqual(len(reqs), budget)
+            if budget <= 9:
+                self.assertEqual((h["state"], h["reason"]), ("unverified_deviation", "confirmation_not_run"), budget)
+                self.assertNotIn(HID_ADMIN_LIST, [f["hypothesis_id"] for f in res["findings"]])
+                cand = next(c for c in res["candidates"] if c["hypothesis_id"] == HID_ADMIN_LIST)
+                self.assertEqual(cand["evidence_basis"], "pre_registration_observation")
+                self.assertEqual(cand["unconfirmed_because"], "budget_requests_exhausted")
+                self.assertTrue(cand["prior_evidence_ids"] and not cand["evidence_ids"])         # 登録前の観測は『確定の証拠』ではなく別に残す
+                self.assertEqual(len(admin_lists(reqs)), 1)                                      # 確認は送っていない
+                self.assertEqual(res["metrics"]["confirmation_not_run"], 1)
+                self.assertNotEqual(res["state"], "completed")
+            else:
+                self.assertEqual((h["state"], h["confirmation"]["mode"]), ("supported", "confirm"), budget)
+                self.assertEqual(len(admin_lists(reqs)), 2)
+
+    def test_stop_between_registration_and_the_confirm_leaves_a_candidate_not_a_finding(self):
+        res, ev, reqs = late_run(stop_after_observed=True)
+        h = hyp_of(res)
+        self.assertEqual((h["state"], h["reason"]), ("unverified_deviation", "confirmation_not_run"))
+        self.assertEqual(res["end_reason"], "stopped")
+        self.assertNotEqual(res["state"], "completed")
+        cand = next(c for c in res["candidates"] if c["hypothesis_id"] == HID_ADMIN_LIST)
+        self.assertEqual(cand["unconfirmed_because"], "stopped")
+        self.assertNotIn(HID_ADMIN_LIST, [f["hypothesis_id"] for f in res["findings"]])
+        self.assertEqual(len(admin_lists(reqs)), 1)
+
+    def test_a_deviation_that_does_not_reproduce_is_not_confirmed(self):
+        class FirstLeakOnly(DocsApp):
+            seen = 0
+
+            def route(self, path, q, role, n_prev):
+                if path.rstrip("/") == "/api/docs" and role == "admin":
+                    FirstLeakOnly.seen += 1
+                    self.flaws = (self.flaws | {"list_leak"}) if FirstLeakOnly.seen == 1 else (self.flaws - {"list_leak"})
+                return super().route(path, q, role, n_prev)
+        FirstLeakOnly.seen = 0
+        res, ev, reqs = late_run(app_cls=FirstLeakOnly)
+        h = hyp_of(res)
+        self.assertEqual((h["state"], h["reason"]), ("undetermined", "not_reproduced"))      # 棄却も確定もしない
+        self.assertNotIn(HID_ADMIN_LIST, [f["hypothesis_id"] for f in res["findings"]])
+        self.assertNotIn(HID_ADMIN_LIST, [c["hypothesis_id"] for c in res["candidates"]])
+        self.assertNotIn(HID_ADMIN_LIST, [r["hypothesis_id"] for r in res["refuted"]])
+        self.assertEqual(len(admin_lists(reqs)), 2)                                           # 再送で粘らない（確認は1回）
+        self.assertEqual(res["metrics"]["confirmation_not_reproduced"], 1)
+
+    def test_the_verdict_comes_only_from_the_new_send(self):
+        """探索時には正常だった一覧が、確認実験で逸脱を返した場合は、確認実験の結果で確定する（古い観測が判定を左右しない）。"""
+        class LeakOnSecond(DocsApp):
+            seen = 0
+
+            def route(self, path, q, role, n_prev):
+                if path.rstrip("/") == "/api/docs" and role == "admin":
+                    LeakOnSecond.seen += 1
+                    self.flaws = (self.flaws | {"list_leak"}) if LeakOnSecond.seen >= 2 else (self.flaws - {"list_leak"})
+                return super().route(path, q, role, n_prev)
+        LeakOnSecond.seen = 0
+        res, ev, reqs = late_run(app_cls=LeakOnSecond)
+        h = hyp_of(res)
+        self.assertEqual((h["state"], h["confirmation"]["mode"]), ("supported", "confirm"))
+        self.assertEqual(len(admin_lists(reqs)), 2)
+
+    def test_normal_environment_is_refuted_by_the_confirm_and_nothing_is_found(self):
+        res, ev, reqs = late_run(flaws=())
+        h = hyp_of(res)
+        self.assertEqual((h["state"], h["probe_origin"]), ("refuted", "confirm"))
+        self.assertFalse([f for f in res["findings"] if f["family"] == "list_scope"])
+        self.assertEqual(res["metrics"]["confirmations_run"], res["metrics"]["confirmations_planned"])
+
+    def test_cap_keeps_the_hypothesis_as_a_candidate_instead_of_dropping_it(self):
+        from core.autonomy import research_planner as rp
+        old = rp.CONFIRM_MAX_PER_RUN
+        rp.CONFIRM_MAX_PER_RUN = 0
+        try:
+            res, ev, reqs = late_run()
+        finally:
+            rp.CONFIRM_MAX_PER_RUN = old
+        h = hyp_of(res)
+        self.assertEqual((h["state"], h["reason"], h["probe_preexisting"]), ("unverified_deviation", "confirmation_cap", True))
+        self.assertNotIn(HID_ADMIN_LIST, [f["hypothesis_id"] for f in res["findings"]])
+        self.assertEqual(len(admin_lists(reqs)), 1)                                           # 上限を超えた仮説の確認は送らない
+        self.assertEqual(res["metrics"]["confirmation_cap_blocked"], 1)
+
+    def test_the_mechanism_is_common_to_every_strategy(self):
+        for strat in ("static", "checklist"):
+            res, ev, reqs = late_run(strategy=strat)
+            h = hyp_of(res)
+            self.assertEqual((strat, h["state"], h["confirmation"]["mode"]), (strat, "supported", "confirm"))
+            self.assertEqual(len(admin_lists(reqs)), 2, strat)
+            self.assertEqual(res["metrics"]["prereg_violations"], [], strat)
+
+    def test_a_control_that_ran_before_registration_is_replaced_by_a_new_control(self):
+        """対照も同じ扱い: 登録より前に計画・送信済みなら、登録後の新しい対照（tag付き）に置き換える。probe はまだなら置き換えない。"""
+        from core.autonomy.research_planner import Researcher, CONFIRM_MAX_PER_RUN
+        m = synthetic_model()
+        r = Researcher(m.case, "http://127.0.0.1:1", None, None, lambda: False)
+        r.model = m
+        h = next(x for x in rh.propose(m) if x.control is not None and x.gap is None)
+        old_ctl = h.control.exp_id
+        r.experiments[old_ctl] = h.control                                                    # 対照だけ、登録より前に計画済み
+        assert h.probe.exp_id not in r.experiments
+        r._to_confirmation(h)
+        self.assertEqual((h.prior_probe, h.prior_control), ("", old_ctl))
+        self.assertTrue(h.control.tag and h.control.exp_id.startswith(old_ctl + "~k"))
+        self.assertEqual(h.probe.tag, "")
+        self.assertEqual(r.confirm_count, 1)
+        self.assertIn("prior_control", h.registration_dict())
+        h2 = next(x for x in rh.propose(m) if x.control is not None and x.gap is None and x.hypothesis_id != h.hypothesis_id)
+        r.confirm_count = CONFIRM_MAX_PER_RUN                                                  # 上限に達したら置換せず、候補止まりの印を付ける
+        r.experiments[h2.control.exp_id] = h2.control
+        r._to_confirmation(h2)
+        self.assertEqual((h2.control.tag, h2.confirm_blocked), ("", "confirmation_cap"))
+
+    def test_confirm_has_its_own_dedupe_key_and_the_same_confirm_cannot_be_resent(self):
+        from core.autonomy.actions import make_action
+        from core.autonomy.research_loop import build_registry, CAP_AUTHED
+        spec = build_registry().get(CAP_AUTHED)
+        base = {"url": "http://127.0.0.1:1/api/docs", "exp_id": "x:docs_list:admin", "op_id": "docs_list", "role": "admin", "path_params": {}}
+        conf = dict(base, exp_id="x:docs_list:admin~cabcdef01")
+        k = lambda a: make_action(spec, a["exp_id"], a, auth_context="admin").dedupe_key  # noqa: E731
+        self.assertNotEqual(k(base), k(conf))                                                  # 同じURLでも別の実験として扱う
+        self.assertEqual(k(conf), k(dict(conf)))                                               # 同じ確認の再送は同じ重複キー（Gateが拒否）
+        self.assertEqual(Experiment("admin", "docs_list").exp_id, "x:docs_list:admin")          # 従来の実験IDは変わらない
+        self.assertEqual(Experiment("admin", "docs_list", (), "cabcdef01").exp_id, "x:docs_list:admin~cabcdef01")
+
+
+class ConfirmationResumeTest(unittest.TestCase):
+    """確認実験・LLM呼出しの周りの強制終了と再開。二重送信・予算の巻き戻し・結果不明の自動再実行が起きない。"""
+    CASE = "blind-docs-02"
+    crash_and_resume = ResearchResumeTest.crash_and_resume              # 実プロセスを os._exit で落として再開する（ResearchResumeTest と同じ方式）
+
+    @classmethod
+    def setUpClass(cls):
+        cls.res0, cls.ev0, cls.reqs0 = late_run()
+        cls.confirm = hyp_of(cls.res0)["probe"]
+
+    def _resume(self, crash, max_llm=2):
+        second = MockProposer("late")
+        res, ev, before, after, g = self.crash_and_resume(crash, child_llm="late", resume_llm=second, budget={"max_llm_calls": max_llm})
+        return res, ev, before, after, second
+
+    def test_crash_around_the_confirm_send_never_resends_or_rewinds(self):
+        for point, sent in (("before_send", 1), ("after_send", 2)):
+            res, ev, before, after, second = self._resume(f"{point}:{self.confirm}")
+            tag = point
+            self.assertNotEqual(res["state"], "failed", (tag, res["errors"]))
+            self.assertEqual(sum(1 for r in after if r == ("admin", "/api/docs")), sent, tag)    # 確認は高々1回。再開で再送しない
+            self.assertEqual(res["resume"]["unknown_outcome"], [self.confirm], tag)             # 結果不明は自動では再実行しない
+            h = hyp_of(res)
+            self.assertEqual(h["state"], "undetermined", tag)
+            self.assertIn("unknown_outcome", h["reason"], tag)
+            self.assertNotIn(HID_ADMIN_LIST, [f["hypothesis_id"] for f in res["findings"]], tag)
+            self.assertEqual(second.calls, 0, tag)                                               # LLMを再呼出ししない（結果は記録済み）
+            self.assertEqual(res["budget"]["llm_calls_used"], 2, tag)                    # LLM呼出し数も巻き戻さない
+            self.assertLessEqual(len(after), 40, tag)
+            self.assertEqual(res["metrics"]["prereg_violations"], [], tag)
+            self.assertEqual(len(set(after[len(before):]) & set(before) - {("admin", "/api/docs")}), 0, tag)
+
+    def test_crash_while_asking_the_llm_never_calls_it_again_or_rewinds_its_budget(self):
+        for point in ("before_llm", "after_llm"):
+            # 予算に余裕（3回）がある状態でも、結果が不明なLLM呼出しを自動で再実行しない（予算切れで呼べないだけではない）
+            res, ev, before, after, second = self._resume(f"{point}:observed", max_llm=3)
+            self.assertNotEqual(res["state"], "failed", (point, res["errors"]))
+            self.assertEqual(second.calls, 0, point)
+            self.assertEqual(res["resume"]["llm_unknown_outcome"], ["observed"], point)
+            self.assertEqual(res["llm"]["unknown_outcome_phases"], ["observed"], point)
+            self.assertTrue([e for e in res["errors"] if "LLM提案の結果が不明" in e], point)
+            self.assertNotEqual(res["state"], "completed", point)
+            self.assertEqual(res["budget"]["llm_calls_used"], 2, point)                  # 予約済みの2回（仕様段階・観測後）を引き継ぐ
+            self.assertIsNone(hyp_of(res), point)                                                # その段階の提案は登録されない
+            self.assertEqual(len(_ev(ev, "llm_call_reserved")), 2, point)
 
 
 class LlmFailureAnalysisTest(unittest.TestCase):

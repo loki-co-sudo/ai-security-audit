@@ -42,7 +42,7 @@ from core.findings import (
 )
 from core.http_transport import HttpTransport, RequestPolicy, new_session
 
-RESEARCH_ENGINE_VERSION = "research-stage1/4"   # /2: 再開に必要な記録を追加（/1のRunは再開不可）。/3: 重複確認の後回し（OP_SUPPORTED 0.1）で実験の選択順が変わった（/2のRunは再開不可）。/4: list_scopeの具体化（共有先の項目を必須にしない）と判定（情報不足を逸脱にしない）、重複抑制(dedup)の指定。/3のRunは再開不可
+RESEARCH_ENGINE_VERSION = "research-stage1/5"   # /2: 再開に必要な記録を追加（/1のRunは再開不可）。/3: 重複確認の後回し（OP_SUPPORTED 0.1）で実験の選択順が変わった（/2のRunは再開不可）。/4: list_scopeの具体化（共有先の項目を必須にしない）と判定（情報不足を逸脱にしない）、重複抑制(dedup)の指定。/3のRunは再開不可。/5: 観測後の仮説は登録後の新しい確認実験（実験IDにtag）で検証する・一覧の閲覧条件を操作単位(visible_to)で定義・LLM呼出しの予約をジャーナルに残し再開で巻き戻さない（/4のRunは再開不可。tagの無い実験の実験ID・予測ハッシュは/4と同じ）
 _ARGS = {"url": {"type": "str", "required": True}, "exp_id": {"type": "str", "required": True},
          "op_id": {"type": "str", "required": True}, "role": {"type": "str", "required": True},
          "path_params": {"type": "dict"}}
@@ -170,12 +170,14 @@ def run_research_case(case: BlindCase, base_url: str, creds: dict[str, str], *, 
     researcher = Researcher(case, base_url, journal, ledger, stopped,
                             llm=llm if int(budget.get("max_llm_calls", 0)) > 0 else None, llm_max_tokens=llm_max_tokens,
                             strategy=strategy, dedup=dedup)
+    researcher.fault_hook = fault_hook
     mask = lambda s: redaction.mask_log_line(str(s), known_secrets)  # noqa: E731
     keep = retained_keys(case)
     plan: list = []
     if resuming:
         try:
             resume_notes = researcher.rehydrate(replay(journal.run_id, journal_root).events, store.tasks())
+            ledger.restore_llm_calls(researcher.llm_reserved_total)         # 前回までに予約したLLM呼出しを引き継ぐ（巻き戻さない）
             have = {r["task_id"] for r in store.plan()}
             plan = [PlanTask(r["task_id"], r["capability"], r["args"], tuple(r["depends_on"]), r["auth_context"])
                     for r in store.plan()]
@@ -259,6 +261,10 @@ def run_research_case(case: BlindCase, base_url: str, creds: dict[str, str], *, 
         result = _assemble(case, researcher, outcome, runner, sr, journal.run_id, counters, ledger, evidence, mask,
                            budget, phash)
         result.resume = dict(resume_notes) if resuming else {}
+        if resuming and researcher.llm_unknown:
+            result.errors.append(f"前回のLLM提案の結果が不明です（段階: {', '.join(researcher.llm_unknown)}。自動では再呼出ししません）")
+            if result.state == ScanState.COMPLETED.value:
+                result.state = ScanState.PARTIAL.value
         result.errors = [mask(e) for e in result.errors]
         end_errors = runner.close_run(state=result.state, errors=result.errors)
         if end_errors:
@@ -286,6 +292,28 @@ def _detail(h, res, model) -> list:
     return [str(f) for f in evaluate_check(h.check, res, model)[2] if re.match(r"^[A-Za-z0-9_= ]{1,60}$", str(f))]
 
 
+def _count_by(xs: list) -> dict:
+    out: dict = {}
+    for x in xs:
+        out[x or "unknown"] = out.get(x or "unknown", 0) + 1
+    return out
+
+
+def _confirmation(researcher, h, results) -> dict:
+    """確定の証拠の出どころ。mode: confirm（観測後の仮説を、登録後の新しい確認実験で検証）／discovery_send_after_registration
+    （登録後に計画された探索の送信が probe 結果になった）／probe（仮説のために計画した実験）。登録前の観測は prior_* に分けて残す
+    （確定の証拠・evidence_complete には数えない）。"""
+    pid = h.probe.exp_id if h.probe else None
+    purpose = researcher.planned_purpose.get(pid, "") if pid else ""
+    mode = "confirm" if h.prior_probe else ("discovery_send_after_registration" if purpose == "discovery" else "probe")
+    prior = results.get(h.prior_probe) if h.prior_probe else None
+    return {"mode": mode, "probe_planned_purpose": purpose, "registered_seq": h.registered_seq,
+            "probe_planned_seq": researcher.planned_seq.get(pid) if pid else None,
+            "registered_before_send": (researcher.planned_seq.get(pid) or 0) > h.registered_seq if pid in researcher.planned_seq else None,
+            "prior_exp_id": h.prior_probe or None, "prior_control_exp_id": h.prior_control or None,
+            "prior_evidence_id": prior.evidence_id if prior is not None else None, "confirm_blocked": h.confirm_blocked or None}
+
+
 def _llm_summary(researcher, ledger, findings, candidates) -> dict:
     st = researcher.llm_stats
     new_ids = {d["hypothesis_id"] for d in st["details"] if d["status"] == "new" or d["status"] == "duplicate_of_llm"}
@@ -297,7 +325,7 @@ def _llm_summary(researcher, ledger, findings, candidates) -> dict:
                                                                            / st["proposals"], 4) if st["proposals"] else None),
             "llm_hypotheses": sorted(llm_hyps), "llm_findings": sorted(f["hypothesis_id"] for f in findings if f["hypothesis_id"] in llm_hyps),
             "llm_candidates": sorted(c["hypothesis_id"] for c in candidates if c["hypothesis_id"] in llm_hyps),
-            "details": st["details"], "calls_detail": st["calls_detail"], "usage": st["usage"],
+            "unknown_outcome_phases": list(researcher.llm_unknown), "details": st["details"], "calls_detail": st["calls_detail"], "usage": st["usage"],
             "ledger": ledger.llm_usage_summary()}
 
 
@@ -322,7 +350,9 @@ def _assemble(case, researcher, outcome, runner, sr, run_id, counters, ledger, e
             "probe_preexisting": h.probe_preexisting, "state": state, "reason": reason, "control_state": ctl,
             "control_reason": ctl_why or h.control_reason, "probe_status_code": probe_res.status_code if probe_res else None,
             "source": h.source, "llm_rationale": h.llm_rationale,
-            "evidence_ids": [e for e in (ev_probe, ev_ctl) if e], "gap": h.gap}
+            "evidence_ids": [e for e in (ev_probe, ev_ctl) if e], "gap": h.gap,
+            "probe_origin": researcher.planned_purpose.get(h.probe.exp_id) if h.probe else None,
+            "confirmation": _confirmation(researcher, h, results)}
         hyps_out.append(rec)
         if state == S_SUPPORTED:
             ev_ids = [e for e in (ev_probe, ev_ctl) if e]
@@ -341,9 +371,10 @@ def _assemble(case, researcher, outcome, runner, sr, run_id, counters, ledger, e
                        "control_exp": h.control.exp_id if h.control else None, "control_state": ctl,
                        "basis": h.basis, "prediction_sha": h.prediction_sha(), "registered_seq": h.registered_seq,
                        "evidence_complete": len(ev_ids) == need, "evidence_missing": need - len(ev_ids),
-                       "unexpected_fields": extra,
+                       "unexpected_fields": extra, "probe_origin": rec["probe_origin"], "confirmation": rec["confirmation"],
                        "repro": [f"{'未認証' if h.probe_role == 'anonymous' else h.probe_role + 'のセッション'}で "
-                                 f"GET {op.path_for(h.probe.params())} を送り、事前登録した予測と一致するか確認する"]
+                                 f"GET {op.path_for(h.probe.params())} を送り、事前登録した予測と一致するか確認する"
+                                 + ("（観測後に作った仮説。登録後に新しく送る確認実験で検証済み。登録前の観測は証拠に数えない）" if h.prior_probe else "")]
                                 + ([f"対照: {h.control.role}で同じ操作を送り、到達できることを確認する"] if h.control else [])})
             findings.append(fd)
             sr.findings.append(f)
@@ -351,7 +382,11 @@ def _assemble(case, researcher, outcome, runner, sr, run_id, counters, ledger, e
             candidates.append({"hypothesis_id": hid, "family": h.family, "op_id": h.op_id, "probe_role": h.probe_role,
                                "reason": reason, "control_state": ctl, "grounded": h.grounded,
                                "ungrounded_reason": h.ungrounded_reason, "evidence_ids": rec["evidence_ids"],
-                               "note": "逸脱は観測したが確定していない（所見・台帳には入れない）"})
+                               "note": "逸脱は観測したが確定していない（所見・台帳には入れない）",
+                               **({"evidence_basis": "pre_registration_observation", "unconfirmed_because": researcher.finish_reason or "not_selected",
+                                   "prior_evidence_ids": [results[h.prior_probe].evidence_id] if (h.prior_probe in results and results[h.prior_probe].evidence_id) else [],
+                                   "note": "登録前の観測では逸脱を確認したが、登録後の確認実験が実行できなかったため確定していない（所見・台帳には入れない）"}
+                                  if reason == "confirmation_not_run" else {})})
         elif state == S_REFUTED:
             refuted.append({"hypothesis_id": hid, "reason": reason, "evidence_ids": rec["evidence_ids"]})
         elif state == S_UNDETERMINED:
@@ -367,6 +402,7 @@ def _assemble(case, researcher, outcome, runner, sr, run_id, counters, ledger, e
         r = results.get(exp_id)
         exps_out.append({"exp_id": exp_id, "role": exp.role, "op_id": exp.op_id, "path_params": exp.params(),
                          "purpose": researcher.exp_purpose.get(exp_id, ""), "planned_seq": researcher.planned_seq.get(exp_id),
+                         "planned_purpose": researcher.planned_purpose.get(exp_id, ""), "tag": exp.tag,
                          "task_state": rec_t.state.value if rec_t else "not_in_plan", "task_reason": rec_t.reason if rec_t else "",
                          "status_code": r.status_code if r else None, "evidence_id": r.evidence_id if r else None,
                          "body_complete": r.body_complete if r else None})
@@ -391,6 +427,14 @@ def _assemble(case, researcher, outcome, runner, sr, run_id, counters, ledger, e
         "control_rate": round(len(ctl_done) / len(ctl_req), 4) if ctl_req else None,
         "control_denominator": len(ctl_req), "evidence_complete_rate": round(len(with_ev) / len(findings), 4) if findings else None,
         "prereg_violations": prereg_bad, "requests_used": ledger.requests_used(), "human_interventions": 0,
+        "confirmations_planned": sum(1 for h in researcher.hyps.values() if h.prior_probe or h.prior_control),
+        "confirmations_run": sum(1 for h in researcher.hyps.values() if h.prior_probe and h.probe.exp_id in results
+                                 and results[h.probe.exp_id].status_code is not None),
+        "confirmed_supported": sum(1 for f in findings if f["confirmation"] and f["confirmation"]["mode"] == "confirm"),
+        "confirmation_not_reproduced": sum(1 for x in undetermined if x["reason"] == "not_reproduced"),
+        "confirmation_not_run": sum(1 for x in candidates if x["reason"] == "confirmation_not_run"),
+        "confirmation_cap_blocked": sum(1 for h in researcher.hyps.values() if h.confirm_blocked),
+        "probe_origins": _count_by([x["probe_origin"] for x in hyps_out if x["probe"] in results]),
         "experiments": len(exps_out), "discovery_experiments": sum(1 for e in exps_out if e["purpose"].startswith("discovery"))}
     # ── 状態・coverage ──
     coverage = []

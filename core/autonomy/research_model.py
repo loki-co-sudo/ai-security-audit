@@ -20,11 +20,12 @@ class Experiment:
     role: str                      # アカウント名 or "anonymous"
     op_id: str
     path_params: tuple = ()        # ((名前, 値), ...) 名前順
+    tag: str = ""                  # 同じHTTP操作の『確認実験』を探索の観測と区別する識別子（空=従来どおり。exp_idは変わらない）
 
     @property
     def exp_id(self) -> str:
         tail = ":".join(f"{v}" for _, v in self.path_params)
-        return f"x:{self.op_id}:{self.role}" + (f":{tail}" if tail else "")
+        return f"x:{self.op_id}:{self.role}" + (f":{tail}" if tail else "") + (f"~{self.tag}" if self.tag else "")
 
     def params(self) -> dict:
         return dict(self.path_params)

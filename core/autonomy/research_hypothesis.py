@@ -62,14 +62,17 @@ class Hypothesis:
     needed_observations: list = field(default_factory=list)
     gap: dict | None = None                   # 検証不能の理由と必要な能力
     registered_seq: int = 0                   # ジャーナルでの登録イベントのseq(実験より前でなければならない)
-    probe_preexisting: bool = False           # 登録時点で既にprobe相当の結果があった(予測の事前登録にならない)
+    probe_preexisting: bool = False           # 登録時点で既にprobe相当の結果があった(予測の事前登録にならない)。確認実験への置換が上限で行えなかった場合だけ立つ
+    prior_probe: str = ""                     # 登録より前に実行済みだった probe の exp_id。非空なら probe は登録後の新しい確認実験（tag付き）に置き換えてある
+    prior_control: str = ""                   # 同様に、登録より前に実行済みだった対照の exp_id
+    confirm_blocked: str = ""                 # 確認実験に置き換えられなかった理由コード（confirmation_cap）
     key: tuple = ()                           # 一般化の単位 (family, op_id, probe_role)
     source: str = "rule"                      # 仮説の出どころ: rule(開発者の規則) / llm(LLM提案を検証器が採用)
     llm_rationale: str = ""                   # LLMの説明（無害化済み・追跡用。判定や報告の根拠には使わない）
 
     # ── 事前登録 ────────────────────────────────
     def registration_dict(self) -> dict:
-        return {
+        d = {
             "hypothesis_id": self.hypothesis_id, "family": self.family, "op_id": self.op_id,
             "probe_role": self.probe_role, "object_id": self.object_id, "claim": self.claim,
             "basis": self.basis, "preconditions": self.preconditions,
@@ -81,6 +84,11 @@ class Hypothesis:
             "needed_observations": self.needed_observations, "gap": self.gap, "source": self.source,
             "llm_rationale": self.llm_rationale,
         }
+        # 確認実験の情報は、使った場合だけ記録する（使わない仮説の登録内容・予測ハッシュは従来と同一）
+        for k in ("prior_probe", "prior_control", "confirm_blocked"):
+            if getattr(self, k):
+                d[k] = getattr(self, k)
+        return d
 
     def prediction_sha(self) -> str:
         core = {k: v for k, v in self.registration_dict().items()}
@@ -88,7 +96,12 @@ class Hypothesis:
 
 
 def _exp_dict(e: Experiment | None) -> dict | None:
-    return None if e is None else {"exp_id": e.exp_id, "role": e.role, "op_id": e.op_id, "path_params": dict(e.path_params)}
+    if e is None:
+        return None
+    d = {"exp_id": e.exp_id, "role": e.role, "op_id": e.op_id, "path_params": dict(e.path_params)}
+    if e.tag:
+        d["tag"] = e.tag
+    return d
 
 
 # ── 判定 ─────────────────────────────────────────
@@ -134,16 +147,21 @@ def evaluate_check(check: dict, res: ExpResult | None, model: TargetModel | None
     raise ValueError(f"未知のcheck type: {t}")
 
 
-def list_visible_via(obj: dict) -> tuple:
-    """一覧(own_list)で呼出し者に見えてよい要素の条件。所有者本人、および共有先を持つ型(shared_field)なら共有先。
-    claim・予測・反証条件・判定は、仮説の check に入れたこの値を唯一の根拠にする（own_list と owner_or_shared を混同しない）。"""
-    return ("owner", "shared") if obj.get("shared_field") else ("owner",)
+def list_visible_to(access: dict, obj: dict) -> str:
+    """一覧(own_list)の閲覧条件を操作単位で決める。仕様に明示(access.visible_to)があればそれ。無ければ、共有先の項目を持たない型は
+    所有者のみ（共有の概念が無いので曖昧さがない）、共有先の項目を持つ型は unspecified（共有先の要素を閲覧してよいかが仕様に明記されていない）。
+    shared_field の存在だけで共有先の閲覧を許可しない。claim・予測・反証条件・判定は、この値を仮説の check に入れて揃える。"""
+    v = access.get("visible_to")
+    if v in ("owner", "owner_or_shared"):
+        return v
+    return "unspecified" if obj.get("shared_field") else "owner"
 
 
 def _eval_list_visibility(check: dict, res: ExpResult, model: TargetModel | None) -> tuple[str, str, list]:
-    """一覧の各要素が、呼出し者に見えるはずのもの（check.visible_via: 所有者本人、型が共有先を持つなら共有先も）だけかを、
-    応答自身の所有者/共有先の項目で判定する。detailは件数だけ（IDや本文を含めない）。
-    判断に必要な項目が無い・読めない要素は『判断不能』であり、見えないもの(逸脱)にも見えるもの(正常)にもしない。"""
+    """一覧の各要素が、閲覧条件(check.visible_to)で見えてよいものだけかを、応答自身の所有者/共有先の項目で判定する。
+    逸脱にするのは『呼出し者の所有でなく、共有先でもない』要素だけ（どの閲覧条件でも許されない）。owner の条件では、共有先の要素も逸脱。
+    unspecified では、呼出し者への共有の要素は許されるか不明なので、正常にも逸脱にもしない（判断不能）。判断に必要な項目が無い・読めない要素も同じ。
+    detailは件数だけ（IDや本文を含めない）。"""
     if res.status_code != 200 or not isinstance(res.json, list):
         return INCONCLUSIVE, "no_list" if res.status_code == 200 else f"status_{res.status_code}", []
     if model is None or check["role"] not in model.identity:
@@ -151,33 +169,37 @@ def _eval_list_visibility(check: dict, res: ExpResult, model: TargetModel | None
     uid = model.identity[check["role"]]["user_id"]
     o = model.case.objects[check["object"]]
     ownf, shf = o.get("owner_field"), o.get("shared_field")
-    via = tuple(check.get("visible_via") or list_visible_via(o))           # 古いジャーナル（visible_viaなし）は型から導く
-    if not ownf or ("shared" in via and not shf):
+    vt = check.get("visible_to") or list_visible_to({}, o)                  # 条件の記録が無い古い仮説は型から導く
+    if not ownf or (vt == "owner_or_shared" and not shf):
         return INCONCLUSIVE, "schema_incomplete", []
     items = [x for x in res.json if isinstance(x, dict)]
     if not items:
         return (INCONCLUSIVE, "body_incomplete", []) if not res.body_complete else (CONFORMS, "empty_list_visible_only", [])
     if any(ownf not in x for x in items):
         return INCONCLUSIVE, "owner_field_missing", []
-    foreign = unknown = 0
+    foreign = unknown = shared_with_caller = 0
     for x in items:
         owner = x.get(ownf)
         if not isinstance(owner, str) or not owner:
             unknown += 1                                  # 所有者が欠落/null（読めない）: 見えてよいかを判断できない
         elif owner == uid:
             continue
-        elif "shared" in via:
+        elif vt == "owner" or not shf:
+            foreign += 1                                  # 所有者のみの一覧: 所有者以外は（共有先でも）逸脱
+        else:
             shared = x.get(shf)
             if not isinstance(shared, list):
                 unknown += 1                              # 共有先の項目が無い/読めない: 共有先かどうかを判断できない
             elif uid not in shared:
-                foreign += 1
-        else:
-            foreign += 1
+                foreign += 1                              # 所有者でも共有先でもない: どの条件でも許されない
+            elif vt == "unspecified":
+                shared_with_caller += 1                   # 共有先として見えているが、閲覧してよいかが仕様に無い
     if foreign:
         return DEVIATES, "foreign_items_listed", [f"foreign_items={foreign}"] + ([f"undetermined_items={unknown}"] if unknown else [])
     if unknown:
         return INCONCLUSIVE, "visibility_undeterminable", [f"undetermined_items={unknown}"]
+    if shared_with_caller:
+        return INCONCLUSIVE, "visibility_condition_unspecified", [f"shared_with_caller_items={shared_with_caller}"]
     return (INCONCLUSIVE, "body_incomplete", []) if not res.body_complete else (CONFORMS, "only_visible_items", [])
 
 
@@ -195,18 +217,29 @@ def control_state(h: Hypothesis, results: dict) -> tuple[str, str]:
 
 
 def hyp_state(h: Hypothesis, results: dict, model: TargetModel | None = None) -> tuple[str, str]:
-    """(状態, 理由コード)。状態: registered / supported / refuted / unverified_deviation / undetermined / unverifiable。"""
+    """(状態, 理由コード)。状態: registered / supported / refuted / unverified_deviation / undetermined / unverifiable。
+    確認実験（prior_probe あり）の仮説は、登録後に送った確認実験の結果だけで確定・棄却する。登録前の観測（prior_probe）は、
+    確認実験が実行できなかった場合の『候補』（confirmation_not_run）と、再現しなかった場合の判定不能（not_reproduced）にだけ使う。"""
     if h.gap is not None:
         return S_UNVERIFIABLE, h.gap["reason_code"]
     res = results.get(h.probe.exp_id)
+
+    def prior_deviated() -> bool:
+        prior = results.get(h.prior_probe) if h.prior_probe else None
+        return prior is not None and prior.status_code is not None and evaluate_check(h.check, prior, model)[0] == DEVIATES
     if res is None:
+        if h.prior_probe and prior_deviated():
+            return S_UNVERIFIED, "confirmation_not_run"          # 登録前の観測では逸脱。登録後の確認が無いので確定しない
         return S_REGISTERED, "probe_not_run"
     out, why, _ = evaluate_check(h.check, res, model)
     if out == INCONCLUSIVE:
         return S_UNDETERMINED, f"probe_{why}"
     ctl, cwhy = control_state(h, results)
     if h.probe_preexisting:      # 登録前に得ていた結果は、事前登録した予測の検証にならない
-        return (S_UNVERIFIED, "probe_preexisting") if out == DEVIATES else (S_UNDETERMINED, "probe_preexisting")
+        reason = h.confirm_blocked or "probe_preexisting"
+        return (S_UNVERIFIED, reason) if out == DEVIATES else (S_UNDETERMINED, reason)
+    if h.prior_probe and out != DEVIATES and prior_deviated():
+        return S_UNDETERMINED, "not_reproduced"                  # 登録前の観測では逸脱、確認では再現しない。棄却も確定もしない
     if out == DEVIATES:
         if ctl in ("passed", "not_required"):
             if not h.grounded:
@@ -261,12 +294,12 @@ def validate_hypothesis(h: Hypothesis, model: TargetModel) -> list[str]:
     elif chk["type"] == "fields_subset" and not chk.get("allowed"):
         p.append("check_not_falsifiable")
     elif chk["type"] == "list_visibility":
-        obj = case.objects.get(chk.get("object"))
-        via = tuple(chk.get("visible_via") or (list_visible_via(obj) if obj else ()))
-        if not (chk.get("role") in case.accounts and obj is not None and obj.get("owner_field")):
+        obj, lop = case.objects.get(chk.get("object")), case.operations.get(h.op_id)
+        want = list_visible_to(lop.access, obj) if (obj is not None and lop is not None) else None
+        if not (chk.get("role") in case.accounts and obj is not None and obj.get("owner_field") and want):
             p.append("check_not_falsifiable")
-        elif via != list_visible_via(obj):
-            p.append("list_visibility_condition_mismatch")      # 見えてよい条件が、仕様の型（所有者のみ/共有先を持つ）と一致しない
+        elif (chk.get("visible_to") or want) != want:
+            p.append("list_visibility_condition_mismatch")      # 見えてよい条件が、その操作の仕様(access.visible_to／型)と一致しない
     if h.control_required and h.control is None and not h.control_reason:
         p.append("control_unavailable_without_reason")
     if not h.control_required and not h.control_reason:
@@ -532,7 +565,7 @@ def _field_exposure(model: TargetModel, op: SpecOperation) -> list[Hypothesis]:
 def build_list_scope(model: TargetModel, op: SpecOperation, role: str) -> tuple[Hypothesis | None, str]:
     """一覧操作が、呼出し者に見えるはずのない要素を含むか（list_visibility）。規則（propose）は作らず、LLM提案からだけ作られる型。
     戻り値: (仮説, 却下理由)。期待値は仕様の own_list 条項に結び付く（LLMが『根拠あり』と言っても使わない）。
-    見えてよい条件は型から決める（所有者のみ。共有先の項目を持つ型は所有者または共有先）。共有先を持たない型も扱う。"""
+    閲覧条件は操作単位で決める（list_visible_to）。仕様に明記が無く共有先を持つ型は unspecified とし、仕様不足をLLMや推測で補って確定しない。"""
     if op.method != "GET" or op.params or op.access["kind"] != "own_list" or not op.returns.get("object"):
         return None, "op_not_list_scope"
     if role not in model.case.accounts:
@@ -543,16 +576,23 @@ def build_list_scope(model: TargetModel, op: SpecOperation, role: str) -> tuple[
     o = model.case.objects.get(otype, {})
     if not o.get("owner_field"):
         return None, "object_schema_lacks_owner"              # 所有者の項目が無いと、見えてよいかを応答から判断できない
-    via = list_visible_via(o)
-    who = f"{role}が所有者でも共有先でもない" if "shared" in via else f"{role}が所有者でない"
-    keep = f"{role}の所有または{role}への共有" if "shared" in via else f"{role}の所有"
+    vt = list_visible_to(op.access, o)
+    if vt == "owner":
+        who, keep = f"{role}が所有者でない", f"{role}の所有"
+    elif vt == "owner_or_shared":
+        who, keep = f"{role}が所有者でも共有先でもない", f"{role}の所有または{role}への共有"
+    else:
+        who = f"{role}が所有者でも共有先でもない（閲覧条件に共有が含まれるかは仕様に明記が無いため、どちらの解釈でも許されない要素に限る）"
+        keep = f"{role}の所有または{role}への共有（{role}への共有の要素は、許されるか仕様に無いので判定しない）"
+    pre = [{"id": "p1", "text": f"{role}の利用者IDを観測している(identity)", "status": "unverified"},
+           {"id": "p2", "text": f"{role}のセッションは有効", "status": "unverified"}]
+    if vt == "unspecified":
+        pre.append({"id": "p3", "text": "この一覧の閲覧条件（所有者のみか共有先を含むか）は仕様に明記されていない", "status": "unverified"})
     return Hypothesis(
         hypothesis_id=f"h:list_scope:{op.op_id}:{role}", family="list_scope", op_id=op.op_id, probe_role=role, object_id="",
         claim=f"{op.op_id}が、{role}に見えるはずのない{otype}（{who}もの）を一覧に含める(仕様{op.access['clause']}: {op.access['text']})",
-        basis=[_spec_basis(op)],
-        preconditions=[{"id": "p1", "text": f"{role}の利用者IDを観測している(identity)", "status": "unverified"},
-                       {"id": "p2", "text": f"{role}のセッションは有効", "status": "unverified"}],
-        check={"type": "list_visibility", "role": role, "object": otype, "visible_via": list(via)},
+        basis=[_spec_basis(op)], preconditions=pre,
+        check={"type": "list_visibility", "role": role, "object": otype, "visible_to": vt},
         prediction_if_true=f"{role}の{op.op_id}の応答に、{who}{otype}が含まれる",
         falsification=f"{role}の{op.op_id}の応答の全要素が、{keep}",
         probe=Experiment(role, op.op_id), control=None, control_required=False,
@@ -564,7 +604,7 @@ def build_list_scope(model: TargetModel, op: SpecOperation, role: str) -> tuple[
 def _exp_from_dict(d: dict | None) -> Experiment | None:
     if d is None:
         return None
-    return Experiment(d["role"], d["op_id"], tuple(sorted((d.get("path_params") or {}).items())))
+    return Experiment(d["role"], d["op_id"], tuple(sorted((d.get("path_params") or {}).items())), d.get("tag", ""))
 
 
 def hypothesis_from_registration(d: dict) -> Hypothesis:
@@ -576,4 +616,5 @@ def hypothesis_from_registration(d: dict) -> Hypothesis:
         control=_exp_from_dict(d.get("control")), control_required=d["control_required"], control_reason=d["control_reason"],
         control_check=d.get("control_check"), grounded=d["grounded"], ungrounded_reason=d.get("ungrounded_reason", ""),
         needed_observations=d.get("needed_observations", []), gap=d.get("gap"), source=d.get("source", "rule"),
-        llm_rationale=d.get("llm_rationale", ""), key=(d["family"], d["op_id"], d["probe_role"]))
+        llm_rationale=d.get("llm_rationale", ""), key=(d["family"], d["op_id"], d["probe_role"]),
+        prior_probe=d.get("prior_probe", ""), prior_control=d.get("prior_control", ""), confirm_blocked=d.get("confirm_blocked", ""))

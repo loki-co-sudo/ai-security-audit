@@ -476,12 +476,13 @@ def research_command(args, creds, was_interrupted):
         "clean_finish": d["clean_finish"], "resumable": d["resumable"], "resume": d["resume"], "counters": d["counters"],
         "metrics": d["metrics"], "budget": d["budget"], "versions": d["versions"],
         "hypotheses": [{k: h[k] for k in ("hypothesis_id", "family", "op_id", "probe_role", "state", "reason", "control_state",
-                                          "grounded", "source", "prediction_sha")} for h in d["hypotheses"]],
+                                          "grounded", "source", "prediction_sha", "probe_origin", "confirmation")} for h in d["hypotheses"]],
         # 候補=逸脱は観測したが確定していない（対照未実施・期待値が推定 等）。findings・台帳には入れない（候補なしは空リスト）
         "candidates": d["candidates"], "refuted": [r["hypothesis_id"] for r in d["refuted"]], "undetermined": d["undetermined"],
         "unverifiable": d["unverifiable"], "not_examined": d["not_examined"], "unknowns": d["unknowns"],
         "finding_details": [{k: f.get(k) for k in ("hypothesis_id", "family", "op_id", "control_state", "evidence_complete",
-                                                  "evidence_missing", "prediction_sha", "registered_seq")} for f in d["findings"]],
+                                                  "evidence_missing", "prediction_sha", "registered_seq", "probe_origin", "confirmation")}
+                            for f in d["findings"]],
         "rejected": d["rejected"], "decision_log": d["decision_log"]}
     if args.report_dir:
         try:

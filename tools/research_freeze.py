@@ -7,8 +7,8 @@
   2. 使用記録: 保留ケースを評価に使うと、案件・正解・被験環境のハッシュと、そのときのシステムのハッシュを記録する。
      既に使用したケースの再評価は拒否し（明示フラグで例外にできるが『再利用』と記録）、使用後に案件・正解・環境が変わっていれば検出する。
 使い方:
-  .venv/bin/python3 tools/research_freeze.py freeze --out testlab/baselines/frozen_protocol_stage2.json [--note "..."]
-  .venv/bin/python3 tools/research_freeze.py verify --protocol testlab/baselines/frozen_protocol_stage2.json
+  .venv/bin/python3 tools/research_freeze.py freeze --out testlab/baselines/frozen_protocol_stage4.json [--note "..."]
+  .venv/bin/python3 tools/research_freeze.py verify --protocol testlab/baselines/frozen_protocol_stage4.json
 """
 from __future__ import annotations
 import argparse
@@ -23,7 +23,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 HOLDOUT_LOG = os.path.join(ROOT, "testlab", "lab", "holdout_log_research.json")
-PROTOCOL_VERSION = "stage2-protocol/2"   # /2: 方式に重複抑制の変種を追加、再計画と重複抑制の分離報告・LLM失敗の扱い・費用計測を追加
+PROTOCOL_VERSION = "stage2-protocol/3"   # /2: 方式に重複抑制の変種を追加、再計画と重複抑制の分離報告・LLM失敗の扱い・費用計測を追加。/3: 確認実験（観測後の仮説を登録後の新しい送信で検証）の報告を追加
 # 調査の挙動に影響するコード。1つでも変われば凍結は無効（採点器も含める＝評価の定義が変わるため）
 FP_FILES = [
     "core/autonomy/research_case.py", "core/autonomy/research_model.py", "core/autonomy/research_hypothesis.py",
@@ -92,6 +92,7 @@ def default_protocol(note: str = "") -> dict:
             "llm_contribution": "llm と rules の再現率の差（案件平均）が +0.15 以上で、安全ゲートを満たす場合だけ『上乗せあり』。それ未満は『上乗せなし』と報告する",
             "replan_value": "adaptive と static の再現率の差（案件平均）と重複確認の差を別々に報告する。差が±0.05未満なら『再現率への寄与なし』",
             "replan_dedup_split": "再計画の効果は重複抑制を揃えた2通り（rules−static_dedup、adaptive_nodedup−static）、重複抑制の効果は再計画を揃えた2通り（rules−adaptive_nodedup、static_dedup−static）で、再現率と重複確認を別々に報告する。差が±0.05未満なら寄与なし。重複削減は成果として報告するが、発見率の向上とは分けて書く",
+            "confirmation_loop": "観測後に作った仮説は、登録後に送る新しい確認実験の結果だけで確定する（登録前の観測は証拠に数えない）。確認実験の計画・実行・確定・再現せず・未実行（候補止まり）・上限で置換せずを方式ごとに報告し、確定の証拠の出どころ（confirm／探索の送信／仮説のための実験）を示す。確認は同じ操作の再測定であり、独立した別の実験ではない（観測後の仮説という選択の偏りは残る）",
             "llm_failure_handling": "LLM呼出の解析失敗・出力トークンの上限到達は、除外せず実行ごとに数えて報告する。解析失敗の修復・再試行はこの版では行わない（入れる場合は新しい版とし、修復・再試行も max_llm_calls と予算に含める）",
             "cost_measurement": "OpenRouterの使用額（キーの累計の前後差）と、実行ごとのLLM使用トークン数（入力・出力）を記録する。前後差が取得できなければ未計測と書く",
             "capability_reporting": "修復済みの制約（list_scopeの具体化・情報不足の判定）と未実証の能力（未知の型の欠陥の発見、LLMの提案能力の一般化）を分けて報告する。overall の再現率（分母 reachable かつ spec_grounded）と、規則の型の内側・型の外・仕様に根拠のない欠陥（候補捕捉と過剰確定を別指標）を別に出す",
