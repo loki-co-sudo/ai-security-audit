@@ -1,0 +1,1811 @@
+{
+ "note": "プロンプト版のA/B（開発・回帰ケース。事前登録: docs §19.3）。回帰ケースは分析に使った in-sample。採用しても未使用ケースでの効果確認ではない。",
+ "model": "z-ai/glm-5.3-flash",
+ "settings": {
+  "max_tokens": 800,
+  "reasoning_effort": "low",
+  "max_llm_calls": 2
+ },
+ "arms": [
+  "research-propose/1",
+  "research-propose/2"
+ ],
+ "pairs_complete": 52,
+ "pairs_planned": 60,
+ "stopped_by_cap": true,
+ "spend_cap_usd": 0.1,
+ "estimated_spend_usd": 0.11274,
+ "spend_usd": 0.0987,
+ "regression": {
+  "research-propose/1": {
+   "runs": 32,
+   "list_scope_flaw_runs": 22,
+   "registered_for_needed_role": 16,
+   "list_scope_found": 16,
+   "list_scope_miss_classes": {
+    "found": 16,
+    "only_other_roles": 5,
+    "no_proposal": 1
+   },
+   "recall_mean": 0.9091,
+   "false_positive_units": 0,
+   "ungrounded_overclaim": 0,
+   "boundary_violations": 0,
+   "redundant": 4,
+   "requests": 1280,
+   "end_reasons": {
+    "budget_exhausted": 32
+   },
+   "supported": 64,
+   "candidates": 1,
+   "refuted": 908,
+   "undetermined": 27,
+   "confirmations": {
+    "confirmations_planned": 18,
+    "confirmations_run": 17,
+    "confirmed_supported": 5,
+    "confirmation_not_run": 1
+   },
+   "llm": {
+    "llm_calls": 64,
+    "llm_skipped": 0,
+    "parse_failures": 1,
+    "salvaged_replies": 3,
+    "proposals": 500,
+    "new_registered": 75,
+    "input_tokens": 79439,
+    "output_tokens": 42329,
+    "at_token_cap": 12,
+    "input_too_large": 0
+   }
+  },
+  "research-propose/2": {
+   "runs": 32,
+   "list_scope_flaw_runs": 22,
+   "registered_for_needed_role": 18,
+   "list_scope_found": 18,
+   "list_scope_miss_classes": {
+    "found": 18,
+    "only_other_roles": 3,
+    "no_proposal": 1
+   },
+   "recall_mean": 0.9394,
+   "false_positive_units": 0,
+   "ungrounded_overclaim": 0,
+   "boundary_violations": 0,
+   "redundant": 2,
+   "requests": 1280,
+   "end_reasons": {
+    "budget_exhausted": 32
+   },
+   "supported": 64,
+   "candidates": 22,
+   "refuted": 904,
+   "undetermined": 33,
+   "confirmations": {
+    "confirmations_planned": 30,
+    "confirmations_run": 8,
+    "confirmed_supported": 5,
+    "confirmation_not_run": 22
+   },
+   "llm": {
+    "llm_calls": 64,
+    "llm_skipped": 0,
+    "parse_failures": 0,
+    "salvaged_replies": 26,
+    "proposals": 435,
+    "new_registered": 88,
+    "input_tokens": 103539,
+    "output_tokens": 45045,
+    "at_token_cap": 33,
+    "input_too_large": 0
+   }
+  }
+ },
+ "dev": {
+  "research-propose/1": {
+   "runs": 20,
+   "list_scope_flaw_runs": 10,
+   "registered_for_needed_role": 1,
+   "list_scope_found": 1,
+   "list_scope_miss_classes": {
+    "only_other_roles": 8,
+    "found": 1,
+    "no_proposal": 1
+   },
+   "recall_mean": 0.7556,
+   "false_positive_units": 0,
+   "ungrounded_overclaim": 0,
+   "boundary_violations": 0,
+   "redundant": 0,
+   "requests": 800,
+   "end_reasons": {
+    "budget_exhausted": 20
+   },
+   "supported": 31,
+   "candidates": 18,
+   "refuted": 530,
+   "undetermined": 14,
+   "confirmations": {
+    "confirmations_planned": 11,
+    "confirmations_run": 10,
+    "confirmed_supported": 0,
+    "confirmation_not_run": 0
+   },
+   "llm": {
+    "llm_calls": 40,
+    "llm_skipped": 0,
+    "parse_failures": 0,
+    "salvaged_replies": 2,
+    "proposals": 315,
+    "new_registered": 28,
+    "input_tokens": 43064,
+    "output_tokens": 25657,
+    "at_token_cap": 4,
+    "input_too_large": 0
+   }
+  },
+  "research-propose/2": {
+   "runs": 20,
+   "list_scope_flaw_runs": 10,
+   "registered_for_needed_role": 8,
+   "list_scope_found": 8,
+   "list_scope_miss_classes": {
+    "found": 8,
+    "parse_failure": 1,
+    "only_other_roles": 1
+   },
+   "recall_mean": 0.9556,
+   "false_positive_units": 0,
+   "ungrounded_overclaim": 0,
+   "boundary_violations": 0,
+   "redundant": 0,
+   "requests": 800,
+   "end_reasons": {
+    "budget_exhausted": 20
+   },
+   "supported": 38,
+   "candidates": 18,
+   "refuted": 522,
+   "undetermined": 13,
+   "confirmations": {
+    "confirmations_planned": 16,
+    "confirmations_run": 16,
+    "confirmed_supported": 8,
+    "confirmation_not_run": 0
+   },
+   "llm": {
+    "llm_calls": 40,
+    "llm_skipped": 0,
+    "parse_failures": 1,
+    "salvaged_replies": 11,
+    "proposals": 279,
+    "new_registered": 33,
+    "input_tokens": 55076,
+    "output_tokens": 28112,
+    "at_token_cap": 21,
+    "input_too_large": 0
+   }
+  }
+ },
+ "decision": {
+  "criteria": {
+   "primary_gain_min": 0.2,
+   "unparsed_rate_increase_max": 0.1,
+   "input_token_ratio_max": 1.6
+  },
+  "checks": {
+   "primary_gain": {
+    "p1_share": 0.7272727272727273,
+    "p2_share": 0.8181818181818182,
+    "gain": 0.0909,
+    "threshold": 0.2,
+    "met": false
+   },
+   "no_safety_regression": {
+    "met": true
+   },
+   "no_input_too_large": {
+    "p2": 0,
+    "met": true
+   },
+   "unparsed_rate": {
+    "p1": 0.0156,
+    "p2": 0.0,
+    "met": true
+   },
+   "input_token_ratio": {
+    "ratio": 1.303,
+    "met": true
+   },
+   "dev_recall_not_lower": {
+    "p1": 0.7556,
+    "p2": 0.9556,
+    "met": true
+   }
+  },
+  "adopt": false
+ },
+ "pairs": [
+  {
+   "case_id": "unseen-cobalt-17",
+   "seed": 0,
+   "repeat": 0,
+   "order": [
+    "1",
+    "2"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 4,
+    "parse_failures": 0,
+    "input_tokens": 2385
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 2999
+   }
+  },
+  {
+   "case_id": "unseen-cobalt-42",
+   "seed": 0,
+   "repeat": 0,
+   "order": [
+    "2",
+    "1"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 1,
+    "input_tokens": 2683
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 3565
+   }
+  },
+  {
+   "case_id": "unseen-cobalt-68",
+   "seed": 0,
+   "repeat": 0,
+   "order": [
+    "1",
+    "2"
+   ],
+   "1": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 2385
+   },
+   "2": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 3012
+   }
+  },
+  {
+   "case_id": "unseen-amber-23",
+   "seed": 0,
+   "repeat": 0,
+   "order": [
+    "2",
+    "1"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "only_other_roles",
+      "found": false,
+      "registered_for_needed_role": false
+     }
+    ],
+    "recall": 0.6667,
+    "supported": 2,
+    "parse_failures": 0,
+    "input_tokens": 2595
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 3428
+   }
+  },
+  {
+   "case_id": "unseen-amber-51",
+   "seed": 0,
+   "repeat": 0,
+   "order": [
+    "1",
+    "2"
+   ],
+   "1": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 2405
+   },
+   "2": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 3151
+   }
+  },
+  {
+   "case_id": "unseen-amber-86",
+   "seed": 0,
+   "repeat": 0,
+   "order": [
+    "2",
+    "1"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "only_other_roles",
+      "found": false,
+      "registered_for_needed_role": false
+     }
+    ],
+    "recall": 0.6667,
+    "supported": 2,
+    "parse_failures": 0,
+    "input_tokens": 2405
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 3177
+   }
+  },
+  {
+   "case_id": "blind-docs-01",
+   "seed": 0,
+   "repeat": 0,
+   "order": [
+    "1",
+    "2"
+   ],
+   "1": {
+    "list_scope": [],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 2152
+   },
+   "2": {
+    "list_scope": [],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 2727
+   }
+  },
+  {
+   "case_id": "blind-docs-02",
+   "seed": 0,
+   "repeat": 0,
+   "order": [
+    "2",
+    "1"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "only_other_roles",
+      "found": false,
+      "registered_for_needed_role": false
+     }
+    ],
+    "recall": 0.5,
+    "supported": 1,
+    "parse_failures": 0,
+    "input_tokens": 2152
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 2,
+    "parse_failures": 0,
+    "input_tokens": 2767
+   }
+  },
+  {
+   "case_id": "blind-docs-03",
+   "seed": 0,
+   "repeat": 0,
+   "order": [
+    "1",
+    "2"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "only_other_roles",
+      "found": false,
+      "registered_for_needed_role": false
+     }
+    ],
+    "recall": 0.6667,
+    "supported": 2,
+    "parse_failures": 0,
+    "input_tokens": 2152
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "parse_failure",
+      "found": false,
+      "registered_for_needed_role": false
+     }
+    ],
+    "recall": 0.6667,
+    "supported": 2,
+    "parse_failures": 1,
+    "input_tokens": 2766
+   }
+  },
+  {
+   "case_id": "blind-docs-clean",
+   "seed": 0,
+   "repeat": 0,
+   "order": [
+    "2",
+    "1"
+   ],
+   "1": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 2152
+   },
+   "2": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 2727
+   }
+  },
+  {
+   "case_id": "unseen-cobalt-17",
+   "seed": 1,
+   "repeat": 0,
+   "order": [
+    "1",
+    "2"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 4,
+    "parse_failures": 0,
+    "input_tokens": 2399
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 2999
+   }
+  },
+  {
+   "case_id": "unseen-cobalt-42",
+   "seed": 1,
+   "repeat": 0,
+   "order": [
+    "2",
+    "1"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 2700
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 3581
+   }
+  },
+  {
+   "case_id": "unseen-cobalt-68",
+   "seed": 1,
+   "repeat": 0,
+   "order": [
+    "1",
+    "2"
+   ],
+   "1": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 2399
+   },
+   "2": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 3013
+   }
+  },
+  {
+   "case_id": "unseen-amber-23",
+   "seed": 1,
+   "repeat": 0,
+   "order": [
+    "2",
+    "1"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "only_other_roles",
+      "found": false,
+      "registered_for_needed_role": false
+     }
+    ],
+    "recall": 0.6667,
+    "supported": 2,
+    "parse_failures": 0,
+    "input_tokens": 2612
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "only_other_roles",
+      "found": false,
+      "registered_for_needed_role": false
+     }
+    ],
+    "recall": 0.6667,
+    "supported": 2,
+    "parse_failures": 0,
+    "input_tokens": 3483
+   }
+  },
+  {
+   "case_id": "unseen-amber-51",
+   "seed": 1,
+   "repeat": 0,
+   "order": [
+    "1",
+    "2"
+   ],
+   "1": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 2414
+   },
+   "2": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 3188
+   }
+  },
+  {
+   "case_id": "unseen-amber-86",
+   "seed": 1,
+   "repeat": 0,
+   "order": [
+    "2",
+    "1"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 2414
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 3199
+   }
+  },
+  {
+   "case_id": "blind-docs-01",
+   "seed": 1,
+   "repeat": 0,
+   "order": [
+    "1",
+    "2"
+   ],
+   "1": {
+    "list_scope": [],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 2156
+   },
+   "2": {
+    "list_scope": [],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 2748
+   }
+  },
+  {
+   "case_id": "blind-docs-02",
+   "seed": 1,
+   "repeat": 0,
+   "order": [
+    "2",
+    "1"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "only_other_roles",
+      "found": false,
+      "registered_for_needed_role": false
+     }
+    ],
+    "recall": 0.5,
+    "supported": 1,
+    "parse_failures": 0,
+    "input_tokens": 2156
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 2,
+    "parse_failures": 0,
+    "input_tokens": 2773
+   }
+  },
+  {
+   "case_id": "blind-docs-03",
+   "seed": 1,
+   "repeat": 0,
+   "order": [
+    "1",
+    "2"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "only_other_roles",
+      "found": false,
+      "registered_for_needed_role": false
+     }
+    ],
+    "recall": 0.6667,
+    "supported": 2,
+    "parse_failures": 0,
+    "input_tokens": 2156
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 2787
+   }
+  },
+  {
+   "case_id": "blind-docs-clean",
+   "seed": 1,
+   "repeat": 0,
+   "order": [
+    "2",
+    "1"
+   ],
+   "1": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 2156
+   },
+   "2": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 2748
+   }
+  },
+  {
+   "case_id": "unseen-cobalt-17",
+   "seed": 2,
+   "repeat": 0,
+   "order": [
+    "1",
+    "2"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 4,
+    "parse_failures": 0,
+    "input_tokens": 2379
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 4,
+    "parse_failures": 0,
+    "input_tokens": 3006
+   }
+  },
+  {
+   "case_id": "unseen-cobalt-42",
+   "seed": 2,
+   "repeat": 0,
+   "order": [
+    "2",
+    "1"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 2673
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 3526
+   }
+  },
+  {
+   "case_id": "unseen-cobalt-68",
+   "seed": 2,
+   "repeat": 0,
+   "order": [
+    "1",
+    "2"
+   ],
+   "1": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 2379
+   },
+   "2": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 3006
+   }
+  },
+  {
+   "case_id": "unseen-amber-23",
+   "seed": 2,
+   "repeat": 0,
+   "order": [
+    "2",
+    "1"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "only_other_roles",
+      "found": false,
+      "registered_for_needed_role": false
+     }
+    ],
+    "recall": 0.6667,
+    "supported": 2,
+    "parse_failures": 0,
+    "input_tokens": 2585
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "only_other_roles",
+      "found": false,
+      "registered_for_needed_role": false
+     }
+    ],
+    "recall": 0.6667,
+    "supported": 2,
+    "parse_failures": 0,
+    "input_tokens": 3455
+   }
+  },
+  {
+   "case_id": "unseen-amber-51",
+   "seed": 2,
+   "repeat": 0,
+   "order": [
+    "1",
+    "2"
+   ],
+   "1": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 2380
+   },
+   "2": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 3159
+   }
+  },
+  {
+   "case_id": "unseen-amber-86",
+   "seed": 2,
+   "repeat": 0,
+   "order": [
+    "2",
+    "1"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 2399
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 3158
+   }
+  },
+  {
+   "case_id": "blind-docs-01",
+   "seed": 2,
+   "repeat": 0,
+   "order": [
+    "1",
+    "2"
+   ],
+   "1": {
+    "list_scope": [],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 2150
+   },
+   "2": {
+    "list_scope": [],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 2738
+   }
+  },
+  {
+   "case_id": "blind-docs-02",
+   "seed": 2,
+   "repeat": 0,
+   "order": [
+    "2",
+    "1"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "only_other_roles",
+      "found": false,
+      "registered_for_needed_role": false
+     }
+    ],
+    "recall": 0.5,
+    "supported": 1,
+    "parse_failures": 0,
+    "input_tokens": 2150
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 2,
+    "parse_failures": 0,
+    "input_tokens": 2764
+   }
+  },
+  {
+   "case_id": "blind-docs-03",
+   "seed": 2,
+   "repeat": 0,
+   "order": [
+    "1",
+    "2"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "only_other_roles",
+      "found": false,
+      "registered_for_needed_role": false
+     }
+    ],
+    "recall": 0.6667,
+    "supported": 2,
+    "parse_failures": 0,
+    "input_tokens": 2150
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 2751
+   }
+  },
+  {
+   "case_id": "blind-docs-clean",
+   "seed": 2,
+   "repeat": 0,
+   "order": [
+    "2",
+    "1"
+   ],
+   "1": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 2150
+   },
+   "2": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 2751
+   }
+  },
+  {
+   "case_id": "unseen-cobalt-17",
+   "seed": 0,
+   "repeat": 1,
+   "order": [
+    "1",
+    "2"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 4,
+    "parse_failures": 0,
+    "input_tokens": 2385
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 2999
+   }
+  },
+  {
+   "case_id": "unseen-cobalt-42",
+   "seed": 0,
+   "repeat": 1,
+   "order": [
+    "2",
+    "1"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 2683
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 3578
+   }
+  },
+  {
+   "case_id": "unseen-cobalt-68",
+   "seed": 0,
+   "repeat": 1,
+   "order": [
+    "1",
+    "2"
+   ],
+   "1": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 2385
+   },
+   "2": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 3012
+   }
+  },
+  {
+   "case_id": "unseen-amber-23",
+   "seed": 0,
+   "repeat": 1,
+   "order": [
+    "2",
+    "1"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "only_other_roles",
+      "found": false,
+      "registered_for_needed_role": false
+     }
+    ],
+    "recall": 0.6667,
+    "supported": 2,
+    "parse_failures": 0,
+    "input_tokens": 2595
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "only_other_roles",
+      "found": false,
+      "registered_for_needed_role": false
+     }
+    ],
+    "recall": 0.6667,
+    "supported": 2,
+    "parse_failures": 0,
+    "input_tokens": 3466
+   }
+  },
+  {
+   "case_id": "unseen-amber-51",
+   "seed": 0,
+   "repeat": 1,
+   "order": [
+    "1",
+    "2"
+   ],
+   "1": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 2405
+   },
+   "2": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 3166
+   }
+  },
+  {
+   "case_id": "unseen-amber-86",
+   "seed": 0,
+   "repeat": 1,
+   "order": [
+    "2",
+    "1"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 2405
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 3191
+   }
+  },
+  {
+   "case_id": "blind-docs-01",
+   "seed": 0,
+   "repeat": 1,
+   "order": [
+    "1",
+    "2"
+   ],
+   "1": {
+    "list_scope": [],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 2152
+   },
+   "2": {
+    "list_scope": [],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 2741
+   }
+  },
+  {
+   "case_id": "blind-docs-02",
+   "seed": 0,
+   "repeat": 1,
+   "order": [
+    "2",
+    "1"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 2,
+    "parse_failures": 0,
+    "input_tokens": 2152
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 2,
+    "parse_failures": 0,
+    "input_tokens": 2766
+   }
+  },
+  {
+   "case_id": "blind-docs-03",
+   "seed": 0,
+   "repeat": 1,
+   "order": [
+    "1",
+    "2"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "no_proposal",
+      "found": false,
+      "registered_for_needed_role": false
+     }
+    ],
+    "recall": 0.6667,
+    "supported": 2,
+    "parse_failures": 0,
+    "input_tokens": 2152
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "only_other_roles",
+      "found": false,
+      "registered_for_needed_role": false
+     }
+    ],
+    "recall": 0.6667,
+    "supported": 2,
+    "parse_failures": 0,
+    "input_tokens": 2767
+   }
+  },
+  {
+   "case_id": "blind-docs-clean",
+   "seed": 0,
+   "repeat": 1,
+   "order": [
+    "2",
+    "1"
+   ],
+   "1": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 2152
+   },
+   "2": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 2740
+   }
+  },
+  {
+   "case_id": "unseen-cobalt-17",
+   "seed": 1,
+   "repeat": 1,
+   "order": [
+    "1",
+    "2"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 2399
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 3013
+   }
+  },
+  {
+   "case_id": "unseen-cobalt-42",
+   "seed": 1,
+   "repeat": 1,
+   "order": [
+    "2",
+    "1"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 2700
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 3593
+   }
+  },
+  {
+   "case_id": "unseen-cobalt-68",
+   "seed": 1,
+   "repeat": 1,
+   "order": [
+    "1",
+    "2"
+   ],
+   "1": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 2399
+   },
+   "2": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 3013
+   }
+  },
+  {
+   "case_id": "unseen-amber-23",
+   "seed": 1,
+   "repeat": 1,
+   "order": [
+    "2",
+    "1"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 2612
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "no_proposal",
+      "found": false,
+      "registered_for_needed_role": false
+     }
+    ],
+    "recall": 0.6667,
+    "supported": 2,
+    "parse_failures": 0,
+    "input_tokens": 3455
+   }
+  },
+  {
+   "case_id": "unseen-amber-51",
+   "seed": 1,
+   "repeat": 1,
+   "order": [
+    "1",
+    "2"
+   ],
+   "1": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 2414
+   },
+   "2": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 3174
+   }
+  },
+  {
+   "case_id": "unseen-amber-86",
+   "seed": 1,
+   "repeat": 1,
+   "order": [
+    "2",
+    "1"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 2414
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 3201
+   }
+  },
+  {
+   "case_id": "blind-docs-01",
+   "seed": 1,
+   "repeat": 1,
+   "order": [
+    "1",
+    "2"
+   ],
+   "1": {
+    "list_scope": [],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 2156
+   },
+   "2": {
+    "list_scope": [],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 2748
+   }
+  },
+  {
+   "case_id": "blind-docs-02",
+   "seed": 1,
+   "repeat": 1,
+   "order": [
+    "2",
+    "1"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "only_other_roles",
+      "found": false,
+      "registered_for_needed_role": false
+     }
+    ],
+    "recall": 0.5,
+    "supported": 1,
+    "parse_failures": 0,
+    "input_tokens": 2156
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 2,
+    "parse_failures": 0,
+    "input_tokens": 2760
+   }
+  },
+  {
+   "case_id": "blind-docs-03",
+   "seed": 1,
+   "repeat": 1,
+   "order": [
+    "1",
+    "2"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "only_other_roles",
+      "found": false,
+      "registered_for_needed_role": false
+     }
+    ],
+    "recall": 0.6667,
+    "supported": 2,
+    "parse_failures": 0,
+    "input_tokens": 2156
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 2773
+   }
+  },
+  {
+   "case_id": "blind-docs-clean",
+   "seed": 1,
+   "repeat": 1,
+   "order": [
+    "2",
+    "1"
+   ],
+   "1": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 2156
+   },
+   "2": {
+    "list_scope": [],
+    "recall": null,
+    "supported": 0,
+    "parse_failures": 0,
+    "input_tokens": 2734
+   }
+  },
+  {
+   "case_id": "unseen-cobalt-17",
+   "seed": 2,
+   "repeat": 1,
+   "order": [
+    "1",
+    "2"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 2379
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 4,
+    "parse_failures": 0,
+    "input_tokens": 3020
+   }
+  },
+  {
+   "case_id": "unseen-cobalt-42",
+   "seed": 2,
+   "repeat": 1,
+   "order": [
+    "2",
+    "1"
+   ],
+   "1": {
+    "list_scope": [
+     {
+      "category": "no_proposal",
+      "found": false,
+      "registered_for_needed_role": false
+     }
+    ],
+    "recall": 0.6667,
+    "supported": 2,
+    "parse_failures": 0,
+    "input_tokens": 2673
+   },
+   "2": {
+    "list_scope": [
+     {
+      "category": "found",
+      "found": true,
+      "registered_for_needed_role": true
+     }
+    ],
+    "recall": 1.0,
+    "supported": 3,
+    "parse_failures": 0,
+    "input_tokens": 3553
+   }
+  }
+ ]
+}
