@@ -1,0 +1,6635 @@
+{
+ "protocol_version": "stage2-protocol/3",
+ "protocol_frozen_at": "2026-10-24T21:23:34",
+ "git_commit_at_freeze": "107498a7e838bda20c4157bff73058ec149587ed",
+ "system_sha": "2bd94f22ee2b55e6",
+ "methods_run": [
+  "adaptive_nodedup",
+  "checklist",
+  "llm",
+  "rules",
+  "static",
+  "static_dedup"
+ ],
+ "methods_skipped": {},
+ "n_cases": 3,
+ "n_runs": 63,
+ "cases": {
+  "unseen-amber-23": {
+   "split": "holdout",
+   "clean": false
+  },
+  "unseen-amber-51": {
+   "split": "holdout",
+   "clean": true
+  },
+  "unseen-amber-86": {
+   "split": "holdout",
+   "clean": false
+  }
+ },
+ "table": {
+  "rules": {
+   "unseen-amber-23": {
+    "clean": false,
+    "runs": 3,
+    "recall": 0.6667,
+    "precision": 1.0,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 0.0,
+    "requests": 40.0,
+    "found_flaws": [
+     "extra_note",
+     "review_owner"
+    ],
+    "llm_new_registered": null,
+    "llm_findings": null,
+    "llm_parse_failures": null
+   },
+   "unseen-amber-51": {
+    "clean": true,
+    "runs": 3,
+    "recall": null,
+    "precision": null,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 0.0,
+    "requests": 40.0,
+    "found_flaws": [],
+    "llm_new_registered": null,
+    "llm_findings": null,
+    "llm_parse_failures": null
+   },
+   "unseen-amber-86": {
+    "clean": false,
+    "runs": 3,
+    "recall": 0.6667,
+    "precision": 1.0,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 0.0,
+    "requests": 40.0,
+    "found_flaws": [
+     "capacity_anonymous",
+     "totals_role"
+    ],
+    "llm_new_registered": null,
+    "llm_findings": null,
+    "llm_parse_failures": null
+   }
+  },
+  "llm": {
+   "unseen-amber-23": {
+    "clean": false,
+    "runs": 6,
+    "recall": 0.7222,
+    "precision": 1.0,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 0.0,
+    "requests": 40.0,
+    "found_flaws": [
+     "extra_note",
+     "review_owner",
+     "shared_in_mine"
+    ],
+    "llm_new_registered": 3.3333,
+    "llm_findings": [
+     "h:list_scope:submission_mine:learner_b"
+    ],
+    "llm_parse_failures": 0
+   },
+   "unseen-amber-51": {
+    "clean": true,
+    "runs": 6,
+    "recall": null,
+    "precision": null,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 0.0,
+    "requests": 40.0,
+    "found_flaws": [],
+    "llm_new_registered": 2.5,
+    "llm_findings": [],
+    "llm_parse_failures": 1
+   },
+   "unseen-amber-86": {
+    "clean": false,
+    "runs": 6,
+    "recall": 0.8889,
+    "precision": 1.0,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 0.0,
+    "requests": 40.0,
+    "found_flaws": [
+     "capacity_anonymous",
+     "coordinator_list",
+     "totals_role"
+    ],
+    "llm_new_registered": 2.3333,
+    "llm_findings": [
+     "h:list_scope:application_list:coordinator"
+    ],
+    "llm_parse_failures": 1
+   }
+  },
+  "static": {
+   "unseen-amber-23": {
+    "clean": false,
+    "runs": 3,
+    "recall": 0.6667,
+    "precision": 1.0,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 3.0,
+    "requests": 40.0,
+    "found_flaws": [
+     "extra_note",
+     "review_owner"
+    ],
+    "llm_new_registered": null,
+    "llm_findings": null,
+    "llm_parse_failures": null
+   },
+   "unseen-amber-51": {
+    "clean": true,
+    "runs": 3,
+    "recall": null,
+    "precision": null,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 0.0,
+    "requests": 40.0,
+    "found_flaws": [],
+    "llm_new_registered": null,
+    "llm_findings": null,
+    "llm_parse_failures": null
+   },
+   "unseen-amber-86": {
+    "clean": false,
+    "runs": 3,
+    "recall": 0.6667,
+    "precision": 1.0,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 2.0,
+    "requests": 40.0,
+    "found_flaws": [
+     "capacity_anonymous",
+     "totals_role"
+    ],
+    "llm_new_registered": null,
+    "llm_findings": null,
+    "llm_parse_failures": null
+   }
+  },
+  "static_dedup": {
+   "unseen-amber-23": {
+    "clean": false,
+    "runs": 3,
+    "recall": 0.6667,
+    "precision": 1.0,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 0.0,
+    "requests": 40.0,
+    "found_flaws": [
+     "extra_note",
+     "review_owner"
+    ],
+    "llm_new_registered": null,
+    "llm_findings": null,
+    "llm_parse_failures": null
+   },
+   "unseen-amber-51": {
+    "clean": true,
+    "runs": 3,
+    "recall": null,
+    "precision": null,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 0.0,
+    "requests": 40.0,
+    "found_flaws": [],
+    "llm_new_registered": null,
+    "llm_findings": null,
+    "llm_parse_failures": null
+   },
+   "unseen-amber-86": {
+    "clean": false,
+    "runs": 3,
+    "recall": 0.6667,
+    "precision": 1.0,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 0.0,
+    "requests": 40.0,
+    "found_flaws": [
+     "capacity_anonymous",
+     "totals_role"
+    ],
+    "llm_new_registered": null,
+    "llm_findings": null,
+    "llm_parse_failures": null
+   }
+  },
+  "adaptive_nodedup": {
+   "unseen-amber-23": {
+    "clean": false,
+    "runs": 3,
+    "recall": 0.6667,
+    "precision": 1.0,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 2.6667,
+    "requests": 40.0,
+    "found_flaws": [
+     "extra_note",
+     "review_owner"
+    ],
+    "llm_new_registered": null,
+    "llm_findings": null,
+    "llm_parse_failures": null
+   },
+   "unseen-amber-51": {
+    "clean": true,
+    "runs": 3,
+    "recall": null,
+    "precision": null,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 0.0,
+    "requests": 40.0,
+    "found_flaws": [],
+    "llm_new_registered": null,
+    "llm_findings": null,
+    "llm_parse_failures": null
+   },
+   "unseen-amber-86": {
+    "clean": false,
+    "runs": 3,
+    "recall": 0.6667,
+    "precision": 1.0,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 2.0,
+    "requests": 40.0,
+    "found_flaws": [
+     "capacity_anonymous",
+     "totals_role"
+    ],
+    "llm_new_registered": null,
+    "llm_findings": null,
+    "llm_parse_failures": null
+   }
+  },
+  "checklist": {
+   "unseen-amber-23": {
+    "clean": false,
+    "runs": 3,
+    "recall": 0.3333,
+    "precision": 1.0,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 0.0,
+    "requests": 40.0,
+    "found_flaws": [
+     "extra_note"
+    ],
+    "llm_new_registered": null,
+    "llm_findings": null,
+    "llm_parse_failures": null
+   },
+   "unseen-amber-51": {
+    "clean": true,
+    "runs": 3,
+    "recall": null,
+    "precision": null,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 0.0,
+    "requests": 40.0,
+    "found_flaws": [],
+    "llm_new_registered": null,
+    "llm_findings": null,
+    "llm_parse_failures": null
+   },
+   "unseen-amber-86": {
+    "clean": false,
+    "runs": 3,
+    "recall": 0.0,
+    "precision": null,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 0.0,
+    "requests": 40.0,
+    "found_flaws": [],
+    "llm_new_registered": null,
+    "llm_findings": null,
+    "llm_parse_failures": null
+   }
+  }
+ },
+ "summary": {
+  "rules": {
+   "cases": 3,
+   "runs": 9,
+   "recall_case_mean": 0.6667,
+   "precision_case_mean": 1.0,
+   "false_positives": 0,
+   "overclaim": 0,
+   "boundary_violations": 0,
+   "findings_on_clean": 0,
+   "redundant_case_mean": 0.0,
+   "requests_case_mean": 40.0,
+   "safety_gate_ok": true
+  },
+  "llm": {
+   "cases": 3,
+   "runs": 18,
+   "recall_case_mean": 0.8055,
+   "precision_case_mean": 1.0,
+   "false_positives": 0,
+   "overclaim": 0,
+   "boundary_violations": 0,
+   "findings_on_clean": 0,
+   "redundant_case_mean": 0.0,
+   "requests_case_mean": 40.0,
+   "safety_gate_ok": true
+  },
+  "static": {
+   "cases": 3,
+   "runs": 9,
+   "recall_case_mean": 0.6667,
+   "precision_case_mean": 1.0,
+   "false_positives": 0,
+   "overclaim": 0,
+   "boundary_violations": 0,
+   "findings_on_clean": 0,
+   "redundant_case_mean": 1.6667,
+   "requests_case_mean": 40.0,
+   "safety_gate_ok": true
+  },
+  "static_dedup": {
+   "cases": 3,
+   "runs": 9,
+   "recall_case_mean": 0.6667,
+   "precision_case_mean": 1.0,
+   "false_positives": 0,
+   "overclaim": 0,
+   "boundary_violations": 0,
+   "findings_on_clean": 0,
+   "redundant_case_mean": 0.0,
+   "requests_case_mean": 40.0,
+   "safety_gate_ok": true
+  },
+  "adaptive_nodedup": {
+   "cases": 3,
+   "runs": 9,
+   "recall_case_mean": 0.6667,
+   "precision_case_mean": 1.0,
+   "false_positives": 0,
+   "overclaim": 0,
+   "boundary_violations": 0,
+   "findings_on_clean": 0,
+   "redundant_case_mean": 1.5556,
+   "requests_case_mean": 40.0,
+   "safety_gate_ok": true
+  },
+  "checklist": {
+   "cases": 3,
+   "runs": 9,
+   "recall_case_mean": 0.1666,
+   "precision_case_mean": 1.0,
+   "false_positives": 0,
+   "overclaim": 0,
+   "boundary_violations": 0,
+   "findings_on_clean": 0,
+   "redundant_case_mean": 0.0,
+   "requests_case_mean": 40.0,
+   "safety_gate_ok": true
+  }
+ },
+ "verdict": {
+  "llm_contribution": "上乗せなし",
+  "llm_recall_diff": 0.1388,
+  "replan_value": {
+   "recall_diff_adaptive_minus_static": 0.0,
+   "redundant_diff_adaptive_minus_static": -1.6667,
+   "verdict": "再現率への寄与なし"
+  },
+  "replan_dedup_split": {
+   "replan_given_dedup (rules − static_dedup)": {
+    "recall_diff": 0.0,
+    "redundant_diff": 0.0,
+    "verdict": "寄与なし"
+   },
+   "replan_given_nodedup (adaptive_nodedup − static)": {
+    "recall_diff": 0.0,
+    "redundant_diff": -0.1111,
+    "verdict": "寄与なし"
+   },
+   "dedup_given_adaptive (rules − adaptive_nodedup)": {
+    "recall_diff": 0.0,
+    "redundant_diff": -1.5556,
+    "verdict": "寄与なし"
+   },
+   "dedup_given_static (static_dedup − static)": {
+    "recall_diff": 0.0,
+    "redundant_diff": -1.6667,
+    "verdict": "寄与なし"
+   }
+  },
+  "prioritization_value": {
+   "recall_diff_adaptive_minus_checklist": 0.5001,
+   "recall_diff_static_minus_checklist": 0.5001
+  },
+  "safety": {
+   "rules": true,
+   "llm": true,
+   "static": true,
+   "static_dedup": true,
+   "adaptive_nodedup": true,
+   "checklist": true
+  }
+ },
+ "found_only_by_method_not_rules": {
+  "llm": {
+   "unseen-amber-23": [
+    "shared_in_mine"
+   ],
+   "unseen-amber-86": [
+    "coordinator_list"
+   ]
+  },
+  "static": {},
+  "static_dedup": {},
+  "adaptive_nodedup": {},
+  "checklist": {}
+ },
+ "llm_usage": {
+  "runs": 18,
+  "calls": 36,
+  "skipped": 0,
+  "parse_failures": 2,
+  "at_token_cap": 11,
+  "input_tokens": 44228,
+  "output_tokens": 24396,
+  "proposals": 272,
+  "new_registered": 49
+ },
+ "confirmation_usage": {
+  "rules": {
+   "confirmations_planned": 0,
+   "confirmations_run": 0,
+   "confirmed_supported": 0,
+   "confirmation_not_reproduced": 0,
+   "confirmation_not_run": 0,
+   "confirmation_cap_blocked": 0,
+   "confirmation_slots_used": 0,
+   "probe_origins": {
+    "probe": 223,
+    "discovery": 30
+   },
+   "runs": 9
+  },
+  "llm": {
+   "confirmations_planned": 9,
+   "confirmations_run": 9,
+   "confirmed_supported": 2,
+   "confirmation_not_reproduced": 0,
+   "confirmation_not_run": 0,
+   "confirmation_cap_blocked": 0,
+   "confirmation_slots_used": 9,
+   "probe_origins": {
+    "probe": 440,
+    "discovery": 100,
+    "confirm": 9
+   },
+   "runs": 18
+  },
+  "static": {
+   "confirmations_planned": 0,
+   "confirmations_run": 0,
+   "confirmed_supported": 0,
+   "confirmation_not_reproduced": 0,
+   "confirmation_not_run": 0,
+   "confirmation_cap_blocked": 0,
+   "confirmation_slots_used": 0,
+   "probe_origins": {
+    "probe": 211,
+    "discovery": 30
+   },
+   "runs": 9
+  },
+  "static_dedup": {
+   "confirmations_planned": 0,
+   "confirmations_run": 0,
+   "confirmed_supported": 0,
+   "confirmation_not_reproduced": 0,
+   "confirmation_not_run": 0,
+   "confirmation_cap_blocked": 0,
+   "confirmation_slots_used": 0,
+   "probe_origins": {
+    "probe": 214,
+    "discovery": 30
+   },
+   "runs": 9
+  },
+  "adaptive_nodedup": {
+   "confirmations_planned": 0,
+   "confirmations_run": 0,
+   "confirmed_supported": 0,
+   "confirmation_not_reproduced": 0,
+   "confirmation_not_run": 0,
+   "confirmation_cap_blocked": 0,
+   "confirmation_slots_used": 0,
+   "probe_origins": {
+    "probe": 229,
+    "discovery": 30
+   },
+   "runs": 9
+  },
+  "checklist": {
+   "confirmations_planned": 0,
+   "confirmations_run": 0,
+   "confirmed_supported": 0,
+   "confirmation_not_reproduced": 0,
+   "confirmation_not_run": 0,
+   "confirmation_cap_blocked": 0,
+   "confirmation_slots_used": 0,
+   "probe_origins": {
+    "probe": 177,
+    "discovery": 30,
+    "control": 15
+   },
+   "runs": 9
+  }
+ },
+ "evidence_origins": {
+  "rules": {
+   "findings_by_mode": {
+    "probe": 12
+   },
+   "findings_corroborated_in_other_sends": 0,
+   "unsent": {}
+  },
+  "llm": {
+   "findings_by_mode": {
+    "probe": 24,
+    "discovery_send_after_registration": 3,
+    "confirm": 2
+   },
+   "findings_corroborated_in_other_sends": 0,
+   "unsent": {}
+  },
+  "static": {
+   "findings_by_mode": {
+    "probe": 27
+   },
+   "findings_corroborated_in_other_sends": 21,
+   "unsent": {}
+  },
+  "static_dedup": {
+   "findings_by_mode": {
+    "probe": 12
+   },
+   "findings_corroborated_in_other_sends": 0,
+   "unsent": {}
+  },
+  "adaptive_nodedup": {
+   "findings_by_mode": {
+    "probe": 26
+   },
+   "findings_corroborated_in_other_sends": 20,
+   "unsent": {}
+  },
+  "checklist": {
+   "findings_by_mode": {
+    "probe": 3
+   },
+   "findings_corroborated_in_other_sends": 0,
+   "unsent": {}
+  }
+ },
+ "records_dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24",
+ "runs_compact": [
+  {
+   "method": "rules",
+   "case_id": "unseen-amber-23",
+   "seed": 0,
+   "repeat": 0,
+   "diagnosis": {
+    "review_owner": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "object_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "extra_note": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "field_exposure",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "shared_in_mine": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "assessment_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:object_authz:review_read:instructor:r_19c78df48f4ff31e78de5857",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "instructor",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 143,
+      "probe_planned_seq": 246,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:instructor:r_19c78df48f4ff31e78de5857",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_0ef9bb010197",
+       "evidence_e8e9ee69465e"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:field_exposure:submission_read:learner_c",
+      "family": "field_exposure",
+      "op_id": "submission_read",
+      "role": "learner_c",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 179,
+      "probe_planned_seq": 255,
+      "registered_before_send": true,
+      "probe_exp": "x:submission_read:learner_c:s_19488dec4f65d4d9259f4329",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_b8003c8ed681"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "not_required",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/rules__unseen-amber-23__s0__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/rules__unseen-amber-23__s0__r0/j/run_e3fe4a4733d6/journal.jsonl",
+    "scan_id": "scan_6798ed6eef59"
+   },
+   "run_id": "run_e3fe4a4733d6",
+   "llm": null
+  },
+  {
+   "method": "rules",
+   "case_id": "unseen-amber-23",
+   "seed": 1,
+   "repeat": 0,
+   "diagnosis": {
+    "review_owner": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "object_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "extra_note": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "field_exposure",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "shared_in_mine": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "assessment_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:object_authz:review_read:instructor:r_008a05a6c4647159c324c985",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "instructor",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 143,
+      "probe_planned_seq": 246,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:instructor:r_008a05a6c4647159c324c985",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_40dc4b6874aa",
+       "evidence_1add2fbb5e12"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:field_exposure:submission_read:learner_b",
+      "family": "field_exposure",
+      "op_id": "submission_read",
+      "role": "learner_b",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 179,
+      "probe_planned_seq": 255,
+      "registered_before_send": true,
+      "probe_exp": "x:submission_read:learner_b:s_1a2b8f1ff1fd42a29755d4c1",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_b21b65203a1d"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "not_required",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/rules__unseen-amber-23__s1__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/rules__unseen-amber-23__s1__r0/j/run_a780fb07ef85/journal.jsonl",
+    "scan_id": "scan_65b01279aabb"
+   },
+   "run_id": "run_a780fb07ef85",
+   "llm": null
+  },
+  {
+   "method": "rules",
+   "case_id": "unseen-amber-23",
+   "seed": 2,
+   "repeat": 0,
+   "diagnosis": {
+    "review_owner": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "object_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "extra_note": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "field_exposure",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "shared_in_mine": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "assessment_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:object_authz:review_read:instructor:r_44ab6cce80877b6f71e1f6d2",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "instructor",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 143,
+      "probe_planned_seq": 246,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:instructor:r_44ab6cce80877b6f71e1f6d2",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_781f81aceff5",
+       "evidence_b0f31a809720"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:field_exposure:submission_read:learner_a",
+      "family": "field_exposure",
+      "op_id": "submission_read",
+      "role": "learner_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 179,
+      "probe_planned_seq": 255,
+      "registered_before_send": true,
+      "probe_exp": "x:submission_read:learner_a:s_3653f8dd9b1f282e4067c358",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_c6b30d7f94f3"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "not_required",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/rules__unseen-amber-23__s2__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/rules__unseen-amber-23__s2__r0/j/run_6523aac86da3/journal.jsonl",
+    "scan_id": "scan_7e891625b369"
+   },
+   "run_id": "run_6523aac86da3",
+   "llm": null
+  },
+  {
+   "method": "rules",
+   "case_id": "unseen-amber-51",
+   "seed": 0,
+   "repeat": 0,
+   "diagnosis": {},
+   "trace": {
+    "findings": [],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/rules__unseen-amber-51__s0__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/rules__unseen-amber-51__s0__r0/j/run_8ed7bc0b10c4/journal.jsonl",
+    "scan_id": "scan_143953d67aff"
+   },
+   "run_id": "run_8ed7bc0b10c4",
+   "llm": null
+  },
+  {
+   "method": "rules",
+   "case_id": "unseen-amber-51",
+   "seed": 1,
+   "repeat": 0,
+   "diagnosis": {},
+   "trace": {
+    "findings": [],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/rules__unseen-amber-51__s1__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/rules__unseen-amber-51__s1__r0/j/run_af6bb22bad3b/journal.jsonl",
+    "scan_id": "scan_4793491afe86"
+   },
+   "run_id": "run_af6bb22bad3b",
+   "llm": null
+  },
+  {
+   "method": "rules",
+   "case_id": "unseen-amber-51",
+   "seed": 2,
+   "repeat": 0,
+   "diagnosis": {},
+   "trace": {
+    "findings": [],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/rules__unseen-amber-51__s2__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/rules__unseen-amber-51__s2__r0/j/run_190a7aadfdd1/journal.jsonl",
+    "scan_id": "scan_7325ef8391dc"
+   },
+   "run_id": "run_190a7aadfdd1",
+   "llm": null
+  },
+  {
+   "method": "rules",
+   "case_id": "unseen-amber-86",
+   "seed": 0,
+   "repeat": 0,
+   "diagnosis": {
+    "capacity_anonymous": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "unauth_access",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "totals_role": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "function_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "coordinator_list": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "household_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:unauth_access:capacity_summary:-",
+      "family": "unauth_access",
+      "op_id": "capacity_summary",
+      "role": "anonymous",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 5,
+      "probe_planned_seq": 304,
+      "registered_before_send": true,
+      "probe_exp": "x:capacity_summary:anonymous",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_c373f0850b2b",
+       "evidence_cc47f9bc844f"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_a",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 55,
+      "probe_planned_seq": 241,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_a",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_daf33b3ea244",
+       "evidence_fd769661b20b"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/rules__unseen-amber-86__s0__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/rules__unseen-amber-86__s0__r0/j/run_73a8c45a89fc/journal.jsonl",
+    "scan_id": "scan_b55fdfbc1d77"
+   },
+   "run_id": "run_73a8c45a89fc",
+   "llm": null
+  },
+  {
+   "method": "rules",
+   "case_id": "unseen-amber-86",
+   "seed": 1,
+   "repeat": 0,
+   "diagnosis": {
+    "capacity_anonymous": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "unauth_access",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "totals_role": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "function_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "coordinator_list": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "household_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:unauth_access:capacity_summary:-",
+      "family": "unauth_access",
+      "op_id": "capacity_summary",
+      "role": "anonymous",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 5,
+      "probe_planned_seq": 304,
+      "registered_before_send": true,
+      "probe_exp": "x:capacity_summary:anonymous",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_47670215d655",
+       "evidence_076b90ca165c"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_a",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 55,
+      "probe_planned_seq": 241,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_a",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_5bd02a07d9f9",
+       "evidence_07d84de15588"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/rules__unseen-amber-86__s1__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/rules__unseen-amber-86__s1__r0/j/run_cb9afe98e65f/journal.jsonl",
+    "scan_id": "scan_4f8b889de3b8"
+   },
+   "run_id": "run_cb9afe98e65f",
+   "llm": null
+  },
+  {
+   "method": "rules",
+   "case_id": "unseen-amber-86",
+   "seed": 2,
+   "repeat": 0,
+   "diagnosis": {
+    "capacity_anonymous": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "unauth_access",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "totals_role": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "function_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "coordinator_list": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "household_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:unauth_access:capacity_summary:-",
+      "family": "unauth_access",
+      "op_id": "capacity_summary",
+      "role": "anonymous",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 5,
+      "probe_planned_seq": 304,
+      "registered_before_send": true,
+      "probe_exp": "x:capacity_summary:anonymous",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_d6af66653095",
+       "evidence_c11f678bcc6e"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_a",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 55,
+      "probe_planned_seq": 241,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_a",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_fd41b0685715",
+       "evidence_3be2007996c0"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/rules__unseen-amber-86__s2__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/rules__unseen-amber-86__s2__r0/j/run_bd557525054b/journal.jsonl",
+    "scan_id": "scan_9729992a04f3"
+   },
+   "run_id": "run_bd557525054b",
+   "llm": null
+  },
+  {
+   "method": "llm",
+   "case_id": "unseen-amber-23",
+   "seed": 0,
+   "repeat": 0,
+   "diagnosis": {
+    "review_owner": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "object_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "extra_note": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "field_exposure",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "shared_in_mine": {
+     "category": "examined_no_deviation",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "assessment_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:object_authz:review_read:instructor:r_19c78df48f4ff31e78de5857",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "instructor",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 148,
+      "probe_planned_seq": 256,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:instructor:r_19c78df48f4ff31e78de5857",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_fa700a6e237b",
+       "evidence_4ae7eb89f945"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:field_exposure:submission_read:learner_c",
+      "family": "field_exposure",
+      "op_id": "submission_read",
+      "role": "learner_c",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 184,
+      "probe_planned_seq": 265,
+      "registered_before_send": true,
+      "probe_exp": "x:submission_read:learner_c:s_19488dec4f65d4d9259f4329",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_96e16e375a8b"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "not_required",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-23__s0__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-23__s0__r0/j/run_8f2e888f038e/journal.jsonl",
+    "scan_id": "scan_cfe5bdb56e2a"
+   },
+   "run_id": "run_8f2e888f038e",
+   "llm": {
+    "calls_detail": [
+     {
+      "phase": "spec",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 472
+     },
+     {
+      "phase": "observed",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 788
+     }
+    ],
+    "rejected": {
+     "params_mismatch": 2,
+     "expectation_not_supported_by_spec_or_observation": 3
+    },
+    "proposals": 16,
+    "new_registered": 3
+   }
+  },
+  {
+   "method": "llm",
+   "case_id": "unseen-amber-23",
+   "seed": 0,
+   "repeat": 1,
+   "diagnosis": {
+    "review_owner": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "object_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "extra_note": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "field_exposure",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "shared_in_mine": {
+     "category": "examined_no_deviation",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "assessment_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:object_authz:review_read:instructor:r_19c78df48f4ff31e78de5857",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "instructor",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 148,
+      "probe_planned_seq": 266,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:instructor:r_19c78df48f4ff31e78de5857",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_732d3a107ce4",
+       "evidence_9303e9e99ec0"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:field_exposure:submission_read:learner_c",
+      "family": "field_exposure",
+      "op_id": "submission_read",
+      "role": "learner_c",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 184,
+      "probe_planned_seq": 275,
+      "registered_before_send": true,
+      "probe_exp": "x:submission_read:learner_c:s_19488dec4f65d4d9259f4329",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_0809cbc3b611"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "not_required",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-23__s0__r1",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-23__s0__r1/j/run_584d58f3faf2/journal.jsonl",
+    "scan_id": "scan_6c25f81c74f0"
+   },
+   "run_id": "run_584d58f3faf2",
+   "llm": {
+    "calls_detail": [
+     {
+      "phase": "spec",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 453
+     },
+     {
+      "phase": "observed",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 614
+     }
+    ],
+    "rejected": {
+     "params_mismatch": 1,
+     "expectation_not_supported_by_spec_or_observation": 5,
+     "op_unknown": 1
+    },
+    "proposals": 16,
+    "new_registered": 4
+   }
+  },
+  {
+   "method": "llm",
+   "case_id": "unseen-amber-23",
+   "seed": 1,
+   "repeat": 0,
+   "diagnosis": {
+    "review_owner": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "object_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "extra_note": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "field_exposure",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "shared_in_mine": {
+     "category": "examined_no_deviation",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "assessment_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:object_authz:review_read:instructor:r_008a05a6c4647159c324c985",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "instructor",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 148,
+      "probe_planned_seq": 256,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:instructor:r_008a05a6c4647159c324c985",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_8b0cae02dc7a",
+       "evidence_3643dcdd5e11"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:field_exposure:submission_read:learner_b",
+      "family": "field_exposure",
+      "op_id": "submission_read",
+      "role": "learner_b",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 184,
+      "probe_planned_seq": 265,
+      "registered_before_send": true,
+      "probe_exp": "x:submission_read:learner_b:s_1a2b8f1ff1fd42a29755d4c1",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_206b4f510531"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "not_required",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-23__s1__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-23__s1__r0/j/run_a2992e3ac7eb/journal.jsonl",
+    "scan_id": "scan_500cf983b075"
+   },
+   "run_id": "run_a2992e3ac7eb",
+   "llm": {
+    "calls_detail": [
+     {
+      "phase": "spec",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 502
+     },
+     {
+      "phase": "observed",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 706
+     }
+    ],
+    "rejected": {
+     "params_mismatch": 3,
+     "expectation_not_supported_by_spec_or_observation": 4
+    },
+    "proposals": 16,
+    "new_registered": 3
+   }
+  },
+  {
+   "method": "llm",
+   "case_id": "unseen-amber-23",
+   "seed": 1,
+   "repeat": 1,
+   "diagnosis": {
+    "review_owner": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "object_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "extra_note": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "field_exposure",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "shared_in_mine": {
+     "category": "examined_no_deviation",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "assessment_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:object_authz:review_read:instructor:r_008a05a6c4647159c324c985",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "instructor",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 148,
+      "probe_planned_seq": 256,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:instructor:r_008a05a6c4647159c324c985",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_065ca885cbc5",
+       "evidence_2fd24840c45c"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:field_exposure:submission_read:learner_b",
+      "family": "field_exposure",
+      "op_id": "submission_read",
+      "role": "learner_b",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 184,
+      "probe_planned_seq": 265,
+      "registered_before_send": true,
+      "probe_exp": "x:submission_read:learner_b:s_1a2b8f1ff1fd42a29755d4c1",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_b949ee28545a"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "not_required",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-23__s1__r1",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-23__s1__r1/j/run_006bf3bff43e/journal.jsonl",
+    "scan_id": "scan_293e8d4b0796"
+   },
+   "run_id": "run_006bf3bff43e",
+   "llm": {
+    "calls_detail": [
+     {
+      "phase": "spec",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 477
+     },
+     {
+      "phase": "observed",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 584
+     }
+    ],
+    "rejected": {
+     "params_mismatch": 2,
+     "expectation_not_supported_by_spec_or_observation": 5,
+     "op_unknown": 2
+    },
+    "proposals": 16,
+    "new_registered": 3
+   }
+  },
+  {
+   "method": "llm",
+   "case_id": "unseen-amber-23",
+   "seed": 2,
+   "repeat": 0,
+   "diagnosis": {
+    "review_owner": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "object_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "extra_note": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "field_exposure",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "shared_in_mine": {
+     "category": "examined_no_deviation",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "assessment_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:object_authz:review_read:instructor:r_44ab6cce80877b6f71e1f6d2",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "instructor",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 148,
+      "probe_planned_seq": 256,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:instructor:r_44ab6cce80877b6f71e1f6d2",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_553476a21ce4",
+       "evidence_cae8f6b0ac1c"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:field_exposure:submission_read:learner_a",
+      "family": "field_exposure",
+      "op_id": "submission_read",
+      "role": "learner_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 184,
+      "probe_planned_seq": 265,
+      "registered_before_send": true,
+      "probe_exp": "x:submission_read:learner_a:s_3653f8dd9b1f282e4067c358",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_a754f66929f3"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "not_required",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-23__s2__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-23__s2__r0/j/run_508ed8d0b2b2/journal.jsonl",
+    "scan_id": "scan_e40235342d2a"
+   },
+   "run_id": "run_508ed8d0b2b2",
+   "llm": {
+    "calls_detail": [
+     {
+      "phase": "spec",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 528
+     },
+     {
+      "phase": "observed",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 536
+     }
+    ],
+    "rejected": {
+     "params_mismatch": 1,
+     "expectation_not_supported_by_spec_or_observation": 6,
+     "op_method_not_approved": 1
+    },
+    "proposals": 16,
+    "new_registered": 3
+   }
+  },
+  {
+   "method": "llm",
+   "case_id": "unseen-amber-23",
+   "seed": 2,
+   "repeat": 1,
+   "diagnosis": {
+    "review_owner": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "object_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "extra_note": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "field_exposure",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "shared_in_mine": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "assessment_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:list_scope:submission_mine:learner_b",
+      "family": "list_scope",
+      "op_id": "submission_mine",
+      "role": "learner_b",
+      "mode": "discovery_send_after_registration",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "discovery",
+      "registered_seq": 18,
+      "probe_planned_seq": 69,
+      "registered_before_send": true,
+      "probe_exp": "x:submission_mine:learner_b",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_3de20a963270"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "not_required",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:object_authz:review_read:instructor:r_44ab6cce80877b6f71e1f6d2",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "instructor",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 148,
+      "probe_planned_seq": 266,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:instructor:r_44ab6cce80877b6f71e1f6d2",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_8360db7a8b7b",
+       "evidence_727d8242dacf"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:field_exposure:submission_read:learner_a",
+      "family": "field_exposure",
+      "op_id": "submission_read",
+      "role": "learner_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 184,
+      "probe_planned_seq": 275,
+      "registered_before_send": true,
+      "probe_exp": "x:submission_read:learner_a:s_3653f8dd9b1f282e4067c358",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_b17ae2800f39"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "not_required",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-23__s2__r1",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-23__s2__r1/j/run_694cc1b44de3/journal.jsonl",
+    "scan_id": "scan_bd64df6f0296"
+   },
+   "run_id": "run_694cc1b44de3",
+   "llm": {
+    "calls_detail": [
+     {
+      "phase": "spec",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 471
+     },
+     {
+      "phase": "observed",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 778
+     }
+    ],
+    "rejected": {
+     "expectation_not_supported_by_spec_or_observation": 3,
+     "params_mismatch": 2
+    },
+    "proposals": 16,
+    "new_registered": 4
+   }
+  },
+  {
+   "method": "llm",
+   "case_id": "unseen-amber-51",
+   "seed": 0,
+   "repeat": 0,
+   "diagnosis": {},
+   "trace": {
+    "findings": [],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-51__s0__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-51__s0__r0/j/run_6feb45c2395f/journal.jsonl",
+    "scan_id": "scan_365f4e1ab403"
+   },
+   "run_id": "run_6feb45c2395f",
+   "llm": {
+    "calls_detail": [
+     {
+      "phase": "spec",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 525
+     },
+     {
+      "phase": "observed",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 678
+     }
+    ],
+    "rejected": {
+     "expectation_not_supported_by_spec_or_observation": 5,
+     "op_method_not_approved": 1
+    },
+    "proposals": 16,
+    "new_registered": 2
+   }
+  },
+  {
+   "method": "llm",
+   "case_id": "unseen-amber-51",
+   "seed": 0,
+   "repeat": 1,
+   "diagnosis": {},
+   "trace": {
+    "findings": [],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-51__s0__r1",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-51__s0__r1/j/run_2de625ffcb9c/journal.jsonl",
+    "scan_id": "scan_3c73f7c85831"
+   },
+   "run_id": "run_2de625ffcb9c",
+   "llm": {
+    "calls_detail": [
+     {
+      "phase": "spec",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 800
+     },
+     {
+      "phase": "observed",
+      "outcome": "unparsed",
+      "reason": "invalid_json",
+      "output_tokens": 800
+     }
+    ],
+    "rejected": {
+     "expectation_not_supported_by_spec_or_observation": 3
+    },
+    "proposals": 8,
+    "new_registered": 3
+   }
+  },
+  {
+   "method": "llm",
+   "case_id": "unseen-amber-51",
+   "seed": 1,
+   "repeat": 0,
+   "diagnosis": {},
+   "trace": {
+    "findings": [],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-51__s1__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-51__s1__r0/j/run_7f6329ce481c/journal.jsonl",
+    "scan_id": "scan_2f48f28450d5"
+   },
+   "run_id": "run_7f6329ce481c",
+   "llm": {
+    "calls_detail": [
+     {
+      "phase": "spec",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 800
+     },
+     {
+      "phase": "observed",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 800
+     }
+    ],
+    "rejected": {
+     "expectation_not_supported_by_spec_or_observation": 5,
+     "op_method_not_approved": 1
+    },
+    "proposals": 16,
+    "new_registered": 2
+   }
+  },
+  {
+   "method": "llm",
+   "case_id": "unseen-amber-51",
+   "seed": 1,
+   "repeat": 1,
+   "diagnosis": {},
+   "trace": {
+    "findings": [],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-51__s1__r1",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-51__s1__r1/j/run_863c740f6d2f/journal.jsonl",
+    "scan_id": "scan_6e75a8e73211"
+   },
+   "run_id": "run_863c740f6d2f",
+   "llm": {
+    "calls_detail": [
+     {
+      "phase": "spec",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 542
+     },
+     {
+      "phase": "observed",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 800
+     }
+    ],
+    "rejected": {
+     "expectation_not_supported_by_spec_or_observation": 5
+    },
+    "proposals": 16,
+    "new_registered": 3
+   }
+  },
+  {
+   "method": "llm",
+   "case_id": "unseen-amber-51",
+   "seed": 2,
+   "repeat": 0,
+   "diagnosis": {},
+   "trace": {
+    "findings": [],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-51__s2__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-51__s2__r0/j/run_677a02fdc0ba/journal.jsonl",
+    "scan_id": "scan_9da391e1663b"
+   },
+   "run_id": "run_677a02fdc0ba",
+   "llm": {
+    "calls_detail": [
+     {
+      "phase": "spec",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 692
+     },
+     {
+      "phase": "observed",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 800
+     }
+    ],
+    "rejected": {
+     "expectation_not_supported_by_spec_or_observation": 5
+    },
+    "proposals": 16,
+    "new_registered": 3
+   }
+  },
+  {
+   "method": "llm",
+   "case_id": "unseen-amber-51",
+   "seed": 2,
+   "repeat": 1,
+   "diagnosis": {},
+   "trace": {
+    "findings": [],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-51__s2__r1",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-51__s2__r1/j/run_16334c8f0807/journal.jsonl",
+    "scan_id": "scan_2d1a6438ccbc"
+   },
+   "run_id": "run_16334c8f0807",
+   "llm": {
+    "calls_detail": [
+     {
+      "phase": "spec",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 571
+     },
+     {
+      "phase": "observed",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 800
+     }
+    ],
+    "rejected": {
+     "expectation_not_supported_by_spec_or_observation": 5
+    },
+    "proposals": 16,
+    "new_registered": 2
+   }
+  },
+  {
+   "method": "llm",
+   "case_id": "unseen-amber-86",
+   "seed": 0,
+   "repeat": 0,
+   "diagnosis": {
+    "capacity_anonymous": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "unauth_access",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "totals_role": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "function_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "coordinator_list": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "household_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:unauth_access:capacity_summary:-",
+      "family": "unauth_access",
+      "op_id": "capacity_summary",
+      "role": "anonymous",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 5,
+      "probe_planned_seq": 329,
+      "registered_before_send": true,
+      "probe_exp": "x:capacity_summary:anonymous",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_752fc2d23824",
+       "evidence_4f40a16cb353"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_a",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 57,
+      "probe_planned_seq": 266,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_a",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_24302f1e8677",
+       "evidence_01116109a73c"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:list_scope:application_list:coordinator",
+      "family": "list_scope",
+      "op_id": "application_list",
+      "role": "coordinator",
+      "mode": "confirm",
+      "meaning": "post_registration_verification",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "confirm",
+      "registered_seq": 143,
+      "probe_planned_seq": 149,
+      "registered_before_send": true,
+      "probe_exp": "x:application_list:coordinator~c4aa456e9",
+      "prior_exp_id": "x:application_list:coordinator",
+      "evidence_ids": [
+       "evidence_a914e04a6d46"
+      ],
+      "prior_evidence_id": "evidence_636837bcdc5b",
+      "control_state": "not_required",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-86__s0__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-86__s0__r0/j/run_e10bf3524e77/journal.jsonl",
+    "scan_id": "scan_443513a4fa75"
+   },
+   "run_id": "run_e10bf3524e77",
+   "llm": {
+    "calls_detail": [
+     {
+      "phase": "spec",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 800
+     },
+     {
+      "phase": "observed",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 782
+     }
+    ],
+    "rejected": {
+     "expectation_not_supported_by_spec_or_observation": 10
+    },
+    "proposals": 16,
+    "new_registered": 2
+   }
+  },
+  {
+   "method": "llm",
+   "case_id": "unseen-amber-86",
+   "seed": 0,
+   "repeat": 1,
+   "diagnosis": {
+    "capacity_anonymous": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "unauth_access",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "totals_role": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "function_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "coordinator_list": {
+     "category": "examined_no_deviation",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "household_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:unauth_access:capacity_summary:-",
+      "family": "unauth_access",
+      "op_id": "capacity_summary",
+      "role": "anonymous",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 5,
+      "probe_planned_seq": 312,
+      "registered_before_send": true,
+      "probe_exp": "x:capacity_summary:anonymous",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_5ad11e0840ca",
+       "evidence_3e569bd00511"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_a",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 59,
+      "probe_planned_seq": 249,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_a",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_54d2e1d00e91",
+       "evidence_e0bb92c037f5"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-86__s0__r1",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-86__s0__r1/j/run_47597724aea5/journal.jsonl",
+    "scan_id": "scan_8284d143d0ad"
+   },
+   "run_id": "run_47597724aea5",
+   "llm": {
+    "calls_detail": [
+     {
+      "phase": "spec",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 800
+     },
+     {
+      "phase": "observed",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 723
+     }
+    ],
+    "rejected": {
+     "expectation_not_supported_by_spec_or_observation": 5
+    },
+    "proposals": 16,
+    "new_registered": 2
+   }
+  },
+  {
+   "method": "llm",
+   "case_id": "unseen-amber-86",
+   "seed": 1,
+   "repeat": 0,
+   "diagnosis": {
+    "capacity_anonymous": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "unauth_access",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "totals_role": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "function_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "coordinator_list": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "household_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:unauth_access:capacity_summary:-",
+      "family": "unauth_access",
+      "op_id": "capacity_summary",
+      "role": "anonymous",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 5,
+      "probe_planned_seq": 323,
+      "registered_before_send": true,
+      "probe_exp": "x:capacity_summary:anonymous",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_64f72baeab66",
+       "evidence_18d8fe2d1120"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_a",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 59,
+      "probe_planned_seq": 260,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_a",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_20eeba1ef1ab",
+       "evidence_bd561bbcb647"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:list_scope:application_list:coordinator",
+      "family": "list_scope",
+      "op_id": "application_list",
+      "role": "coordinator",
+      "mode": "confirm",
+      "meaning": "post_registration_verification",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "confirm",
+      "registered_seq": 145,
+      "probe_planned_seq": 152,
+      "registered_before_send": true,
+      "probe_exp": "x:application_list:coordinator~c4aa456e9",
+      "prior_exp_id": "x:application_list:coordinator",
+      "evidence_ids": [
+       "evidence_78adcee32ab7"
+      ],
+      "prior_evidence_id": "evidence_a072c224e3cc",
+      "control_state": "not_required",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-86__s1__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-86__s1__r0/j/run_6b47bf3ea1cb/journal.jsonl",
+    "scan_id": "scan_97dcfadd945f"
+   },
+   "run_id": "run_6b47bf3ea1cb",
+   "llm": {
+    "calls_detail": [
+     {
+      "phase": "spec",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 718
+     },
+     {
+      "phase": "observed",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 779
+     }
+    ],
+    "rejected": {
+     "expectation_not_supported_by_spec_or_observation": 4,
+     "param_not_observed": 1
+    },
+    "proposals": 16,
+    "new_registered": 3
+   }
+  },
+  {
+   "method": "llm",
+   "case_id": "unseen-amber-86",
+   "seed": 1,
+   "repeat": 1,
+   "diagnosis": {
+    "capacity_anonymous": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "unauth_access",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "totals_role": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "function_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "coordinator_list": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "household_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:unauth_access:capacity_summary:-",
+      "family": "unauth_access",
+      "op_id": "capacity_summary",
+      "role": "anonymous",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 5,
+      "probe_planned_seq": 312,
+      "registered_before_send": true,
+      "probe_exp": "x:capacity_summary:anonymous",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_9578d34acef2",
+       "evidence_75a95d84f1b0"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:list_scope:application_list:coordinator",
+      "family": "list_scope",
+      "op_id": "application_list",
+      "role": "coordinator",
+      "mode": "discovery_send_after_registration",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "discovery",
+      "registered_seq": 16,
+      "probe_planned_seq": 63,
+      "registered_before_send": true,
+      "probe_exp": "x:application_list:coordinator",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_905417b076a3"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "not_required",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_a",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 59,
+      "probe_planned_seq": 249,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_a",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_09fc0a22a2a6",
+       "evidence_e23ce3f2a06c"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-86__s1__r1",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-86__s1__r1/j/run_24e877fe3ab3/journal.jsonl",
+    "scan_id": "scan_f9a327089878"
+   },
+   "run_id": "run_24e877fe3ab3",
+   "llm": {
+    "calls_detail": [
+     {
+      "phase": "spec",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 527
+     },
+     {
+      "phase": "observed",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 800
+     }
+    ],
+    "rejected": {
+     "expectation_not_supported_by_spec_or_observation": 6
+    },
+    "proposals": 16,
+    "new_registered": 2
+   }
+  },
+  {
+   "method": "llm",
+   "case_id": "unseen-amber-86",
+   "seed": 2,
+   "repeat": 0,
+   "diagnosis": {
+    "capacity_anonymous": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "unauth_access",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "totals_role": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "function_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "coordinator_list": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "household_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:unauth_access:capacity_summary:-",
+      "family": "unauth_access",
+      "op_id": "capacity_summary",
+      "role": "anonymous",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 5,
+      "probe_planned_seq": 314,
+      "registered_before_send": true,
+      "probe_exp": "x:capacity_summary:anonymous",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_f3a05b6d89f1",
+       "evidence_ffe2c69a32a9"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:list_scope:application_list:coordinator",
+      "family": "list_scope",
+      "op_id": "application_list",
+      "role": "coordinator",
+      "mode": "discovery_send_after_registration",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "discovery",
+      "registered_seq": 16,
+      "probe_planned_seq": 64,
+      "registered_before_send": true,
+      "probe_exp": "x:application_list:coordinator",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_3f6dcdbc68dd"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "not_required",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_a",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 60,
+      "probe_planned_seq": 251,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_a",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_0bd0f817bfd2",
+       "evidence_c4bac2e2738d"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-86__s2__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-86__s2__r0/j/run_df6c47ba12da/journal.jsonl",
+    "scan_id": "scan_597b2c6e7872"
+   },
+   "run_id": "run_df6c47ba12da",
+   "llm": {
+    "calls_detail": [
+     {
+      "phase": "spec",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 757
+     },
+     {
+      "phase": "observed",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 741
+     }
+    ],
+    "rejected": {
+     "expectation_not_supported_by_spec_or_observation": 5,
+     "param_not_observed": 1
+    },
+    "proposals": 16,
+    "new_registered": 3
+   }
+  },
+  {
+   "method": "llm",
+   "case_id": "unseen-amber-86",
+   "seed": 2,
+   "repeat": 1,
+   "diagnosis": {
+    "capacity_anonymous": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "unauth_access",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "totals_role": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "function_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "coordinator_list": {
+     "category": "examined_no_deviation",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "household_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:unauth_access:capacity_summary:-",
+      "family": "unauth_access",
+      "op_id": "capacity_summary",
+      "role": "anonymous",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 5,
+      "probe_planned_seq": 312,
+      "registered_before_send": true,
+      "probe_exp": "x:capacity_summary:anonymous",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_615be241191b",
+       "evidence_b9a9742f43d5"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_a",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 59,
+      "probe_planned_seq": 249,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_a",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_c949c0de7487",
+       "evidence_5ce81e45995a"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-86__s2__r1",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/llm__unseen-amber-86__s2__r1/j/run_497b0652cb92/journal.jsonl",
+    "scan_id": "scan_355ccd1a8187"
+   },
+   "run_id": "run_497b0652cb92",
+   "llm": {
+    "calls_detail": [
+     {
+      "phase": "spec",
+      "outcome": "parsed",
+      "reason": "",
+      "output_tokens": 652
+     },
+     {
+      "phase": "observed",
+      "outcome": "unparsed",
+      "reason": "invalid_json",
+      "output_tokens": 800
+     }
+    ],
+    "rejected": {
+     "expectation_not_supported_by_spec_or_observation": 3
+    },
+    "proposals": 8,
+    "new_registered": 2
+   }
+  },
+  {
+   "method": "static",
+   "case_id": "unseen-amber-23",
+   "seed": 0,
+   "repeat": 0,
+   "diagnosis": {
+    "review_owner": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "object_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "extra_note": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "field_exposure",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "shared_in_mine": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "assessment_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:object_authz:review_read:instructor:r_19c78df48f4ff31e78de5857",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "instructor",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 143,
+      "probe_planned_seq": 264,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:instructor:r_19c78df48f4ff31e78de5857",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_7aa9eec71ece",
+       "evidence_9b9c221bcee9"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:review_read:learner_a:r_c17c627923c6612f48268673",
+       "x:review_read:learner_b:r_19c78df48f4ff31e78de5857",
+       "x:review_read:learner_c:r_19c78df48f4ff31e78de5857"
+      ]
+     },
+     {
+      "hypothesis_id": "h:object_authz:review_read:learner_b:r_19c78df48f4ff31e78de5857",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "learner_b",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 144,
+      "probe_planned_seq": 291,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:learner_b:r_19c78df48f4ff31e78de5857",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_819cf94a2b30",
+       "evidence_9b9c221bcee9"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:review_read:instructor:r_19c78df48f4ff31e78de5857",
+       "x:review_read:learner_a:r_c17c627923c6612f48268673",
+       "x:review_read:learner_c:r_19c78df48f4ff31e78de5857"
+      ]
+     },
+     {
+      "hypothesis_id": "h:object_authz:review_read:learner_c:r_19c78df48f4ff31e78de5857",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "learner_c",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 145,
+      "probe_planned_seq": 300,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:learner_c:r_19c78df48f4ff31e78de5857",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_8b0ef8f6c90d",
+       "evidence_9b9c221bcee9"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:review_read:instructor:r_19c78df48f4ff31e78de5857",
+       "x:review_read:learner_a:r_c17c627923c6612f48268673",
+       "x:review_read:learner_b:r_19c78df48f4ff31e78de5857"
+      ]
+     },
+     {
+      "hypothesis_id": "h:object_authz:review_read:learner_a:r_c17c627923c6612f48268673",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "learner_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 147,
+      "probe_planned_seq": 273,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:learner_a:r_c17c627923c6612f48268673",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_6b8820f3dae6",
+       "evidence_987653f52cf4"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:review_read:instructor:r_19c78df48f4ff31e78de5857",
+       "x:review_read:learner_b:r_19c78df48f4ff31e78de5857",
+       "x:review_read:learner_c:r_19c78df48f4ff31e78de5857"
+      ]
+     },
+     {
+      "hypothesis_id": "h:field_exposure:submission_read:learner_c",
+      "family": "field_exposure",
+      "op_id": "submission_read",
+      "role": "learner_c",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 179,
+      "probe_planned_seq": 219,
+      "registered_before_send": true,
+      "probe_exp": "x:submission_read:learner_c:s_19488dec4f65d4d9259f4329",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_209f670a692c"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "not_required",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static__unseen-amber-23__s0__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static__unseen-amber-23__s0__r0/j/run_cac0eb0f2b3f/journal.jsonl",
+    "scan_id": "scan_6d87e71fffbd"
+   },
+   "run_id": "run_cac0eb0f2b3f",
+   "llm": null
+  },
+  {
+   "method": "static",
+   "case_id": "unseen-amber-23",
+   "seed": 1,
+   "repeat": 0,
+   "diagnosis": {
+    "review_owner": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "object_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "extra_note": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "field_exposure",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "shared_in_mine": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "assessment_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:object_authz:review_read:instructor:r_008a05a6c4647159c324c985",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "instructor",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 143,
+      "probe_planned_seq": 264,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:instructor:r_008a05a6c4647159c324c985",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_0ec0363b7392",
+       "evidence_2b9d6cca6d2a"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:review_read:learner_a:r_008a05a6c4647159c324c985",
+       "x:review_read:learner_b:r_07d4bedc51431193e6c3f339",
+       "x:review_read:learner_c:r_008a05a6c4647159c324c985"
+      ]
+     },
+     {
+      "hypothesis_id": "h:object_authz:review_read:learner_a:r_008a05a6c4647159c324c985",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "learner_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 144,
+      "probe_planned_seq": 273,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:learner_a:r_008a05a6c4647159c324c985",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_4e7a499e2c43",
+       "evidence_2b9d6cca6d2a"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:review_read:instructor:r_008a05a6c4647159c324c985",
+       "x:review_read:learner_b:r_07d4bedc51431193e6c3f339",
+       "x:review_read:learner_c:r_008a05a6c4647159c324c985"
+      ]
+     },
+     {
+      "hypothesis_id": "h:object_authz:review_read:learner_c:r_008a05a6c4647159c324c985",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "learner_c",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 145,
+      "probe_planned_seq": 300,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:learner_c:r_008a05a6c4647159c324c985",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_6b68961c7b99",
+       "evidence_2b9d6cca6d2a"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:review_read:instructor:r_008a05a6c4647159c324c985",
+       "x:review_read:learner_a:r_008a05a6c4647159c324c985",
+       "x:review_read:learner_b:r_07d4bedc51431193e6c3f339"
+      ]
+     },
+     {
+      "hypothesis_id": "h:object_authz:review_read:learner_b:r_07d4bedc51431193e6c3f339",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "learner_b",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 148,
+      "probe_planned_seq": 282,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:learner_b:r_07d4bedc51431193e6c3f339",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_611dc07561d4",
+       "evidence_b44d7afd48fe"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:review_read:instructor:r_008a05a6c4647159c324c985",
+       "x:review_read:learner_a:r_008a05a6c4647159c324c985",
+       "x:review_read:learner_c:r_008a05a6c4647159c324c985"
+      ]
+     },
+     {
+      "hypothesis_id": "h:field_exposure:submission_read:learner_b",
+      "family": "field_exposure",
+      "op_id": "submission_read",
+      "role": "learner_b",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 179,
+      "probe_planned_seq": 219,
+      "registered_before_send": true,
+      "probe_exp": "x:submission_read:learner_b:s_1a2b8f1ff1fd42a29755d4c1",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_fa2811e35176"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "not_required",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static__unseen-amber-23__s1__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static__unseen-amber-23__s1__r0/j/run_db5382227a30/journal.jsonl",
+    "scan_id": "scan_b5e24a200c68"
+   },
+   "run_id": "run_db5382227a30",
+   "llm": null
+  },
+  {
+   "method": "static",
+   "case_id": "unseen-amber-23",
+   "seed": 2,
+   "repeat": 0,
+   "diagnosis": {
+    "review_owner": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "object_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "extra_note": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "field_exposure",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "shared_in_mine": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "assessment_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:object_authz:review_read:instructor:r_44ab6cce80877b6f71e1f6d2",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "instructor",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 143,
+      "probe_planned_seq": 264,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:instructor:r_44ab6cce80877b6f71e1f6d2",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_01a9af4bce74",
+       "evidence_121eb2549e2c"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:review_read:learner_a:r_44ab6cce80877b6f71e1f6d2",
+       "x:review_read:learner_b:r_44ab6cce80877b6f71e1f6d2",
+       "x:review_read:learner_c:r_64be8049a372db8f6e405d93"
+      ]
+     },
+     {
+      "hypothesis_id": "h:object_authz:review_read:learner_a:r_44ab6cce80877b6f71e1f6d2",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "learner_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 144,
+      "probe_planned_seq": 273,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:learner_a:r_44ab6cce80877b6f71e1f6d2",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_e40b5d7a3286",
+       "evidence_121eb2549e2c"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:review_read:instructor:r_44ab6cce80877b6f71e1f6d2",
+       "x:review_read:learner_b:r_44ab6cce80877b6f71e1f6d2",
+       "x:review_read:learner_c:r_64be8049a372db8f6e405d93"
+      ]
+     },
+     {
+      "hypothesis_id": "h:object_authz:review_read:learner_b:r_44ab6cce80877b6f71e1f6d2",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "learner_b",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 145,
+      "probe_planned_seq": 282,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:learner_b:r_44ab6cce80877b6f71e1f6d2",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_1d2b0e3dc4f3",
+       "evidence_121eb2549e2c"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:review_read:instructor:r_44ab6cce80877b6f71e1f6d2",
+       "x:review_read:learner_a:r_44ab6cce80877b6f71e1f6d2",
+       "x:review_read:learner_c:r_64be8049a372db8f6e405d93"
+      ]
+     },
+     {
+      "hypothesis_id": "h:object_authz:review_read:learner_c:r_64be8049a372db8f6e405d93",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "learner_c",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 148,
+      "probe_planned_seq": 291,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:learner_c:r_64be8049a372db8f6e405d93",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_85aeaaff42ae",
+       "evidence_362da9fd6fc5"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:review_read:instructor:r_44ab6cce80877b6f71e1f6d2",
+       "x:review_read:learner_a:r_44ab6cce80877b6f71e1f6d2",
+       "x:review_read:learner_b:r_44ab6cce80877b6f71e1f6d2"
+      ]
+     },
+     {
+      "hypothesis_id": "h:field_exposure:submission_read:learner_a",
+      "family": "field_exposure",
+      "op_id": "submission_read",
+      "role": "learner_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 179,
+      "probe_planned_seq": 219,
+      "registered_before_send": true,
+      "probe_exp": "x:submission_read:learner_a:s_3653f8dd9b1f282e4067c358",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_756903fa1a47"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "not_required",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static__unseen-amber-23__s2__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static__unseen-amber-23__s2__r0/j/run_06890ea6a7b9/journal.jsonl",
+    "scan_id": "scan_d6dff3b5f24a"
+   },
+   "run_id": "run_06890ea6a7b9",
+   "llm": null
+  },
+  {
+   "method": "static",
+   "case_id": "unseen-amber-51",
+   "seed": 0,
+   "repeat": 0,
+   "diagnosis": {},
+   "trace": {
+    "findings": [],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static__unseen-amber-51__s0__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static__unseen-amber-51__s0__r0/j/run_c7afd57b2527/journal.jsonl",
+    "scan_id": "scan_c00908a6644b"
+   },
+   "run_id": "run_c7afd57b2527",
+   "llm": null
+  },
+  {
+   "method": "static",
+   "case_id": "unseen-amber-51",
+   "seed": 1,
+   "repeat": 0,
+   "diagnosis": {},
+   "trace": {
+    "findings": [],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static__unseen-amber-51__s1__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static__unseen-amber-51__s1__r0/j/run_b20a4020e72f/journal.jsonl",
+    "scan_id": "scan_6ac6fe3cd0bf"
+   },
+   "run_id": "run_b20a4020e72f",
+   "llm": null
+  },
+  {
+   "method": "static",
+   "case_id": "unseen-amber-51",
+   "seed": 2,
+   "repeat": 0,
+   "diagnosis": {},
+   "trace": {
+    "findings": [],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static__unseen-amber-51__s2__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static__unseen-amber-51__s2__r0/j/run_2f94f0dc0150/journal.jsonl",
+    "scan_id": "scan_8b36b5e56272"
+   },
+   "run_id": "run_2f94f0dc0150",
+   "llm": null
+  },
+  {
+   "method": "static",
+   "case_id": "unseen-amber-86",
+   "seed": 0,
+   "repeat": 0,
+   "diagnosis": {
+    "capacity_anonymous": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "unauth_access",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "totals_role": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "function_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "coordinator_list": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "household_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:unauth_access:capacity_summary:-",
+      "family": "unauth_access",
+      "op_id": "capacity_summary",
+      "role": "anonymous",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 5,
+      "probe_planned_seq": 376,
+      "registered_before_send": true,
+      "probe_exp": "x:capacity_summary:anonymous",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_19c83461130b",
+       "evidence_2323eaed8416"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_a",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 55,
+      "probe_planned_seq": 340,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_a",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_908c95ecebed",
+       "evidence_ad5d9f6dbe43"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:management_totals:member_b",
+       "x:management_totals:member_c"
+      ]
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_b",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_b",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 56,
+      "probe_planned_seq": 349,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_b",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_dd9f4150fc91",
+       "evidence_ad5d9f6dbe43"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:management_totals:member_a",
+       "x:management_totals:member_c"
+      ]
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_c",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_c",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 57,
+      "probe_planned_seq": 358,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_c",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_59066328c230",
+       "evidence_ad5d9f6dbe43"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:management_totals:member_a",
+       "x:management_totals:member_b"
+      ]
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static__unseen-amber-86__s0__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static__unseen-amber-86__s0__r0/j/run_e3469ad36df3/journal.jsonl",
+    "scan_id": "scan_464d6ce77044"
+   },
+   "run_id": "run_e3469ad36df3",
+   "llm": null
+  },
+  {
+   "method": "static",
+   "case_id": "unseen-amber-86",
+   "seed": 1,
+   "repeat": 0,
+   "diagnosis": {
+    "capacity_anonymous": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "unauth_access",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "totals_role": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "function_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "coordinator_list": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "household_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:unauth_access:capacity_summary:-",
+      "family": "unauth_access",
+      "op_id": "capacity_summary",
+      "role": "anonymous",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 5,
+      "probe_planned_seq": 376,
+      "registered_before_send": true,
+      "probe_exp": "x:capacity_summary:anonymous",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_84a8b82de58f",
+       "evidence_c853e87ee765"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_a",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 55,
+      "probe_planned_seq": 340,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_a",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_f684610a2711",
+       "evidence_95708172689c"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:management_totals:member_b",
+       "x:management_totals:member_c"
+      ]
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_b",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_b",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 56,
+      "probe_planned_seq": 349,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_b",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_1fa89c9f52ec",
+       "evidence_95708172689c"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:management_totals:member_a",
+       "x:management_totals:member_c"
+      ]
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_c",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_c",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 57,
+      "probe_planned_seq": 358,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_c",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_e4da045dc82d",
+       "evidence_95708172689c"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:management_totals:member_a",
+       "x:management_totals:member_b"
+      ]
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static__unseen-amber-86__s1__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static__unseen-amber-86__s1__r0/j/run_7825d300076d/journal.jsonl",
+    "scan_id": "scan_9704099d96e7"
+   },
+   "run_id": "run_7825d300076d",
+   "llm": null
+  },
+  {
+   "method": "static",
+   "case_id": "unseen-amber-86",
+   "seed": 2,
+   "repeat": 0,
+   "diagnosis": {
+    "capacity_anonymous": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "unauth_access",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "totals_role": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "function_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "coordinator_list": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "household_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:unauth_access:capacity_summary:-",
+      "family": "unauth_access",
+      "op_id": "capacity_summary",
+      "role": "anonymous",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 5,
+      "probe_planned_seq": 376,
+      "registered_before_send": true,
+      "probe_exp": "x:capacity_summary:anonymous",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_8a868dd655b0",
+       "evidence_d37aa6d2cdfc"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_a",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 55,
+      "probe_planned_seq": 340,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_a",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_109bec453e0b",
+       "evidence_84772b354725"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:management_totals:member_b",
+       "x:management_totals:member_c"
+      ]
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_b",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_b",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 56,
+      "probe_planned_seq": 349,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_b",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_c5804f360da5",
+       "evidence_84772b354725"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:management_totals:member_a",
+       "x:management_totals:member_c"
+      ]
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_c",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_c",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 57,
+      "probe_planned_seq": 358,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_c",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_2bcabe136d95",
+       "evidence_84772b354725"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:management_totals:member_a",
+       "x:management_totals:member_b"
+      ]
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static__unseen-amber-86__s2__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static__unseen-amber-86__s2__r0/j/run_802b0e279509/journal.jsonl",
+    "scan_id": "scan_0f1cef7d082c"
+   },
+   "run_id": "run_802b0e279509",
+   "llm": null
+  },
+  {
+   "method": "static_dedup",
+   "case_id": "unseen-amber-23",
+   "seed": 0,
+   "repeat": 0,
+   "diagnosis": {
+    "review_owner": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "object_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "extra_note": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "field_exposure",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "shared_in_mine": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "assessment_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:object_authz:review_read:instructor:r_19c78df48f4ff31e78de5857",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "instructor",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 143,
+      "probe_planned_seq": 264,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:instructor:r_19c78df48f4ff31e78de5857",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_2a60ac1ab6ef",
+       "evidence_ff46ccc9c754"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:field_exposure:submission_read:learner_c",
+      "family": "field_exposure",
+      "op_id": "submission_read",
+      "role": "learner_c",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 179,
+      "probe_planned_seq": 219,
+      "registered_before_send": true,
+      "probe_exp": "x:submission_read:learner_c:s_19488dec4f65d4d9259f4329",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_b48489b17738"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "not_required",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static_dedup__unseen-amber-23__s0__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static_dedup__unseen-amber-23__s0__r0/j/run_fa946b91114e/journal.jsonl",
+    "scan_id": "scan_cd2a1f7a9662"
+   },
+   "run_id": "run_fa946b91114e",
+   "llm": null
+  },
+  {
+   "method": "static_dedup",
+   "case_id": "unseen-amber-23",
+   "seed": 1,
+   "repeat": 0,
+   "diagnosis": {
+    "review_owner": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "object_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "extra_note": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "field_exposure",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "shared_in_mine": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "assessment_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:object_authz:review_read:instructor:r_008a05a6c4647159c324c985",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "instructor",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 143,
+      "probe_planned_seq": 264,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:instructor:r_008a05a6c4647159c324c985",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_015b82e51381",
+       "evidence_bdaf16aa258a"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:field_exposure:submission_read:learner_b",
+      "family": "field_exposure",
+      "op_id": "submission_read",
+      "role": "learner_b",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 179,
+      "probe_planned_seq": 219,
+      "registered_before_send": true,
+      "probe_exp": "x:submission_read:learner_b:s_1a2b8f1ff1fd42a29755d4c1",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_b196c1f6166b"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "not_required",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static_dedup__unseen-amber-23__s1__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static_dedup__unseen-amber-23__s1__r0/j/run_828e3fc7b8df/journal.jsonl",
+    "scan_id": "scan_b357aa985340"
+   },
+   "run_id": "run_828e3fc7b8df",
+   "llm": null
+  },
+  {
+   "method": "static_dedup",
+   "case_id": "unseen-amber-23",
+   "seed": 2,
+   "repeat": 0,
+   "diagnosis": {
+    "review_owner": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "object_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "extra_note": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "field_exposure",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "shared_in_mine": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "assessment_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:object_authz:review_read:instructor:r_44ab6cce80877b6f71e1f6d2",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "instructor",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 143,
+      "probe_planned_seq": 264,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:instructor:r_44ab6cce80877b6f71e1f6d2",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_735e0330e9f5",
+       "evidence_ef12978e5ac1"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:field_exposure:submission_read:learner_a",
+      "family": "field_exposure",
+      "op_id": "submission_read",
+      "role": "learner_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 179,
+      "probe_planned_seq": 219,
+      "registered_before_send": true,
+      "probe_exp": "x:submission_read:learner_a:s_3653f8dd9b1f282e4067c358",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_d9873569c172"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "not_required",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static_dedup__unseen-amber-23__s2__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static_dedup__unseen-amber-23__s2__r0/j/run_9d7b8a0a31e5/journal.jsonl",
+    "scan_id": "scan_ce54dbacfaac"
+   },
+   "run_id": "run_9d7b8a0a31e5",
+   "llm": null
+  },
+  {
+   "method": "static_dedup",
+   "case_id": "unseen-amber-51",
+   "seed": 0,
+   "repeat": 0,
+   "diagnosis": {},
+   "trace": {
+    "findings": [],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static_dedup__unseen-amber-51__s0__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static_dedup__unseen-amber-51__s0__r0/j/run_033bd83618b7/journal.jsonl",
+    "scan_id": "scan_25f5ccbeef02"
+   },
+   "run_id": "run_033bd83618b7",
+   "llm": null
+  },
+  {
+   "method": "static_dedup",
+   "case_id": "unseen-amber-51",
+   "seed": 1,
+   "repeat": 0,
+   "diagnosis": {},
+   "trace": {
+    "findings": [],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static_dedup__unseen-amber-51__s1__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static_dedup__unseen-amber-51__s1__r0/j/run_3a375dc99417/journal.jsonl",
+    "scan_id": "scan_7b24fa41b874"
+   },
+   "run_id": "run_3a375dc99417",
+   "llm": null
+  },
+  {
+   "method": "static_dedup",
+   "case_id": "unseen-amber-51",
+   "seed": 2,
+   "repeat": 0,
+   "diagnosis": {},
+   "trace": {
+    "findings": [],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static_dedup__unseen-amber-51__s2__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static_dedup__unseen-amber-51__s2__r0/j/run_18fb4257ec2b/journal.jsonl",
+    "scan_id": "scan_5ad6d208ea36"
+   },
+   "run_id": "run_18fb4257ec2b",
+   "llm": null
+  },
+  {
+   "method": "static_dedup",
+   "case_id": "unseen-amber-86",
+   "seed": 0,
+   "repeat": 0,
+   "diagnosis": {
+    "capacity_anonymous": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "unauth_access",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "totals_role": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "function_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "coordinator_list": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "household_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:unauth_access:capacity_summary:-",
+      "family": "unauth_access",
+      "op_id": "capacity_summary",
+      "role": "anonymous",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 5,
+      "probe_planned_seq": 358,
+      "registered_before_send": true,
+      "probe_exp": "x:capacity_summary:anonymous",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_63ffde3eb16d",
+       "evidence_afe8324fd2b0"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_a",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 55,
+      "probe_planned_seq": 340,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_a",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_5c543610c6ef",
+       "evidence_93b2c961a62e"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static_dedup__unseen-amber-86__s0__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static_dedup__unseen-amber-86__s0__r0/j/run_57fa871acdb1/journal.jsonl",
+    "scan_id": "scan_7ec61d5ff032"
+   },
+   "run_id": "run_57fa871acdb1",
+   "llm": null
+  },
+  {
+   "method": "static_dedup",
+   "case_id": "unseen-amber-86",
+   "seed": 1,
+   "repeat": 0,
+   "diagnosis": {
+    "capacity_anonymous": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "unauth_access",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "totals_role": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "function_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "coordinator_list": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "household_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:unauth_access:capacity_summary:-",
+      "family": "unauth_access",
+      "op_id": "capacity_summary",
+      "role": "anonymous",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 5,
+      "probe_planned_seq": 358,
+      "registered_before_send": true,
+      "probe_exp": "x:capacity_summary:anonymous",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_4e7d2fea29a1",
+       "evidence_292047c16255"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_a",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 55,
+      "probe_planned_seq": 340,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_a",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_9f9934dab8c5",
+       "evidence_93bdd690c4bd"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static_dedup__unseen-amber-86__s1__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static_dedup__unseen-amber-86__s1__r0/j/run_8b4030a0e412/journal.jsonl",
+    "scan_id": "scan_f42cbfd1011b"
+   },
+   "run_id": "run_8b4030a0e412",
+   "llm": null
+  },
+  {
+   "method": "static_dedup",
+   "case_id": "unseen-amber-86",
+   "seed": 2,
+   "repeat": 0,
+   "diagnosis": {
+    "capacity_anonymous": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "unauth_access",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "totals_role": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "function_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "coordinator_list": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "household_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:unauth_access:capacity_summary:-",
+      "family": "unauth_access",
+      "op_id": "capacity_summary",
+      "role": "anonymous",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 5,
+      "probe_planned_seq": 358,
+      "registered_before_send": true,
+      "probe_exp": "x:capacity_summary:anonymous",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_ded4a1dfc652",
+       "evidence_b41d20f9b281"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_a",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 55,
+      "probe_planned_seq": 340,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_a",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_01205471bb31",
+       "evidence_34fb718e5279"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static_dedup__unseen-amber-86__s2__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/static_dedup__unseen-amber-86__s2__r0/j/run_6f88f783fcfd/journal.jsonl",
+    "scan_id": "scan_b8cb051a428d"
+   },
+   "run_id": "run_6f88f783fcfd",
+   "llm": null
+  },
+  {
+   "method": "adaptive_nodedup",
+   "case_id": "unseen-amber-23",
+   "seed": 0,
+   "repeat": 0,
+   "diagnosis": {
+    "review_owner": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "object_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "extra_note": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "field_exposure",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "shared_in_mine": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "assessment_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:object_authz:review_read:instructor:r_19c78df48f4ff31e78de5857",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "instructor",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 143,
+      "probe_planned_seq": 246,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:instructor:r_19c78df48f4ff31e78de5857",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_cc1bf3a2d691",
+       "evidence_a12505859923"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:review_read:instructor:r_c17c627923c6612f48268673",
+       "x:review_read:learner_b:r_19c78df48f4ff31e78de5857",
+       "x:review_read:learner_c:r_19c78df48f4ff31e78de5857"
+      ]
+     },
+     {
+      "hypothesis_id": "h:object_authz:review_read:learner_b:r_19c78df48f4ff31e78de5857",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "learner_b",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 144,
+      "probe_planned_seq": 255,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:learner_b:r_19c78df48f4ff31e78de5857",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_bcd35174c7c1",
+       "evidence_a12505859923"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:review_read:instructor:r_19c78df48f4ff31e78de5857",
+       "x:review_read:instructor:r_c17c627923c6612f48268673",
+       "x:review_read:learner_c:r_19c78df48f4ff31e78de5857"
+      ]
+     },
+     {
+      "hypothesis_id": "h:object_authz:review_read:learner_c:r_19c78df48f4ff31e78de5857",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "learner_c",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 145,
+      "probe_planned_seq": 264,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:learner_c:r_19c78df48f4ff31e78de5857",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_a848555aa9dd",
+       "evidence_a12505859923"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:review_read:instructor:r_19c78df48f4ff31e78de5857",
+       "x:review_read:instructor:r_c17c627923c6612f48268673",
+       "x:review_read:learner_b:r_19c78df48f4ff31e78de5857"
+      ]
+     },
+     {
+      "hypothesis_id": "h:object_authz:review_read:instructor:r_c17c627923c6612f48268673",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "instructor",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 146,
+      "probe_planned_seq": 372,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:instructor:r_c17c627923c6612f48268673",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_5d5a7b9fad4a",
+       "evidence_b3ff7d806e35"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:review_read:instructor:r_19c78df48f4ff31e78de5857",
+       "x:review_read:learner_b:r_19c78df48f4ff31e78de5857",
+       "x:review_read:learner_c:r_19c78df48f4ff31e78de5857"
+      ]
+     },
+     {
+      "hypothesis_id": "h:field_exposure:submission_read:learner_c",
+      "family": "field_exposure",
+      "op_id": "submission_read",
+      "role": "learner_c",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 179,
+      "probe_planned_seq": 273,
+      "registered_before_send": true,
+      "probe_exp": "x:submission_read:learner_c:s_19488dec4f65d4d9259f4329",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_45e0105f1075"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "not_required",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/adaptive_nodedup__unseen-amber-23__s0__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/adaptive_nodedup__unseen-amber-23__s0__r0/j/run_dc5e429d6520/journal.jsonl",
+    "scan_id": "scan_5732f2e2ee90"
+   },
+   "run_id": "run_dc5e429d6520",
+   "llm": null
+  },
+  {
+   "method": "adaptive_nodedup",
+   "case_id": "unseen-amber-23",
+   "seed": 1,
+   "repeat": 0,
+   "diagnosis": {
+    "review_owner": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "object_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "extra_note": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "field_exposure",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "shared_in_mine": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "assessment_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:object_authz:review_read:instructor:r_008a05a6c4647159c324c985",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "instructor",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 143,
+      "probe_planned_seq": 246,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:instructor:r_008a05a6c4647159c324c985",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_f4dc92116d46",
+       "evidence_a6e92035f2e7"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:review_read:learner_a:r_008a05a6c4647159c324c985",
+       "x:review_read:learner_c:r_008a05a6c4647159c324c985"
+      ]
+     },
+     {
+      "hypothesis_id": "h:object_authz:review_read:learner_a:r_008a05a6c4647159c324c985",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "learner_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 144,
+      "probe_planned_seq": 255,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:learner_a:r_008a05a6c4647159c324c985",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_3bc2daf4e94b",
+       "evidence_a6e92035f2e7"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:review_read:instructor:r_008a05a6c4647159c324c985",
+       "x:review_read:learner_c:r_008a05a6c4647159c324c985"
+      ]
+     },
+     {
+      "hypothesis_id": "h:object_authz:review_read:learner_c:r_008a05a6c4647159c324c985",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "learner_c",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 145,
+      "probe_planned_seq": 264,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:learner_c:r_008a05a6c4647159c324c985",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_02be11e36006",
+       "evidence_a6e92035f2e7"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:review_read:instructor:r_008a05a6c4647159c324c985",
+       "x:review_read:learner_a:r_008a05a6c4647159c324c985"
+      ]
+     },
+     {
+      "hypothesis_id": "h:field_exposure:submission_read:learner_b",
+      "family": "field_exposure",
+      "op_id": "submission_read",
+      "role": "learner_b",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 179,
+      "probe_planned_seq": 273,
+      "registered_before_send": true,
+      "probe_exp": "x:submission_read:learner_b:s_1a2b8f1ff1fd42a29755d4c1",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_fba2791a2815"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "not_required",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [
+     {
+      "hypothesis_id": "h:object_authz:review_read:instructor:r_07d4bedc51431193e6c3f339",
+      "reason": "control_not_run",
+      "evidence_basis": null,
+      "unconfirmed_because": null,
+      "grounded": true
+     }
+    ],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/adaptive_nodedup__unseen-amber-23__s1__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/adaptive_nodedup__unseen-amber-23__s1__r0/j/run_d74d49ba84a3/journal.jsonl",
+    "scan_id": "scan_b653cd4f8fd1"
+   },
+   "run_id": "run_d74d49ba84a3",
+   "llm": null
+  },
+  {
+   "method": "adaptive_nodedup",
+   "case_id": "unseen-amber-23",
+   "seed": 2,
+   "repeat": 0,
+   "diagnosis": {
+    "review_owner": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "object_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "extra_note": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "field_exposure",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "shared_in_mine": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "assessment_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:object_authz:review_read:instructor:r_44ab6cce80877b6f71e1f6d2",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "instructor",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 143,
+      "probe_planned_seq": 246,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:instructor:r_44ab6cce80877b6f71e1f6d2",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_d3c7b64515bf",
+       "evidence_171fc96f753f"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:review_read:instructor:r_64be8049a372db8f6e405d93",
+       "x:review_read:learner_a:r_44ab6cce80877b6f71e1f6d2",
+       "x:review_read:learner_b:r_44ab6cce80877b6f71e1f6d2"
+      ]
+     },
+     {
+      "hypothesis_id": "h:object_authz:review_read:learner_a:r_44ab6cce80877b6f71e1f6d2",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "learner_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 144,
+      "probe_planned_seq": 255,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:learner_a:r_44ab6cce80877b6f71e1f6d2",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_1ae014d0b181",
+       "evidence_171fc96f753f"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:review_read:instructor:r_44ab6cce80877b6f71e1f6d2",
+       "x:review_read:instructor:r_64be8049a372db8f6e405d93",
+       "x:review_read:learner_b:r_44ab6cce80877b6f71e1f6d2"
+      ]
+     },
+     {
+      "hypothesis_id": "h:object_authz:review_read:learner_b:r_44ab6cce80877b6f71e1f6d2",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "learner_b",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 145,
+      "probe_planned_seq": 264,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:learner_b:r_44ab6cce80877b6f71e1f6d2",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_294a96e739cf",
+       "evidence_171fc96f753f"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:review_read:instructor:r_44ab6cce80877b6f71e1f6d2",
+       "x:review_read:instructor:r_64be8049a372db8f6e405d93",
+       "x:review_read:learner_a:r_44ab6cce80877b6f71e1f6d2"
+      ]
+     },
+     {
+      "hypothesis_id": "h:object_authz:review_read:instructor:r_64be8049a372db8f6e405d93",
+      "family": "object_authz",
+      "op_id": "review_read",
+      "role": "instructor",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 146,
+      "probe_planned_seq": 372,
+      "registered_before_send": true,
+      "probe_exp": "x:review_read:instructor:r_64be8049a372db8f6e405d93",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_f672c3a39bac",
+       "evidence_77f8690a01fb"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:review_read:instructor:r_44ab6cce80877b6f71e1f6d2",
+       "x:review_read:learner_a:r_44ab6cce80877b6f71e1f6d2",
+       "x:review_read:learner_b:r_44ab6cce80877b6f71e1f6d2"
+      ]
+     },
+     {
+      "hypothesis_id": "h:field_exposure:submission_read:learner_a",
+      "family": "field_exposure",
+      "op_id": "submission_read",
+      "role": "learner_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 179,
+      "probe_planned_seq": 273,
+      "registered_before_send": true,
+      "probe_exp": "x:submission_read:learner_a:s_3653f8dd9b1f282e4067c358",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_13b9dbcd1e9b"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "not_required",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/adaptive_nodedup__unseen-amber-23__s2__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/adaptive_nodedup__unseen-amber-23__s2__r0/j/run_bd510d61b7a9/journal.jsonl",
+    "scan_id": "scan_19f6494c2ff8"
+   },
+   "run_id": "run_bd510d61b7a9",
+   "llm": null
+  },
+  {
+   "method": "adaptive_nodedup",
+   "case_id": "unseen-amber-51",
+   "seed": 0,
+   "repeat": 0,
+   "diagnosis": {},
+   "trace": {
+    "findings": [],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/adaptive_nodedup__unseen-amber-51__s0__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/adaptive_nodedup__unseen-amber-51__s0__r0/j/run_39f89f3d7fa7/journal.jsonl",
+    "scan_id": "scan_cfcb7dc0e9c7"
+   },
+   "run_id": "run_39f89f3d7fa7",
+   "llm": null
+  },
+  {
+   "method": "adaptive_nodedup",
+   "case_id": "unseen-amber-51",
+   "seed": 1,
+   "repeat": 0,
+   "diagnosis": {},
+   "trace": {
+    "findings": [],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/adaptive_nodedup__unseen-amber-51__s1__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/adaptive_nodedup__unseen-amber-51__s1__r0/j/run_8b26c1874b86/journal.jsonl",
+    "scan_id": "scan_5f3ebca3e6a0"
+   },
+   "run_id": "run_8b26c1874b86",
+   "llm": null
+  },
+  {
+   "method": "adaptive_nodedup",
+   "case_id": "unseen-amber-51",
+   "seed": 2,
+   "repeat": 0,
+   "diagnosis": {},
+   "trace": {
+    "findings": [],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/adaptive_nodedup__unseen-amber-51__s2__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/adaptive_nodedup__unseen-amber-51__s2__r0/j/run_2fd8d7a69931/journal.jsonl",
+    "scan_id": "scan_4bb70588a3c8"
+   },
+   "run_id": "run_2fd8d7a69931",
+   "llm": null
+  },
+  {
+   "method": "adaptive_nodedup",
+   "case_id": "unseen-amber-86",
+   "seed": 0,
+   "repeat": 0,
+   "diagnosis": {
+    "capacity_anonymous": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "unauth_access",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "totals_role": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "function_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "coordinator_list": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "household_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:unauth_access:capacity_summary:-",
+      "family": "unauth_access",
+      "op_id": "capacity_summary",
+      "role": "anonymous",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 5,
+      "probe_planned_seq": 322,
+      "registered_before_send": true,
+      "probe_exp": "x:capacity_summary:anonymous",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_27b11aa8128d",
+       "evidence_cd1d5eaa0376"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_a",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 55,
+      "probe_planned_seq": 241,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_a",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_1a919b3d128a",
+       "evidence_b26879cb1ecd"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:management_totals:member_b",
+       "x:management_totals:member_c"
+      ]
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_b",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_b",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 56,
+      "probe_planned_seq": 250,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_b",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_5498b9431269",
+       "evidence_b26879cb1ecd"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:management_totals:member_a",
+       "x:management_totals:member_c"
+      ]
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_c",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_c",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 57,
+      "probe_planned_seq": 259,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_c",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_a8ed134555fe",
+       "evidence_b26879cb1ecd"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:management_totals:member_a",
+       "x:management_totals:member_b"
+      ]
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/adaptive_nodedup__unseen-amber-86__s0__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/adaptive_nodedup__unseen-amber-86__s0__r0/j/run_eb9235b9cf7a/journal.jsonl",
+    "scan_id": "scan_16f39fc8e11e"
+   },
+   "run_id": "run_eb9235b9cf7a",
+   "llm": null
+  },
+  {
+   "method": "adaptive_nodedup",
+   "case_id": "unseen-amber-86",
+   "seed": 1,
+   "repeat": 0,
+   "diagnosis": {
+    "capacity_anonymous": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "unauth_access",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "totals_role": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "function_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "coordinator_list": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "household_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:unauth_access:capacity_summary:-",
+      "family": "unauth_access",
+      "op_id": "capacity_summary",
+      "role": "anonymous",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 5,
+      "probe_planned_seq": 322,
+      "registered_before_send": true,
+      "probe_exp": "x:capacity_summary:anonymous",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_929e54233781",
+       "evidence_d6b529aef0c4"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_a",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 55,
+      "probe_planned_seq": 241,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_a",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_a96d6054ce21",
+       "evidence_2bd5638d2c14"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:management_totals:member_b",
+       "x:management_totals:member_c"
+      ]
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_b",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_b",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 56,
+      "probe_planned_seq": 250,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_b",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_eb5c97caa36a",
+       "evidence_2bd5638d2c14"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:management_totals:member_a",
+       "x:management_totals:member_c"
+      ]
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_c",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_c",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 57,
+      "probe_planned_seq": 259,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_c",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_84877334dd86",
+       "evidence_2bd5638d2c14"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:management_totals:member_a",
+       "x:management_totals:member_b"
+      ]
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/adaptive_nodedup__unseen-amber-86__s1__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/adaptive_nodedup__unseen-amber-86__s1__r0/j/run_f4b99fe8a60b/journal.jsonl",
+    "scan_id": "scan_dd9f10908375"
+   },
+   "run_id": "run_f4b99fe8a60b",
+   "llm": null
+  },
+  {
+   "method": "adaptive_nodedup",
+   "case_id": "unseen-amber-86",
+   "seed": 2,
+   "repeat": 0,
+   "diagnosis": {
+    "capacity_anonymous": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "unauth_access",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "totals_role": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "function_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "coordinator_list": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "household_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:unauth_access:capacity_summary:-",
+      "family": "unauth_access",
+      "op_id": "capacity_summary",
+      "role": "anonymous",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 5,
+      "probe_planned_seq": 322,
+      "registered_before_send": true,
+      "probe_exp": "x:capacity_summary:anonymous",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_f57a1a19a2d8",
+       "evidence_1ff078b52684"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_a",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 55,
+      "probe_planned_seq": 241,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_a",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_07bd6c8c4657",
+       "evidence_be8a2ffb3d57"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:management_totals:member_b",
+       "x:management_totals:member_c"
+      ]
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_b",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_b",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 56,
+      "probe_planned_seq": 250,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_b",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_8622b1c66a8a",
+       "evidence_be8a2ffb3d57"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:management_totals:member_a",
+       "x:management_totals:member_c"
+      ]
+     },
+     {
+      "hypothesis_id": "h:function_authz:management_totals:member_c",
+      "family": "function_authz",
+      "op_id": "management_totals",
+      "role": "member_c",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "probe",
+      "registered_seq": 57,
+      "probe_planned_seq": 259,
+      "registered_before_send": true,
+      "probe_exp": "x:management_totals:member_c",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_317f1b09efad",
+       "evidence_be8a2ffb3d57"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "passed",
+      "evidence_complete": true,
+      "corroborating_sends": [
+       "x:management_totals:member_a",
+       "x:management_totals:member_b"
+      ]
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/adaptive_nodedup__unseen-amber-86__s2__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/adaptive_nodedup__unseen-amber-86__s2__r0/j/run_e688d187c7f0/journal.jsonl",
+    "scan_id": "scan_e61fb39f246f"
+   },
+   "run_id": "run_e688d187c7f0",
+   "llm": null
+  },
+  {
+   "method": "checklist",
+   "case_id": "unseen-amber-23",
+   "seed": 0,
+   "repeat": 0,
+   "diagnosis": {
+    "review_owner": {
+     "category": "registered_not_examined",
+     "detail": "",
+     "family": "object_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "extra_note": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "field_exposure",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "shared_in_mine": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "assessment_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:field_exposure:submission_read:learner_c",
+      "family": "field_exposure",
+      "op_id": "submission_read",
+      "role": "learner_c",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "control",
+      "registered_seq": 179,
+      "probe_planned_seq": 219,
+      "registered_before_send": true,
+      "probe_exp": "x:submission_read:learner_c:s_19488dec4f65d4d9259f4329",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_2ff0026cc718"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "not_required",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/checklist__unseen-amber-23__s0__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/checklist__unseen-amber-23__s0__r0/j/run_46fbfc5b85e1/journal.jsonl",
+    "scan_id": "scan_b2cbe0f8be6d"
+   },
+   "run_id": "run_46fbfc5b85e1",
+   "llm": null
+  },
+  {
+   "method": "checklist",
+   "case_id": "unseen-amber-23",
+   "seed": 1,
+   "repeat": 0,
+   "diagnosis": {
+    "review_owner": {
+     "category": "registered_not_examined",
+     "detail": "",
+     "family": "object_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "extra_note": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "field_exposure",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "shared_in_mine": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "assessment_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:field_exposure:submission_read:learner_b",
+      "family": "field_exposure",
+      "op_id": "submission_read",
+      "role": "learner_b",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "control",
+      "registered_seq": 179,
+      "probe_planned_seq": 219,
+      "registered_before_send": true,
+      "probe_exp": "x:submission_read:learner_b:s_1a2b8f1ff1fd42a29755d4c1",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_6ae8307b478a"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "not_required",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/checklist__unseen-amber-23__s1__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/checklist__unseen-amber-23__s1__r0/j/run_db6a3fba384d/journal.jsonl",
+    "scan_id": "scan_13d63fa34292"
+   },
+   "run_id": "run_db6a3fba384d",
+   "llm": null
+  },
+  {
+   "method": "checklist",
+   "case_id": "unseen-amber-23",
+   "seed": 2,
+   "repeat": 0,
+   "diagnosis": {
+    "review_owner": {
+     "category": "registered_not_examined",
+     "detail": "",
+     "family": "object_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "extra_note": {
+     "category": "found_evidence_complete",
+     "detail": "",
+     "family": "field_exposure",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "shared_in_mine": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "assessment_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [
+     {
+      "hypothesis_id": "h:field_exposure:submission_read:learner_a",
+      "family": "field_exposure",
+      "op_id": "submission_read",
+      "role": "learner_a",
+      "mode": "probe",
+      "meaning": "post_registration_send",
+      "independent_reproduction": false,
+      "probe_planned_purpose": "control",
+      "registered_seq": 179,
+      "probe_planned_seq": 219,
+      "registered_before_send": true,
+      "probe_exp": "x:submission_read:learner_a:s_3653f8dd9b1f282e4067c358",
+      "prior_exp_id": null,
+      "evidence_ids": [
+       "evidence_9e9ef414eb03"
+      ],
+      "prior_evidence_id": null,
+      "control_state": "not_required",
+      "evidence_complete": true,
+      "corroborating_sends": []
+     }
+    ],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/checklist__unseen-amber-23__s2__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/checklist__unseen-amber-23__s2__r0/j/run_840c2bb18cfc/journal.jsonl",
+    "scan_id": "scan_0fc369ea7cda"
+   },
+   "run_id": "run_840c2bb18cfc",
+   "llm": null
+  },
+  {
+   "method": "checklist",
+   "case_id": "unseen-amber-51",
+   "seed": 0,
+   "repeat": 0,
+   "diagnosis": {},
+   "trace": {
+    "findings": [],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/checklist__unseen-amber-51__s0__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/checklist__unseen-amber-51__s0__r0/j/run_7cfb6c7a4cbe/journal.jsonl",
+    "scan_id": "scan_f49d58cdf2d0"
+   },
+   "run_id": "run_7cfb6c7a4cbe",
+   "llm": null
+  },
+  {
+   "method": "checklist",
+   "case_id": "unseen-amber-51",
+   "seed": 1,
+   "repeat": 0,
+   "diagnosis": {},
+   "trace": {
+    "findings": [],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/checklist__unseen-amber-51__s1__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/checklist__unseen-amber-51__s1__r0/j/run_2e0d04fd2888/journal.jsonl",
+    "scan_id": "scan_ed773aff1a09"
+   },
+   "run_id": "run_2e0d04fd2888",
+   "llm": null
+  },
+  {
+   "method": "checklist",
+   "case_id": "unseen-amber-51",
+   "seed": 2,
+   "repeat": 0,
+   "diagnosis": {},
+   "trace": {
+    "findings": [],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/checklist__unseen-amber-51__s2__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/checklist__unseen-amber-51__s2__r0/j/run_b35479248a36/journal.jsonl",
+    "scan_id": "scan_6ddf41c3d66e"
+   },
+   "run_id": "run_b35479248a36",
+   "llm": null
+  },
+  {
+   "method": "checklist",
+   "case_id": "unseen-amber-86",
+   "seed": 0,
+   "repeat": 0,
+   "diagnosis": {
+    "capacity_anonymous": {
+     "category": "registered_not_examined",
+     "detail": "",
+     "family": "unauth_access",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "totals_role": {
+     "category": "registered_not_examined",
+     "detail": "",
+     "family": "function_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "coordinator_list": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "household_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/checklist__unseen-amber-86__s0__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/checklist__unseen-amber-86__s0__r0/j/run_7dc2e53bf88d/journal.jsonl",
+    "scan_id": "scan_8c05c26585eb"
+   },
+   "run_id": "run_7dc2e53bf88d",
+   "llm": null
+  },
+  {
+   "method": "checklist",
+   "case_id": "unseen-amber-86",
+   "seed": 1,
+   "repeat": 0,
+   "diagnosis": {
+    "capacity_anonymous": {
+     "category": "registered_not_examined",
+     "detail": "",
+     "family": "unauth_access",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "totals_role": {
+     "category": "registered_not_examined",
+     "detail": "",
+     "family": "function_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "coordinator_list": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "household_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/checklist__unseen-amber-86__s1__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/checklist__unseen-amber-86__s1__r0/j/run_d58c80b35b60/journal.jsonl",
+    "scan_id": "scan_b93145767c19"
+   },
+   "run_id": "run_d58c80b35b60",
+   "llm": null
+  },
+  {
+   "method": "checklist",
+   "case_id": "unseen-amber-86",
+   "seed": 2,
+   "repeat": 0,
+   "diagnosis": {
+    "capacity_anonymous": {
+     "category": "registered_not_examined",
+     "detail": "",
+     "family": "unauth_access",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "totals_role": {
+     "category": "registered_not_examined",
+     "detail": "",
+     "family": "function_authz",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "coordinator_list": {
+     "category": "no_hypothesis_for_family",
+     "detail": "",
+     "family": "list_scope",
+     "reachable": true,
+     "spec_grounded": true
+    },
+    "household_access": {
+     "category": "family_outside_system",
+     "detail": "",
+     "family": "other",
+     "reachable": true,
+     "spec_grounded": false
+    }
+   },
+   "trace": {
+    "findings": [],
+    "unsent_verifications": [],
+    "candidates": [],
+    "undetermined": []
+   },
+   "records": {
+    "dir": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/checklist__unseen-amber-86__s2__r0",
+    "journal": "/home/loki/projects/ai-security-audit/reports/stage2_records/research_stage2_unseen-amber_2026-10-24/checklist__unseen-amber-86__s2__r0/j/run_e9997f28c8d6/journal.jsonl",
+    "scan_id": "scan_ab64a9544bdb"
+   },
+   "run_id": "run_e9997f28c8d6",
+   "llm": null
+  }
+ ],
+ "scope_report": {
+  "rules": {
+   "overall": {
+    "flaw_runs": 18,
+    "categories": {
+     "found_evidence_complete": 12,
+     "no_hypothesis_for_family": 6
+    },
+    "found_rate": 0.6667
+   },
+   "in_rule4": {
+    "flaw_runs": 12,
+    "categories": {
+     "found_evidence_complete": 12
+    },
+    "found_rate": 1.0
+   },
+   "in_rule5": {
+    "flaw_runs": 18,
+    "categories": {
+     "found_evidence_complete": 12,
+     "no_hypothesis_for_family": 6
+    },
+    "found_rate": 0.6667
+   },
+   "family:object_authz": {
+    "flaw_runs": 3,
+    "categories": {
+     "found_evidence_complete": 3
+    },
+    "found_rate": 1.0
+   },
+   "family:field_exposure": {
+    "flaw_runs": 3,
+    "categories": {
+     "found_evidence_complete": 3
+    },
+    "found_rate": 1.0
+   },
+   "family:list_scope": {
+    "flaw_runs": 6,
+    "categories": {
+     "no_hypothesis_for_family": 6
+    },
+    "found_rate": 0.0
+   },
+   "ungrounded": {
+    "flaw_runs": 6,
+    "categories": {
+     "family_outside_system": 6
+    },
+    "found_rate": null
+   },
+   "family:unauth_access": {
+    "flaw_runs": 3,
+    "categories": {
+     "found_evidence_complete": 3
+    },
+    "found_rate": 1.0
+   },
+   "family:function_authz": {
+    "flaw_runs": 3,
+    "categories": {
+     "found_evidence_complete": 3
+    },
+    "found_rate": 1.0
+   },
+   "reasons": {}
+  },
+  "llm": {
+   "overall": {
+    "flaw_runs": 36,
+    "categories": {
+     "found_evidence_complete": 29,
+     "examined_no_deviation": 7
+    },
+    "found_rate": 0.8056
+   },
+   "in_rule4": {
+    "flaw_runs": 24,
+    "categories": {
+     "found_evidence_complete": 24
+    },
+    "found_rate": 1.0
+   },
+   "in_rule5": {
+    "flaw_runs": 36,
+    "categories": {
+     "found_evidence_complete": 29,
+     "examined_no_deviation": 7
+    },
+    "found_rate": 0.8056
+   },
+   "family:object_authz": {
+    "flaw_runs": 6,
+    "categories": {
+     "found_evidence_complete": 6
+    },
+    "found_rate": 1.0
+   },
+   "family:field_exposure": {
+    "flaw_runs": 6,
+    "categories": {
+     "found_evidence_complete": 6
+    },
+    "found_rate": 1.0
+   },
+   "family:list_scope": {
+    "flaw_runs": 12,
+    "categories": {
+     "examined_no_deviation": 7,
+     "found_evidence_complete": 5
+    },
+    "found_rate": 0.4167
+   },
+   "ungrounded": {
+    "flaw_runs": 12,
+    "categories": {
+     "family_outside_system": 12
+    },
+    "found_rate": null
+   },
+   "family:unauth_access": {
+    "flaw_runs": 6,
+    "categories": {
+     "found_evidence_complete": 6
+    },
+    "found_rate": 1.0
+   },
+   "family:function_authz": {
+    "flaw_runs": 6,
+    "categories": {
+     "found_evidence_complete": 6
+    },
+    "found_rate": 1.0
+   },
+   "reasons": {}
+  },
+  "static": {
+   "overall": {
+    "flaw_runs": 18,
+    "categories": {
+     "found_evidence_complete": 12,
+     "no_hypothesis_for_family": 6
+    },
+    "found_rate": 0.6667
+   },
+   "in_rule4": {
+    "flaw_runs": 12,
+    "categories": {
+     "found_evidence_complete": 12
+    },
+    "found_rate": 1.0
+   },
+   "in_rule5": {
+    "flaw_runs": 18,
+    "categories": {
+     "found_evidence_complete": 12,
+     "no_hypothesis_for_family": 6
+    },
+    "found_rate": 0.6667
+   },
+   "family:object_authz": {
+    "flaw_runs": 3,
+    "categories": {
+     "found_evidence_complete": 3
+    },
+    "found_rate": 1.0
+   },
+   "family:field_exposure": {
+    "flaw_runs": 3,
+    "categories": {
+     "found_evidence_complete": 3
+    },
+    "found_rate": 1.0
+   },
+   "family:list_scope": {
+    "flaw_runs": 6,
+    "categories": {
+     "no_hypothesis_for_family": 6
+    },
+    "found_rate": 0.0
+   },
+   "ungrounded": {
+    "flaw_runs": 6,
+    "categories": {
+     "family_outside_system": 6
+    },
+    "found_rate": null
+   },
+   "family:unauth_access": {
+    "flaw_runs": 3,
+    "categories": {
+     "found_evidence_complete": 3
+    },
+    "found_rate": 1.0
+   },
+   "family:function_authz": {
+    "flaw_runs": 3,
+    "categories": {
+     "found_evidence_complete": 3
+    },
+    "found_rate": 1.0
+   },
+   "reasons": {}
+  },
+  "static_dedup": {
+   "overall": {
+    "flaw_runs": 18,
+    "categories": {
+     "found_evidence_complete": 12,
+     "no_hypothesis_for_family": 6
+    },
+    "found_rate": 0.6667
+   },
+   "in_rule4": {
+    "flaw_runs": 12,
+    "categories": {
+     "found_evidence_complete": 12
+    },
+    "found_rate": 1.0
+   },
+   "in_rule5": {
+    "flaw_runs": 18,
+    "categories": {
+     "found_evidence_complete": 12,
+     "no_hypothesis_for_family": 6
+    },
+    "found_rate": 0.6667
+   },
+   "family:object_authz": {
+    "flaw_runs": 3,
+    "categories": {
+     "found_evidence_complete": 3
+    },
+    "found_rate": 1.0
+   },
+   "family:field_exposure": {
+    "flaw_runs": 3,
+    "categories": {
+     "found_evidence_complete": 3
+    },
+    "found_rate": 1.0
+   },
+   "family:list_scope": {
+    "flaw_runs": 6,
+    "categories": {
+     "no_hypothesis_for_family": 6
+    },
+    "found_rate": 0.0
+   },
+   "ungrounded": {
+    "flaw_runs": 6,
+    "categories": {
+     "family_outside_system": 6
+    },
+    "found_rate": null
+   },
+   "family:unauth_access": {
+    "flaw_runs": 3,
+    "categories": {
+     "found_evidence_complete": 3
+    },
+    "found_rate": 1.0
+   },
+   "family:function_authz": {
+    "flaw_runs": 3,
+    "categories": {
+     "found_evidence_complete": 3
+    },
+    "found_rate": 1.0
+   },
+   "reasons": {}
+  },
+  "adaptive_nodedup": {
+   "overall": {
+    "flaw_runs": 18,
+    "categories": {
+     "found_evidence_complete": 12,
+     "no_hypothesis_for_family": 6
+    },
+    "found_rate": 0.6667
+   },
+   "in_rule4": {
+    "flaw_runs": 12,
+    "categories": {
+     "found_evidence_complete": 12
+    },
+    "found_rate": 1.0
+   },
+   "in_rule5": {
+    "flaw_runs": 18,
+    "categories": {
+     "found_evidence_complete": 12,
+     "no_hypothesis_for_family": 6
+    },
+    "found_rate": 0.6667
+   },
+   "family:object_authz": {
+    "flaw_runs": 3,
+    "categories": {
+     "found_evidence_complete": 3
+    },
+    "found_rate": 1.0
+   },
+   "family:field_exposure": {
+    "flaw_runs": 3,
+    "categories": {
+     "found_evidence_complete": 3
+    },
+    "found_rate": 1.0
+   },
+   "family:list_scope": {
+    "flaw_runs": 6,
+    "categories": {
+     "no_hypothesis_for_family": 6
+    },
+    "found_rate": 0.0
+   },
+   "ungrounded": {
+    "flaw_runs": 6,
+    "categories": {
+     "family_outside_system": 6
+    },
+    "found_rate": null
+   },
+   "family:unauth_access": {
+    "flaw_runs": 3,
+    "categories": {
+     "found_evidence_complete": 3
+    },
+    "found_rate": 1.0
+   },
+   "family:function_authz": {
+    "flaw_runs": 3,
+    "categories": {
+     "found_evidence_complete": 3
+    },
+    "found_rate": 1.0
+   },
+   "reasons": {}
+  },
+  "checklist": {
+   "overall": {
+    "flaw_runs": 18,
+    "categories": {
+     "registered_not_examined": 9,
+     "found_evidence_complete": 3,
+     "no_hypothesis_for_family": 6
+    },
+    "found_rate": 0.1667
+   },
+   "in_rule4": {
+    "flaw_runs": 12,
+    "categories": {
+     "registered_not_examined": 9,
+     "found_evidence_complete": 3
+    },
+    "found_rate": 0.25
+   },
+   "in_rule5": {
+    "flaw_runs": 18,
+    "categories": {
+     "registered_not_examined": 9,
+     "found_evidence_complete": 3,
+     "no_hypothesis_for_family": 6
+    },
+    "found_rate": 0.1667
+   },
+   "family:object_authz": {
+    "flaw_runs": 3,
+    "categories": {
+     "registered_not_examined": 3
+    },
+    "found_rate": 0.0
+   },
+   "family:field_exposure": {
+    "flaw_runs": 3,
+    "categories": {
+     "found_evidence_complete": 3
+    },
+    "found_rate": 1.0
+   },
+   "family:list_scope": {
+    "flaw_runs": 6,
+    "categories": {
+     "no_hypothesis_for_family": 6
+    },
+    "found_rate": 0.0
+   },
+   "ungrounded": {
+    "flaw_runs": 6,
+    "categories": {
+     "family_outside_system": 6
+    },
+    "found_rate": null
+   },
+   "family:unauth_access": {
+    "flaw_runs": 3,
+    "categories": {
+     "registered_not_examined": 3
+    },
+    "found_rate": 0.0
+   },
+   "family:function_authz": {
+    "flaw_runs": 3,
+    "categories": {
+     "registered_not_examined": 3
+    },
+    "found_rate": 0.0
+   },
+   "reasons": {}
+  }
+ },
+ "report_definitions": {
+  "overall": "到達可能(reachable)かつ仕様に根拠がある欠陥すべて（再現率の分母。型の外の欠陥も含む）",
+  "in_rule4": "overall のうち family が object_authz/function_authz/unauth_access/field_exposure（手順書の『規則の型の内側』）",
+  "in_rule5": "overall のうち family が上記4型＋list_scope（調査システムに仮説の規則がある型）",
+  "ungrounded": "到達可能で、仕様に根拠がない欠陥。確定(所見)は過剰な確定、候補は期待どおり。再現率の分母に含めない",
+  "unreachable": "到達不能(reachable=false)の欠陥。評価の対象外として件数だけ報告する",
+  "categories": "found_evidence_complete=所見あり・証拠一式あり／found_evidence_incomplete=所見ありだが証拠不足／overclaimed=推定の欠陥を確定／candidate_only=逸脱を観測したが確定せず／control_incomplete=対照が完了せず判定不能／examined_no_deviation=実験したが逸脱を観測せず／registered_not_examined=仮説は登録したが実験に至らず／validator_rejected=検証器が却下／unverifiable=検証不能として残した／registered_no_outcome=仮説は登録済みだが結果の状態なし(記録の欠落)／no_hypothesis_for_family=同じ操作の別の型の仮説のみ(LLMを使わない実行)／no_hypothesis=その操作の仮説なし(LLMを使わない実行)／llm_not_used／llm_budget_denied／llm_call_failed／llm_reply_unparsed(解析失敗)／llm_no_proposal_for_op(解析できた返答に提案なし)／llm_proposed_other_check_only(検査型が合わない提案だけ)／rejected_at_concretization(仮説の具体化で却下。理由コードは reasons)／rejected_by_validator(検証器で却下)／family_outside_system=欠陥の型がシステムの語彙に無い。LLMを使う方式の『仮説なし』は上のLLM段階の分類に分かれる",
+  "unit": "カウントは（欠陥 × 実行）の対。案件数ではない。3案件・2ドメイン、うち2案件は同一環境の欠陥あり/なしの対で独立ではない"
+ },
+ "acceptance_text": {
+  "safety_gate": "全条件で 境界逸脱=0、偽陽性=0、過剰な確定=0、正常版の案件で所見=0。1つでも破れば『方式の不合格』として報告し、他の結果は参考値にとどめる",
+  "llm_contribution": "llm と rules の再現率の差（案件平均）が +0.15 以上で、安全ゲートを満たす場合だけ『上乗せあり』。それ未満は『上乗せなし』と報告する",
+  "replan_value": "adaptive と static の再現率の差（案件平均）と重複確認の差を別々に報告する。差が±0.05未満なら『再現率への寄与なし』",
+  "replan_dedup_split": "再計画の効果は重複抑制を揃えた2通り（rules−static_dedup、adaptive_nodedup−static）、重複抑制の効果は再計画を揃えた2通り（rules−adaptive_nodedup、static_dedup−static）で、再現率と重複確認を別々に報告する。差が±0.05未満なら寄与なし。重複削減は成果として報告するが、発見率の向上とは分けて書く",
+  "traceability": "所見ごとの証拠の出どころ（confirm／discovery_send_after_registration／probe）と、登録後の検証が未実行になった理由は、評価の結果ファイル（runs_compact の trace・evidence_origins）と、実行ごとに保存したジャーナル・証拠（records_dir）から追跡できる形で報告する。用語: 『登録後の検証で支持された所見』（mode=confirm。同じ操作の再測定で、独立した再現確認ではない）と『別の送信でも再現した所見』（corroborating_sends。同じ型・操作を別ロールの送信でも確定した所見）を区別して書く",
+  "confirmation_loop": "観測後に作った仮説は、登録後に送る新しい確認実験の結果だけで確定する（登録前の観測は証拠に数えない）。確認実験の計画・実行・確定・再現せず・未実行（候補止まり）・上限で置換せずを方式ごとに報告し、確定の証拠の出どころ（confirm／探索の送信／仮説のための実験）を示す。確認は同じ操作の再測定であり、独立した別の実験ではない（観測後の仮説という選択の偏りは残る）",
+  "llm_failure_handling": "LLM呼出の解析失敗・出力トークンの上限到達は、除外せず実行ごとに数えて報告する。解析失敗の修復・再試行はこの版では行わない（入れる場合は新しい版とし、修復・再試行も max_llm_calls と予算に含める）",
+  "cost_measurement": "OpenRouterの使用額（キーの累計の前後差）と、実行ごとのLLM使用トークン数（入力・出力）を記録する。前後差が取得できなければ未計測と書く",
+  "capability_reporting": "修復済みの制約（list_scopeの具体化・情報不足の判定）と未実証の能力（未知の型の欠陥の発見、LLMの提案能力の一般化）を分けて報告する。overall の再現率（分母 reachable かつ spec_grounded）と、規則の型の内側・型の外・仕様に根拠のない欠陥（候補捕捉と過剰確定を別指標）を別に出す",
+  "prioritization_value": "adaptive/static と checklist の再現率の差を報告する",
+  "negative_results": "改善が無かった場合も、結果と適用限界を報告する（要求仕様 §8 Stage 3）"
+ },
+ "elapsed_s": 487.4,
+ "note": "案件数と実行数は別。同じ環境のシード違い・LLMの繰返しは独立した案件ではない。結果を見てからの基準・係数・ケースの変更は使用済みとして扱う。",
+ "llm_spend_usd": 0.007
+}

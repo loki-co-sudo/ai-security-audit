@@ -41,6 +41,54 @@
     "static"
    ],
    "reuse_count": 0
+  },
+  "unseen-amber-23": {
+   "case_sha": "dd31cd0ea31afb49",
+   "truth_sha": "c3c18cfd8d98b851",
+   "app_sha": "d443a869a4cb4e45",
+   "first_used": "2026-10-24T21:54:08",
+   "system_sha": "2bd94f22ee2b55e6",
+   "methods": [
+    "adaptive_nodedup",
+    "checklist",
+    "llm",
+    "rules",
+    "static",
+    "static_dedup"
+   ],
+   "reuse_count": 0
+  },
+  "unseen-amber-51": {
+   "case_sha": "17792cc40fe7174e",
+   "truth_sha": "39d2316008d8d8b6",
+   "app_sha": "117aac75918a291b",
+   "first_used": "2026-10-24T21:54:08",
+   "system_sha": "2bd94f22ee2b55e6",
+   "methods": [
+    "adaptive_nodedup",
+    "checklist",
+    "llm",
+    "rules",
+    "static",
+    "static_dedup"
+   ],
+   "reuse_count": 0
+  },
+  "unseen-amber-86": {
+   "case_sha": "62affa5f0230be32",
+   "truth_sha": "e90a5ac2d665ad23",
+   "app_sha": "117aac75918a291b",
+   "first_used": "2026-10-24T21:54:08",
+   "system_sha": "2bd94f22ee2b55e6",
+   "methods": [
+    "adaptive_nodedup",
+    "checklist",
+    "llm",
+    "rules",
+    "static",
+    "static_dedup"
+   ],
+   "reuse_count": 0
   }
  }
 }

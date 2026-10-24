@@ -63,3 +63,6 @@ test_screenshots.py
 config.json
 
 # ランチャー（OSごとに異なるため除外しない — 含める）
+
+# Stage 2-3 評価の実行ごとの記録（ジャーナル・証拠。ローカルのみ・大きい）
+reports/stage2_records/
