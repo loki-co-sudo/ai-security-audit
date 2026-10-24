@@ -1,0 +1,138 @@
+{
+ "note": "事後分析（新しいサンプル。評価済みの実行の分解ではない）。採用基準・採点には使わない。",
+ "model": "z-ai/glm-5.3-flash",
+ "settings": {
+  "max_tokens": 800,
+  "reasoning_effort": "low",
+  "max_llm_calls": 2,
+  "prompt_version": "research-propose/1"
+ },
+ "n_runs": 36,
+ "spend_cap_usd": 0.05,
+ "stopped_by_cap": false,
+ "estimated_spend_usd": 0.03786,
+ "spend_usd": 0.0149,
+ "aggregate": {
+  "by_case_family": {
+   "unseen-cobalt-17": {
+    "object_authz": {
+     "found_evidence_complete": 6
+    },
+    "function_authz": {
+     "found_evidence_complete": 6
+    },
+    "list_scope": {
+     "found_evidence_complete": 6
+    },
+    "ungrounded:other": {
+     "family_outside_system": 6
+    }
+   },
+   "unseen-cobalt-42": {
+    "object_authz": {
+     "found_evidence_complete": 6
+    },
+    "function_authz": {
+     "found_evidence_complete": 6
+    },
+    "list_scope": {
+     "found_evidence_complete": 6
+    },
+    "ungrounded:other": {
+     "family_outside_system": 6
+    }
+   },
+   "unseen-amber-23": {
+    "object_authz": {
+     "found_evidence_complete": 6
+    },
+    "field_exposure": {
+     "found_evidence_complete": 6
+    },
+    "list_scope": {
+     "examined_uninformative": 4,
+     "found_evidence_complete": 2
+    },
+    "ungrounded:other": {
+     "family_outside_system": 6
+    }
+   },
+   "unseen-amber-86": {
+    "unauth_access": {
+     "found_evidence_complete": 6
+    },
+    "function_authz": {
+     "found_evidence_complete": 6
+    },
+    "list_scope": {
+     "found_evidence_complete": 5,
+     "examined_no_deviation": 1
+    },
+    "ungrounded:other": {
+     "family_outside_system": 6
+    }
+   }
+  },
+  "reasons": {
+   "examined_uninformative:probe_empty_list_uninformative": 4
+  },
+  "llm_calls": {
+   "runs": 36,
+   "calls": 72,
+   "budget_denied": 0,
+   "call_failed": 0,
+   "unparsed": 0,
+   "unparsed_reasons": {},
+   "at_token_cap": 22,
+   "proposals": 567,
+   "new_registered": 88,
+   "rejected_reasons": {
+    "expectation_not_supported_by_spec_or_observation": 158,
+    "op_method_not_approved": 8,
+    "params_mismatch": 23,
+    "op_unknown": 9,
+    "role_unknown": 2,
+    "basis_clause_mismatch": 3,
+    "op_not_list_scope": 1
+   }
+  },
+  "confirmation": {
+   "probe_origins": {
+    "probe": 942,
+    "discovery": 166,
+    "confirm": 18
+   },
+   "confirmations_planned": 24,
+   "confirmations_run": 18,
+   "confirmed_supported": 6,
+   "confirmation_not_reproduced": 0,
+   "confirmation_not_run": 5,
+   "confirmation_cap_blocked": 0,
+   "confirmation_slots_used": 24,
+   "confirmation_slots_max": 216
+  },
+  "extra": {
+   "salvaged_replies": 7,
+   "undetermined_reasons": {
+    "control_not_run": 18,
+    "probe_empty_list_uninformative": 21
+   },
+   "list_scope_miss_classes": {
+    "found": 19,
+    "only_other_roles": 5
+   },
+   "list_scope_flaw_runs": 24,
+   "list_scope_registered_for_needed_role": 19,
+   "input_tokens": 89011,
+   "outcome": {
+    "supported": 70,
+    "candidates": 5,
+    "refuted": 1017,
+    "requests_used": 1440,
+    "end_reasons": {
+     "budget_exhausted": 36
+    }
+   }
+  }
+ }
+}
