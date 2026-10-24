@@ -1,0 +1,34 @@
+{
+  "authored_on": "2026-10-24",
+  "author": "Codex, separate from the Claude implementation agent; prior project review reports were available. Not a completely independent external evaluator.",
+  "case_ids": [
+    "unseen-cobalt-17",
+    "unseen-cobalt-42",
+    "unseen-cobalt-68"
+  ],
+  "checks": {
+    "research_case_check": "All 3 exit 0. Normal counterpart has expected fewer-than-three-flaws advisory.",
+    "fixture_assertions": 42726,
+    "fixture_scope": "Seeds 0,1,2; all enabled-flaw subsets; roles and documented GET operations; HTTP expiry/method rejection. Author-side checks only.",
+    "research_runs": 0,
+    "grader_runs": 0,
+    "real_llm_calls": 0
+  },
+  "limitations": [
+    "Two application domains and one paired normal counterpart; not three independent domains.",
+    "Synthetic seeded defects establish unseen-case performance, not discovery of previously unknown real-world vulnerabilities.",
+    "reachable in truth means executable with GET and observed identifiers; it does not assert support by frozen planner/validator.",
+    "Case semantics and private author checks must not be read by the implementation agent before evaluation."
+  ],
+  "files_sha256": {
+    "testlab/lab/blind_cases/unseen-cobalt-17.json": "32c026a59d222aec1385645bf7d33028a3e3b2aab159dad263588023f92c0b65",
+    "testlab/lab/blind_cases/unseen-cobalt-42.json": "fd1faba161ddd483548576c171b67de1807d5f49b40c639156d022f31d73ef8a",
+    "testlab/lab/blind_cases/unseen-cobalt-68.json": "6fabc7a45fa82735c126ed356bf3d45d1cb55c2a7cb991a117d4165a168f98e7",
+    "testlab/lab/truth/unseen-cobalt-17.json": "dd2d4bfc68eb4b262c5b29840614e816e731c60f40c235e57d9ff8a5686843b3",
+    "testlab/lab/truth/unseen-cobalt-42.json": "764b61e6785ff0f9ebaef8805fe97c2b00d0079672d04df70307eb1ab2e9afb3",
+    "testlab/lab/truth/unseen-cobalt-68.json": "8cec46dbeea16ea6e6d8fa0b281bd31159bce1b9c4e9a535970200b914963563",
+    "testlab/lab/unseen/cobalt_author_check.py": "2e99dd1c50bfb4d5bc9b5a367d89095991402af508a32ea8f0894b3e1ba121d1",
+    "testlab/lab/unseen/unseen_reservations.py": "db49fd07d3e73fc42e053d00cb6064d25b2e3fc8934602ba8f718b7a6b0c6450",
+    "testlab/lab/unseen/unseen_shipments.py": "cf065995222a2664771978ea57607482f35fee6ada84a1f363d468fa56edd4b8"
+  }
+}
