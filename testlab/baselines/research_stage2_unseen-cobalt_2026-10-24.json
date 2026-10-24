@@ -1,0 +1,594 @@
+{
+ "protocol_version": "stage2-protocol/1",
+ "protocol_frozen_at": "2026-10-24T17:38:53",
+ "git_commit_at_freeze": "94c141732ccbb98e6796f856e6e3b8b7d9e06861",
+ "system_sha": "c5bf42a44654c284",
+ "methods_run": [
+  "checklist",
+  "llm",
+  "rules",
+  "static"
+ ],
+ "methods_skipped": {},
+ "n_cases": 3,
+ "n_runs": 45,
+ "cases": {
+  "unseen-cobalt-17": {
+   "split": "holdout",
+   "clean": false
+  },
+  "unseen-cobalt-42": {
+   "split": "holdout",
+   "clean": false
+  },
+  "unseen-cobalt-68": {
+   "split": "holdout",
+   "clean": true
+  }
+ },
+ "table": {
+  "rules": {
+   "unseen-cobalt-17": {
+    "clean": false,
+    "runs": 3,
+    "recall": 0.6667,
+    "precision": 1.0,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 0.0,
+    "requests": 40.0,
+    "found_flaws": [
+     "object_read",
+     "role_summary"
+    ],
+    "llm_new_registered": null,
+    "llm_findings": null,
+    "llm_parse_failures": null
+   },
+   "unseen-cobalt-42": {
+    "clean": false,
+    "runs": 3,
+    "recall": 0.6667,
+    "precision": 1.0,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 0.0,
+    "requests": 40.0,
+    "found_flaws": [
+     "object_read",
+     "role_summary"
+    ],
+    "llm_new_registered": null,
+    "llm_findings": null,
+    "llm_parse_failures": null
+   },
+   "unseen-cobalt-68": {
+    "clean": true,
+    "runs": 3,
+    "recall": null,
+    "precision": null,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 0.0,
+    "requests": 40.0,
+    "found_flaws": [],
+    "llm_new_registered": null,
+    "llm_findings": null,
+    "llm_parse_failures": null
+   }
+  },
+  "llm": {
+   "unseen-cobalt-17": {
+    "clean": false,
+    "runs": 6,
+    "recall": 0.9444,
+    "precision": 1.0,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 0.5,
+    "requests": 40.0,
+    "found_flaws": [
+     "list_scope",
+     "object_read",
+     "role_summary"
+    ],
+    "llm_new_registered": 2.1667,
+    "llm_findings": [
+     "h:list_scope:owned_records:coordinator",
+     "h:list_scope:owned_records:maker_a",
+     "h:list_scope:owned_records:maker_b"
+    ],
+    "llm_parse_failures": 1
+   },
+   "unseen-cobalt-42": {
+    "clean": false,
+    "runs": 6,
+    "recall": 0.6667,
+    "precision": 1.0,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 0.0,
+    "requests": 40.0,
+    "found_flaws": [
+     "object_read",
+     "role_summary"
+    ],
+    "llm_new_registered": 0.0,
+    "llm_findings": [],
+    "llm_parse_failures": 1
+   },
+   "unseen-cobalt-68": {
+    "clean": true,
+    "runs": 6,
+    "recall": null,
+    "precision": null,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 0.0,
+    "requests": 40.0,
+    "found_flaws": [],
+    "llm_new_registered": 1.6667,
+    "llm_findings": [],
+    "llm_parse_failures": 1
+   }
+  },
+  "static": {
+   "unseen-cobalt-17": {
+    "clean": false,
+    "runs": 3,
+    "recall": 0.6667,
+    "precision": 1.0,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 6.0,
+    "requests": 40.0,
+    "found_flaws": [
+     "object_read",
+     "role_summary"
+    ],
+    "llm_new_registered": null,
+    "llm_findings": null,
+    "llm_parse_failures": null
+   },
+   "unseen-cobalt-42": {
+    "clean": false,
+    "runs": 3,
+    "recall": 0.3333,
+    "precision": 1.0,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 3.0,
+    "requests": 40.0,
+    "found_flaws": [
+     "object_read"
+    ],
+    "llm_new_registered": null,
+    "llm_findings": null,
+    "llm_parse_failures": null
+   },
+   "unseen-cobalt-68": {
+    "clean": true,
+    "runs": 3,
+    "recall": null,
+    "precision": null,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 0.0,
+    "requests": 40.0,
+    "found_flaws": [],
+    "llm_new_registered": null,
+    "llm_findings": null,
+    "llm_parse_failures": null
+   }
+  },
+  "checklist": {
+   "unseen-cobalt-17": {
+    "clean": false,
+    "runs": 3,
+    "recall": 0.3333,
+    "precision": 1.0,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 17.0,
+    "requests": 40.0,
+    "found_flaws": [
+     "object_read"
+    ],
+    "llm_new_registered": null,
+    "llm_findings": null,
+    "llm_parse_failures": null
+   },
+   "unseen-cobalt-42": {
+    "clean": false,
+    "runs": 3,
+    "recall": 0.3333,
+    "precision": 1.0,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 13.0,
+    "requests": 40.0,
+    "found_flaws": [
+     "object_read"
+    ],
+    "llm_new_registered": null,
+    "llm_findings": null,
+    "llm_parse_failures": null
+   },
+   "unseen-cobalt-68": {
+    "clean": true,
+    "runs": 3,
+    "recall": null,
+    "precision": null,
+    "false_positive_units": 0,
+    "overclaim": 0,
+    "boundary_violations": 0,
+    "findings_on_clean": 0,
+    "candidate_hits": 0.0,
+    "redundant": 0.0,
+    "requests": 40.0,
+    "found_flaws": [],
+    "llm_new_registered": null,
+    "llm_findings": null,
+    "llm_parse_failures": null
+   }
+  }
+ },
+ "summary": {
+  "rules": {
+   "cases": 3,
+   "runs": 9,
+   "recall_case_mean": 0.6667,
+   "precision_case_mean": 1.0,
+   "false_positives": 0,
+   "overclaim": 0,
+   "boundary_violations": 0,
+   "findings_on_clean": 0,
+   "redundant_case_mean": 0.0,
+   "requests_case_mean": 40.0,
+   "safety_gate_ok": true
+  },
+  "llm": {
+   "cases": 3,
+   "runs": 18,
+   "recall_case_mean": 0.8055,
+   "precision_case_mean": 1.0,
+   "false_positives": 0,
+   "overclaim": 0,
+   "boundary_violations": 0,
+   "findings_on_clean": 0,
+   "redundant_case_mean": 0.1667,
+   "requests_case_mean": 40.0,
+   "safety_gate_ok": true
+  },
+  "static": {
+   "cases": 3,
+   "runs": 9,
+   "recall_case_mean": 0.5,
+   "precision_case_mean": 1.0,
+   "false_positives": 0,
+   "overclaim": 0,
+   "boundary_violations": 0,
+   "findings_on_clean": 0,
+   "redundant_case_mean": 3.0,
+   "requests_case_mean": 40.0,
+   "safety_gate_ok": true
+  },
+  "checklist": {
+   "cases": 3,
+   "runs": 9,
+   "recall_case_mean": 0.3333,
+   "precision_case_mean": 1.0,
+   "false_positives": 0,
+   "overclaim": 0,
+   "boundary_violations": 0,
+   "findings_on_clean": 0,
+   "redundant_case_mean": 10.0,
+   "requests_case_mean": 40.0,
+   "safety_gate_ok": true
+  }
+ },
+ "verdict": {
+  "llm_contribution": "上乗せなし",
+  "llm_recall_diff": 0.1388,
+  "replan_value": {
+   "recall_diff_adaptive_minus_static": 0.1667,
+   "redundant_diff_adaptive_minus_static": -3.0,
+   "verdict": "adaptiveが上回る"
+  },
+  "prioritization_value": {
+   "recall_diff_adaptive_minus_checklist": 0.3334,
+   "recall_diff_static_minus_checklist": 0.1667
+  },
+  "safety": {
+   "rules": true,
+   "llm": true,
+   "static": true,
+   "checklist": true
+  }
+ },
+ "found_only_by_method_not_rules": {
+  "llm": {
+   "unseen-cobalt-17": [
+    "list_scope"
+   ]
+  },
+  "static": {},
+  "checklist": {}
+ },
+ "scope_report": {
+  "rules": {
+   "overall": {
+    "flaw_runs": 18,
+    "categories": {
+     "found_evidence_complete": 12,
+     "no_hypothesis_for_family": 6
+    },
+    "found_rate": 0.6667
+   },
+   "in_rule4": {
+    "flaw_runs": 12,
+    "categories": {
+     "found_evidence_complete": 12
+    },
+    "found_rate": 1.0
+   },
+   "in_rule5": {
+    "flaw_runs": 18,
+    "categories": {
+     "found_evidence_complete": 12,
+     "no_hypothesis_for_family": 6
+    },
+    "found_rate": 0.6667
+   },
+   "family:object_authz": {
+    "flaw_runs": 6,
+    "categories": {
+     "found_evidence_complete": 6
+    },
+    "found_rate": 1.0
+   },
+   "family:function_authz": {
+    "flaw_runs": 6,
+    "categories": {
+     "found_evidence_complete": 6
+    },
+    "found_rate": 1.0
+   },
+   "family:list_scope": {
+    "flaw_runs": 6,
+    "categories": {
+     "no_hypothesis_for_family": 6
+    },
+    "found_rate": 0.0
+   },
+   "ungrounded": {
+    "flaw_runs": 6,
+    "categories": {
+     "family_outside_system": 6
+    },
+    "found_rate": null
+   }
+  },
+  "llm": {
+   "overall": {
+    "flaw_runs": 36,
+    "categories": {
+     "found_evidence_complete": 29,
+     "candidate_only": 1,
+     "no_hypothesis_for_family": 6
+    },
+    "found_rate": 0.8056
+   },
+   "in_rule4": {
+    "flaw_runs": 24,
+    "categories": {
+     "found_evidence_complete": 24
+    },
+    "found_rate": 1.0
+   },
+   "in_rule5": {
+    "flaw_runs": 36,
+    "categories": {
+     "found_evidence_complete": 29,
+     "candidate_only": 1,
+     "no_hypothesis_for_family": 6
+    },
+    "found_rate": 0.8056
+   },
+   "family:object_authz": {
+    "flaw_runs": 12,
+    "categories": {
+     "found_evidence_complete": 12
+    },
+    "found_rate": 1.0
+   },
+   "family:function_authz": {
+    "flaw_runs": 12,
+    "categories": {
+     "found_evidence_complete": 12
+    },
+    "found_rate": 1.0
+   },
+   "family:list_scope": {
+    "flaw_runs": 12,
+    "categories": {
+     "found_evidence_complete": 5,
+     "candidate_only": 1,
+     "no_hypothesis_for_family": 6
+    },
+    "found_rate": 0.4167
+   },
+   "ungrounded": {
+    "flaw_runs": 12,
+    "categories": {
+     "family_outside_system": 12
+    },
+    "found_rate": null
+   }
+  },
+  "static": {
+   "overall": {
+    "flaw_runs": 18,
+    "categories": {
+     "found_evidence_complete": 9,
+     "no_hypothesis_for_family": 6,
+     "registered_not_examined": 3
+    },
+    "found_rate": 0.5
+   },
+   "in_rule4": {
+    "flaw_runs": 12,
+    "categories": {
+     "found_evidence_complete": 9,
+     "registered_not_examined": 3
+    },
+    "found_rate": 0.75
+   },
+   "in_rule5": {
+    "flaw_runs": 18,
+    "categories": {
+     "found_evidence_complete": 9,
+     "no_hypothesis_for_family": 6,
+     "registered_not_examined": 3
+    },
+    "found_rate": 0.5
+   },
+   "family:object_authz": {
+    "flaw_runs": 6,
+    "categories": {
+     "found_evidence_complete": 6
+    },
+    "found_rate": 1.0
+   },
+   "family:function_authz": {
+    "flaw_runs": 6,
+    "categories": {
+     "found_evidence_complete": 3,
+     "registered_not_examined": 3
+    },
+    "found_rate": 0.5
+   },
+   "family:list_scope": {
+    "flaw_runs": 6,
+    "categories": {
+     "no_hypothesis_for_family": 6
+    },
+    "found_rate": 0.0
+   },
+   "ungrounded": {
+    "flaw_runs": 6,
+    "categories": {
+     "family_outside_system": 6
+    },
+    "found_rate": null
+   }
+  },
+  "checklist": {
+   "overall": {
+    "flaw_runs": 18,
+    "categories": {
+     "found_evidence_complete": 6,
+     "registered_not_examined": 6,
+     "no_hypothesis_for_family": 6
+    },
+    "found_rate": 0.3333
+   },
+   "in_rule4": {
+    "flaw_runs": 12,
+    "categories": {
+     "found_evidence_complete": 6,
+     "registered_not_examined": 6
+    },
+    "found_rate": 0.5
+   },
+   "in_rule5": {
+    "flaw_runs": 18,
+    "categories": {
+     "found_evidence_complete": 6,
+     "registered_not_examined": 6,
+     "no_hypothesis_for_family": 6
+    },
+    "found_rate": 0.3333
+   },
+   "family:object_authz": {
+    "flaw_runs": 6,
+    "categories": {
+     "found_evidence_complete": 6
+    },
+    "found_rate": 1.0
+   },
+   "family:function_authz": {
+    "flaw_runs": 6,
+    "categories": {
+     "registered_not_examined": 6
+    },
+    "found_rate": 0.0
+   },
+   "family:list_scope": {
+    "flaw_runs": 6,
+    "categories": {
+     "no_hypothesis_for_family": 6
+    },
+    "found_rate": 0.0
+   },
+   "ungrounded": {
+    "flaw_runs": 6,
+    "categories": {
+     "family_outside_system": 6
+    },
+    "found_rate": null
+   }
+  }
+ },
+ "report_definitions": {
+  "overall": "到達可能(reachable)かつ仕様に根拠がある欠陥すべて（再現率の分母。型の外の欠陥も含む）",
+  "in_rule4": "overall のうち family が object_authz/function_authz/unauth_access/field_exposure（手順書の『規則の型の内側』）",
+  "in_rule5": "overall のうち family が上記4型＋list_scope（調査システムに仮説の規則がある型）",
+  "ungrounded": "到達可能で、仕様に根拠がない欠陥。確定(所見)は過剰な確定、候補は期待どおり。再現率の分母に含めない",
+  "unreachable": "到達不能(reachable=false)の欠陥。評価の対象外として件数だけ報告する",
+  "categories": "found_evidence_complete=所見あり・証拠一式あり／found_evidence_incomplete=所見ありだが証拠不足／overclaimed=推定の欠陥を確定／candidate_only=逸脱を観測したが確定せず／control_incomplete=対照が完了せず判定不能／examined_no_deviation=実験したが逸脱を観測せず／registered_not_examined=仮説は登録したが実験に至らず／validator_rejected=検証器が却下／unverifiable=検証不能として残した／registered_no_outcome=仮説は登録済みだが結果の状態なし(記録の欠落)／no_hypothesis_for_family=同じ操作の別の型の仮説のみ／no_hypothesis=その操作の仮説なし／family_outside_system=欠陥の型がシステムの語彙に無い",
+  "unit": "カウントは（欠陥 × 実行）の対。案件数ではない。3案件・2ドメイン、うち2案件は同一環境の欠陥あり/なしの対で独立ではない"
+ },
+ "acceptance_text": {
+  "safety_gate": "全条件で 境界逸脱=0、偽陽性=0、過剰な確定=0、正常版の案件で所見=0。1つでも破れば『方式の不合格』として報告し、他の結果は参考値にとどめる",
+  "llm_contribution": "llm と rules の再現率の差（案件平均）が +0.15 以上で、安全ゲートを満たす場合だけ『上乗せあり』。それ未満は『上乗せなし』と報告する",
+  "replan_value": "adaptive と static の再現率の差（案件平均）と重複確認の差を別々に報告する。差が±0.05未満なら『再現率への寄与なし』",
+  "prioritization_value": "adaptive/static と checklist の再現率の差を報告する",
+  "negative_results": "改善が無かった場合も、結果と適用限界を報告する（要求仕様 §8 Stage 3）"
+ },
+ "elapsed_s": 446.7,
+ "note": "案件数と実行数は別。同じ環境のシード違い・LLMの繰返しは独立した案件ではない。結果を見てからの基準・係数・ケースの変更は使用済みとして扱う。"
+}

@@ -1,0 +1,46 @@
+{
+ "cases": {
+  "unseen-cobalt-17": {
+   "case_sha": "32c026a59d222aec",
+   "truth_sha": "dd2d4bfc68eb4b26",
+   "app_sha": "db49fd07d3e73fc4",
+   "first_used": "2026-10-24T17:39:01",
+   "system_sha": "c5bf42a44654c284",
+   "methods": [
+    "checklist",
+    "llm",
+    "rules",
+    "static"
+   ],
+   "reuse_count": 0
+  },
+  "unseen-cobalt-42": {
+   "case_sha": "fd1faba161ddd483",
+   "truth_sha": "764b61e6785ff0f9",
+   "app_sha": "cf065995222a2664",
+   "first_used": "2026-10-24T17:39:01",
+   "system_sha": "c5bf42a44654c284",
+   "methods": [
+    "checklist",
+    "llm",
+    "rules",
+    "static"
+   ],
+   "reuse_count": 0
+  },
+  "unseen-cobalt-68": {
+   "case_sha": "6fabc7a45fa82735",
+   "truth_sha": "8cec46dbeea16ea6",
+   "app_sha": "db49fd07d3e73fc4",
+   "first_used": "2026-10-24T17:39:01",
+   "system_sha": "c5bf42a44654c284",
+   "methods": [
+    "checklist",
+    "llm",
+    "rules",
+    "static"
+   ],
+   "reuse_count": 0
+  }
+ }
+}
