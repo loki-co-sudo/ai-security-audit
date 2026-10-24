@@ -1,0 +1,66 @@
+{
+  "flaws": [
+    {
+      "flaw_id": "object_read",
+      "family": "object_authz",
+      "op_id": "record_detail",
+      "spec_grounded": true,
+      "reachable": true
+    },
+    {
+      "flaw_id": "role_summary",
+      "family": "function_authz",
+      "op_id": "operations_summary",
+      "spec_grounded": true,
+      "reachable": true
+    },
+    {
+      "flaw_id": "list_scope",
+      "family": "list_scope",
+      "op_id": "billing_invoices",
+      "spec_grounded": true,
+      "reachable": true
+    },
+    {
+      "flaw_id": "preview_access",
+      "family": "other",
+      "op_id": "record_preview",
+      "spec_grounded": false,
+      "reachable": true
+    }
+  ],
+  "non_flaws": [
+    {
+      "family": "object_authz",
+      "op_id": "record_document",
+      "note": "Strict owner check remains even when the detail can be shared."
+    },
+    {
+      "family": "function_authz",
+      "op_id": "operations_settings",
+      "note": "Admin-only setting remains enforced."
+    },
+    {
+      "family": "object_authz",
+      "op_id": "billing_invoice",
+      "note": "Payer-only invoice details stay enforced independently of parcel and invoice-list behavior."
+    }
+  ],
+  "unverifiable": [
+    {
+      "op_id": "record_cancel",
+      "why": "POST is outside T1/T2; fixture responds 405 and does not implement mutation."
+    }
+  ],
+  "env_flaws": [
+    "object_read",
+    "role_summary",
+    "list_scope",
+    "preview_access"
+  ],
+  "app": {
+    "module": "testlab.lab.unseen.unseen_shipments",
+    "class": "App"
+  },
+  "note": "Author-only oracle: previews contain private per-record references; intended policy is owner-only even though public specification omits this rule. An unrelated authenticated account obtaining a reference is a flaw. reachable denotes possible using available GET operations, not support by the frozen hypothesis or validator vocabulary. List scope requires comparison with observed caller identity. Shared detail access (where supported) is intentional and never authorizes owner-only documents. No agent or evaluation has been run. Normal counterpart is paired, not an independent domain."
+}
